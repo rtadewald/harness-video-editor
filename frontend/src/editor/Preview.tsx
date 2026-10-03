@@ -12,6 +12,8 @@ type Props = {
   tocando: boolean
   alternar: () => void
   buscar: (s: number) => void
+  /** Etapa de Cortes: mostra também a posição no arquivo original. */
+  bruto?: number
   insert?: Item
   motion?: Item
   legenda?: string
@@ -86,8 +88,9 @@ export default function Preview(p: Props) {
         >
           {p.tocando ? <Pause className="size-4" /> : <Play className="size-4 translate-x-px" />}
         </button>
-        <span className="w-32 text-[11px] tabular-nums text-fog">
+        <span className="min-w-32 text-[11px] tabular-nums text-fog">
           <b className="font-semibold text-cream">{formatarTempo(p.tempo)}</b> / {formatarTempo(p.duracao)}
+          {p.bruto != null && <span className="ml-2 text-yellow">bruto {formatarTempo(p.bruto)}</span>}
         </span>
       </div>
     </div>

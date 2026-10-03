@@ -1,6 +1,7 @@
 """Projetos em disco: uma pasta por projeto, com projeto.json como fonte de verdade (SPEC §5)."""
 import json
 import re
+import threading
 import unicodedata
 from datetime import datetime
 from pathlib import Path
@@ -8,6 +9,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[2] / 'projetos'
 SAIDA = {'largura': 1080, 'altura': 1920}
 ETAPAS = ['cortes', 'inserts', 'motion', 'legenda']
+_trava = threading.Lock()  # o pipeline roda em outra thread e também grava o projeto.json
 
 
 def slug(nome: str) -> str:
@@ -46,6 +48,7 @@ def criar(id: str, nome: str, fontes: list[dict], briefing: dict) -> dict:
         'chats': {e: [] for e in ETAPAS},
         'historico': [],
         'versoes': [],
+        'pipeline': {'passos': {}, 'erro': None},
     }
     salvar(projeto)
     return projeto
@@ -56,6 +59,15 @@ def salvar(projeto: dict) -> None:
     tmp = arquivo.with_suffix('.tmp')
     tmp.write_text(json.dumps(projeto, ensure_ascii=False, indent=2), encoding='utf-8')
     tmp.replace(arquivo)
+
+
+def atualizar(id: str, mudar) -> dict:
+    """Lê, aplica `mudar(projeto)` e salva, sem perder gravações concorrentes."""
+    with _trava:
+        p = ler(id)
+        mudar(p)
+        salvar(p)
+        return p
 
 
 def ler(id: str) -> dict:

@@ -2,61 +2,21 @@ import { formatarDuracao, formatarTempo, type DadosEditor, type Etapa, type Pala
 import { cn } from '@/lib/utils'
 import type { Sequencia } from './sequencia'
 
-type Props = { etapa: Etapa; dados: DadosEditor; seq: Sequencia; tempo: number; buscar: (s: number) => void }
+type Props = { etapa: Exclude<Etapa, 'cortes'>; dados: DadosEditor; seq: Sequencia; tempo: number; buscar: (s: number) => void }
 
 /** Painel da etapa aberta. Na fase 2 todos mostram dados simulados. */
 export default function Painel({ etapa, dados, seq, tempo, buscar }: Props) {
   return (
     <section className="flex h-full min-h-0 flex-col text-cream">
       <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-        {etapa === 'cortes' && <Transcricao palavras={dados.palavras} seq={seq} tempo={tempo} buscar={buscar} />}
         {etapa === 'legenda' ? (
           <Lista itens={dados.timeline.LEG.map((l) => ({ ...l, rotulo: l.texto }))} seq={seq} tempo={tempo} buscar={buscar} palavras={[]} />
         ) : (
-          etapa !== 'cortes' && <Lista itens={dados.timeline[etapa === 'inserts' ? 'V2' : 'V3']} seq={seq} tempo={tempo} buscar={buscar} palavras={dados.palavras} />
+          <Lista itens={dados.timeline[etapa === 'inserts' ? 'V2' : 'V3']} seq={seq} tempo={tempo} buscar={buscar} palavras={dados.palavras} />
         )}
         {etapa === 'inserts' && <Apoios dados={dados} />}
       </div>
     </section>
-  )
-}
-
-/** Transcrição inteira: o que sai fica riscado. Pausas longas quebram a linha (cada tentativa na sua). */
-function Transcricao({ palavras, seq, tempo, buscar }: { palavras: Palavra[]; seq: Sequencia; tempo: number; buscar: (s: number) => void }) {
-  const linhas: Palavra[][] = []
-  palavras.forEach((p, i) => {
-    if (i === 0 || p.inicio - palavras[i - 1].fim > 0.8) linhas.push([])
-    linhas[linhas.length - 1].push(p)
-  })
-
-  return (
-    <div className="grid gap-3 text-[17px] leading-[1.7] tracking-[-0.01em]">
-      {linhas.map((linha) => (
-        <p key={linha[0].id}>
-          {linha.map((p) => {
-            const ini = seq.fonteParaSaida(p.inicio + 0.001)
-            const fim = seq.fonteParaSaida(p.fim - 0.001)
-            const sai = ini == null
-            const atual = !sai && fim != null && tempo >= ini && tempo < fim
-            return (
-              <span key={p.id}>
-                <button
-                  onClick={() => !sai && buscar(ini + 0.02)}
-                  title={sai ? `${p.id} · cortada` : `${p.id} · ${formatarTempo(ini)}`}
-                  className={cn(
-                    'rounded-[2px] px-0.5 transition-colors',
-                    sai ? 'cursor-default text-fog/45 line-through decoration-coral decoration-[1.5px]' : 'hover:bg-cream/10',
-                    atual && 'bg-yellow text-ink hover:bg-yellow',
-                  )}
-                >
-                  {p.texto}
-                </button>{' '}
-              </span>
-            )
-          })}
-        </p>
-      ))}
-    </div>
   )
 }
 

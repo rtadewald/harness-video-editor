@@ -7,7 +7,7 @@ Editor de vídeo local, controlado por interface web, em que cada etapa da ediç
 - 💡 **Proposta:** detalhe técnico sugerido pelo agente, que pode mudar sem nova aprovação, desde que não contradiga o que foi aprovado.
 - ⏳ **Em aberto:** ainda não decidido.
 
-**Estado:** fases 1 e 2 implementadas; fase 2 aguardando avaliação de Rodrigo (§15). O projeto anterior está em `_legado/` e serve só de referência.
+**Estado:** fases 1, 2, 3a, 3b-0 e 3b-1 implementadas; a 3b-1 (tela de navegação e inspeção dos cortes) aguarda avaliação de Rodrigo (§15). Depois: experimento em branch separada com a timeline vertical só na etapa de Cortes.
 
 ---
 
@@ -53,8 +53,7 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 
 💡 Detalhes:
 - Python gerenciado com `uv`; frontend com `npm`.
-- Tarefas longas (proxy, transcrição, render) rodam em background no próprio processo do backend, uma fila simples. O progresso chega ao frontend por SSE.
-- O chat do agente responde por streaming (SSE).
+- Tarefas longas rodam em background no próprio backend: fila de uma thread (`pipeline.py`), estado de cada passo salvo no `projeto.json`. O frontend consulta o projeto a cada 1 s enquanto algo roda (mais simples que SSE para a PoC). Se o servidor cair no meio, o que ficou pendente recomeça sozinho ao subir.
 - A mídia é servida pelo backend com suporte a range requests, para o player conseguir pular no vídeo.
 - Sem banco de dados: o estado fica em arquivos (ver §5).
 
@@ -93,8 +92,9 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 ```text
 projetos/<slug>/
 ├── projeto.json        # estado: fontes, briefing, timeline, etapas, chats, histórico, versões
-├── transcricao.json    # palavras com id, início, fim (gerado uma vez por fonte)
+├── transcricao.json    # palavras com id, início, fim (refinados) e inicio_whisper/fim_whisper (originais)
 ├── silencios.json
+├── picos.json          # forma de onda real: um pico a cada 5 ms (0–255), para a timeline
 ├── midia/
 │   ├── bruto.<ext>     # original, intocado
 │   ├── apoio/          # vídeos de apoio originais
@@ -134,10 +134,13 @@ projetos/<slug>/
 - **Vídeos de apoio:** zero ou mais, só daquele projeto.
 
 ✅ Em seguida roda sozinho, com barra de progresso por passo:
-1. Inspeção (ffprobe, considerando o metadado de rotação) e geração do **proxy 720p**.
-2. **Transcrição** com timestamp por palavra (MLX Whisper).
-3. **Silêncios** do áudio (`silencedetect` do FFmpeg).
-4. **Sugestão de cortes** pela LLM (ver §8.1).
+1. Inspeção (ffprobe, considerando o metadado de rotação) e geração do **proxy 720p** (em paralelo com o resto).
+2. **Silêncios** do áudio (`silencedetect` do FFmpeg).
+3. **Transcrição** com timestamp por palavra (MLX Whisper), **em pedaços separados pelas pausas ≥ 0,5 s**.
+4. **Alinhamento:** o texto transcrito é realinhado ao áudio com **stable-ts** para apertar o início e o fim de cada palavra. O texto não muda; os tempos originais do Whisper ficam guardados (`inicio_whisper`, `fim_whisper`). Se o alinhamento não bater palavra a palavra, mantém tudo e registra um aviso.
+5. **Sugestão de cortes** pela LLM (ver §8.1).
+
+O passo de silêncios também gera a forma de onda real (`picos.json`).
 
 ✅ Ao terminar, Rodrigo abre a etapa Cortes e já encontra uma primeira versão cortada. Cada passo pode ser refeito manualmente (ex.: "refazer cortes com outro modelo").
 
@@ -177,17 +180,31 @@ projetos/<slug>/
 - Uma LLM escolhe **quais palavras ficam, pelo ID**, e o código reconstrói o texto e os intervalos. Assim, falas idênticas em tentativas diferentes não se confundem, e nada é reescrito nem inventado.
 - O código transforma as palavras mantidas em clipes e puxa as bordas para silêncios reais, para não cortar no meio de fonema.
 - Pausas longas internas são encurtadas, mantendo um respiro natural.
+- ✅ **Pausas e respiros dentro de frases mantidas são preservadas** (Rodrigo: dão clima e tempo para formular a frase). Só pausas **> 2 s** são encurtadas, e sobram **0,8 s**. Os números (`pausa_max`, `respiro`, `folga`) ficam no projeto (`cortes.parametros`) para ajuste. Cortes só acontecem onde há palavras removidas, com 0,1 s de ar nas bordas.
+- 💡 A LLM vê as pausas reais ≥ 0,5 s na transcrição (`[pausa 1.3s]`), o que ajuda a separar tentativas. Ela também devolve **dúvidas** (intervalo + motivo), mantidas e sublinhadas em amarelo no texto.
+- 💡 Bordas: o silêncio mais próximo da borda da palavra, dentro de 0,5 s antes e 0,35 s depois, vira o ponto de corte (o Whisper erra ~0,2 s).
 
-✅ **Como Rodrigo corrige.** São três formas, sempre sincronizadas: mudar em uma atualiza as outras.
+✅ **Tela de Cortes: navegar e inspecionar** (3b-1, decidido com Rodrigo; ele usa isso para apontar erros e iterar o algoritmo de corte):
+- **Timeline no bruto inteiro**, só a trilha do bruto (V2, V3 e LEG só aparecem nas suas etapas, no tempo do vídeo final): forma de onda **real** com zoom até milissegundos; trechos mantidos em menta e removidos em coral listrado; cortes numerados (✂ 1, ✂ 2…); ao aproximar, as palavras aparecem sobre a onda com início e fim.
+- **Nada é renderizado em Cortes.** O player toca o proxy do bruto pulando os trechos removidos; o vídeo final só sai na exportação (fase 4), depois de Rodrigo aprovar. Um botão alterna entre "tocar o resultado" e "tocar o bruto sem pular". Limitação: o pulo é um *seek* do navegador e pode ter um pequeno tranco que o render final não terá.
+- **Texto:** em cada fronteira de corte, uma marca inline com os tempos exatos no bruto e o que foi removido (`✂ 3 · 27,512 → 31,260 · −3,75 s`); tempo de cada palavra ao passar o mouse e num painel de detalhe; **modo preciso** liga o tempo de todas as palavras.
+- 💡 **Atalhos na etapa:** espaço toca/pausa; ←/→ 0,5 s (Shift 5 s, Alt 10 ms); **E** ouve a emenda mais próxima; **B** alterna "tocar resultado" e "tocar bruto"; Ctrl/⌘ + roda do mouse dá zoom na timeline (até 1 ms ≈ 12 px). Parado dentro de um trecho cortado, o player fica onde está (dá para inspecionar o que saiu); o pulo só acontece ao tocar.
+- 💡 **Diagnóstico no detalhe do corte:** a que distância (ms) cada ponta do corte está da palavra vizinha, se entra dentro da palavra (⚠) e se cai numa pausa real do áudio (⚠ se não). A faixa "Whisper" mostra, sob cada palavra, onde o Whisper a tinha marcado.
+- **Referências:** cortes e palavras têm rótulos estáveis (✂ 3, w00091); botão "copiar referência" (`✂3 · 27,512 s · w00091`) para colar no chat. Marcadores com nota ficam para depois.
+- **Ouvir emenda:** botão e atalho em cada corte, tocando ~2 s antes e ~2 s depois com o corte aplicado, com loop opcional.
+
+✅ **Como Rodrigo corrige** (3b-2, só depois de usar a tela acima). São três formas, sempre sincronizadas: mudar em uma atualiza as outras.
 1. **Texto:** transcrição com as palavras cortadas riscadas. Clicar ou selecionar liga e desliga o corte, o que permite escolher outra tentativa da mesma frase.
 2. **Timeline:** clipes com waveform, alças para arrastar as bordas, ajuste fino quadro a quadro pelo teclado e aumento ou redução de respiros.
-3. **Chat:** pedidos em linguagem natural ("volta a primeira tentativa da abertura", "corta mais seco entre 0:12 e 0:20").
+3. **Chat:** pedidos em linguagem natural ("volta a primeira tentativa da abertura", "corta mais seco entre 0:12 e 0:20"). ✅ **Adiado para bem depois** (o chat segue simulado).
 
 ✅ **Reenquadramento:** a saída é sempre 9:16, 1080×1920. Se o bruto for horizontal, um recorte **parado** (sem tracking, sem zoom) é arrastado no preview e vale para o vídeo inteiro. Se o bruto já for vertical, o controle não aparece.
 
 💡 Ferramentas do agente nesta etapa: `ver_transcricao`, `ver_timeline`, `sugerir_cortes` (refaz a seleção inteira), `manter_palavras(ids)`, `remover_palavras(ids)`, `ajustar_borda(clipe, lado, segundos)`, `ajustar_respiro(entre_clipes, segundos)`, `tocar_trecho(inicio, fim)` (posiciona o player).
 
 💡 Representação: cada clipe da V1 guarda o intervalo de palavras que realiza e um ajuste manual de borda (início/fim, em segundos). Ligar ou desligar palavras regenera os clipes, preservando os ajustes manuais dos clipes que continuarem existindo.
+
+✅ **Refazer cortes com IA** (botão na timeline) pede uma nova seleção sem retranscrever. Depois da 3b, as palavras que Rodrigo ligou ou desligou à mão ficam **travadas**: a IA refaz o resto e respeita essas escolhas.
 
 ### 8.2 Inserts (mock na v1)
 
@@ -223,6 +240,7 @@ projetos/<slug>/
 
 ## 11. Agente
 
+✅ **Adiado para depois da fase 4** (decisão de Rodrigo). Até lá o chat segue simulado. Quando vier:
 ✅ **Um agente só**, LangChain. O prompt de sistema e as ferramentas mudam conforme a etapa aberta. Cada etapa tem seu próprio histórico de chat, salvo no projeto.
 ✅ O agente enxerga o estado do projeto (briefing, transcrição, timeline). Tudo que ele altera passa por ferramentas, então aparece na timeline e pode ser desfeito.
 ✅ Transcrições e briefings são **dados, não instruções**: comandos que apareçam dentro de falas são ignorados.
@@ -238,7 +256,7 @@ projetos/<slug>/
 | Seleção de cortes | `google/gemini-3.8-flash` via OpenRouter |
 | Transcrição (bruto e briefing em áudio) | `mlx-community/whisper-large-v3-turbo`, local |
 
-💡 A chave do OpenRouter fica em `backend/.env` (fora do git). A chave antiga está em `_legado/cortes_llm/.env` e precisa ser copiada.
+💡 A chave do OpenRouter fica em `backend/.env` (fora do git). `OPENROUTER_MODEL` no `.env` troca o modelo dos cortes.
 
 ## 13. Preview e exportação
 
@@ -254,6 +272,8 @@ projetos/<slug>/
 - Erros de gravação, tentativas abandonadas e retomadas da mesma fala.
 - Esperas entre tentativas e sobras no início e no fim.
 - Vícios de fala claramente isolados, se o corte não prejudicar a naturalidade.
+
+**Recomeços na mesma frase:** quando a mesma ideia é retomada várias vezes seguidas, mesmo com pouca pausa entre elas ("é X, é Y, é Y completo"), fica só a versão completa e final. O texto resultante deve ler como uma fala corrida, sem trechos repetidos.
 
 **Escolha entre tentativas:** priorizar a **última tentativa válida**. É permitido emendar partes de tentativas diferentes se o texto resultante fizer sentido. "Última" não vale se a tentativa estiver incompleta ou perder informação.
 
@@ -277,15 +297,31 @@ Uma correção pontual num vídeo vale só para aquele vídeo, a menos que Rodri
 |---|---|---|
 | 1. Fundação | `git init`, esqueleto backend + frontend, `dev.sh`, criar/abrir projeto, upload de bruto, briefing e apoios | Criar um projeto pela interface e ver os arquivos na pasta dele |
 | 2. Casca com mocks | Editor completo: etapas, preview, timeline multitrilha, chat, mocks de todas as etapas | Navegar pelas 4 etapas com dados falsos e o chat respondendo |
-| 3. Cortes real | Pipeline automático (proxy, transcrição, silêncios, LLM), edição por texto, timeline e chat, desfazer e versões | Com o bruto de teste, chegar a um corte aprovado por Rodrigo só pela interface |
+| 3a. Cortes: pipeline real | Proxy, transcrição, silêncios e seleção pela LLM rodando ao criar o projeto; preview tocando o corte real; "Refazer cortes com IA" | Rodrigo avalia o corte da IA no player |
+| 3b-0. Teste de transcrição ✅ | Comparou Whisper atual, + alinhador forçado, + stable-ts e Parakeet no áudio real (§16). Adotado: stable-ts como refinamento | Feito |
+| 3b-1. Cortes: navegar e inspecionar (implementada, aguardando avaliação) | A tela descrita em §8.1: timeline do bruto, forma de onda real, milissegundos no texto, ouvir emenda | Rodrigo consegue apontar com precisão onde e como o algoritmo errou |
+| 3b-2. Cortes: edição manual | Ligar/desligar palavras no texto, alças e respiros na timeline, travas manuais, desfazer/refazer e versões | Com o bruto de teste, chegar a um corte aprovado por Rodrigo só pela interface |
 | 4. Exportação | Render FFmpeg a partir do bruto | MP4 1080×1920 exportado, emendas aprovadas no ouvido por Rodrigo |
 
-Depois: Inserts → Motion → Legenda, cada uma com sua própria rodada de decisões.
+Depois: Inserts → Motion → Legenda, cada uma com sua própria rodada de decisões. O agente do chat (antiga 3c) vem bem depois.
+
+💡 Medido na 3a com o bruto de teste (2:02, 4K HEVC, M1 Max): proxy 19 s (em paralelo), silêncios 0,2 s, transcrição por pedaços ~19 s, seleção da LLM 18–42 s (varia muito). Total ≈ 40–60 s.
 
 ## 16. Aprendizados do projeto anterior
 
 Fatos medidos em `_legado/`, úteis para a implementação:
 - **MLX Whisper turbo** transcreveu 122 s de vídeo em ~7 s no M1 Max, com cache. O primeiro uso baixa os pesos (~5 min). A qualidade foi aprovada.
+- ✅ **Transcrever o áudio inteiro de uma vez faz o Whisper fundir tentativas repetidas** (fase 3a, apontado por Rodrigo): "Qual a melhor IA… qual é a melhor IA do mundo" saiu como uma frase só, com "do" esticado por 3 s sobre a pausa, e o corte manteve as duas falas. Transcrevendo **por pedaços entre pausas ≥ 0,5 s**, todas as tentativas aparecem (com 0,7 s ainda sobravam 4 fundidas no bruto de teste). Custo: transcrição de ~11 s para ~19 s. Sinal de alerta: palavra com mais de 1,5 s contendo uma pausa.
+- ✅ **Teste de transcrição (fase 3b-0, no bruto de teste, métricas medidas no próprio áudio, sem ouvido humano):**
+
+  | | Whisper atual | + CTC (ctc-forced-aligner) | **+ stable-ts** (adotado) | Parakeet v3 inteiro | Parakeet v3 por pedaços |
+  |---|---|---|---|---|---|
+  | Tempo | 19 s | +21 s | +4 a 9 s | 94 s | 5 s |
+  | Folga no p90 / pior caso | 230 / 830 ms | 149 / 1190 ms | 120 / 420 ms | 232 / 1110 ms | 256 / 810 ms |
+  | Palavras com folga > 300 ms | 19 | 4 | 4 | 14 | 28 |
+  | Texto igual ao Whisper | 100% | 100% | 100% | 8% | 94% |
+
+  O Parakeet no áudio inteiro funde e "limpa" as repetições (158 de 352 palavras); por pedaços funciona, mas com limites piores e erros de texto ("Because", "Astro"). O CTC dá duração ~0 a palavras curtas (quadros de 20 ms). Os limites melhores deslocam 5–9 de 22 bordas de corte em 0,4–1 s, mas a energia do áudio no ponto do corte quase não muda (1–2 de 22 cortes em cima de fala em todos). API externa não foi necessária. **Ressalva:** um vídeo só; o stable-ts piorou "palavras sem som" (24 vs 12) e "fala fora de palavras" (5,1 s vs 1,6 s), possivelmente por causa do limiar de −35 dB da métrica.
 - O **Whisper às vezes estica palavras** para dentro das pausas: uma palavra curta ("do") chegou a quase 3 s. Por isso as bordas são puxadas para os silêncios do `silencedetect`, com janela de ~0,5 s antes e ~0,35 s depois da borda.
 - **Seleção por ID de palavra** funcionou bem. O Gemini 3.1 Flash Lite deixou várias retomadas óbvias; o Gemini 3.8 Flash acertou muito mais (~17 s e ~US$ 0,03 por vídeo de 2 min).
 - O bruto de teste (`_legado/brutos/melhor ia design.MOV`) é 4K **vertical via metadado de rotação**: as dimensões cruas dizem 3840×2160. É preciso considerar a rotação.
