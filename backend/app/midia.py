@@ -23,3 +23,12 @@ def inspecionar(arquivo: Path) -> dict:
             w, h = h, w
         info |= {'largura': w, 'altura': h, 'fps': video.get('avg_frame_rate')}
     return info
+
+
+def miniatura(video: Path, destino: Path, duracao: float) -> None:
+    """Um quadro do vídeo em JPEG pequeno, para a lista de projetos."""
+    subprocess.run(
+        ['ffmpeg', '-v', 'error', '-y', '-ss', str(min(1.0, duracao / 2)), '-i', str(video),
+         '-frames:v', '1', '-vf', 'scale=360:-2', '-q:v', '4', str(destino)],
+        check=True,
+    )

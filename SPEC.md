@@ -7,7 +7,7 @@ Editor de vídeo local, controlado por interface web, em que cada etapa da ediç
 - 💡 **Proposta:** detalhe técnico sugerido pelo agente, que pode mudar sem nova aprovação, desde que não contradiga o que foi aprovado.
 - ⏳ **Em aberto:** ainda não decidido.
 
-**Estado:** fase 1 implementada, aguardando avaliação de Rodrigo (§15). O projeto anterior está em `_legado/` e serve só de referência.
+**Estado:** fases 1 e 2 implementadas; fase 2 aguardando avaliação de Rodrigo (§15). O projeto anterior está em `_legado/` e serve só de referência.
 
 ---
 
@@ -48,7 +48,7 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 ## 3. Stack e arquitetura
 
 ✅ **Backend:** Python + FastAPI. Concentra IA e vídeo: LangChain, OpenRouter, MLX Whisper, FFmpeg.
-✅ **Frontend:** React + Vite + TypeScript, Tailwind, shadcn/ui, tema escuro.
+✅ **Frontend:** React + Vite + TypeScript, Tailwind, shadcn/ui, com o design system Otto (§7).
 ✅ **Local:** tudo roda no Mac de Rodrigo (Apple Silicon) e sobe com um comando só. Git desde o primeiro commit.
 
 💡 Detalhes:
@@ -143,24 +143,31 @@ projetos/<slug>/
 
 ## 7. Interface
 
-✅ Layout de editor, tema escuro:
+✅ Layout de editor estilo **Premiere**, com a cara do design system **Otto** (`frontend/otto-cinematic-9-design-system/`): cores, tipografia (Manrope + Inter 800), botões, pílulas, eyebrows e a marca de 4 pétalas.
+
+💡 Como o Otto foi aplicado (implementado na fase 2):
+- **Verde profundo** (`#172e2b`, a seção "trust" do Otto) como chrome do app inteiro (início e editor), para o vídeo ter contraste como no Premiere.
+- **Início:** grade de projetos em cartões 9:16 com miniatura do bruto, duração, uma barrinha de progresso por etapa e busca. O primeiro cartão cria projeto.
+- **Creme** (`#faf7ee`) nos diálogos (ex.: novo projeto).
+- **Chat** no creme claro do "workspace" do Otto; ferramentas usadas pelo agente aparecem como as linhas de execução ✓.
+- Cores das trilhas: V1 menta, V2 azul, V3 amarelo, LEG creme, A1 coral. Cabeça de reprodução coral.
+- Tokens em `frontend/src/index.css`; botões (`default` tinta, `cream`, `coral`, `pill`) em `components/ui/button.tsx`.
 
 ```text
-┌──────────┬────────────────────────────────┬──────────────┐
-│ Etapas   │           Preview 9:16         │   Chat do    │
-│          │                                │   agente     │
-│ ● Cortes │                                │  (da etapa   │
-│ ○ Inserts│                                │   aberta)    │
-│ ○ Motion ├────────────────────────────────┤              │
-│ ○ Legenda│  Painel da etapa (ex.: texto)  │              │
-│          ├────────────────────────────────┤              │
-│ Exportar │  Timeline: V3 · V2 · V1 · LEG · A1 (waveform)  │
-└──────────┴────────────────────────────────┴──────────────┘
+┌─ topo: marca · nome do projeto · desfazer/refazer/versões · Exportar ───────────┐
+├──────────┬──────────────────────────────────────────────┬──────────────────────┤
+│ Etapas   │  Painel da etapa (sem     │  Preview 9:16    │  Chat do agente      │
+│ 01 Cortes│  título: texto riscado,   │  + controles     │  (da etapa aberta)   │
+│ 02 Inser.│  listas)                  │                  │                      │
+│ 03 Motion├──────────────────────────────────────────────┤                      │
+│ 04 Leg.  │  Timeline: LEG · V3 · V2 · V1 · A1, régua,   │                      │
+│ Projeto  │  cabeça arrastável, zoom                     │                      │
+└──────────┴──────────────────────────────────────────────┴──────────────────────┘
 ```
 
 ✅ Telas: **lista de projetos** (criar/abrir) → **editor** do projeto.
 ✅ Cada etapa tem seus próprios controles manuais, além do chat.
-⏳ Referência visual específica (Premiere, CapCut, Descript...) ainda não escolhida.
+💡 Atalhos: espaço toca/pausa; ←/→ andam 0,5 s (com shift, 5 s). Clicar numa palavra ou item pula o player para ela.
 
 ## 8. Etapas
 
@@ -287,7 +294,6 @@ Fatos medidos em `_legado/`, úteis para a implementação:
 ## 17. Em aberto
 
 - ⏳ Meta de desempenho (antes: 5 min de bruto processados em até 3 min). Não reconfirmada.
-- ⏳ Referência visual da interface.
 - ⏳ Tudo listado como "em aberto" em Inserts, Motion e Legenda.
 - ⏳ Música, transições e estilo de legenda.
 - ⏳ Aprendizado das correções: como uma correção recorrente vira regra.

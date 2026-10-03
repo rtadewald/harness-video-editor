@@ -67,7 +67,8 @@ def listar() -> list[dict]:
         return []
     projetos = [json.loads(p.read_text(encoding='utf-8')) for p in RAIZ.glob('*/projeto.json')]
     resumo = [
-        {'id': p['id'], 'nome': p['nome'], 'criado_em': p['criado_em'],
+        {'id': p['id'], 'nome': p['nome'], 'criado_em': p['criado_em'], 'etapas': p['etapas'],
+         'apoios': sum(f['papel'] == 'apoio' for f in p['fontes']),
          'duracao': next((f['duracao'] for f in p['fontes'] if f['papel'] == 'bruto'), None)}
         for p in projetos
     ]

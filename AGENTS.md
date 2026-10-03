@@ -7,7 +7,7 @@ Responda em PT-BR, direto. Separe o que existe do que é plano.
 ## Stack
 
 - `backend/`: Python, FastAPI, LangChain, OpenRouter, MLX Whisper, FFmpeg (`uv`).
-- `frontend/`: React, Vite, TypeScript, Tailwind, shadcn/ui.
+- `frontend/`: React, Vite, TypeScript, Tailwind, shadcn/ui. Visual segue o design system Otto (SPEC §7).
 - `projetos/`: dados dos projetos, fora do git.
 - `_legado/`: projeto anterior. Serve só de referência, não é fonte de verdade.
 

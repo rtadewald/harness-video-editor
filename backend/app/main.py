@@ -5,8 +5,9 @@ from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
-from . import midia, projeto
+from . import midia, mocks, projeto
 
 app = FastAPI(title='Harness Video Editor')
 
@@ -79,6 +80,42 @@ def criar(
 @app.get('/api/projetos/{id}')
 def abrir(id: str):
     return _ler(id)
+
+
+@app.get('/api/projetos/{id}/editor')
+def editor(id: str):
+    """Tudo que o editor precisa. Na fase 2, transcrição e timeline são mock."""
+    p = _ler(id)
+    return {'projeto': p, **mocks.editor(p)}
+
+
+class Mensagem(BaseModel):
+    texto: str
+
+
+@app.post('/api/projetos/{id}/chat/{etapa}')
+def conversar(id: str, etapa: str, msg: Mensagem):
+    """Agente fictício: guarda a fala de Rodrigo e uma resposta pronta da etapa."""
+    p = _ler(id)
+    if etapa not in projeto.ETAPAS:
+        raise HTTPException(404, 'Etapa não existe')
+    if not msg.texto.strip():
+        raise HTTPException(422, 'Mensagem vazia')
+    novas = [mocks.mensagem('rodrigo', msg.texto.strip()), mocks.responder(etapa)]
+    p['chats'][etapa] += novas
+    projeto.salvar(p)
+    return novas
+
+
+@app.get('/api/projetos/{id}/miniatura')
+def miniatura(id: str):
+    """Gerada no primeiro pedido e guardada na pasta do projeto."""
+    p = _ler(id)
+    destino = projeto.pasta(id) / 'miniatura.jpg'
+    if not destino.exists():
+        bruto = next(f for f in p['fontes'] if f['papel'] == 'bruto')
+        midia.miniatura(projeto.pasta(id) / bruto['arquivo'], destino, bruto['duracao'])
+    return FileResponse(destino)
 
 
 @app.get('/api/projetos/{id}/arquivos/{caminho:path}')

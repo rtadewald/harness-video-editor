@@ -56,3 +56,36 @@ def test_nao_sai_da_pasta_do_projeto(cliente, video):
         cliente.post('/api/projetos', data={'nome': 'A'}, files={'bruto': ('x.mp4', b, 'video/mp4')})
     assert cliente.get('/api/projetos/a/arquivos/../../etc/passwd').status_code == 404
     assert cliente.get('/api/projetos/..%2F..').status_code == 404
+
+
+def _criar(cliente, video):
+    with video.open('rb') as b:
+        return cliente.post('/api/projetos', data={'nome': 'E'}, files={'bruto': ('x.mp4', b, 'video/mp4')}).json()
+
+
+def test_editor_mock_ancora_em_palavras_existentes(cliente, video):
+    _criar(cliente, video)
+    e = cliente.get('/api/projetos/e/editor').json()
+    ids = [p['id'] for p in e['palavras']]
+    for trilha in e['timeline'].values():
+        for item in trilha:
+            assert ids.index(item['palavra_ini']) <= ids.index(item['palavra_fim'])
+    v1 = e['timeline']['V1']
+    assert all(a['fim'] <= b['inicio'] for a, b in zip(v1, v1[1:]))
+    assert v1[-1]['fim'] <= 1.0  # cabe no bruto de 1 s
+
+
+def test_chat_guarda_historico_por_etapa(cliente, video):
+    _criar(cliente, video)
+    r = cliente.post('/api/projetos/e/chat/cortes', json={'texto': 'volta a primeira tentativa'})
+    assert [m['autor'] for m in r.json()] == ['rodrigo', 'agente']
+    p = cliente.get('/api/projetos/e').json()
+    assert len(p['chats']['cortes']) == 2 and p['chats']['inserts'] == []
+    assert cliente.post('/api/projetos/e/chat/xpto', json={'texto': 'oi'}).status_code == 404
+
+
+def test_miniatura_gerada_uma_vez(cliente, video):
+    _criar(cliente, video)
+    r = cliente.get('/api/projetos/e/miniatura')
+    assert r.status_code == 200 and r.headers['content-type'] == 'image/jpeg'
+    assert (projeto.RAIZ / 'e' / 'miniatura.jpg').exists()

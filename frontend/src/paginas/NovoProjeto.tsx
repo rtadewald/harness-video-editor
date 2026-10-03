@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { criarProjeto } from '@/api'
+import { Marca } from '@/components/Marca'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -32,9 +33,11 @@ export default function NovoProjeto({ aberto, aoFechar }: Props) {
 
   return (
     <Dialog open={aberto} onOpenChange={(v) => !v && !enviando && aoFechar()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>Novo projeto</DialogTitle>
+          <Marca className="mb-3 text-coral" />
+          <p className="eyebrow text-[#56625d]">Novo projeto</p>
+          <DialogTitle>Do bruto ao Reels.</DialogTitle>
           <DialogDescription>Suba o bruto, o briefing e os vídeos de apoio.</DialogDescription>
         </DialogHeader>
 
@@ -58,7 +61,7 @@ export default function NovoProjeto({ aberto, aoFechar }: Props) {
           {enviando && (
             <div className="grid gap-1.5">
               <Progress value={progresso} />
-              <span className="text-xs text-muted-foreground">
+              <span className="text-[11px] text-[#667466]">
                 {progresso < 100 ? `Enviando… ${Math.round(progresso)}%` : 'Lendo os vídeos…'}
               </span>
             </div>
@@ -69,8 +72,8 @@ export default function NovoProjeto({ aberto, aoFechar }: Props) {
             <Button type="button" variant="ghost" onClick={aoFechar} disabled={enviando}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={enviando}>
-              Criar projeto
+            <Button type="submit" disabled={enviando} className="flex-1 justify-between">
+              Criar projeto <span className="seta">↗</span>
             </Button>
           </DialogFooter>
         </form>
@@ -83,7 +86,7 @@ function Campo({ rotulo, opcional, children }: { rotulo: string; opcional?: bool
   return (
     <div className="grid gap-1.5">
       <Label>
-        {rotulo} {opcional && <span className="font-normal text-muted-foreground">(opcional)</span>}
+        {rotulo} {opcional && <span className="font-medium tracking-[0.1em] text-[#8a958e]">· opcional</span>}
       </Label>
       {children}
     </div>
