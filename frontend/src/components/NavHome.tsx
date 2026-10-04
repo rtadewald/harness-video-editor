@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 
-/** Abas da tela inicial: Projetos e Referências (vídeos que treinam a Direção visual). */
+/** Abas da tela inicial: Projetos, Referências (galeria dos planos identificados) e Calibragem (vídeos que treinam a Direção visual). */
 export default function NavHome() {
   const aba = ({ isActive }: { isActive: boolean }) =>
     cn('rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors', isActive ? 'bg-cream text-ink' : 'text-fog hover:text-cream')
@@ -12,6 +12,9 @@ export default function NavHome() {
       </NavLink>
       <NavLink to="/referencias" className={aba}>
         Referências
+      </NavLink>
+      <NavLink to="/calibragem" className={aba}>
+        Calibragem
       </NavLink>
     </nav>
   )

@@ -191,7 +191,7 @@ export default function RevisaoReferencia() {
   async function reanalisar() {
     if (!window.confirm('Pedir uma análise nova para a IA? A revisão atual (inclusive suas correções) é substituída; a versão anterior fica guardada.')) return
     await reanalisarReferencia(id, true)
-    navegar('/referencias')
+    navegar('/calibragem')
   }
 
   async function revisar(v: boolean) {
@@ -205,7 +205,7 @@ export default function RevisaoReferencia() {
     return (
       <div className="grid h-svh place-items-center bg-deep text-cream">
         <p>
-          {erroCarga} · <Link to="/referencias" className="text-yellow underline">voltar</Link>
+          {erroCarga} · <Link to="/calibragem" className="text-yellow underline">voltar</Link>
         </p>
       </div>
     )
@@ -218,12 +218,12 @@ export default function RevisaoReferencia() {
   return (
     <div className="grid h-svh grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-deep text-cream">
       <header className="flex items-center gap-4 border-b border-line-dark bg-ink px-4">
-        <Link to="/referencias" title="Referências">
+        <Link to="/calibragem" title="Calibragem">
           <Logo />
         </Link>
         <span className="h-5 w-px bg-line-dark" />
-        <Link to="/referencias" className="text-[12px] text-fog hover:text-cream">
-          Referências
+        <Link to="/calibragem" className="text-[12px] text-fog hover:text-cream">
+          Calibragem
         </Link>
         <span className="text-fog/50">/</span>
         <span className="truncate text-[13px] font-semibold">{dados.referencia.nome}</span>

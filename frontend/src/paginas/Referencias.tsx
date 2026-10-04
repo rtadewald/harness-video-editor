@@ -1,250 +1,293 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, RotateCcw, Trash2 } from 'lucide-react'
-import {
-  apagarReferencia,
-  formatarDuracao,
-  listarReferencias,
-  reanalisarReferencia,
-  subirReferencias,
-  urlArquivoReferencia,
-  type Referencia,
-  type StatusReferencia,
-} from '@/api'
+import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
+import { listarClipes, urlArquivoReferencia, type ClipeReferencia } from '@/api'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { COR_PLANO } from '@/referencias/LinhaDirecao'
 
-const STATUS: Record<StatusReferencia, { nome: string; cor: string }> = {
-  na_fila: { nome: 'Na fila', cor: 'bg-cream/15 text-cream' },
-  analisando: { nome: 'Analisando', cor: 'bg-yellow text-ink' },
-  a_revisar: { nome: 'A revisar', cor: 'bg-coral text-cream' },
-  revisado: { nome: 'Revisado', cor: 'bg-mint text-ink' },
-  erro: { nome: 'Erro', cor: 'bg-destructive text-cream' },
-}
+type Ordem = 'aleatorio' | 'longos' | 'curtos' | 'video'
+const dur = (c: ClipeReferencia) => c.fim - c.inicio
+const seg = (t: number) => `${t.toFixed(1).replace('.', ',')} s`
+const chave = (c: ClipeReferencia) => `${c.ref}/${c.id}`
 
-const NOMES_PASSO = { proxy: 'Preparando o vídeo', transcricao: 'Transcrevendo', cenas: 'Detectando cortes', analise: 'Analisando trechos', montagem: 'Montando a direção' }
-
-/** O que a análise está fazendo agora, para o card. */
-function andamento(r: Referencia): string | null {
-  if (r.status !== 'analisando') return null
-  const passos = r.analise?.passos ?? {}
-  const atual = (Object.keys(NOMES_PASSO) as (keyof typeof NOMES_PASSO)[]).find((k) => passos[k]?.status === 'rodando')
-  if (!atual) return 'Começando…'
-  const p = passos[atual]!
-  if (atual === 'analise' && p.total) return `${NOMES_PASSO.analise} ${p.feitos ?? 0}/${p.total}`
-  if (atual === 'proxy' && p.progresso) return `${NOMES_PASSO.proxy} ${Math.round(p.progresso * 100)}%`
-  return NOMES_PASSO[atual]
-}
-
-const revisavel = (r: Referencia) => r.status === 'a_revisar' || r.status === 'revisado'
-
-/** Vídeos já editados que ensinam a Direção visual (SPEC §8.2.1). Sobem vários de uma vez e entram numa fila. */
+/** Galeria dos planos-base identificados nos vídeos de referência, por categoria. Cada clipe toca sozinho. */
 export default function Referencias() {
-  const [refs, setRefs] = useState<Referencia[] | null>(null)
+  const [clipes, setClipes] = useState<ClipeReferencia[] | null>(null)
+  const [categorias, setCategorias] = useState<Record<string, string>>({})
   const [erro, setErro] = useState('')
-  const [enviando, setEnviando] = useState(0)
-  const [recusadas, setRecusadas] = useState<{ nome: string; motivo: string }[]>([])
-  const [arrastando, setArrastando] = useState(false)
-  const entrada = useRef<HTMLInputElement>(null)
+  const [categoria, setCategoria] = useState<string | null>(null)
+  const [busca, setBusca] = useState('')
+  const [ordem, setOrdem] = useState<Ordem>('aleatorio')
+  const [soRevisadas, setSoRevisadas] = useState(false)
+  const [aberto, setAberto] = useState<string | null>(null)
 
-  const carregar = () => listarReferencias().then(setRefs).catch((e) => setErro(e.message))
   useEffect(() => {
-    void carregar()
+    listarClipes()
+      .then((d) => {
+        setClipes(d.clipes)
+        setCategorias(d.categorias)
+      })
+      .catch((e) => setErro(e.message))
   }, [])
-  // enquanto houver algo na fila ou analisando, acompanha o andamento
-  const andando = refs?.some((r) => r.status === 'na_fila' || r.status === 'analisando')
-  useEffect(() => {
-    if (!andando) return
-    const t = setInterval(() => void carregar(), 1500)
-    return () => clearInterval(t)
-  }, [andando])
 
-  async function subir(arquivos: File[]) {
-    const videos = arquivos.filter((f) => f.type.startsWith('video/') || /\.(mp4|mov|m4v|webm)$/i.test(f.name))
-    if (!videos.length) return
-    setErro('')
-    setEnviando(videos.length)
-    try {
-      const r = await subirReferencias(videos)
-      setRecusadas(r.recusadas)
-      await carregar()
-    } catch (e) {
-      setErro((e as Error).message)
-    } finally {
-      setEnviando(0)
-    }
-  }
+  // ordem aleatória estável enquanto a página está aberta
+  const sorteio = useMemo(() => new Map((clipes ?? []).map((c) => [chave(c), Math.random()])), [clipes])
 
-  async function apagar(r: Referencia) {
-    if (!window.confirm(`Apagar a referência “${r.nome}”? O vídeo e a análise saem do app.`)) return
-    await apagarReferencia(r.id).catch((e) => setErro(e.message))
-    await carregar()
-  }
+  const base = useMemo(() => {
+    const q = busca.trim().toLowerCase()
+    return (clipes ?? []).filter(
+      (c) => (!soRevisadas || c.revisado) && (!q || [c.descricao, c.texto ?? '', c.fala, c.ref_nome].some((t) => t.toLowerCase().includes(q))),
+    )
+  }, [clipes, busca, soRevisadas])
 
-  async function tentarDeNovo(r: Referencia) {
-    await reanalisarReferencia(r.id).catch((e) => setErro(e.message))
-    await carregar()
-  }
+  const visiveis = useMemo(() => {
+    const l = base.filter((c) => !categoria || c.tipo === categoria)
+    if (ordem === 'aleatorio') return [...l].sort((a, b) => sorteio.get(chave(a))! - sorteio.get(chave(b))!)
+    if (ordem === 'longos') return [...l].sort((a, b) => dur(b) - dur(a))
+    if (ordem === 'curtos') return [...l].sort((a, b) => dur(a) - dur(b))
+    return [...l].sort((a, b) => a.ref_nome.localeCompare(b.ref_nome) || a.inicio - b.inicio)
+  }, [base, categoria, ordem, sorteio])
 
-  const contagem = (s: StatusReferencia) => refs?.filter((r) => r.status === s).length ?? 0
-  const revisadas = contagem('revisado')
+  const contagem = (tipo: string | null) => base.filter((c) => !tipo || c.tipo === tipo).length
+  const indiceAberto = visiveis.findIndex((c) => chave(c) === aberto)
 
   return (
-    <div
-      className="grid h-svh grid-rows-[56px_minmax(0,1fr)] bg-deep text-cream"
-      onDragOver={(e) => {
-        e.preventDefault()
-        setArrastando(true)
-      }}
-      onDragLeave={(e) => e.currentTarget === e.target && setArrastando(false)}
-      onDrop={(e) => {
-        e.preventDefault()
-        setArrastando(false)
-        void subir([...e.dataTransfer.files])
-      }}
-    >
+    <div className="grid h-svh grid-rows-[56px_auto_minmax(0,1fr)] bg-deep text-cream">
       <header className="flex items-center gap-5 border-b border-line-dark bg-ink px-4">
         <Logo />
         <span className="h-5 w-px bg-line-dark" />
         <NavHome />
-        <Button variant="coral" size="sm" className="ml-auto h-9 gap-6 px-4" onClick={() => entrada.current?.click()} disabled={enviando > 0}>
-          {enviando ? `Enviando ${enviando}…` : 'Adicionar referências'} <span className="seta">↗</span>
-        </Button>
-        <input
-          ref={entrada}
-          type="file"
-          accept="video/*"
-          multiple
-          hidden
-          onChange={(e) => {
-            void subir([...(e.target.files ?? [])])
-            e.target.value = ''
-          }}
-        />
+        <label className="ml-6 flex h-9 w-[min(420px,32vw)] items-center gap-2 rounded-full border border-line-dark px-3.5 text-fog focus-within:border-cream/50">
+          <Search className="size-3.5" />
+          <input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar na descrição, no texto ou na fala"
+            className="w-full bg-transparent text-[12px] text-cream outline-none placeholder:text-fog/70"
+          />
+        </label>
+        <span className="ml-auto rounded-full border border-line-dark px-3 py-1 text-[11px] text-fog tabular-nums">
+          {visiveis.length} clipe{visiveis.length === 1 ? '' : 's'}
+        </span>
       </header>
 
-      <main className={cn('overflow-y-auto px-8 py-8 transition-colors', arrastando && 'bg-coral/10')}>
-        <div className="mb-6 grid gap-3 border-b border-line-dark pb-4">
-          <div className="flex items-baseline justify-between">
-            <p className="eyebrow text-sage">
-              Referências{refs && ` · ${String(refs.length).padStart(2, '0')}`}
-            </p>
-            <p className="text-[11px] text-fog">
-              {revisadas} revisada{revisadas === 1 ? '' : 's'} · {contagem('a_revisar')} a revisar · {contagem('na_fila') + contagem('analisando')} na fila
-              {contagem('erro') > 0 && ` · ${contagem('erro')} com erro`}
-            </p>
-          </div>
-          <p className="max-w-[720px] text-[12px] leading-[1.7] text-fog">
-            Vídeos seus já editados, verticais. A IA analisa o que aparece na tela em cada trecho (planos e elementos) e você revisa. Só as referências
-            revisadas ensinam a Direção visual. Arraste vários MP4 para esta tela ou use “Adicionar referências”.
-          </p>
+      <nav className="flex flex-wrap items-center gap-1.5 border-b border-line-dark px-4 py-3">
+        <Chip ativo={!categoria} onClick={() => setCategoria(null)} n={contagem(null)}>
+          Todos
+        </Chip>
+        {Object.entries(categorias).map(([tipo, nome]) => (
+          <Chip key={tipo} ativo={categoria === tipo} onClick={() => setCategoria(tipo)} n={contagem(tipo)} cor={COR_PLANO[tipo]}>
+            {nome}
+          </Chip>
+        ))}
+        <div className="ml-auto flex items-center gap-3 text-[12px] text-fog">
+          <label className="flex cursor-pointer items-center gap-1.5">
+            <input type="checkbox" checked={soRevisadas} onChange={(e) => setSoRevisadas(e.target.checked)} /> Só revisadas
+          </label>
+          <span>Ordenar</span>
+          <select
+            value={ordem}
+            onChange={(e) => setOrdem(e.target.value as Ordem)}
+            className="h-8 rounded-full border border-line-dark bg-deep px-3 text-[12px] text-cream outline-none focus:border-cream/50"
+          >
+            <option value="aleatorio">Aleatório</option>
+            <option value="longos">Mais longos</option>
+            <option value="curtos">Mais curtos</option>
+            <option value="video">Por vídeo</option>
+          </select>
         </div>
+      </nav>
 
-        {erro && <p className="mb-4 text-coral">{erro}</p>}
-        {recusadas.length > 0 && (
-          <div className="mb-6 grid gap-1 border-l-2 border-coral pl-3 text-[12px]">
-            <p className="font-semibold text-coral">
-              {recusadas.length} vídeo{recusadas.length > 1 ? 's' : ''} não entrou:
-            </p>
-            {recusadas.map((r) => (
-              <p key={r.nome} className="text-fog">
-                <b className="text-cream">{r.nome}</b>: {r.motivo}
-              </p>
-            ))}
-            <button onClick={() => setRecusadas([])} className="w-fit text-[11px] text-fog underline hover:text-cream">
-              ok
+      <main className="overflow-y-auto px-6 py-6">
+        {erro && <p className="text-coral">{erro}</p>}
+        {clipes?.length === 0 && (
+          <p className="text-[13px] text-fog">
+            Nenhum clipe ainda. Suba vídeos editados em <Link to="/calibragem" className="text-yellow underline">Calibragem</Link>; os planos que a IA identificar aparecem aqui.
+          </p>
+        )}
+        {clipes && clipes.length > 0 && visiveis.length === 0 && <p className="text-[13px] text-fog">Nenhum clipe com esses filtros.</p>}
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-x-5 gap-y-8">
+          {visiveis.map((c) => (
+            <Cartao key={chave(c)} clipe={c} nome={categorias[c.tipo]} abrir={() => setAberto(chave(c))} />
+          ))}
+        </ul>
+      </main>
+
+      {indiceAberto >= 0 && (
+        <Player
+          clipe={visiveis[indiceAberto]}
+          nome={categorias[visiveis[indiceAberto].tipo]}
+          posicao={`${indiceAberto + 1} de ${visiveis.length}`}
+          anterior={indiceAberto > 0 ? () => setAberto(chave(visiveis[indiceAberto - 1])) : null}
+          proximo={indiceAberto < visiveis.length - 1 ? () => setAberto(chave(visiveis[indiceAberto + 1])) : null}
+          fechar={() => setAberto(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function Chip({ ativo, onClick, n, cor, children }: { ativo: boolean; onClick: () => void; n: number; cor?: string; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'flex h-8 items-center gap-2 rounded-full border px-3.5 text-[12px] font-semibold transition-colors',
+        ativo ? 'border-cream bg-cream text-ink' : 'border-line-dark text-fog hover:border-cream/50 hover:text-cream',
+      )}
+    >
+      {cor && <span className={cn('size-2.5 rounded-full', cor)} />}
+      {children}
+      <span className={cn('tabular-nums', ativo ? 'text-ink/60' : 'text-fog/60')}>{n}</span>
+    </button>
+  )
+}
+
+/** Toca só o intervalo [inicio, fim) do vídeo, em loop. */
+function useTrecho(video: React.RefObject<HTMLVideoElement | null>, c: ClipeReferencia, ligado: boolean) {
+  useEffect(() => {
+    const v = video.current
+    if (!v || !ligado) return
+    const comecar = () => {
+      v.currentTime = c.inicio
+      // se o navegador barrar o autoplay com som, toca mudo (os controles do player deixam ligar o som)
+      v.play().catch(() => {
+        v.muted = true
+        void v.play().catch(() => undefined)
+      })
+    }
+    const vigiar = () => {
+      if (v.currentTime >= c.fim - 0.03 || v.currentTime < c.inicio - 0.5) v.currentTime = c.inicio
+    }
+    if (v.readyState >= 1) comecar()
+    else v.addEventListener('loadedmetadata', comecar, { once: true })
+    v.addEventListener('timeupdate', vigiar)
+    return () => {
+      v.removeEventListener('loadedmetadata', comecar)
+      v.removeEventListener('timeupdate', vigiar)
+      v.pause()
+    }
+  }, [video, c, ligado])
+}
+
+function Cartao({ clipe: c, nome, abrir }: { clipe: ClipeReferencia; nome: string; abrir: () => void }) {
+  const [tocando, setTocando] = useState(false)
+  const video = useRef<HTMLVideoElement>(null)
+  useTrecho(video, c, tocando)
+  return (
+    <li>
+      <button onClick={abrir} onMouseEnter={() => setTocando(true)} onMouseLeave={() => setTocando(false)} className="group block w-full text-left">
+        <div className="relative aspect-[9/16] overflow-hidden rounded-[6px] bg-deeper ring-1 ring-line-dark transition-[transform,box-shadow] duration-300 group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-coral">
+          {c.miniatura && (
+            <img src={urlArquivoReferencia(c.ref, c.miniatura)} alt="" loading="lazy" className="absolute inset-0 size-full object-cover" />
+          )}
+          {tocando && (
+            <video ref={video} src={`${urlArquivoReferencia(c.ref, 'proxy.mp4')}#t=${c.inicio},${c.fim}`} muted playsInline preload="auto" className="absolute inset-0 size-full object-cover" />
+          )}
+          <span className={cn('absolute top-2.5 left-2.5 rounded-full px-2 py-0.5 text-[9px] font-semibold', COR_PLANO[c.tipo])}>
+            {nome}
+            {c.conteudo && ` · ${c.conteudo}`}
+          </span>
+          <span className="absolute top-2.5 right-2.5 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">{seg(dur(c))}</span>
+          {c.revisado && <span className="absolute bottom-2.5 left-2.5 rounded-full bg-mint px-2 py-0.5 text-[9px] font-semibold text-ink">✓ revisado</span>}
+        </div>
+        <p className="mt-2.5 truncate text-[11px] text-fog">
+          {c.ref_nome} · {seg(c.inicio)}
+        </p>
+        {c.texto && <p className="mt-0.5 truncate text-[12px] font-semibold">“{c.texto}”</p>}
+        <p className="mt-0.5 line-clamp-2 text-[12px] leading-[1.5] text-cream/85">{c.descricao}</p>
+      </button>
+    </li>
+  )
+}
+
+function Player(p: { clipe: ClipeReferencia; nome: string; posicao: string; anterior: (() => void) | null; proximo: (() => void) | null; fechar: () => void }) {
+  const c = p.clipe
+  const video = useRef<HTMLVideoElement>(null)
+  useTrecho(video, c, true)
+
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') p.fechar()
+      else if (e.key === 'ArrowLeft') p.anterior?.()
+      else if (e.key === 'ArrowRight') p.proximo?.()
+      else if (e.key === ' ') {
+        e.preventDefault()
+        const v = video.current
+        if (v) void (v.paused ? v.play() : v.pause())
+      }
+    }
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  }, [p])
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-6" onClick={p.fechar}>
+      <div className="grid max-h-full w-full max-w-[1100px] grid-cols-[auto_minmax(0,1fr)] gap-8 rounded-[8px] bg-deep p-6 ring-1 ring-line-dark" onClick={(e) => e.stopPropagation()}>
+        <video
+          key={`${c.ref}/${c.id}`}
+          ref={video}
+          src={`${urlArquivoReferencia(c.ref, 'proxy.mp4')}#t=${c.inicio},${c.fim}`}
+          playsInline
+          controls
+          className="h-[min(78vh,760px)] w-auto rounded-[6px] bg-black"
+        />
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto text-[13px]">
+          <div className="flex items-center gap-2">
+            <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-semibold', COR_PLANO[c.tipo])}>
+              {p.nome}
+              {c.conteudo && ` · ${c.conteudo} em cima`}
+            </span>
+            <span className="text-[11px] text-fog tabular-nums">
+              {seg(dur(c))} · {p.posicao}
+            </span>
+            <button onClick={p.fechar} aria-label="Fechar" className="ml-auto grid size-8 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream">
+              <X className="size-4" />
             </button>
           </div>
-        )}
-
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-x-5 gap-y-8">
-          <li>
+          <p className="text-fog">
+            {c.ref_nome} · {seg(c.inicio)} → {seg(c.fim)}{' '}
+            <Link to={`/calibragem/${c.ref}`} className="text-yellow hover:underline">
+              abrir na calibragem ↗
+            </Link>
+          </p>
+          {c.texto && (
+            <div>
+              <p className="eyebrow mb-1 text-sage">Texto</p>
+              <p className="text-[16px] font-semibold">“{c.texto}”</p>
+            </div>
+          )}
+          <div>
+            <p className="eyebrow mb-1 text-sage">O que aparece</p>
+            <p className="leading-[1.7]">{c.descricao}</p>
+          </div>
+          {c.fala && (
+            <div>
+              <p className="eyebrow mb-1 text-sage">Fala</p>
+              <p className="border-l-2 border-line-dark pl-3 leading-[1.7] text-fog">“{c.fala}”</p>
+            </div>
+          )}
+          <div className="mt-auto flex items-center gap-2 pt-2">
             <button
-              onClick={() => entrada.current?.click()}
-              className="group flex aspect-[9/16] w-full flex-col items-center justify-center gap-4 rounded-[6px] border border-dashed border-line-dark text-fog transition-colors hover:border-coral hover:text-cream"
+              onClick={() => p.anterior?.()}
+              disabled={!p.anterior}
+              className="flex h-9 items-center gap-1 rounded-full border border-line-dark px-3 text-[12px] font-semibold disabled:opacity-40 hover:border-cream/50"
             >
-              <span className="grid size-12 place-items-center rounded-full bg-coral text-cream transition-transform duration-300 group-hover:-translate-y-1 group-hover:rotate-90">
-                <Plus className="size-5" />
-              </span>
-              <span className="text-center">
-                <span className="block text-[14px] font-semibold text-cream">Adicionar</span>
-                <span className="text-[11px]">Vários MP4 de uma vez</span>
-              </span>
+              <ChevronLeft className="size-4" /> Anterior
             </button>
-          </li>
-
-          {refs?.map((r) => {
-            const capa = (
-              <div
-                className={cn(
-                  'relative aspect-[9/16] overflow-hidden rounded-[6px] bg-deeper ring-1 ring-line-dark',
-                  revisavel(r) && 'transition-[transform,box-shadow] duration-300 group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-coral',
-                )}
-              >
-                <img
-                  src={urlArquivoReferencia(r.id, 'miniatura.jpg')}
-                  alt=""
-                  loading="lazy"
-                  onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
-                  className="size-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0b1714e6] via-transparent to-transparent" />
-                <span className="absolute top-2.5 right-2.5 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
-                  {formatarDuracao(r.video.duracao)}
-                </span>
-                <span className={cn('absolute bottom-2.5 left-2.5 rounded-full px-2 py-0.5 text-[9px] font-semibold tracking-[0.1em] uppercase', STATUS[r.status].cor)}>
-                  {STATUS[r.status].nome}
-                </span>
-                {r.status === 'analisando' && (
-                  <span className="absolute inset-x-0 bottom-0 h-1 bg-cream/15">
-                    <span className="block h-full bg-yellow transition-[width] duration-700" style={{ width: `${Math.round((r.analise?.passos.analise?.progresso ?? 0) * 100)}%` }} />
-                  </span>
-                )}
-              </div>
-            )
-            return (
-              <li key={r.id} className="group relative">
-                {revisavel(r) ? (
-                  <Link to={`/referencias/${r.id}`} title="Abrir a revisão" className="block">
-                    {capa}
-                  </Link>
-                ) : (
-                  capa
-                )}
-                <button
-                  onClick={() => void apagar(r)}
-                  aria-label={`Apagar ${r.nome}`}
-                  title="Apagar referência"
-                  className="absolute top-2.5 left-2.5 grid size-7 place-items-center rounded-full bg-ink/85 text-fog opacity-0 transition-opacity group-hover:opacity-100 hover:text-coral focus-visible:opacity-100"
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-                <h3 className="mt-3 truncate text-[14px] font-semibold tracking-[-0.02em]" title={r.nome}>
-                  {r.nome}
-                </h3>
-                <p className="mt-0.5 text-[11px] text-fog">
-                  {andamento(r) ?? `${new Date(r.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} · ${r.video.largura}×${r.video.altura}`}
-                </p>
-                {r.erro && (
-                  <p className="mt-1 line-clamp-3 text-[11px] text-coral" title={r.erro}>
-                    {r.erro}
-                  </p>
-                )}
-                {r.status === 'erro' && (
-                  <button onClick={() => void tentarDeNovo(r)} className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-yellow hover:underline">
-                    <RotateCcw className="size-3" /> Tentar de novo
-                  </button>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-
-        {refs?.length === 0 && <p className="mt-8 text-[13px] text-fog">Nenhuma referência ainda. Comece com 5 a 10 Reels editados que você considera bons.</p>}
-
-      </main>
+            <button
+              onClick={() => p.proximo?.()}
+              disabled={!p.proximo}
+              className="flex h-9 items-center gap-1 rounded-full border border-line-dark px-3 text-[12px] font-semibold disabled:opacity-40 hover:border-cream/50"
+            >
+              Próximo <ChevronRight className="size-4" />
+            </button>
+            <span className="ml-2 text-[11px] text-fog">← → navegam · Espaço pausa · Esc fecha</span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

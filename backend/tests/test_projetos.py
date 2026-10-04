@@ -797,6 +797,9 @@ def test_revisao_salva_e_marca_revisada(cliente, video, monkeypatch):
     assert r.json()['itens'][0]['palavra_ini'] == 'w0'
     assert cliente.put(f'/api/referencias/{id}/direcao', json={'itens': [{**itens[0], 'fim': 2}]}).status_code == 422
     assert cliente.put(f'/api/referencias/{id}/status', json={'revisado': True}).json()['status'] == 'revisado'
+    c = cliente.get('/api/referencias/clipes').json()
+    assert [(x['ref'], x['id'], x['tipo'], x['fala'], x['revisado']) for x in c['clipes']] == [(id, 'p1', 'full_ator', 'oi', True)]
+    assert 'comentario_insert_ator' in c['categorias']
 
 
 def test_transcricao_ate_o_corte_marca_o_momento_e_esconde_o_futuro():

@@ -187,6 +187,30 @@ def criar_referencias(videos: Annotated[list[UploadFile], File()]):
     return {'criadas': [referencias.ler(r['id']) for r in criadas], 'recusadas': recusadas}
 
 
+@app.get('/api/referencias/clipes')
+def clipes_referencias():
+    """Todos os planos-base das referências já analisadas, para a galeria de Referências: cada um com o vídeo de origem,
+    o intervalo, a descrição, o texto e a fala do trecho."""
+    clipes = []
+    for r in referencias.listar():
+        if r['status'] not in ('a_revisar', 'revisado'):
+            continue
+        base = referencias.pasta(r['id'])
+        try:
+            itens = json.loads((base / 'direcao.json').read_text())['itens']
+            palavras = json.loads((base / 'palavras.json').read_text())['palavras']
+        except FileNotFoundError:
+            continue
+        for i in itens:
+            if i['camada'] != 'plano':
+                continue
+            fala = ' '.join(w['texto'] for w in palavras if w['fim'] > i['inicio'] + 0.01 and w['inicio'] < i['fim'])
+            clipes.append({'ref': r['id'], 'ref_nome': r['nome'], 'revisado': r['status'] == 'revisado', 'id': i['id'],
+                           'tipo': i['tipo'], 'conteudo': i.get('conteudo'), 'inicio': i['inicio'], 'fim': i['fim'],
+                           'descricao': i.get('descricao') or '', 'texto': i.get('texto'), 'miniatura': i.get('miniatura'), 'fala': fala})
+    return {'clipes': clipes, 'categorias': direcao.PLANOS}
+
+
 @app.get('/api/direcao/categorias')
 def categorias_direcao():
     return {'planos': direcao.PLANOS, 'elementos': direcao.ELEMENTOS}

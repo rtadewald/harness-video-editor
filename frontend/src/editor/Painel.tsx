@@ -68,7 +68,7 @@ function Lista({ itens, seq, tempo, buscar, palavras }: { itens: ItemLista[]; se
   )
 }
 
-/** A Direção visual real só chega depois das Referências (SPEC §8.2.2); até lá, aviso + dados de exemplo. */
+/** A Direção visual real só chega depois da Calibragem (SPEC §8.2.2); até lá, aviso + dados de exemplo. */
 function AvisoDirecao() {
   return (
     <div className="mb-5 grid gap-1.5 border-l-2 border-yellow pl-3 text-[12px] leading-[1.6] text-fog">
@@ -77,7 +77,7 @@ function AvisoDirecao() {
         direção de verdade vai aprender com seus vídeos de referência revisados.
       </p>
       <Link to="/referencias" className="w-fit font-semibold text-yellow hover:underline">
-        Abrir Referências ↗
+        Ver as referências ↗
       </Link>
     </div>
   )

@@ -196,6 +196,23 @@ export const subirReferencias = (videos: File[]) => {
 export const apagarReferencia = (id: string) => fetch(`/api/referencias/${id}`, { method: 'DELETE' }).then(json<{ ok: boolean }>)
 export const urlArquivoReferencia = (id: string, caminho: string) => `/api/referencias/${id}/arquivos/${caminho}`
 
+/** Um plano-base de uma referência analisada, para a galeria de Referências. */
+export type ClipeReferencia = {
+  ref: string
+  ref_nome: string
+  revisado: boolean
+  id: string
+  tipo: string
+  conteudo: 'insert' | 'motion' | null
+  inicio: number
+  fim: number
+  descricao: string
+  texto: string | null
+  miniatura?: string
+  fala: string
+}
+export const listarClipes = () => fetch('/api/referencias/clipes').then(json<{ clipes: ClipeReferencia[]; categorias: Record<string, string> }>)
+
 export const urlMiniatura = (id: string) => `/api/projetos/${id}/miniatura`
 export const urlArquivo = (id: string, caminho: string) => `/api/projetos/${id}/arquivos/${caminho}`
 
