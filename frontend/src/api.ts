@@ -210,8 +210,24 @@ export type ClipeReferencia = {
   texto: string | null
   miniatura?: string
   fala: string
+  /** Posição do plano no vídeo de origem: número (1…total) e fração do tempo onde começa. */
+  numero: number
+  total: number
+  posicao: number
+  palavras: number
+  por_minuto: number | null
+  /** Como o plano entra na fala (null no primeiro plano do vídeo). */
+  entrada: { onde: string; frase: 'inicio' | 'meio' | null; palavra: string | null; ms: number | null } | null
+  anterior: { tipo: string; duracao: number } | null
+  seguinte: { tipo: string; duracao: number } | null
+  elementos: { tipo: string; texto: string | null; inicio: number; fim: number }[]
 }
-export const listarClipes = () => fetch('/api/referencias/clipes').then(json<{ clipes: ClipeReferencia[]; categorias: Record<string, string> }>)
+/** Resumo do vídeo de origem de um clipe: todos os planos (para a faixa) e quanto do tempo cada categoria ocupa. */
+export type OrigemClipe = { nome: string; duracao: number; revisado: boolean; planos: { id: string; tipo: string; inicio: number; fim: number }[]; proporcao: Record<string, number> }
+export const listarClipes = () =>
+  fetch('/api/referencias/clipes').then(
+    json<{ clipes: ClipeReferencia[]; origens: Record<string, OrigemClipe>; categorias: Record<string, string>; elementos: Record<string, string> }>,
+  )
 
 export const urlMiniatura = (id: string) => `/api/projetos/${id}/miniatura`
 export const urlArquivo = (id: string, caminho: string) => `/api/projetos/${id}/arquivos/${caminho}`

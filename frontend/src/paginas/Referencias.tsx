@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
-import { listarClipes, urlArquivoReferencia, type ClipeReferencia } from '@/api'
+import { listarClipes, urlArquivoReferencia, type ClipeReferencia, type OrigemClipe } from '@/api'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
 import { cn } from '@/lib/utils'
@@ -16,6 +16,8 @@ const chave = (c: ClipeReferencia) => `${c.ref}/${c.id}`
 export default function Referencias() {
   const [clipes, setClipes] = useState<ClipeReferencia[] | null>(null)
   const [categorias, setCategorias] = useState<Record<string, string>>({})
+  const [nomesElementos, setNomesElementos] = useState<Record<string, string>>({})
+  const [origens, setOrigens] = useState<Record<string, OrigemClipe>>({})
   const [erro, setErro] = useState('')
   const [categoria, setCategoria] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
@@ -28,6 +30,8 @@ export default function Referencias() {
       .then((d) => {
         setClipes(d.clipes)
         setCategorias(d.categorias)
+        setNomesElementos(d.elementos)
+        setOrigens(d.origens)
       })
       .catch((e) => setErro(e.message))
   }, [])
@@ -118,7 +122,9 @@ export default function Referencias() {
       {indiceAberto >= 0 && (
         <Player
           clipe={visiveis[indiceAberto]}
-          nome={categorias[visiveis[indiceAberto].tipo]}
+          origem={origens[visiveis[indiceAberto].ref]}
+          categorias={categorias}
+          nomesElementos={nomesElementos}
           posicao={`${indiceAberto + 1} de ${visiveis.length}`}
           anterior={indiceAberto > 0 ? () => setAberto(chave(visiveis[indiceAberto - 1])) : null}
           proximo={indiceAberto < visiveis.length - 1 ? () => setAberto(chave(visiveis[indiceAberto + 1])) : null}
@@ -203,10 +209,47 @@ function Cartao({ clipe: c, nome, abrir }: { clipe: ClipeReferencia; nome: strin
   )
 }
 
-function Player(p: { clipe: ClipeReferencia; nome: string; posicao: string; anterior: (() => void) | null; proximo: (() => void) | null; fechar: () => void }) {
+const ONDE: Record<string, string> = {
+  na_pausa: 'numa pausa da fala',
+  entre_palavras: 'entre palavras, sem pausa',
+  dentro_da_palavra: 'no meio de uma palavra',
+  depois_da_fala: 'depois que a fala acabou',
+}
+
+function Player(p: {
+  clipe: ClipeReferencia
+  origem: OrigemClipe
+  categorias: Record<string, string>
+  nomesElementos: Record<string, string>
+  posicao: string
+  anterior: (() => void) | null
+  proximo: (() => void) | null
+  fechar: () => void
+}) {
   const c = p.clipe
+  const nome = p.categorias[c.tipo]
+  const [modo, setModo] = useState<'trecho' | 'origem'>('trecho')
+  const [tempo, setTempo] = useState(c.inicio)
+  const [salto, setSalto] = useState<{ t: number; n: number } | null>(null)
   const video = useRef<HTMLVideoElement>(null)
-  useTrecho(video, c, true)
+  useTrecho(video, c, modo === 'trecho')
+  // no vídeo de origem: vai para o ponto pedido e toca (depois que o loop do trecho foi desligado)
+  useEffect(() => {
+    const v = video.current
+    if (modo !== 'origem' || !salto || !v) return
+    v.currentTime = salto.t
+    void v.play().catch(() => undefined)
+  }, [modo, salto])
+
+  useEffect(() => setModo('trecho'), [c])
+  // relógio para a faixa do vídeo de origem
+  useEffect(() => {
+    const v = video.current
+    if (!v) return
+    const t = () => setTempo(v.currentTime)
+    v.addEventListener('timeupdate', t)
+    return () => v.removeEventListener('timeupdate', t)
+  }, [c])
 
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
@@ -223,64 +266,150 @@ function Player(p: { clipe: ClipeReferencia; nome: string; posicao: string; ante
     return () => window.removeEventListener('keydown', tecla)
   }, [p])
 
+  const verOrigem = (t: number) => {
+    setModo('origem')
+    setSalto((s) => ({ t, n: (s?.n ?? 0) + 1 }))
+  }
+  const e = c.entrada
+  const ms = e?.ms != null ? `${e.ms > 0 ? `${e.ms} ms depois` : e.ms < 0 ? `${-e.ms} ms antes` : 'exatamente no começo'} de “${e.palavra}”` : null
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-6" onClick={p.fechar}>
-      <div className="grid max-h-full w-full max-w-[1100px] grid-cols-[auto_minmax(0,1fr)] gap-8 rounded-[8px] bg-deep p-6 ring-1 ring-line-dark" onClick={(e) => e.stopPropagation()}>
-        <video
-          key={`${c.ref}/${c.id}`}
-          ref={video}
-          src={`${urlArquivoReferencia(c.ref, 'proxy.mp4')}#t=${c.inicio},${c.fim}`}
-          playsInline
-          controls
-          className="h-[min(78vh,760px)] w-auto rounded-[6px] bg-black"
-        />
-        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto text-[13px]">
+      <div
+        className="grid max-h-full w-full max-w-[1180px] grid-cols-[auto_minmax(0,1fr)] gap-7 overflow-hidden rounded-[8px] bg-deep p-6 ring-1 ring-line-dark"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        {/* vídeo + faixa da origem */}
+        <div className="flex min-h-0 flex-col gap-3">
+          <div className="flex gap-1 text-[11px] font-semibold">
+            {(['trecho', 'origem'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => (m === 'origem' ? verOrigem(c.inicio) : setModo('trecho'))}
+                className={cn('rounded-full px-3 py-1.5', modo === m ? 'bg-cream text-ink' : 'border border-line-dark text-fog hover:text-cream')}
+              >
+                {m === 'trecho' ? 'Este trecho' : 'Vídeo de origem'}
+              </button>
+            ))}
+          </div>
+          <video
+            key={`${c.ref}/${c.id}`}
+            ref={video}
+            src={urlArquivoReferencia(c.ref, 'proxy.mp4')}
+            playsInline
+            controls
+            className="h-[min(68vh,700px)] w-auto rounded-[6px] bg-black"
+          />
+          {/* todos os planos do vídeo de origem; clique leva para aquele ponto */}
+          <div
+            className="relative h-6 w-full cursor-pointer overflow-hidden rounded-[3px] bg-deeper"
+            onClick={(ev) => {
+              const r = ev.currentTarget.getBoundingClientRect()
+              verOrigem(((ev.clientX - r.left) / r.width) * p.origem.duracao)
+            }}
+            title="Planos do vídeo de origem: clique para ver a partir dali"
+          >
+            {p.origem.planos.map((q) => (
+              <span
+                key={q.id}
+                className={cn('absolute inset-y-0 border-r border-deeper', COR_PLANO[q.tipo], q.id === c.id ? 'opacity-100' : 'opacity-45')}
+                style={{ left: `${(q.inicio / p.origem.duracao) * 100}%`, width: `${((q.fim - q.inicio) / p.origem.duracao) * 100}%` }}
+                title={`${p.categorias[q.tipo]} · ${seg(q.fim - q.inicio)}`}
+              />
+            ))}
+            <span
+              className="pointer-events-none absolute inset-y-0 border-2 border-yellow"
+              style={{ left: `${(c.inicio / p.origem.duracao) * 100}%`, width: `${((c.fim - c.inicio) / p.origem.duracao) * 100}%` }}
+            />
+            <span className="pointer-events-none absolute inset-y-0 w-0.5 bg-coral" style={{ left: `${(tempo / p.origem.duracao) * 100}%` }} />
+          </div>
+        </div>
+
+        {/* dados */}
+        <div className="flex min-h-0 flex-col gap-5 overflow-y-auto pr-1 text-[13px]">
           <div className="flex items-center gap-2">
             <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-semibold', COR_PLANO[c.tipo])}>
-              {p.nome}
+              {nome}
               {c.conteudo && ` · ${c.conteudo} em cima`}
             </span>
-            <span className="text-[11px] text-fog tabular-nums">
-              {seg(dur(c))} · {p.posicao}
-            </span>
+            {c.revisado && <span className="rounded-full bg-mint px-2 py-0.5 text-[10px] font-semibold text-ink">✓ revisado</span>}
+            <span className="text-[11px] text-fog tabular-nums">{p.posicao}</span>
             <button onClick={p.fechar} aria-label="Fechar" className="ml-auto grid size-8 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream">
               <X className="size-4" />
             </button>
           </div>
-          <p className="text-fog">
-            {c.ref_nome} · {seg(c.inicio)} → {seg(c.fim)}{' '}
-            <Link to={`/calibragem/${c.ref}`} className="text-yellow hover:underline">
-              abrir na calibragem ↗
-            </Link>
-          </p>
-          {c.texto && (
-            <div>
-              <p className="eyebrow mb-1 text-sage">Texto</p>
-              <p className="text-[16px] font-semibold">“{c.texto}”</p>
-            </div>
-          )}
-          <div>
-            <p className="eyebrow mb-1 text-sage">O que aparece</p>
+
+          {c.texto && <p className="text-[18px] leading-snug font-semibold">“{c.texto}”</p>}
+          <Bloco titulo="O que aparece">
             <p className="leading-[1.7]">{c.descricao}</p>
+          </Bloco>
+
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-y border-line-dark py-4">
+            <Dado rotulo="Duração" valor={seg(dur(c))} />
+            <Dado rotulo="Onde no vídeo" valor={`${seg(c.inicio)} → ${seg(c.fim)} · ${Math.round(c.posicao * 100)}%`} detalhe={`plano ${c.numero} de ${c.total}`} />
+            <Dado
+              rotulo="Entra"
+              valor={e ? ONDE[e.onde] ?? e.onde : 'abre o vídeo'}
+              detalhe={e ? [e.frase && (e.frase === 'inicio' ? 'no começo de uma frase' : 'no meio de uma frase'), ms].filter(Boolean).join(' · ') : undefined}
+            />
+            <Dado rotulo="Fala no trecho" valor={`${c.palavras} palavra${c.palavras === 1 ? '' : 's'}`} detalhe={c.por_minuto ? `${c.por_minuto} palavras/min` : undefined} />
+            <Dado rotulo="Vem depois de" valor={c.anterior ? p.categorias[c.anterior.tipo] : '— (abre o vídeo)'} detalhe={c.anterior ? seg(c.anterior.duracao) : undefined} />
+            <Dado rotulo="Vai para" valor={c.seguinte ? p.categorias[c.seguinte.tipo] : '— (fecha o vídeo)'} detalhe={c.seguinte ? seg(c.seguinte.duracao) : undefined} />
           </div>
-          {c.fala && (
-            <div>
-              <p className="eyebrow mb-1 text-sage">Fala</p>
-              <p className="border-l-2 border-line-dark pl-3 leading-[1.7] text-fog">“{c.fala}”</p>
-            </div>
+
+          {c.elementos.length > 0 && (
+            <Bloco titulo="Elementos dentro do plano">
+              <div className="flex flex-wrap gap-1.5">
+                {c.elementos.map((el, k) => (
+                  <span key={k} className="rounded-full border border-line-dark px-2.5 py-1 text-[11px]">
+                    {p.nomesElementos[el.tipo]}
+                    {el.texto && `: “${el.texto}”`} · {seg(el.inicio)}
+                  </span>
+                ))}
+              </div>
+            </Bloco>
           )}
-          <div className="mt-auto flex items-center gap-2 pt-2">
+
+          {c.fala && (
+            <Bloco titulo="Fala">
+              <p className="border-l-2 border-line-dark pl-3 leading-[1.7] text-fog">“{c.fala}”</p>
+            </Bloco>
+          )}
+
+          <Bloco titulo={`Vídeo de origem · ${p.origem.nome}`}>
+            <p className="mb-2 text-fog">
+              {seg(p.origem.duracao)} · {p.origem.planos.length} planos ·{' '}
+              <Link to={`/calibragem/${c.ref}`} className="text-yellow hover:underline">
+                abrir na calibragem ↗
+              </Link>
+            </p>
+            <div className="grid gap-1">
+              {Object.entries(p.origem.proporcao)
+                .sort((a, b) => b[1] - a[1])
+                .map(([tipo, f]) => (
+                  <div key={tipo} className="grid grid-cols-[150px_1fr_40px] items-center gap-2 text-[11px]">
+                    <span className="truncate text-fog">{p.categorias[tipo]}</span>
+                    <span className="h-2 overflow-hidden rounded-full bg-deeper">
+                      <span className={cn('block h-full', COR_PLANO[tipo])} style={{ width: `${f * 100}%` }} />
+                    </span>
+                    <span className="text-right tabular-nums">{Math.round(f * 100)}%</span>
+                  </div>
+                ))}
+            </div>
+          </Bloco>
+
+          <div className="mt-auto flex items-center gap-2 pt-1">
             <button
               onClick={() => p.anterior?.()}
               disabled={!p.anterior}
-              className="flex h-9 items-center gap-1 rounded-full border border-line-dark px-3 text-[12px] font-semibold disabled:opacity-40 hover:border-cream/50"
+              className="flex h-9 items-center gap-1 rounded-full border border-line-dark px-3 text-[12px] font-semibold hover:border-cream/50 disabled:opacity-40"
             >
               <ChevronLeft className="size-4" /> Anterior
             </button>
             <button
               onClick={() => p.proximo?.()}
               disabled={!p.proximo}
-              className="flex h-9 items-center gap-1 rounded-full border border-line-dark px-3 text-[12px] font-semibold disabled:opacity-40 hover:border-cream/50"
+              className="flex h-9 items-center gap-1 rounded-full border border-line-dark px-3 text-[12px] font-semibold hover:border-cream/50 disabled:opacity-40"
             >
               Próximo <ChevronRight className="size-4" />
             </button>
@@ -288,6 +417,25 @@ function Player(p: { clipe: ClipeReferencia; nome: string; posicao: string; ante
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function Bloco({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="eyebrow mb-1.5 text-sage">{titulo}</p>
+      {children}
+    </div>
+  )
+}
+
+function Dado({ rotulo, valor, detalhe }: { rotulo: string; valor: string; detalhe?: string }) {
+  return (
+    <div>
+      <p className="text-[10px] tracking-[0.1em] text-fog uppercase">{rotulo}</p>
+      <p className="mt-0.5 font-semibold">{valor}</p>
+      {detalhe && <p className="text-[11px] text-fog">{detalhe}</p>}
     </div>
   )
 }

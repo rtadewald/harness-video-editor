@@ -524,3 +524,55 @@ def salvar_edicao(id: str, itens: list[dict]) -> dict:
     dados['itens'] = novos
     (base / 'direcao.json').write_text(json.dumps(dados, ensure_ascii=False, indent=1), encoding='utf-8')
     return dados
+
+
+# ---------------------------------------------------------------- dados de um clipe (galeria de Referências)
+
+def entrada(t: float, palavras: list[dict]) -> dict | None:
+    """Como um plano entra em relação à fala: numa pausa (≥ 150 ms sem fala), entre palavras coladas ou no meio de
+    uma palavra; no começo ou no meio de uma frase; e a quantos ms do começo da palavra mais próxima."""
+    if not palavras:
+        return None
+    prox = next((k for k, w in enumerate(palavras) if w['fim'] > t), None)
+    if prox is None:
+        return {'onde': 'depois_da_fala', 'frase': None, 'palavra': None, 'ms': None}
+    w, ant = palavras[prox], palavras[prox - 1] if prox else None
+    if w['inicio'] < t:
+        onde = 'dentro_da_palavra'
+    elif ant is None or w['inicio'] - ant['fim'] >= 0.15:
+        onde = 'na_pausa'
+    else:
+        onde = 'entre_palavras'
+    comeco = onde != 'dentro_da_palavra' and (ant is None or ant['texto'].rstrip().endswith(FIM_DE_FRASE))
+    perto = min(palavras, key=lambda x: abs(x['inicio'] - t))
+    return {'onde': onde, 'frase': 'inicio' if comeco else 'meio', 'palavra': perto['texto'], 'ms': round((t - perto['inicio']) * 1000)}
+
+
+def clipes(ref: dict, itens: list[dict], palavras: list[dict]) -> tuple[list[dict], dict]:
+    """Os planos de uma referência como clipes da galeria, cada um com os seus dados, e um resumo do vídeo de origem."""
+    planos = sorted((i for i in itens if i['camada'] == 'plano'), key=lambda i: i['inicio'])
+    elementos = [i for i in itens if i['camada'] == 'elemento']
+    dur = ref['video']['duracao']
+    resumo = {'nome': ref['nome'], 'duracao': dur, 'revisado': ref['status'] == 'revisado',
+              'planos': [{'id': p['id'], 'tipo': p['tipo'], 'inicio': p['inicio'], 'fim': p['fim']} for p in planos],
+              'proporcao': {}}
+    for p in planos:
+        resumo['proporcao'][p['tipo']] = round(resumo['proporcao'].get(p['tipo'], 0) + (p['fim'] - p['inicio']) / dur, 3)
+    lista = []
+    for k, p in enumerate(planos):
+        faladas = [w for w in palavras if w['fim'] > p['inicio'] + 0.01 and w['inicio'] < p['fim']]
+        d = p['fim'] - p['inicio']
+        vizinho = lambda q: {'tipo': q['tipo'], 'duracao': round(q['fim'] - q['inicio'], 2)} if q else None  # noqa: E731
+        lista.append({
+            'ref': ref['id'], 'ref_nome': ref['nome'], 'revisado': ref['status'] == 'revisado', 'id': p['id'], 'tipo': p['tipo'],
+            'conteudo': p.get('conteudo'), 'inicio': p['inicio'], 'fim': p['fim'], 'descricao': p.get('descricao') or '',
+            'texto': p.get('texto'), 'miniatura': p.get('miniatura'), 'fala': ' '.join(w['texto'] for w in faladas),
+            'numero': k + 1, 'total': len(planos), 'posicao': round(p['inicio'] / dur, 3) if dur else 0,
+            'palavras': len(faladas), 'por_minuto': round(len(faladas) / d * 60) if d >= 2 and len(faladas) >= 3 else None,
+            'entrada': entrada(p['inicio'], palavras) if k else None,
+            'anterior': vizinho(planos[k - 1] if k else None), 'seguinte': vizinho(planos[k + 1] if k + 1 < len(planos) else None),
+            'elementos': [{'tipo': e['tipo'], 'texto': e.get('texto'), 'inicio': e['inicio'], 'fim': e['fim']}
+                          for e in elementos if e['fim'] > p['inicio'] and e['inicio'] < p['fim']],
+        })
+    return lista, resumo
+

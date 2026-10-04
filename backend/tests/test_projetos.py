@@ -800,6 +800,7 @@ def test_revisao_salva_e_marca_revisada(cliente, video, monkeypatch):
     c = cliente.get('/api/referencias/clipes').json()
     assert [(x['ref'], x['id'], x['tipo'], x['fala'], x['revisado']) for x in c['clipes']] == [(id, 'p1', 'full_ator', 'oi', True)]
     assert 'comentario_insert_ator' in c['categorias']
+    assert c['clipes'][0]['numero'] == 1 and c['clipes'][0]['entrada'] is None and c['origens'][id]['planos'][0]['id'] == 'p1'
 
 
 def test_transcricao_ate_o_corte_marca_o_momento_e_esconde_o_futuro():
@@ -830,3 +831,19 @@ def test_planos_com_texto_guardam_o_texto_e_so_juntam_se_for_o_mesmo():
     assert [(i['tipo'], i['inicio'], i['fim'], i['texto']) for i in itens] == [
         ('full_ator', 0, 2, None), ('full_ator_lettering', 2, 4, 'Humano'), ('full_ator_lettering', 4, 5, 'Outro'),
         ('comentario_insert_ator', 5, 8, 'Como saber se o app é seguro?')]
+
+
+def test_clipes_trazem_posicao_entrada_vizinhos_e_elementos():
+    w = lambda id, t, a, b: {'id': id, 'texto': t, 'inicio': a, 'fim': b}  # noqa: E731
+    fala = [w('w0', 'Olha', 0.0, 0.4), w('w1', 'isso.', 0.45, 0.9), w('w2', 'Agora', 1.5, 1.9), w('w3', 'vai', 1.92, 2.2)]
+    itens = [{'id': 'p1', 'camada': 'plano', 'tipo': 'full_ator', 'inicio': 0, 'fim': 1.4},
+             {'id': 'p2', 'camada': 'plano', 'tipo': 'insert_tela_cheia', 'inicio': 1.4, 'fim': 4},
+             {'id': 'e1', 'camada': 'elemento', 'tipo': 'lettering', 'inicio': 2, 'fim': 3, 'texto': 'Oi'}]
+    ref = {'id': 'r', 'nome': 'R', 'status': 'revisado', 'video': {'duracao': 4.0}}
+    lista, resumo = direcao.clipes(ref, itens, fala)
+    p2 = lista[1]
+    assert (p2['numero'], p2['total'], p2['posicao'], p2['palavras']) == (2, 2, 0.35, 2)
+    assert p2['entrada'] == {'onde': 'na_pausa', 'frase': 'inicio', 'palavra': 'Agora', 'ms': -100}
+    assert p2['anterior'] == {'tipo': 'full_ator', 'duracao': 1.4} and p2['seguinte'] is None
+    assert p2['elementos'] == [{'tipo': 'lettering', 'texto': 'Oi', 'inicio': 2, 'fim': 3}]
+    assert resumo['proporcao'] == {'full_ator': 0.35, 'insert_tela_cheia': 0.65}
