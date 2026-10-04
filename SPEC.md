@@ -235,7 +235,7 @@ O passo de silêncios também gera a forma de onda real (`picos.json`).
 - **Elementos** (dentro de um plano, podem durar menos e se sobrepor): `Lettering` (palavra destacada) · `Palavra ManyChat` (CTA de comentário) · `Caixinha de perguntas` · `Print/imagem sobreposta`.
 - Zoom/punch-in no ator não é plano: fica para Inserts/edição.
 
-✅ **Cada item guarda:** tipo; início e fim **nas palavras** (§9) **e em segundos** (pode começar no meio de uma palavra ou numa pausa); **descrição contando a história** do que aparece (o que é, como é visualmente, o que acontece entre os quadros: "primeiro aparece…, depois troca para…"); texto exato (lettering, palavra do ManyChat, pergunta da caixinha); miniatura (um quadro do meio). O campo "função" saiu (decisão de Rodrigo, out/2026).
+✅ **Cada item guarda:** tipo; início e fim **nas palavras** (§9) **e em segundos** (pode começar no meio de uma palavra ou numa pausa); **descrição em alto nível** (o que é, que ideia da fala ilustra, estilo em poucas palavras e, se mudar de forma relevante, "primeiro…, depois…"; sem cores, texturas e posições — decisão de Rodrigo: detalhe específico é irrelevante para a direção); texto exato (lettering, palavra do ManyChat, pergunta da caixinha); miniatura (um quadro do meio). O campo "função" saiu (decisão de Rodrigo, out/2026).
 
 #### 8.2.1 Referências (treinamento) — construída primeiro
 

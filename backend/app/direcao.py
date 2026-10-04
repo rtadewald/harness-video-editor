@@ -55,7 +55,7 @@ class PlanoIA(BaseModel):
     conteudo_em_cima: Literal['insert', 'motion'] | None = Field(description='Só para tela_dividida: o que ocupa a parte de cima')
     inicio: float = Field(description='Segundos do vídeo (use os tempos t= dos quadros)')
     fim: float
-    descricao: str = Field(description='A história do que aparece na tela ao longo do trecho, em ordem, com descrição exata')
+    descricao: str = Field(description='Em alto nível: o que é, que ideia da fala ilustra, estilo em poucas palavras; 1 a 3 frases')
 
 
 class ElementoIA(BaseModel):
@@ -63,7 +63,7 @@ class ElementoIA(BaseModel):
     inicio: float
     fim: float
     texto: str | None = Field(description='Texto exato do elemento, quando houver')
-    descricao: str = Field(description='Como o elemento é e como entra/sai (estilo, posição, animação)')
+    descricao: str = Field(description='O que é e o que destaca, em uma frase')
 
 
 class AnaliseTrecho(BaseModel):
@@ -72,7 +72,7 @@ class AnaliseTrecho(BaseModel):
     elementos: list[ElementoIA]
 
 
-VERSAO_ANALISE = 3  # muda quando o prompt ou o que é enviado muda: os trechos guardados com outra versão são refeitos
+VERSAO_ANALISE = 4  # muda quando o prompt ou o que é enviado muda: os trechos guardados com outra versão são refeitos
 
 PROMPT = """Você analisa um Reel vertical JÁ EDITADO de Rodrigo Tadewald (Asimov Academy, IA e programação) para descobrir como ele foi dirigido visualmente: o que aparece na tela em cada momento da fala.
 
@@ -97,7 +97,10 @@ ELEMENTOS (sobrepostos ao plano; podem durar menos que ele):
 IGNORE a legenda palavra a palavra queimada no vídeo (texto curto que acompanha a fala, uma ou poucas palavras por vez): ela é outra etapa e NÃO é lettering.
 Se o texto em destaque É o próprio motion em tela cheia (ex.: uma animação tipográfica sem o apresentador), ele já é o plano motion_tela_cheia: não crie um lettering repetindo-o. Lettering é texto SOBRE outro plano.
 
-DESCRIÇÃO (o campo mais importante): conte a HISTÓRIA do que aparece na tela ao longo do trecho, em ordem, com descrição exata. Diga o que é (qual site, app, ferramenta, gráfico, texto — com os nomes e textos visíveis), como é visualmente (cores, estilo, composição, se é bonito/minimalista/escuro…) e o que acontece ao longo do trecho (rola, dá zoom, o cursor clica, algo é digitado, elementos se montam, troca de uma tela para outra). Use o contexto da fala para nomear as coisas com precisão. Exemplo do tom: "Primeiro aparece a home de um site de relógios Venezia, escura e elegante, com o relógio girando em 3D; a câmera dá zoom no produto e depois troca para a página de detalhes com fundo creme." Para elementos, descreva como ele é e como entra e sai.
+DESCRIÇÃO (o campo mais importante): em ALTO NÍVEL, como um editor explicaria a escolha para outro editor. Diga o que é (insert de qual site/app/ferramenta, motion de quê), qual ideia da fala aquilo ilustra e o estilo em poucas palavras (minimalista, escuro, 3D, print estático, gravação de tela…). Se o conteúdo muda de forma relevante ao longo do trecho, conte em ordem ("primeiro…, depois…"). NÃO descreva detalhes irrelevantes para a direção: cores exatas, texturas, posições, formatos de ícones, segundos internos, textos secundários. 1 a 3 frases.
+Exemplo BOM: "Motion minimalista ilustrando uma skill do Claude: uma pasta SKILL.md e o ícone do Claude surgindo dela."
+Exemplo RUIM (detalhista demais): "Em fundo bege claro texturizado aparece um desenho de uma pasta preta com o texto 'SKILL.MD'; em torno de 1.0 s surge acima um selo terracota com uma silhueta de cabeça de perfil branca e um cérebro/flor no interior."
+Para elementos, diga o que é e o que destaca, em uma frase.
 
 Regras:
 - Use as categorias acima e nenhuma outra. Tempos SEMPRE em segundos do vídeo inteiro (não do clipe), dentro do trecho.
