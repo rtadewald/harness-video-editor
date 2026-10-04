@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { criarProjeto } from '@/api'
+import { criarProjeto, lerConfig, type Config } from '@/api'
 import { Marca } from '@/components/Marca'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -15,6 +15,11 @@ export default function NovoProjeto({ aberto, aoFechar }: Props) {
   const navegar = useNavigate()
   const [progresso, setProgresso] = useState<number | null>(null)
   const [erro, setErro] = useState('')
+  const [config, setConfig] = useState<Config | null>(null)
+
+  useEffect(() => {
+    if (aberto) lerConfig().then(setConfig).catch(() => setConfig(null))
+  }, [aberto])
 
   async function enviar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -53,6 +58,22 @@ export default function NovoProjeto({ aberto, aoFechar }: Props) {
           </Campo>
           <Campo rotulo="Briefing (áudio)" opcional>
             <Input name="briefing_audio" type="file" accept="audio/*,video/*" />
+          </Campo>
+          <Campo rotulo="Motor de transcrição">
+            <select
+              name="motor"
+              key={config?.motor_padrao}
+              defaultValue={config?.motor_padrao}
+              className="h-11 w-full rounded-[3px] border border-line bg-white px-3.5 text-[13px] text-ink outline-none focus-visible:border-ink"
+            >
+              {config &&
+                Object.entries(config.motores).map(([vid, m]) => (
+                  <option key={vid} value={vid}>
+                    {m.nome}
+                    {m.chave === false ? ' — sem chave de API' : ''}
+                  </option>
+                ))}
+            </select>
           </Campo>
           <Campo rotulo="Vídeos de apoio" opcional>
             <Input name="apoios" type="file" accept="video/*" multiple />

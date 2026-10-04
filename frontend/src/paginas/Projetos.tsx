@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Settings } from 'lucide-react'
 import { formatarDuracao, listarProjetos, urlMiniatura, type ResumoProjeto } from '@/api'
 import { Logo } from '@/components/Marca'
 import { Button } from '@/components/ui/button'
 import { ETAPAS } from '@/editor/etapas'
 import { cn } from '@/lib/utils'
+import Configuracoes from './Configuracoes'
 import NovoProjeto from './NovoProjeto'
 
 /** Início do app: grade de projetos no mesmo chrome escuro do editor. */
@@ -14,6 +15,7 @@ export default function Projetos() {
   const [erro, setErro] = useState('')
   const [criando, setCriando] = useState(false)
   const [busca, setBusca] = useState('')
+  const [config, setConfig] = useState(false)
 
   useEffect(() => {
     listarProjetos().then(setProjetos).catch((e) => setErro(e.message))
@@ -37,6 +39,9 @@ export default function Projetos() {
             className="w-full bg-transparent text-[12px] text-cream outline-none placeholder:text-fog/70"
           />
         </label>
+        <button onClick={() => setConfig(true)} aria-label="Configurações" title="Configurações" className="grid size-9 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream">
+          <Settings className="size-4" />
+        </button>
         <Button variant="coral" size="sm" className="h-9 gap-6 px-4" onClick={() => setCriando(true)}>
           Novo projeto <span className="seta">↗</span>
         </Button>
@@ -104,6 +109,7 @@ export default function Projetos() {
       </main>
 
       <NovoProjeto aberto={criando} aoFechar={() => setCriando(false)} />
+      <Configuracoes aberto={config} aoFechar={() => setConfig(false)} />
     </div>
   )
 }

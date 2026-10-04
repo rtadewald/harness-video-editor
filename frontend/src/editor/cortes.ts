@@ -56,6 +56,9 @@ export type Borda = {
   /** Folga entre a borda e a palavra vizinha, em ms. Negativo = o corte entra na palavra. */
   folgaMs: number | null
   silencio: Silencio | null
+  /** Clipe dono desta borda e onde a IA a tinha posto, se Rodrigo a moveu. */
+  clipeId: string
+  automatico: number | null
 }
 
 /** Como cada ponta do corte se relaciona com a fala vizinha e com as pausas reais do áudio. */
@@ -63,10 +66,10 @@ export function bordasDoCorte(c: Corte, silencios: Silencio[]): Borda[] {
   const silencioEm = (t: number) => silencios.find((s) => s.inicio - 0.001 <= t && t <= s.fim + 0.001) ?? null
   const out: Borda[] = []
   if (c.palavraAntes) {
-    out.push({ lado: 'inicio', t: c.ini, palavra: c.palavraAntes, folgaMs: Math.round((c.ini - c.palavraAntes.fim) * 1000), silencio: silencioEm(c.ini) })
+    out.push({ lado: 'inicio', t: c.ini, palavra: c.palavraAntes, folgaMs: Math.round((c.ini - c.palavraAntes.fim) * 1000), silencio: silencioEm(c.ini), clipeId: c.antes!.id, automatico: c.antes!.auto?.fim ?? null })
   }
   if (c.palavraDepois) {
-    out.push({ lado: 'fim', t: c.fim, palavra: c.palavraDepois, folgaMs: Math.round((c.palavraDepois.inicio - c.fim) * 1000), silencio: silencioEm(c.fim) })
+    out.push({ lado: 'fim', t: c.fim, palavra: c.palavraDepois, folgaMs: Math.round((c.palavraDepois.inicio - c.fim) * 1000), silencio: silencioEm(c.fim), clipeId: c.depois!.id, automatico: c.depois!.auto?.inicio ?? null })
   }
   return out
 }

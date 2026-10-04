@@ -11,6 +11,8 @@ type Props = {
   duracao: number
   tocando: boolean
   alternar: () => void
+  velocidade: number
+  setVelocidade: (v: number) => void
   buscar: (s: number) => void
   /** Etapa de Cortes: mostra também a posição no arquivo original. */
   bruto?: number
@@ -92,6 +94,18 @@ export default function Preview(p: Props) {
           <b className="font-semibold text-cream">{formatarTempo(p.tempo)}</b> / {formatarTempo(p.duracao)}
           {p.bruto != null && <span className="ml-2 text-yellow">bruto {formatarTempo(p.bruto)}</span>}
         </span>
+        <div className="ml-2 flex rounded-full border border-line-dark p-0.5 text-[11px] font-semibold" title="Velocidade de reprodução">
+          {[0.25, 0.5, 1, 2].map((v) => (
+            <button
+              key={v}
+              onClick={() => p.setVelocidade(v)}
+              aria-pressed={p.velocidade === v}
+              className={`h-6 rounded-full px-2 tabular-nums ${p.velocidade === v ? 'bg-cream text-ink' : 'text-fog hover:text-cream'}`}
+            >
+              {v}×
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )
