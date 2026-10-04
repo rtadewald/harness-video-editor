@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Minus, Pause, Play, Plus, Scissors, Trash2, Undo2 } from 'lucide-react'
-import { abrirRevisao, marcarRevisada, salvarDirecao, urlArquivoReferencia, type ItemRef, type Revisao } from '@/api'
+import { abrirRevisao, marcarRevisada, reanalisarReferencia, salvarDirecao, urlArquivoReferencia, type ItemRef, type Revisao } from '@/api'
 import { Logo } from '@/components/Marca'
 import { cn } from '@/lib/utils'
 import { dividirPlano, editar, excluir, moverBorda, moverElemento, novoElemento, planosDe } from '@/referencias/edicao'
@@ -14,6 +14,7 @@ type Salvamento = 'salvo' | 'salvando' | 'pendente' | { erro: string }
  *  e o detalhe editável à direita. Cada mudança é salva sozinha. */
 export default function RevisaoReferencia() {
   const { id = '' } = useParams()
+  const navegar = useNavigate()
   const [dados, setDados] = useState<Revisao | null>(null)
   const [erroCarga, setErroCarga] = useState('')
   const [itens, setItens] = useState<ItemRef[]>([])
@@ -187,6 +188,12 @@ export default function RevisaoReferencia() {
   )
   const aoIniciarArrasto = useCallback(() => setHistorico((h) => [...h.slice(-99), itensRef.current]), [])
 
+  async function reanalisar() {
+    if (!window.confirm('Pedir uma análise nova para a IA? A revisão atual (inclusive suas correções) é substituída; a versão anterior fica guardada.')) return
+    await reanalisarReferencia(id, true)
+    navegar('/referencias')
+  }
+
   async function revisar(v: boolean) {
     if (!dados) return
     if (v && salvamento !== 'salvo') return
@@ -223,6 +230,13 @@ export default function RevisaoReferencia() {
         <span className="ml-auto text-[11px] text-fog">
           {salvamento === 'salvo' ? '✓ Salvo' : salvamento === 'salvando' ? 'Salvando…' : salvamento === 'pendente' ? 'Alterações…' : <b className="text-coral">⚠ {salvamento.erro}</b>}
         </span>
+        <button
+          onClick={() => void reanalisar()}
+          title="Analisa este vídeo de novo com o prompt e as configurações atuais"
+          className="flex h-9 items-center gap-2 rounded-full border border-line-dark px-4 text-[12px] font-semibold text-fog hover:border-cream/50 hover:text-cream"
+        >
+          ↻ Reanalisar
+        </button>
         <button
           onClick={() => void revisar(!revisada)}
           disabled={!revisada && salvamento !== 'salvo'}
@@ -427,10 +441,7 @@ function Detalhe(p: {
         </Campo>
       )}
       <Campo rotulo="O que aparece">
-        <textarea defaultValue={i.descricao} rows={4} onBlur={(e) => e.target.value !== i.descricao && p.editar({ descricao: e.target.value })} className={cn(CAMPO, 'h-auto py-2')} />
-      </Campo>
-      <Campo rotulo="Função (por que entra aqui)">
-        <textarea defaultValue={i.funcao} rows={3} onBlur={(e) => e.target.value !== i.funcao && p.editar({ funcao: e.target.value })} className={cn(CAMPO, 'h-auto py-2')} />
+        <textarea defaultValue={i.descricao} rows={8} onBlur={(e) => e.target.value !== i.descricao && p.editar({ descricao: e.target.value })} className={cn(CAMPO, 'h-auto py-2')} />
       </Campo>
 
       <div className="flex flex-wrap gap-2">

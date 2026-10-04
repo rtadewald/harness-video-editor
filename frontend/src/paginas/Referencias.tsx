@@ -15,7 +15,6 @@ import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import EstatisticasReferencias from './EstatisticasReferencias'
 
 const STATUS: Record<StatusReferencia, { nome: string; cor: string }> = {
   na_fila: { nome: 'Na fila', cor: 'bg-cream/15 text-cream' },
@@ -245,7 +244,6 @@ export default function Referencias() {
 
         {refs?.length === 0 && <p className="mt-8 text-[13px] text-fog">Nenhuma referência ainda. Comece com 5 a 10 Reels editados que você considera bons.</p>}
 
-        {refs && refs.some(revisavel) && <EstatisticasReferencias revisadas={revisadas} />}
       </main>
     </div>
   )

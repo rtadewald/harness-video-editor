@@ -1,4 +1,4 @@
-"""Direção visual (SPEC §8.2): análise das referências, edição da revisão e estatísticas.
+"""Direção visual (SPEC §8.2): análise das referências e edição da revisão.
 
 Análise de uma referência (vídeo já editado):
 1. proxy 720p, áudio, silêncios e transcrição (motor padrão do app);
@@ -9,7 +9,6 @@ Análise de uma referência (vídeo já editado):
 """
 import base64
 import json
-import statistics
 import subprocess
 import tempfile
 import threading
@@ -32,6 +31,7 @@ MAX_QUADROS = 40  # por trecho; trechos longos (fala corrida) são amostrados co
 ALTURA_QUADRO = 384  # até 384 px o Gemini cobra 258 tokens por imagem; acima disso divide em blocos (~4× mais)
 PARALELO = 2
 MIN_PLANO = 0.1
+FIM_DE_FRASE = ('.', '?', '!', '…')
 ENV = Path(__file__).resolve().parents[1] / '.env'
 
 _fila = ThreadPoolExecutor(max_workers=1)  # uma referência por vez; os trechos de cada uma vão em paralelo
@@ -55,8 +55,7 @@ class PlanoIA(BaseModel):
     conteudo_em_cima: Literal['insert', 'motion'] | None = Field(description='Só para tela_dividida: o que ocupa a parte de cima')
     inicio: float = Field(description='Segundos do vídeo (use os tempos t= dos quadros)')
     fim: float
-    descricao: str = Field(description='O que aparece na tela, objetivo, citando ferramentas/sites/textos visíveis')
-    funcao: str = Field(description='Por que isso entra neste momento da fala, em uma frase')
+    descricao: str = Field(description='A história do que aparece na tela ao longo do trecho, em ordem, com descrição exata')
 
 
 class ElementoIA(BaseModel):
@@ -64,8 +63,7 @@ class ElementoIA(BaseModel):
     inicio: float
     fim: float
     texto: str | None = Field(description='Texto exato do elemento, quando houver')
-    descricao: str
-    funcao: str
+    descricao: str = Field(description='Como o elemento é e como entra/sai (estilo, posição, animação)')
 
 
 class AnaliseTrecho(BaseModel):
@@ -74,16 +72,21 @@ class AnaliseTrecho(BaseModel):
     elementos: list[ElementoIA]
 
 
+VERSAO_ANALISE = 2  # muda quando o prompt ou o que é enviado muda: os trechos guardados com outra versão são refeitos
+
 PROMPT = """Você analisa um Reel vertical JÁ EDITADO de Rodrigo Tadewald (Asimov Academy, IA e programação) para descobrir como ele foi dirigido visualmente: o que aparece na tela em cada momento da fala.
 
-Você recebe UM trecho entre dois cortes de cena: quadros em mosaico com o tempo de cada um escrito no canto (t= em segundos do vídeo), a fala desse trecho com tempos e, como contexto, a transcrição inteira e um quadro antes e um depois do trecho.
+Você recebe UM trecho entre dois cortes de cena:
+- a transcrição do vídeo DO COMEÇO ATÉ O FIM DESTE TRECHO (nada do que vem depois), para você saber do que o vídeo está falando e o que já foi dito. O que é falado durante o trecho está marcado entre <momento_analisado> e </momento_analisado>, com o tempo de início de cada palavra;
+- os quadros do trecho, em ordem, cada um precedido do seu tempo no vídeo (t= segundos);
+- um quadro logo antes e um logo depois do trecho, só como contexto.
 
 PLANOS-BASE (um por vez; cobrem o trecho inteiro, sem buracos):
 - full_ator: o apresentador ocupa a tela (com ou sem coisas pequenas por cima). Zoom/reenquadramento no apresentador continua sendo full_ator.
 - insert_tela_cheia: material ilustrativo REAL ocupa a tela toda, sem o apresentador: gravação de tela, site, app, print, foto, vídeo de apoio.
 - motion_tela_cheia: peça gráfica ANIMADA criada para o vídeo ocupa a tela toda, sem o apresentador: logos animados, mockups estilizados, textos e formas animadas, infográficos.
 - tela_dividida: o apresentador aparece JUNTO com um insert ou motion. Normalmente o conteúdo fica em cima e o apresentador embaixo; se o apresentador estiver numa janela menor sobre o conteúdo, também é tela_dividida (diga "apresentador em janela" na descrição). Preencha conteudo_em_cima com "insert" ou "motion".
-Insert × motion: insert é a captura de algo que existe (tela, site, print, filmagem), mesmo com zoom ou destaque simples; motion é uma peça gráfica animada produzida.
+Insert × motion: insert é a captura de algo que existe (tela, site, print, filmagem), mesmo com zoom ou destaque simples; motion é uma peça gráfica animada produzida. Compare os quadros em sequência: o que muda entre eles (rolagem, cursor, digitação, elementos que se montam) ajuda a decidir.
 
 ELEMENTOS (sobrepostos ao plano; podem durar menos que ele):
 - lettering: texto grande de destaque com uma palavra ou expressão-chave (ex.: um título "Humanizer").
@@ -94,11 +97,12 @@ ELEMENTOS (sobrepostos ao plano; podem durar menos que ele):
 IGNORE a legenda palavra a palavra queimada no vídeo (texto curto que acompanha a fala, uma ou poucas palavras por vez): ela é outra etapa e NÃO é lettering.
 Se o texto em destaque É o próprio motion em tela cheia (ex.: uma animação tipográfica sem o apresentador), ele já é o plano motion_tela_cheia: não crie um lettering repetindo-o. Lettering é texto SOBRE outro plano.
 
+DESCRIÇÃO (o campo mais importante): conte a HISTÓRIA do que aparece na tela ao longo do trecho, em ordem, com descrição exata. Diga o que é (qual site, app, ferramenta, gráfico, texto — com os nomes e textos visíveis), como é visualmente (cores, estilo, composição, se é bonito/minimalista/escuro…) e o que acontece entre os quadros (rola, dá zoom, o cursor clica, algo é digitado, elementos se montam, troca de uma tela para outra). Use o contexto da fala para nomear as coisas com precisão. Exemplo do tom: "Primeiro aparece a home de um site de relógios Venezia, escura e elegante, com o relógio girando em 3D; a câmera dá zoom no produto e depois troca para a página de detalhes com fundo creme." Para elementos, descreva como ele é e como entra e sai.
+
 Regras:
 - Use as categorias acima e nenhuma outra. Tempos sempre dentro do trecho, a partir dos t= dos quadros.
 - Normalmente o trecho tem UM plano. Só devolva mais de um se o layout claramente muda dentro do trecho.
-- descricao: o que aparece, objetivo, em português, citando nomes de ferramentas, sites e textos visíveis.
-- funcao: por que aquilo entra naquele momento, relacionando com o que está sendo dito (ex.: "mostra a ferramenta logo que ela é citada", "prova o resultado prometido", "reforça o CTA").
+- Escreva em português.
 - continua_anterior: true só se o primeiro plano do trecho mostra o MESMO conteúdo do quadro de contexto anterior (mesma tela/insert/motion, só mudou zoom ou posição)."""
 
 
@@ -231,6 +235,15 @@ def trechos(cortes: list[float], duracao: float) -> list[tuple[float, float]]:
     return [(a, b) for a, b in zip(bordas, bordas[1:]) if b - a > 0.02]
 
 
+def _quadros(video: Path, a: float, b: float, fps: float, pasta: Path) -> list[tuple[float, Path]]:
+    """Quadros do trecho [a, b), um por imagem, com o tempo de cada um no vídeo."""
+    d = b - a
+    fps = min(fps, MAX_QUADROS / max(d, 0.01))
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-ss', f'{a:.3f}', '-i', str(video), '-t', f'{d + 0.5:.3f}',
+                    '-vf', f'trim=end={d:.3f},fps={fps:.4f},scale=-2:{ALTURA_QUADRO}', '-q:v', '4', str(pasta / '%03d.jpg')], check=True)
+    return [(round(a + k / fps, 2), q) for k, q in enumerate(sorted(pasta.glob('*.jpg')))]
+
+
 FONTE = '/System/Library/Fonts/Supplemental/Arial.ttf'
 MOSAICO = (3, 2)  # quadros por imagem: o Gemini cobra ~1.100 tokens por imagem, qualquer que seja o tamanho
 
@@ -259,31 +272,44 @@ def _imagem(arq: Path) -> dict:
     return {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,' + base64.b64encode(arq.read_bytes()).decode()}}
 
 
-def _fala(palavras: list[dict], a: float, b: float) -> str:
-    dentro = [w for w in palavras if w['fim'] > a and w['inicio'] < b]
-    return ' '.join(f"{w['texto']}[{w['inicio']:.2f}]" for w in dentro) or '(sem fala)'
+def transcricao_ate(palavras: list[dict], a: float, b: float) -> str:
+    """A fala do começo do vídeo até o fim do trecho [a, b), com o que é dito durante o trecho marcado e com tempos.
+    O que vem antes vai em linhas (quebradas nas pausas e nos fins de frase), cada uma com o seu início."""
+    antes = [w for w in palavras if w['fim'] <= a + 0.01]
+    durante = [w for w in palavras if w['fim'] > a + 0.01 and w['inicio'] < b]
+    linhas: list[list[dict]] = []
+    for k, w in enumerate(antes):
+        if not linhas or w['inicio'] - antes[k - 1]['fim'] >= 0.6 or antes[k - 1]['texto'].rstrip().endswith(FIM_DE_FRASE):
+            linhas.append([])
+        linhas[-1].append(w)
+    texto = '\n'.join(f"[{l[0]['inicio']:.1f} s] " + ' '.join(w['texto'] for w in l) for l in linhas)
+    momento = ' '.join(f"{w['texto']}[{w['inicio']:.2f}]" for w in durante) or '(sem fala neste trecho)'
+    return (texto + '\n' if texto else '(começo do vídeo)\n') + f'<momento_analisado de="{a:.2f} s" ate="{b:.2f} s">\n{momento}\n</momento_analisado>'
 
 
 def analisar_trecho(video: Path, palavras: list[dict], n: int, a: float, b: float, duracao: float, config: dict) -> dict:
     from langchain_openrouter import ChatOpenRouter
 
-    texto_inteiro = ' '.join(w['texto'] for w in palavras)
     with tempfile.TemporaryDirectory() as tmp:
         pasta = Path(tmp)
         (pasta / 'q').mkdir()
         conteudo: list[dict] = [{'type': 'text', 'text': (
-            f'TRANSCRIÇÃO INTEIRA DO VÍDEO (contexto): {texto_inteiro}\n\n'
-            f'TRECHO {n + 1}: de {a:.2f} s a {b:.2f} s (vídeo de {duracao:.1f} s).\n'
-            f'FALA NESTE TRECHO (palavra[início em s]): {_fala(palavras, a, b)}')}]
+            f'TRECHO {n + 1}: de {a:.2f} s a {b:.2f} s (o vídeo tem {duracao:.1f} s).\n\n'
+            f'TRANSCRIÇÃO ATÉ O FIM DESTE TRECHO:\n{transcricao_ate(palavras, a, b)}')}]
         if a > 0.05:
             conteudo += [{'type': 'text', 'text': f'QUADRO DE CONTEXTO ANTERIOR (t={max(a - 0.15, 0):.2f}, antes do trecho):'},
                          _imagem(quadro(video, a - 0.15, pasta / 'antes.jpg'))]
-        conteudo.append({'type': 'text', 'text': (
-            f"QUADROS DO TRECHO ({config['quadros_por_segundo']} por segundo), em mosaicos de {MOSAICO[0] * MOSAICO[1]}: em cada imagem, "
-            'da esquerda para a direita e de cima para baixo; o tempo de cada quadro no vídeo está escrito no canto (t=segundos). '
-            'Áreas pretas no fim do último mosaico são só preenchimento.')})
-        for q in _mosaicos(video, a, b, config['quadros_por_segundo'], pasta / 'q'):
-            conteudo.append(_imagem(q))
+        fps = config['quadros_por_segundo']
+        if config['formato_quadros'] == 'mosaico':
+            conteudo.append({'type': 'text', 'text': (
+                f"QUADROS DO TRECHO ({fps} por segundo), em mosaicos de {MOSAICO[0] * MOSAICO[1]}: em cada imagem, "
+                'da esquerda para a direita e de cima para baixo; o tempo de cada quadro no vídeo está escrito no canto (t=segundos). '
+                'Áreas pretas no fim do último mosaico são só preenchimento.')})
+            conteudo += [_imagem(q) for q in _mosaicos(video, a, b, fps, pasta / 'q')]
+        else:
+            conteudo.append({'type': 'text', 'text': f'QUADROS DO TRECHO ({fps} por segundo), em ordem:'})
+            for t, q in _quadros(video, a, b, fps, pasta / 'q'):
+                conteudo += [{'type': 'text', 'text': f't={t:.2f}'}, _imagem(q)]
         if b < duracao - 0.05:
             conteudo += [{'type': 'text', 'text': f'QUADRO DE CONTEXTO POSTERIOR (t={b + 0.1:.2f}, depois do trecho):'},
                          _imagem(quadro(video, b + 0.1, pasta / 'depois.jpg'))]
@@ -313,7 +339,8 @@ def _analise(id: str, base: Path):
     def um(n_ab):
         n, (a, b) = n_ab
         arq = cache / f'{n:03d}.json'
-        chave = {'inicio': a, 'fim': b, 'modelo': config['modelo_direcao'], 'fps': config['quadros_por_segundo']}
+        chave = {'inicio': a, 'fim': b, 'modelo': config['modelo_direcao'], 'fps': config['quadros_por_segundo'],
+                 'formato': config['formato_quadros'], 'versao': VERSAO_ANALISE}
         if arq.exists():
             salvo = json.loads(arq.read_text())
             if salvo.get('chave') == chave:
@@ -362,11 +389,13 @@ def montar(resultados: list[dict], duracao: float) -> list[dict]:
                 planos[-1]['fim'] = fim
                 continue
             novo = {'camada': 'plano', 'tipo': p['tipo'], 'conteudo': p['conteudo_em_cima'] if p['tipo'] == 'tela_dividida' else None,
-                    'inicio': ini, 'fim': fim, 'descricao': p['descricao'], 'texto': None, 'funcao': p['funcao']}
+                    'inicio': ini, 'fim': fim, 'descricao': p['descricao'], 'texto': None}
             ant = planos[-1] if planos else None
             mesmo = ant and ant['tipo'] == novo['tipo'] and ant['conteudo'] == novo['conteudo']
             if mesmo and (novo['tipo'] == 'full_ator' or (k == 0 and r['continua_anterior'])):
                 ant['fim'] = fim
+                if novo['tipo'] != 'full_ator' and novo['descricao']:  # a história continua: emenda as descrições
+                    ant['descricao'] = f"{ant['descricao']} Depois: {novo['descricao']}"
             else:
                 planos.append(novo)
         for e in r['elementos']:
@@ -378,7 +407,7 @@ def montar(resultados: list[dict], duracao: float) -> list[dict]:
                 ant['fim'] = fim
                 continue
             elementos.append({'camada': 'elemento', 'tipo': e['tipo'], 'conteudo': None, 'inicio': ini, 'fim': fim,
-                              'descricao': e['descricao'], 'texto': e['texto'], 'funcao': e['funcao']})
+                              'descricao': e['descricao'], 'texto': e['texto']})
     if planos:
         planos[0]['inicio'], planos[-1]['fim'] = 0.0, duracao
     itens = planos + elementos
@@ -444,7 +473,7 @@ def validar_edicao(itens: list[dict], duracao: float) -> list[dict]:
             conteudo = 'insert'
         limpo = {'id': id, 'camada': camada, 'tipo': i['tipo'], 'conteudo': conteudo, 'inicio': round(ini, 3), 'fim': round(fim, 3),
                  'descricao': str(i.get('descricao') or '').strip(), 'texto': (str(i['texto']).strip() or None) if i.get('texto') else None,
-                 'funcao': str(i.get('funcao') or '').strip(), 'miniatura': i.get('miniatura'), 'miniatura_t': i.get('miniatura_t')}
+                 'miniatura': i.get('miniatura'), 'miniatura_t': i.get('miniatura_t')}
         (planos if camada == 'plano' else elementos).append(limpo)
     planos.sort(key=lambda p: p['inicio'])
     if not planos:
@@ -475,88 +504,3 @@ def salvar_edicao(id: str, itens: list[dict]) -> dict:
     dados['itens'] = novos
     (base / 'direcao.json').write_text(json.dumps(dados, ensure_ascii=False, indent=1), encoding='utf-8')
     return dados
-
-
-# ---------------------------------------------------------------- estatísticas (D4)
-
-def _resumo(valores: list[float]) -> dict | None:
-    if not valores:
-        return None
-    v = sorted(valores)
-    q = lambda f: v[min(int(f * (len(v) - 1) + 0.5), len(v) - 1)]  # noqa: E731
-    return {'n': len(v), 'media': round(statistics.fmean(v), 2), 'mediana': round(statistics.median(v), 2),
-            'p10': round(q(0.1), 2), 'p90': round(q(0.9), 2), 'min': round(v[0], 2), 'max': round(v[-1], 2)}
-
-
-FIM_DE_FRASE = ('.', '?', '!', '…')
-
-
-def entrada(t: float, palavras: list[dict]) -> dict:
-    """Onde um item entra em relação à fala: dentro de uma palavra, numa pausa (≥ 150 ms) ou entre palavras coladas;
-    no começo ou no meio de uma frase; e a quantos ms do começo da palavra mais próxima."""
-    if not palavras:
-        return {'onde': 'sem_fala', 'frase': None, 'ms_palavra': None}
-    prox = next((k for k, w in enumerate(palavras) if w['fim'] > t), None)
-    if prox is None:
-        return {'onde': 'depois_da_fala', 'frase': None, 'ms_palavra': None}
-    w = palavras[prox]
-    ant = palavras[prox - 1] if prox else None
-    if w['inicio'] < t:
-        onde = 'dentro_da_palavra'
-    elif ant is None or w['inicio'] - ant['fim'] >= 0.15:
-        onde = 'na_pausa'
-    else:
-        onde = 'entre_palavras'
-    alvo = w if onde != 'dentro_da_palavra' else w
-    inicio_de_frase = ant is None or ant['texto'].rstrip().endswith(FIM_DE_FRASE)
-    if onde == 'dentro_da_palavra':
-        inicio_de_frase = False
-    perto = min(palavras, key=lambda x: abs(x['inicio'] - t))
-    return {'onde': onde, 'frase': 'inicio' if inicio_de_frase else 'meio', 'ms_palavra': round((t - perto['inicio']) * 1000),
-            'palavra': alvo['texto']}
-
-
-def estatisticas(lista: list[tuple[dict, dict, list[dict]]]) -> dict:
-    """`lista`: (referência, direcao.json, palavras) de cada vídeo. Números calculados por código, sem LLM."""
-    dur_total = sum(r['video']['duracao'] for r, _, _ in lista)
-    por_tipo: dict[str, dict] = {}
-    entradas: dict[str, dict] = {}
-    full_seguido, trocas = [], 0
-    for ref, dados, palavras in lista:
-        planos = [i for i in dados['itens'] if i['camada'] == 'plano']
-        trocas += max(len(planos) - 1, 0)
-        for i in dados['itens']:
-            d = i['fim'] - i['inicio']
-            chave = i['tipo'] + (f":{i['conteudo']}" if i.get('conteudo') else '')
-            t = por_tipo.setdefault(chave, {'tipo': i['tipo'], 'conteudo': i.get('conteudo'), 'camada': i['camada'], 'duracoes': [], 'tempo': 0.0, 'textos': []})
-            t['duracoes'].append(d)
-            t['tempo'] += d
-            if i.get('texto'):
-                t['textos'].append(i['texto'])
-            if i['camada'] == 'plano' and i['tipo'] == 'full_ator':
-                full_seguido.append(d)
-            if i['camada'] == 'plano' and i['inicio'] <= 0.01:
-                continue  # o primeiro plano começa com o vídeo: não diz nada sobre quando entrar
-            e = entrada(i['inicio'], palavras)
-            c = entradas.setdefault(chave, {'onde': {}, 'frase': {}, 'ms': []})
-            c['onde'][e['onde']] = c['onde'].get(e['onde'], 0) + 1
-            if e['frase']:
-                c['frase'][e['frase']] = c['frase'].get(e['frase'], 0) + 1
-            if e['ms_palavra'] is not None:
-                c['ms'].append(e['ms_palavra'])
-    tipos = []
-    for chave, t in por_tipo.items():
-        e = entradas.get(chave, {'onde': {}, 'frase': {}, 'ms': []})
-        tipos.append({
-            'chave': chave, 'tipo': t['tipo'], 'conteudo': t['conteudo'], 'camada': t['camada'],
-            'nome': (PLANOS | ELEMENTOS)[t['tipo']] + (f" ({t['conteudo']} em cima)" if t['conteudo'] else ''),
-            'duracao': _resumo(t['duracoes']),
-            'proporcao': round(t['tempo'] / dur_total, 3) if dur_total and t['camada'] == 'plano' else None,
-            'por_minuto': round(len(t['duracoes']) / (dur_total / 60), 2) if dur_total else None,
-            'entrada_onde': e['onde'], 'entrada_frase': e['frase'], 'ms_palavra': _resumo(e['ms']),
-            'textos': t['textos'][:12],
-        })
-    tipos.sort(key=lambda x: (x['camada'] != 'plano', -(x['proporcao'] or 0), -x['duracao']['n']))
-    return {'videos': len(lista), 'duracao_total': round(dur_total, 1), 'tipos': tipos,
-            'full_ator_seguido': _resumo(full_seguido),
-            'trocas_por_minuto': round(trocas / (dur_total / 60), 2) if dur_total else None}

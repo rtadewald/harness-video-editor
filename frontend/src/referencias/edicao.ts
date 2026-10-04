@@ -65,7 +65,7 @@ export function excluir(itens: ItemRef[], id: string): ItemRef[] {
 export function novoElemento(itens: ItemRef[], t: number, duracao: number): { itens: ItemRef[]; novo: string } {
   const id = novoId(itens, 'e')
   const inicio = r3(Math.min(Math.max(t, 0), duracao - 0.5))
-  const el: ItemRef = { id, camada: 'elemento', tipo: 'lettering', conteudo: null, inicio, fim: r3(Math.min(inicio + 1.5, duracao)), descricao: '', texto: '', funcao: '' }
+  const el: ItemRef = { id, camada: 'elemento', tipo: 'lettering', conteudo: null, inicio, fim: r3(Math.min(inicio + 1.5, duracao)), descricao: '', texto: '' }
   return { itens: [...itens, el], novo: id }
 }
 

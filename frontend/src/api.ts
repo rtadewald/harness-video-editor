@@ -132,6 +132,8 @@ export type Config = {
   /** Direção visual: modelo multimodal (OpenRouter) que analisa as referências e quadros por segundo de cada trecho. */
   modelo_direcao: string
   quadros_por_segundo: number
+  /** Quadros como imagens separadas (padrão) ou em mosaicos de 6 (mais barato, cada quadro menor). */
+  formato_quadros: 'separados' | 'mosaico'
   motores: Record<string, { nome: string; familia: string; chave: boolean | null }> }
 export const lerConfig = () => fetch('/api/config').then(json<Config>)
 export const salvarConfig = (mudancas: Partial<Omit<Config, 'motores'>>) =>
@@ -170,7 +172,6 @@ export type ItemRef = {
   fim: number
   descricao: string
   texto: string | null
-  funcao: string
   miniatura?: string
   miniatura_t?: number
   palavra_ini?: string | null
@@ -185,23 +186,6 @@ export const marcarRevisada = (id: string, revisado: boolean) =>
   fetch(`/api/referencias/${id}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revisado }) }).then(json<Referencia>)
 export const reanalisarReferencia = (id: string, refazer = false) => post<Referencia>(`/api/referencias/${id}/analisar${refazer ? '?refazer=true' : ''}`)
 
-export type Resumo = { n: number; media: number; mediana: number; p10: number; p90: number; min: number; max: number }
-export type EstatTipo = {
-  chave: string
-  tipo: string
-  conteudo: string | null
-  camada: 'plano' | 'elemento'
-  nome: string
-  duracao: Resumo
-  proporcao: number | null
-  por_minuto: number | null
-  entrada_onde: Record<string, number>
-  entrada_frase: Record<string, number>
-  ms_palavra: Resumo | null
-  textos: string[]
-}
-export type Estatisticas = { videos: number; duracao_total: number; tipos: EstatTipo[]; full_ator_seguido: Resumo | null; trocas_por_minuto: number | null }
-export const lerEstatisticas = (todas: boolean) => fetch(`/api/referencias/estatisticas${todas ? '?todas=true' : ''}`).then(json<Estatisticas>)
 export const listarReferencias = () => fetch('/api/referencias').then(json<Referencia[]>)
 export const subirReferencias = (videos: File[]) => {
   const corpo = new FormData()

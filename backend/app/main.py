@@ -51,6 +51,7 @@ class Config(BaseModel):
     respiro_ms: int | None = Field(default=None, ge=0, le=5000)
     modelo_direcao: str | None = Field(default=None, min_length=3, max_length=120)
     quadros_por_segundo: int | None = Field(default=None, ge=1, le=4)
+    formato_quadros: Literal['separados', 'mosaico'] | None = None
 
 
 def _config_completa() -> dict:
@@ -185,19 +186,6 @@ def criar_referencias(videos: Annotated[list[UploadFile], File()]):
     return {'criadas': [referencias.ler(r['id']) for r in criadas], 'recusadas': recusadas}
 
 
-@app.get('/api/referencias/estatisticas')
-def estatisticas_referencias(todas: bool = False):
-    """Números das referências revisadas (SPEC §8.2.1). Com `todas`, inclui as ainda não revisadas (prévia)."""
-    aceitas = ('revisado', 'a_revisar') if todas else ('revisado',)
-    lista = []
-    for r in referencias.listar():
-        if r['status'] not in aceitas:
-            continue
-        base = referencias.pasta(r['id'])
-        lista.append((r, json.loads((base / 'direcao.json').read_text()), json.loads((base / 'palavras.json').read_text())['palavras']))
-    return direcao.estatisticas(lista)
-
-
 @app.get('/api/direcao/categorias')
 def categorias_direcao():
     return {'planos': direcao.PLANOS, 'elementos': direcao.ELEMENTOS}
@@ -216,9 +204,12 @@ def reanalisar_referencia(id: str, refazer: bool = False):
     if r['status'] in ('na_fila', 'analisando'):
         raise HTTPException(409, 'Essa referência já está na fila')
     if refazer:
+        referencias.atualizar(id, lambda x: x.update(status='na_fila'))  # sai de "revisado": a revisão vai ser refeita
         base = referencias.pasta(id)
         shutil.rmtree(base / 'trechos', ignore_errors=True)
-        for nome in ('analise.json', 'direcao.json', 'cenas.json'):
+        if (base / 'direcao.json').exists():  # a análise anterior fica guardada para comparar
+            (base / 'direcao.json').replace(base / 'direcao.anterior.json')
+        for nome in ('analise.json', 'cenas.json'):
             (base / nome).unlink(missing_ok=True)
     direcao.enfileirar(id)
     return referencias.ler(id)

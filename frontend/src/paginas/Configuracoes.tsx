@@ -217,6 +217,26 @@ function AbaDirecao({ config, salvar }: Contexto) {
           ))}
         </div>
       </Grupo>
+      <Grupo
+        titulo="Como os quadros vão"
+        texto="Separados: cada quadro é uma imagem, todos na mesma requisição (melhor para ler detalhes). Mosaico: 6 quadros por imagem, com o tempo escrito em cada um (~2,4× mais barato, cada quadro fica menor). Trocar faz a próxima análise refazer os trechos."
+      >
+        <div className="flex gap-1.5">
+          {(['separados', 'mosaico'] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => salvar({ formato_quadros: f })}
+              disabled={!config}
+              className={cn(
+                'h-10 rounded-full border px-4 text-[13px] font-semibold',
+                config?.formato_quadros === f ? 'border-ink bg-ink text-cream' : 'border-line hover:border-ink',
+              )}
+            >
+              {f === 'separados' ? 'Separados' : 'Mosaico'}
+            </button>
+          ))}
+        </div>
+      </Grupo>
     </>
   )
 }
