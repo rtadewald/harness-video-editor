@@ -11,7 +11,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import cortes, midia, mocks, motores, pipeline, projeto, referencias
+from . import cortes, direcao, midia, mocks, motores, pipeline, projeto, referencias
 
 load_dotenv(Path(__file__).resolve().parents[1] / '.env')
 
@@ -19,6 +19,7 @@ load_dotenv(Path(__file__).resolve().parents[1] / '.env')
 @asynccontextmanager
 async def ciclo(_app):
     pipeline.retomar_interrompidos()
+    direcao.retomar_interrompidas()
     yield
 
 
@@ -48,6 +49,8 @@ class Config(BaseModel):
     depois_do_corte_ms: int | None = Field(default=None, ge=0, le=1000)
     pausa_max_ms: int | None = Field(default=None, ge=0, le=30000)  # 0 = nunca encurtar pausas
     respiro_ms: int | None = Field(default=None, ge=0, le=5000)
+    modelo_direcao: str | None = Field(default=None, min_length=3, max_length=120)
+    quadros_por_segundo: int | None = Field(default=None, ge=1, le=4)
 
 
 def _config_completa() -> dict:
@@ -177,12 +180,87 @@ def criar_referencias(videos: Annotated[list[UploadFile], File()]):
             shutil.rmtree(base, ignore_errors=True)
             motivo = str(e) if isinstance(e, ValueError) else 'não consegui ler o arquivo'
             recusadas.append({'nome': nome, 'motivo': motivo})
-    return {'criadas': criadas, 'recusadas': recusadas}
+    for r in criadas:
+        direcao.enfileirar(r['id'])
+    return {'criadas': [referencias.ler(r['id']) for r in criadas], 'recusadas': recusadas}
+
+
+@app.get('/api/referencias/estatisticas')
+def estatisticas_referencias(todas: bool = False):
+    """Números das referências revisadas (SPEC §8.2.1). Com `todas`, inclui as ainda não revisadas (prévia)."""
+    aceitas = ('revisado', 'a_revisar') if todas else ('revisado',)
+    lista = []
+    for r in referencias.listar():
+        if r['status'] not in aceitas:
+            continue
+        base = referencias.pasta(r['id'])
+        lista.append((r, json.loads((base / 'direcao.json').read_text()), json.loads((base / 'palavras.json').read_text())['palavras']))
+    return direcao.estatisticas(lista)
+
+
+@app.get('/api/direcao/categorias')
+def categorias_direcao():
+    return {'planos': direcao.PLANOS, 'elementos': direcao.ELEMENTOS}
 
 
 @app.get('/api/referencias/{id}')
 def abrir_referencia(id: str):
     return _ler_referencia(id)
+
+
+@app.post('/api/referencias/{id}/analisar')
+def reanalisar_referencia(id: str, refazer: bool = False):
+    """Põe a referência de novo na fila. Por padrão reaproveita o que já foi feito (proxy, transcrição, trechos já
+    analisados com o mesmo modelo); `refazer` apaga a análise da LLM e a revisão e pede tudo de novo."""
+    r = _ler_referencia(id)
+    if r['status'] in ('na_fila', 'analisando'):
+        raise HTTPException(409, 'Essa referência já está na fila')
+    if refazer:
+        base = referencias.pasta(id)
+        shutil.rmtree(base / 'trechos', ignore_errors=True)
+        for nome in ('analise.json', 'direcao.json', 'cenas.json'):
+            (base / nome).unlink(missing_ok=True)
+    direcao.enfileirar(id)
+    return referencias.ler(id)
+
+
+@app.get('/api/referencias/{id}/revisao')
+def revisao_referencia(id: str):
+    r = _ler_referencia(id)
+    base = referencias.pasta(id)
+    if not (base / 'direcao.json').exists():
+        raise HTTPException(409, 'A análise ainda não terminou')
+    dados = json.loads((base / 'direcao.json').read_text())
+    return {'referencia': r, 'palavras': json.loads((base / 'palavras.json').read_text())['palavras'],
+            'itens': dados['itens'], 'cortes': dados['cortes'], 'categorias': categorias_direcao()}
+
+
+class EdicaoDirecao(BaseModel):
+    itens: list[dict]
+
+
+@app.put('/api/referencias/{id}/direcao')
+def salvar_direcao(id: str, e: EdicaoDirecao):
+    r = _ler_referencia(id)
+    if r['status'] not in ('a_revisar', 'revisado'):
+        raise HTTPException(409, 'A análise ainda não terminou')
+    try:
+        dados = direcao.salvar_edicao(id, e.itens)
+    except ValueError as erro:
+        raise HTTPException(422, str(erro))
+    return {'itens': dados['itens']}
+
+
+class StatusRevisao(BaseModel):
+    revisado: bool
+
+
+@app.put('/api/referencias/{id}/status')
+def marcar_revisada(id: str, s: StatusRevisao):
+    r = _ler_referencia(id)
+    if r['status'] not in ('a_revisar', 'revisado'):
+        raise HTTPException(409, 'A análise ainda não terminou')
+    return referencias.atualizar(id, lambda x: x.update(status='revisado' if s.revisado else 'a_revisar'))
 
 
 @app.delete('/api/referencias/{id}')

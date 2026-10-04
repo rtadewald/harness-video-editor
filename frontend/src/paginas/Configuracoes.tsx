@@ -11,12 +11,14 @@ type Contexto = {
   config: Config | null
   escolherMotor: (motor: string) => void
   salvarNumero: (campo: CampoNumerico, valor: string, escala?: number) => void
+  salvar: (mudancas: Parameters<typeof salvarConfig>[0]) => void
 }
 
 /** Categorias de configuração, uma aba cada. Quando Inserts, Motion e Legenda tiverem configurações próprias,
  *  entram aqui como mais uma linha. */
 const CATEGORIAS: { id: string; nome: string; render: (c: Contexto) => ReactNode }[] = [
   { id: 'cortes', nome: 'Cortes', render: (c) => <AbaCortes {...c} /> },
+  { id: 'direcao', nome: 'Direção visual', render: (c) => <AbaDirecao {...c} /> },
 ]
 
 /** Preferências do app. Cada mudança é gravada no ato (projetos/_config.json) e vale para os próximos cálculos e projetos. */
@@ -46,6 +48,7 @@ export default function Configuracoes({ aberto, aoFechar }: { aberto: boolean; a
   const contexto: Contexto = {
     config,
     escolherMotor: (motor) => salvar({ motor_padrao: motor }),
+    salvar: (mudancas) => void salvar(mudancas),
     salvarNumero: (campo, valor, escala = 1) => {
       if (!valor.trim()) return // campo vazio: não salva (virar 0 desligaria o corte de pausas sem querer)
       const ms = Math.round(Number(valor.replace(',', '.')) * escala)
@@ -169,6 +172,49 @@ function AbaCortes({ config, escolherMotor, salvarNumero }: Contexto) {
             valor={config?.respiro_ms}
             aoSalvar={(v) => salvarNumero('respiro_ms', v, 1000)}
           />
+        </div>
+      </Grupo>
+    </>
+  )
+}
+
+/** Como as referências são analisadas: o modelo multimodal e quantos quadros por segundo ele vê de cada trecho. */
+function AbaDirecao({ config, salvar }: Contexto) {
+  return (
+    <>
+      <Grupo
+        titulo="Modelo multimodal"
+        texto="Quem olha os quadros de cada trecho das referências e diz o plano, os elementos, o que aparece e a função. Qualquer modelo de visão do OpenRouter (nome como em openrouter.ai, ex.: google/gemini-3.8-flash). Trocar o modelo faz a próxima análise refazer os trechos."
+      >
+        <Label htmlFor="modelo-direcao">Modelo</Label>
+        <input
+          id="modelo-direcao"
+          key={config?.modelo_direcao}
+          defaultValue={config?.modelo_direcao}
+          disabled={!config}
+          onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== config?.modelo_direcao && salvar({ modelo_direcao: e.target.value.trim() })}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+          className="h-11 rounded-[3px] border border-line bg-white px-3.5 font-mono text-[12px] text-ink outline-none focus-visible:border-ink"
+        />
+      </Grupo>
+      <Grupo
+        titulo="Quadros por segundo"
+        texto="Quantos quadros de cada trecho o modelo vê. Mais quadros acham letterings rápidos com mais precisão, mas custam proporcionalmente mais. Trechos longos são amostrados com no máximo 40 quadros. Trocar faz a próxima análise refazer os trechos."
+      >
+        <div className="flex gap-1.5">
+          {[1, 2, 3, 4].map((n) => (
+            <button
+              key={n}
+              onClick={() => salvar({ quadros_por_segundo: n })}
+              disabled={!config}
+              className={cn(
+                'h-10 w-14 rounded-full border text-[13px] font-semibold',
+                config?.quadros_por_segundo === n ? 'border-ink bg-ink text-cream' : 'border-line hover:border-ink',
+              )}
+            >
+              {n}/s
+            </button>
+          ))}
         </div>
       </Grupo>
     </>

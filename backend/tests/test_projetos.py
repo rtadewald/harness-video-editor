@@ -8,13 +8,14 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from app import cortes, main, midia, motores, pipeline, projeto, referencias, transcricao
+from app import cortes, direcao, main, midia, motores, pipeline, projeto, referencias, transcricao
 
 
 @pytest.fixture
 def enfileirados(tmp_path, monkeypatch):
     monkeypatch.setattr(projeto, 'RAIZ', tmp_path / 'projetos')
     monkeypatch.setattr(referencias, 'RAIZ', tmp_path / 'referencias')
+    monkeypatch.setattr(direcao, 'enfileirar', lambda id: chamadas.append(('referencia', id)))
     # isolamento total: nenhum teste lê o .env de verdade nem chama serviço pago (ElevenLabs, OpenRouter)
     monkeypatch.setattr(pipeline, 'load_dotenv', lambda *a, **k: None)
     monkeypatch.setattr(main, 'load_dotenv', lambda *a, **k: None)
@@ -736,3 +737,88 @@ def test_projeto_antigo_ganha_a_etapa_direcao(cliente, video):
     arq.write_text(json.dumps(p))
     p = cliente.get(f'/api/projetos/{id}').json()
     assert list(p['etapas']) == projeto.ETAPAS and p['etapas']['direcao'] == 'pendente' and p['chats']['direcao'] == []
+
+
+def _trecho(a, b, planos, elementos=(), continua=False):
+    return {'inicio': a, 'fim': b, 'continua_anterior': continua,
+            'planos': [{'tipo': t, 'conteudo_em_cima': c, 'inicio': a, 'fim': b, 'descricao': d, 'funcao': 'f'} for t, c, d in planos],
+            'elementos': [{'tipo': t, 'inicio': i, 'fim': f, 'texto': x, 'descricao': 'd', 'funcao': 'f'} for t, i, f, x in elementos]}
+
+
+def test_montar_junta_jump_cuts_e_continuacoes_mas_nao_inserts_novos():
+    itens = direcao.montar([
+        _trecho(0, 2, [('full_ator', None, 'Rodrigo')]),
+        _trecho(2, 4, [('full_ator', None, 'Rodrigo de novo')]),  # jump cut: junta
+        _trecho(4, 6, [('tela_dividida', 'insert', 'GitHub')]),
+        _trecho(6, 7, [('tela_dividida', 'insert', 'GitHub com zoom')], continua=True),  # mesmo conteúdo: junta
+        _trecho(7, 9, [('tela_dividida', 'insert', 'Claude')]),  # conteúdo novo: grupo novo
+        _trecho(9, 10, [('insert_tela_cheia', None, 'Wikipedia')], [('lettering', 9.2, 9.9, 'Humano'), ('lettering', 8.0, 8.5, 'fora')]),
+    ], 10.0)
+    planos = [(i['tipo'], i['inicio'], i['fim'], i['descricao']) for i in itens if i['camada'] == 'plano']
+    assert planos == [('full_ator', 0, 4, 'Rodrigo'), ('tela_dividida', 4, 7, 'GitHub'), ('tela_dividida', 7, 9, 'Claude'),
+                      ('insert_tela_cheia', 9, 10.0, 'Wikipedia')]
+    els = [i for i in itens if i['camada'] == 'elemento']
+    assert [(e['id'], e['texto'], e['inicio'], e['fim']) for e in els] == [('e1', 'Humano', 9.2, 9.9)]  # o de fora do trecho sai
+    assert [i['id'] for i in itens if i['camada'] == 'plano'] == ['p1', 'p2', 'p3', 'p4']
+
+
+def test_montar_aceita_troca_de_plano_dentro_do_trecho():
+    t = _trecho(0, 6, [('full_ator', None, 'a'), ('insert_tela_cheia', None, 'b')])
+    t['planos'][0]['fim'], t['planos'][1]['inicio'] = 2.5, 2.5
+    planos = [(i['tipo'], i['inicio'], i['fim']) for i in direcao.montar([t], 6)]
+    assert planos == [('full_ator', 0, 2.5), ('insert_tela_cheia', 2.5, 6)]
+
+
+def test_validar_edicao_exige_planos_contiguos_e_categorias_fixas():
+    p = lambda id, a, b, tipo='full_ator': {'id': id, 'camada': 'plano', 'tipo': tipo, 'inicio': a, 'fim': b}  # noqa: E731
+    ok = direcao.validar_edicao([p('p2', 3, 10, 'tela_dividida'), p('p1', 0, 3),
+                                 {'id': 'e1', 'camada': 'elemento', 'tipo': 'lettering', 'inicio': 1, 'fim': 2, 'texto': ' Oi '}], 10)
+    assert [(i['id'], i['inicio'], i['fim']) for i in ok] == [('p1', 0, 3), ('p2', 3, 10), ('e1', 1, 2)]
+    assert ok[1]['conteudo'] == 'insert' and ok[2]['texto'] == 'Oi'
+    for ruim, motivo in [([p('p1', 0, 3), p('p2', 4, 10)], 'Buraco'), ([p('p1', 0, 9)], 'cobrir'),
+                         ([p('p1', 0, 10, 'zoom')], 'Categoria'), ([p('p1', 0, 5), p('p1', 5, 10)], 'repetido'),
+                         ([{'id': 'e1', 'camada': 'elemento', 'tipo': 'lettering', 'inicio': 1, 'fim': 2}], 'plano-base')]:
+        with pytest.raises(ValueError, match=motivo):
+            direcao.validar_edicao(ruim, 10)
+
+
+def test_entrada_classifica_onde_o_item_entra_na_fala():
+    w = lambda id, t, a, b: {'id': id, 'texto': t, 'inicio': a, 'fim': b}  # noqa: E731
+    fala = [w('w0', 'Olha', 0.0, 0.4), w('w1', 'isso.', 0.45, 0.9), w('w2', 'Agora', 1.5, 1.9), w('w3', 'vai', 1.92, 2.2)]
+    assert direcao.entrada(1.4, fala) == {'onde': 'na_pausa', 'frase': 'inicio', 'ms_palavra': -100, 'palavra': 'Agora'}
+    assert direcao.entrada(1.6, fala)['onde'] == 'dentro_da_palavra' and direcao.entrada(1.6, fala)['frase'] == 'meio'
+    assert direcao.entrada(1.91, fala)['onde'] == 'entre_palavras'
+    assert direcao.entrada(5, fala)['onde'] == 'depois_da_fala'
+
+
+def test_estatisticas_por_tipo():
+    ref = {'video': {'duracao': 10.0}}
+    itens = [{'camada': 'plano', 'tipo': 'full_ator', 'inicio': 0, 'fim': 4},
+             {'camada': 'plano', 'tipo': 'tela_dividida', 'conteudo': 'insert', 'inicio': 4, 'fim': 6},
+             {'camada': 'plano', 'tipo': 'full_ator', 'inicio': 6, 'fim': 10},
+             {'camada': 'elemento', 'tipo': 'lettering', 'inicio': 7, 'fim': 8, 'texto': 'Humano'}]
+    fala = [{'id': 'w0', 'texto': 'a.', 'inicio': 3.0, 'fim': 3.5}, {'id': 'w1', 'texto': 'b', 'inicio': 4.1, 'fim': 4.5}]
+    e = direcao.estatisticas([(ref, {'itens': itens}, fala)])
+    tipos = {t['chave']: t for t in e['tipos']}
+    assert tipos['full_ator']['proporcao'] == 0.8 and tipos['full_ator']['duracao']['n'] == 2
+    assert tipos['tela_dividida:insert']['entrada_onde'] == {'na_pausa': 1} and tipos['tela_dividida:insert']['ms_palavra']['mediana'] == -100
+    assert tipos['lettering']['textos'] == ['Humano'] and tipos['lettering']['proporcao'] is None
+    assert e['full_ator_seguido']['max'] == 4 and e['trocas_por_minuto'] == 12.0
+
+
+def test_revisao_salva_e_marca_revisada(cliente, video, monkeypatch):
+    with video.open('rb') as a:
+        id = cliente.post('/api/referencias', files=[('videos', ('r.mp4', a, 'video/mp4'))]).json()['criadas'][0]['id']
+    base = referencias.RAIZ / id
+    assert cliente.get(f'/api/referencias/{id}/revisao').status_code == 409
+    (base / 'palavras.json').write_text(json.dumps({'palavras': [{'id': 'w0', 'texto': 'oi', 'inicio': 0.2, 'fim': 0.6}]}))
+    (base / 'direcao.json').write_text(json.dumps({'itens': [], 'itens_ia': [], 'cortes': [1.5]}))
+    referencias.atualizar(id, lambda r: r.update(status='a_revisar'))
+    monkeypatch.setattr(direcao, '_miniatura', lambda base, i: i.update(miniatura=f"quadros/{i['id']}.jpg", miniatura_t=0))
+    itens = [{'id': 'p1', 'camada': 'plano', 'tipo': 'full_ator', 'inicio': 0, 'fim': 3}]
+    r = cliente.put(f'/api/referencias/{id}/direcao', json={'itens': itens})
+    assert r.status_code == 200, r.text
+    assert r.json()['itens'][0]['palavra_ini'] == 'w0'
+    assert cliente.put(f'/api/referencias/{id}/direcao', json={'itens': [{**itens[0], 'fim': 2}]}).status_code == 422
+    assert cliente.put(f'/api/referencias/{id}/status', json={'revisado': True}).json()['status'] == 'revisado'
+    assert cliente.get('/api/referencias/estatisticas').json()['videos'] == 1

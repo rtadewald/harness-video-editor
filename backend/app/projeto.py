@@ -24,6 +24,7 @@ MOTORES = {
     'elevenlabs': {'nome': 'ElevenLabs Scribe v2', 'familia': 'elevenlabs', 'chave': 'ELEVENLABS_API_KEY'},
 }
 PADRAO = 'elevenlabs'  # motor de transcrição de fábrica (escolha de Rodrigo); muda em Configurações
+MODELO_DIRECAO = 'google/gemini-3.8-flash'  # multimodal que analisa as referências (OpenRouter); muda em Configurações
 LEGADO = 'whisper-stable'  # projetos antigos e plano B quando o motor escolhido falha
 
 
@@ -32,8 +33,9 @@ def _arquivo_config() -> Path:
 
 
 def ler_config() -> dict:
-    """Preferências do app (por enquanto só o motor de transcrição padrão dos projetos novos)."""
-    config = {'motor_padrao': PADRAO, 'antes_do_corte_ms': 100, 'depois_do_corte_ms': 100, 'pausa_max_ms': 2000, 'respiro_ms': 800}
+    """Preferências do app: Cortes (motor, margens, pausas) e Direção visual (modelo multimodal, quadros por segundo)."""
+    config = {'motor_padrao': PADRAO, 'antes_do_corte_ms': 100, 'depois_do_corte_ms': 100, 'pausa_max_ms': 2000, 'respiro_ms': 800,
+              'modelo_direcao': MODELO_DIRECAO, 'quadros_por_segundo': 2}
     try:
         config.update(json.loads(_arquivo_config().read_text(encoding='utf-8')))
     except (FileNotFoundError, ValueError):
@@ -42,6 +44,8 @@ def ler_config() -> dict:
         config['motor_padrao'] = PADRAO
     for chave, maximo in (('antes_do_corte_ms', 1000), ('depois_do_corte_ms', 1000), ('pausa_max_ms', 30000), ('respiro_ms', 5000)):
         config[chave] = min(max(int(config[chave]), 0), maximo)
+    config['quadros_por_segundo'] = min(max(int(config['quadros_por_segundo']), 1), 4)
+    config['modelo_direcao'] = str(config['modelo_direcao']).strip() or MODELO_DIRECAO
     return config
 
 

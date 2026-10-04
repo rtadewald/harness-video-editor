@@ -1,10 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
-import { apagarReferencia, formatarDuracao, listarReferencias, subirReferencias, urlArquivoReferencia, type Referencia, type StatusReferencia } from '@/api'
+import { Link } from 'react-router-dom'
+import { Plus, RotateCcw, Trash2 } from 'lucide-react'
+import {
+  apagarReferencia,
+  formatarDuracao,
+  listarReferencias,
+  reanalisarReferencia,
+  subirReferencias,
+  urlArquivoReferencia,
+  type Referencia,
+  type StatusReferencia,
+} from '@/api'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import EstatisticasReferencias from './EstatisticasReferencias'
 
 const STATUS: Record<StatusReferencia, { nome: string; cor: string }> = {
   na_fila: { nome: 'Na fila', cor: 'bg-cream/15 text-cream' },
@@ -13,6 +24,22 @@ const STATUS: Record<StatusReferencia, { nome: string; cor: string }> = {
   revisado: { nome: 'Revisado', cor: 'bg-mint text-ink' },
   erro: { nome: 'Erro', cor: 'bg-destructive text-cream' },
 }
+
+const NOMES_PASSO = { proxy: 'Preparando o vídeo', transcricao: 'Transcrevendo', cenas: 'Detectando cortes', analise: 'Analisando trechos', montagem: 'Montando a direção' }
+
+/** O que a análise está fazendo agora, para o card. */
+function andamento(r: Referencia): string | null {
+  if (r.status !== 'analisando') return null
+  const passos = r.analise?.passos ?? {}
+  const atual = (Object.keys(NOMES_PASSO) as (keyof typeof NOMES_PASSO)[]).find((k) => passos[k]?.status === 'rodando')
+  if (!atual) return 'Começando…'
+  const p = passos[atual]!
+  if (atual === 'analise' && p.total) return `${NOMES_PASSO.analise} ${p.feitos ?? 0}/${p.total}`
+  if (atual === 'proxy' && p.progresso) return `${NOMES_PASSO.proxy} ${Math.round(p.progresso * 100)}%`
+  return NOMES_PASSO[atual]
+}
+
+const revisavel = (r: Referencia) => r.status === 'a_revisar' || r.status === 'revisado'
 
 /** Vídeos já editados que ensinam a Direção visual (SPEC §8.2.1). Sobem vários de uma vez e entram numa fila. */
 export default function Referencias() {
@@ -27,11 +54,11 @@ export default function Referencias() {
   useEffect(() => {
     void carregar()
   }, [])
-  // enquanto houver algo na fila ou analisando, acompanha o status (a análise chega na D2)
+  // enquanto houver algo na fila ou analisando, acompanha o andamento
   const andando = refs?.some((r) => r.status === 'na_fila' || r.status === 'analisando')
   useEffect(() => {
     if (!andando) return
-    const t = setInterval(() => void carregar(), 2000)
+    const t = setInterval(() => void carregar(), 1500)
     return () => clearInterval(t)
   }, [andando])
 
@@ -57,7 +84,13 @@ export default function Referencias() {
     await carregar()
   }
 
+  async function tentarDeNovo(r: Referencia) {
+    await reanalisarReferencia(r.id).catch((e) => setErro(e.message))
+    await carregar()
+  }
+
   const contagem = (s: StatusReferencia) => refs?.filter((r) => r.status === s).length ?? 0
+  const revisadas = contagem('revisado')
 
   return (
     <div
@@ -100,11 +133,12 @@ export default function Referencias() {
               Referências{refs && ` · ${String(refs.length).padStart(2, '0')}`}
             </p>
             <p className="text-[11px] text-fog">
-              {contagem('revisado')} revisada{contagem('revisado') === 1 ? '' : 's'} · {contagem('a_revisar')} a revisar · {contagem('na_fila') + contagem('analisando')} na fila
+              {revisadas} revisada{revisadas === 1 ? '' : 's'} · {contagem('a_revisar')} a revisar · {contagem('na_fila') + contagem('analisando')} na fila
+              {contagem('erro') > 0 && ` · ${contagem('erro')} com erro`}
             </p>
           </div>
           <p className="max-w-[720px] text-[12px] leading-[1.7] text-fog">
-            Vídeos seus já editados, verticais. A IA vai analisar o que aparece na tela em cada trecho (planos e elementos) e você revisa. Só as referências
+            Vídeos seus já editados, verticais. A IA analisa o que aparece na tela em cada trecho (planos e elementos) e você revisa. Só as referências
             revisadas ensinam a Direção visual. Arraste vários MP4 para esta tela ou use “Adicionar referências”.
           </p>
         </div>
@@ -142,9 +176,14 @@ export default function Referencias() {
             </button>
           </li>
 
-          {refs?.map((r) => (
-            <li key={r.id} className="group">
-              <div className="relative aspect-[9/16] overflow-hidden rounded-[6px] bg-deeper ring-1 ring-line-dark">
+          {refs?.map((r) => {
+            const capa = (
+              <div
+                className={cn(
+                  'relative aspect-[9/16] overflow-hidden rounded-[6px] bg-deeper ring-1 ring-line-dark',
+                  revisavel(r) && 'transition-[transform,box-shadow] duration-300 group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-coral',
+                )}
+              >
                 <img
                   src={urlArquivoReferencia(r.id, 'miniatura.jpg')}
                   alt=""
@@ -159,6 +198,22 @@ export default function Referencias() {
                 <span className={cn('absolute bottom-2.5 left-2.5 rounded-full px-2 py-0.5 text-[9px] font-semibold tracking-[0.1em] uppercase', STATUS[r.status].cor)}>
                   {STATUS[r.status].nome}
                 </span>
+                {r.status === 'analisando' && (
+                  <span className="absolute inset-x-0 bottom-0 h-1 bg-cream/15">
+                    <span className="block h-full bg-yellow transition-[width] duration-700" style={{ width: `${Math.round((r.analise?.passos.analise?.progresso ?? 0) * 100)}%` }} />
+                  </span>
+                )}
+              </div>
+            )
+            return (
+              <li key={r.id} className="group relative">
+                {revisavel(r) ? (
+                  <Link to={`/referencias/${r.id}`} title="Abrir a revisão" className="block">
+                    {capa}
+                  </Link>
+                ) : (
+                  capa
+                )}
                 <button
                   onClick={() => void apagar(r)}
                   aria-label={`Apagar ${r.nome}`}
@@ -167,19 +222,30 @@ export default function Referencias() {
                 >
                   <Trash2 className="size-3.5" />
                 </button>
-              </div>
-              <h3 className="mt-3 truncate text-[14px] font-semibold tracking-[-0.02em]" title={r.nome}>
-                {r.nome}
-              </h3>
-              <p className="mt-0.5 text-[11px] text-fog">
-                {new Date(r.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} · {r.video.largura}×{r.video.altura}
-              </p>
-              {r.erro && <p className="mt-1 text-[11px] text-coral">{r.erro}</p>}
-            </li>
-          ))}
+                <h3 className="mt-3 truncate text-[14px] font-semibold tracking-[-0.02em]" title={r.nome}>
+                  {r.nome}
+                </h3>
+                <p className="mt-0.5 text-[11px] text-fog">
+                  {andamento(r) ?? `${new Date(r.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} · ${r.video.largura}×${r.video.altura}`}
+                </p>
+                {r.erro && (
+                  <p className="mt-1 line-clamp-3 text-[11px] text-coral" title={r.erro}>
+                    {r.erro}
+                  </p>
+                )}
+                {r.status === 'erro' && (
+                  <button onClick={() => void tentarDeNovo(r)} className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-yellow hover:underline">
+                    <RotateCcw className="size-3" /> Tentar de novo
+                  </button>
+                )}
+              </li>
+            )
+          })}
         </ul>
 
         {refs?.length === 0 && <p className="mt-8 text-[13px] text-fog">Nenhuma referência ainda. Comece com 5 a 10 Reels editados que você considera bons.</p>}
+
+        {refs && refs.some(revisavel) && <EstatisticasReferencias revisadas={revisadas} />}
       </main>
     </div>
   )

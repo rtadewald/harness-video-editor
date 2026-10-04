@@ -13,6 +13,7 @@ dependencies = [
     "parakeet-mlx>=0.5.3",
     "python-dotenv>=1.2.4",
     "python-multipart>=0.0.32",
+    "scenedetect[opencv-headless]>=0.7.1",
     "stable-ts>=2.19.1",
     "unidecode>=1.4.0",
     "uvicorn[standard]>=0.54.0",

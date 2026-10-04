@@ -129,9 +129,12 @@ export type Config = {
   /** Pausas dentro de um trecho que passam disso são encurtadas para `respiro_ms` (0 = nunca encurtar). */
   pausa_max_ms: number
   respiro_ms: number
+  /** Direção visual: modelo multimodal (OpenRouter) que analisa as referências e quadros por segundo de cada trecho. */
+  modelo_direcao: string
+  quadros_por_segundo: number
   motores: Record<string, { nome: string; familia: string; chave: boolean | null }> }
 export const lerConfig = () => fetch('/api/config').then(json<Config>)
-export const salvarConfig = (mudancas: Partial<Pick<Config, 'motor_padrao' | 'antes_do_corte_ms' | 'depois_do_corte_ms' | 'pausa_max_ms' | 'respiro_ms'>>) =>
+export const salvarConfig = (mudancas: Partial<Omit<Config, 'motores'>>) =>
   fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mudancas) }).then(json<Config>)
 /** Corta o intervalo (mesmo no meio de um trecho mantido) ou, com manter=true, devolve-o ao vídeo. */
 export const cortarFaixa = (id: string, inicio: number, fim: number, manter: boolean) =>
@@ -152,7 +155,53 @@ export type Referencia = {
   video: { arquivo: string; nome_original: string; duracao: number; largura: number; altura: number }
   status: StatusReferencia
   erro: string | null
+  analise?: { passos: Partial<Record<PassoReferencia, PassoAnalise>> }
 }
+export type PassoReferencia = 'proxy' | 'transcricao' | 'cenas' | 'analise' | 'montagem'
+export type PassoAnalise = { status: 'pendente' | 'rodando' | 'pronto' | 'erro'; segundos?: number; progresso?: number; feitos?: number; total?: number; motor?: string; tokens?: number }
+
+/** Item da direção de uma referência: plano-base (contíguos, cobrem o vídeo) ou elemento sobreposto. */
+export type ItemRef = {
+  id: string
+  camada: 'plano' | 'elemento'
+  tipo: string
+  conteudo: 'insert' | 'motion' | null
+  inicio: number
+  fim: number
+  descricao: string
+  texto: string | null
+  funcao: string
+  miniatura?: string
+  miniatura_t?: number
+  palavra_ini?: string | null
+  palavra_fim?: string | null
+}
+export type Categorias = { planos: Record<string, string>; elementos: Record<string, string> }
+export type Revisao = { referencia: Referencia; palavras: Palavra[]; itens: ItemRef[]; cortes: number[]; categorias: Categorias }
+export const abrirRevisao = (id: string) => fetch(`/api/referencias/${id}/revisao`).then(json<Revisao>)
+export const salvarDirecao = (id: string, itens: ItemRef[]) =>
+  fetch(`/api/referencias/${id}/direcao`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itens }) }).then(json<{ itens: ItemRef[] }>)
+export const marcarRevisada = (id: string, revisado: boolean) =>
+  fetch(`/api/referencias/${id}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revisado }) }).then(json<Referencia>)
+export const reanalisarReferencia = (id: string, refazer = false) => post<Referencia>(`/api/referencias/${id}/analisar${refazer ? '?refazer=true' : ''}`)
+
+export type Resumo = { n: number; media: number; mediana: number; p10: number; p90: number; min: number; max: number }
+export type EstatTipo = {
+  chave: string
+  tipo: string
+  conteudo: string | null
+  camada: 'plano' | 'elemento'
+  nome: string
+  duracao: Resumo
+  proporcao: number | null
+  por_minuto: number | null
+  entrada_onde: Record<string, number>
+  entrada_frase: Record<string, number>
+  ms_palavra: Resumo | null
+  textos: string[]
+}
+export type Estatisticas = { videos: number; duracao_total: number; tipos: EstatTipo[]; full_ator_seguido: Resumo | null; trocas_por_minuto: number | null }
+export const lerEstatisticas = (todas: boolean) => fetch(`/api/referencias/estatisticas${todas ? '?todas=true' : ''}`).then(json<Estatisticas>)
 export const listarReferencias = () => fetch('/api/referencias').then(json<Referencia[]>)
 export const subirReferencias = (videos: File[]) => {
   const corpo = new FormData()

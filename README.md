@@ -6,7 +6,7 @@ Editor de vídeo local onde a **IA faz cada etapa da edição** e você corrige 
 
 Você sobe o vídeo bruto e a IA propõe a edição, etapa por etapa: **Cortes → Inserts → Motion → Legenda**. Cada etapa tem controles manuais para corrigir o que a IA decidiu, e o render final só acontece depois que os cortes são aprovados.
 
-> **Estado atual:** só a etapa de **Cortes** é real. Inserts, Motion e Legenda são mocks (aparecem na interface com o aviso "simulados"). O agente de chat e o render final ainda não foram feitos.
+> **Estado atual:** a etapa de **Cortes** é real. A **Direção visual** (o que aparece na tela em cada momento) está sendo treinada: a tela **Referências** já analisa seus vídeos editados com IA multimodal e permite revisar o resultado; a proposta para vídeos novos vem depois. Inserts, Motion e Legenda são mocks. O agente de chat e o render final ainda não foram feitos.
 
 ## O que a etapa de Cortes faz
 
@@ -23,6 +23,10 @@ Você sobe o vídeo bruto e a IA propõe a edição, etapa por etapa: **Cortes �
 | Projetos | Configurações |
 |---|---|
 | ![Tela de projetos](docs/img/projetos.png) | ![Configurações](docs/img/configuracoes.png) |
+
+## Referências (treino da Direção visual)
+
+Na aba **Referências** da tela inicial você sobe Reels já editados (vários de uma vez). Cada um é analisado em segundo plano: o detector de cena acha os cortes, a fala é transcrita e um modelo multimodal (Gemini via OpenRouter) diz, trecho a trecho, qual **plano-base** está na tela (Full ator, Insert tela cheia, Motion tela cheia, Tela dividida) e quais **elementos** aparecem por cima (lettering, palavra ManyChat, caixinha de perguntas, print), com descrição, texto exato e a função de cada um. Você revisa numa timeline vertical e marca como revisada; as estatísticas mostram seu padrão de edição (duração típica de cada plano, onde eles entram na fala etc.).
 
 ## Como rodar
 
