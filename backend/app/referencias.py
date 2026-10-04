@@ -76,3 +76,33 @@ def listar() -> list[dict]:
 
 def apagar(id: str) -> None:
     shutil.rmtree(pasta(id))
+
+
+# Favoritos da galeria de Referências: trechos que Rodrigo marcou como preferência (vão guiar as IAs depois).
+# Identificados pela referência e pelo intervalo (não pelo id do plano, que muda quando o vídeo é reanalisado),
+# com uma cópia dos dados do momento em que foram marcados.
+
+def _arquivo_favoritos() -> Path:
+    return RAIZ / '_favoritos.json'
+
+
+def ler_favoritos() -> list[dict]:
+    try:
+        return json.loads(_arquivo_favoritos().read_text(encoding='utf-8'))
+    except (FileNotFoundError, ValueError):
+        return []
+
+
+def mesmo_trecho(f: dict, ref: str, inicio: float, fim: float) -> bool:
+    return f['ref'] == ref and abs(f['inicio'] - inicio) < 0.05 and abs(f['fim'] - fim) < 0.05
+
+
+def marcar_favorito(ref: str, inicio: float, fim: float, favorito: bool, dados: dict) -> list[dict]:
+    with _trava:
+        favs = [f for f in ler_favoritos() if not mesmo_trecho(f, ref, inicio, fim)]
+        if favorito:
+            favs.append({'ref': ref, 'inicio': round(inicio, 3), 'fim': round(fim, 3), 'criado_em': datetime.now().isoformat(timespec='seconds'), **dados})
+        RAIZ.mkdir(exist_ok=True)
+        _arquivo_favoritos().write_text(json.dumps(favs, ensure_ascii=False, indent=1), encoding='utf-8')
+        return favs
+

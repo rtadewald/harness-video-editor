@@ -801,6 +801,16 @@ def test_revisao_salva_e_marca_revisada(cliente, video, monkeypatch):
     assert [(x['ref'], x['id'], x['tipo'], x['fala'], x['revisado']) for x in c['clipes']] == [(id, 'p1', 'full_ator', 'oi', True)]
     assert 'comentario_insert_ator' in c['categorias']
     assert c['clipes'][0]['numero'] == 1 and c['clipes'][0]['entrada'] is None and c['origens'][id]['planos'][0]['id'] == 'p1'
+    assert c['clipes'][0]['favorito'] is False
+    assert cliente.put(f'/api/referencias/{id}/favorito', json={'inicio': 0, 'fim': 3, 'favorito': True}).status_code == 200
+    assert cliente.get('/api/referencias/clipes').json()['clipes'][0]['favorito'] is True
+    fav = referencias.ler_favoritos()
+    assert [(f['ref'], f['tipo'], f['inicio']) for f in fav] == [(id, 'full_ator', 0)]
+    assert cliente.put(f'/api/referencias/{id}/favorito', json={'inicio': 0, 'fim': 3, 'favorito': True}).status_code == 200
+    assert len(referencias.ler_favoritos()) == 1  # marcar de novo não duplica
+    assert cliente.put(f'/api/referencias/{id}/favorito', json={'inicio': 9, 'fim': 10, 'favorito': True}).status_code == 404
+    cliente.put(f'/api/referencias/{id}/favorito', json={'inicio': 0, 'fim': 3, 'favorito': False})
+    assert referencias.ler_favoritos() == []
 
 
 def test_transcricao_ate_o_corte_marca_o_momento_e_esconde_o_futuro():

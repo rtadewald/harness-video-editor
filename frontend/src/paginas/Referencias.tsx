@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
-import { listarClipes, urlArquivoReferencia, type ClipeReferencia, type OrigemClipe } from '@/api'
+import { Search, Star, X } from 'lucide-react'
+import { listarClipes, marcarFavorito, urlArquivoReferencia, type ClipeReferencia, type OrigemClipe } from '@/api'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
 import { cn } from '@/lib/utils'
@@ -23,6 +23,7 @@ export default function Referencias() {
   const [busca, setBusca] = useState('')
   const [ordem, setOrdem] = useState<Ordem>('aleatorio')
   const [soRevisadas, setSoRevisadas] = useState(false)
+  const [soFavoritos, setSoFavoritos] = useState(false)
   const [aberto, setAberto] = useState<string | null>(null)
 
   useEffect(() => {
@@ -36,15 +37,26 @@ export default function Referencias() {
       .catch((e) => setErro(e.message))
   }, [])
 
+  /** Liga/desliga o favorito na hora e grava no servidor; se falhar, volta. */
+  const favoritar = (c: ClipeReferencia) => {
+    const novo = !c.favorito
+    const trocar = (v: boolean) => setClipes((l) => l && l.map((x) => (chave(x) === chave(c) ? { ...x, favorito: v } : x)))
+    trocar(novo)
+    marcarFavorito(c.ref, c.inicio, c.fim, novo).catch((e) => {
+      trocar(!novo)
+      setErro(e.message)
+    })
+  }
+
   // ordem aleatória estável enquanto a página está aberta
   const sorteio = useMemo(() => new Map((clipes ?? []).map((c) => [chave(c), Math.random()])), [clipes])
 
   const base = useMemo(() => {
     const q = busca.trim().toLowerCase()
     return (clipes ?? []).filter(
-      (c) => (!soRevisadas || c.revisado) && (!q || [c.descricao, c.texto ?? '', c.fala, c.ref_nome].some((t) => t.toLowerCase().includes(q))),
+      (c) => (!soRevisadas || c.revisado) && (!soFavoritos || c.favorito) && (!q || [c.descricao, c.texto ?? '', c.fala, c.ref_nome].some((t) => t.toLowerCase().includes(q))),
     )
-  }, [clipes, busca, soRevisadas])
+  }, [clipes, busca, soRevisadas, soFavoritos])
 
   const visiveis = useMemo(() => {
     const l = base.filter((c) => !categoria || c.tipo === categoria)
@@ -78,6 +90,17 @@ export default function Referencias() {
       </header>
 
       <nav className="flex flex-wrap items-center gap-1.5 border-b border-line-dark px-4 py-3">
+        <button
+          onClick={() => setSoFavoritos((v) => !v)}
+          className={cn(
+            'mr-2 flex h-8 items-center gap-1.5 rounded-full border px-3.5 text-[12px] font-semibold transition-colors',
+            soFavoritos ? 'border-yellow bg-yellow text-ink' : 'border-line-dark text-fog hover:border-yellow/60 hover:text-cream',
+          )}
+          title="Mostrar só os trechos favoritos"
+        >
+          <Star className={cn('size-3.5', soFavoritos && 'fill-current')} /> Favoritos
+          <span className={cn('tabular-nums', soFavoritos ? 'text-ink/60' : 'text-fog/60')}>{(clipes ?? []).filter((c) => c.favorito).length}</span>
+        </button>
         <Chip ativo={!categoria} onClick={() => setCategoria(null)} n={contagem(null)}>
           Todos
         </Chip>
@@ -112,9 +135,9 @@ export default function Referencias() {
           </p>
         )}
         {clipes && clipes.length > 0 && visiveis.length === 0 && <p className="text-[13px] text-fog">Nenhum clipe com esses filtros.</p>}
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-x-5 gap-y-8">
+        <ul className="grid gap-x-5 gap-y-8" style={{ gridTemplateColumns: 'repeat(8, minmax(0, 1fr))' }}>
           {visiveis.map((c) => (
-            <Cartao key={chave(c)} clipe={c} nome={categorias[c.tipo]} abrir={() => setAberto(chave(c))} />
+            <Cartao key={chave(c)} clipe={c} nome={categorias[c.tipo]} abrir={() => setAberto(chave(c))} favoritar={() => favoritar(c)} />
           ))}
         </ul>
       </main>
@@ -126,6 +149,7 @@ export default function Referencias() {
           categorias={categorias}
           nomesElementos={nomesElementos}
           posicao={`${indiceAberto + 1} de ${visiveis.length}`}
+          favoritar={() => favoritar(visiveis[indiceAberto])}
           anterior={indiceAberto > 0 ? () => setAberto(chave(visiveis[indiceAberto - 1])) : null}
           proximo={indiceAberto < visiveis.length - 1 ? () => setAberto(chave(visiveis[indiceAberto + 1])) : null}
           fechar={() => setAberto(null)}
@@ -178,13 +202,34 @@ function useTrecho(video: React.RefObject<HTMLVideoElement | null>, c: ClipeRefe
   }, [video, c, ligado])
 }
 
-function Cartao({ clipe: c, nome, abrir }: { clipe: ClipeReferencia; nome: string; abrir: () => void }) {
+function Estrela({ ligada, onClick, className }: { ligada: boolean; onClick: () => void; className?: string }) {
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+      aria-label={ligada ? 'Tirar dos favoritos' : 'Favoritar'}
+      title={ligada ? 'Tirar dos favoritos' : 'Favoritar (preferência para as próximas etapas)'}
+      className={cn('grid place-items-center rounded-full transition-colors', ligada ? 'text-yellow' : 'text-cream/80 hover:text-yellow', className)}
+    >
+      <Star className={cn('size-4', ligada && 'fill-current')} />
+    </button>
+  )
+}
+
+function Cartao({ clipe: c, nome, abrir, favoritar }: { clipe: ClipeReferencia; nome: string; abrir: () => void; favoritar: () => void }) {
   const [tocando, setTocando] = useState(false)
   const video = useRef<HTMLVideoElement>(null)
   useTrecho(video, c, tocando)
   return (
-    <li>
-      <button onClick={abrir} onMouseEnter={() => setTocando(true)} onMouseLeave={() => setTocando(false)} className="group block w-full text-left">
+    <li className="group relative" onMouseEnter={() => setTocando(true)} onMouseLeave={() => setTocando(false)}>
+      <Estrela
+        ligada={c.favorito}
+        onClick={favoritar}
+        className={cn('absolute top-2 right-2 z-10 size-8 bg-ink/80', !c.favorito && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100')}
+      />
+      <button onClick={abrir} className="block w-full text-left">
         <div className="relative aspect-[9/16] overflow-hidden rounded-[6px] bg-deeper ring-1 ring-line-dark transition-[transform,box-shadow] duration-300 group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-coral">
           {c.miniatura && (
             <img src={urlArquivoReferencia(c.ref, c.miniatura)} alt="" loading="lazy" className="absolute inset-0 size-full object-cover" />
@@ -196,7 +241,7 @@ function Cartao({ clipe: c, nome, abrir }: { clipe: ClipeReferencia; nome: strin
             {nome}
             {c.conteudo && ` · ${c.conteudo}`}
           </span>
-          <span className="absolute top-2.5 right-2.5 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">{seg(dur(c))}</span>
+          <span className="absolute right-2.5 bottom-2.5 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">{seg(dur(c))}</span>
           {c.revisado && <span className="absolute bottom-2.5 left-2.5 rounded-full bg-mint px-2 py-0.5 text-[9px] font-semibold text-ink">✓ revisado</span>}
         </div>
         <p className="mt-2.5 truncate text-[11px] text-fog">
@@ -222,6 +267,7 @@ function Player(p: {
   categorias: Record<string, string>
   nomesElementos: Record<string, string>
   posicao: string
+  favoritar: () => void
   anterior: (() => void) | null
   proximo: (() => void) | null
   fechar: () => void
@@ -256,6 +302,7 @@ function Player(p: {
       if (e.key === 'Escape') p.fechar()
       else if (e.key === 'ArrowLeft') p.anterior?.()
       else if (e.key === 'ArrowRight') p.proximo?.()
+      else if (e.key.toLowerCase() === 'f' && !e.metaKey && !e.ctrlKey) p.favoritar()
       else if (e.key === ' ') {
         e.preventDefault()
         const v = video.current
@@ -276,7 +323,7 @@ function Player(p: {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-6" onClick={p.fechar}>
       <div
-        className="grid max-h-full w-full max-w-[1180px] grid-cols-[auto_minmax(0,1fr)] gap-7 overflow-hidden rounded-[8px] bg-deep p-6 ring-1 ring-line-dark"
+        className="grid max-h-full w-full max-w-[1180px] grid-cols-[auto_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] gap-x-7 gap-y-5 overflow-hidden rounded-[8px] bg-deep p-6 ring-1 ring-line-dark"
         onClick={(ev) => ev.stopPropagation()}
       >
         {/* vídeo + faixa da origem */}
@@ -300,29 +347,6 @@ function Player(p: {
             controls
             className="h-[min(68vh,700px)] w-auto rounded-[6px] bg-black"
           />
-          {/* todos os planos do vídeo de origem; clique leva para aquele ponto */}
-          <div
-            className="relative h-6 w-full cursor-pointer overflow-hidden rounded-[3px] bg-deeper"
-            onClick={(ev) => {
-              const r = ev.currentTarget.getBoundingClientRect()
-              verOrigem(((ev.clientX - r.left) / r.width) * p.origem.duracao)
-            }}
-            title="Planos do vídeo de origem: clique para ver a partir dali"
-          >
-            {p.origem.planos.map((q) => (
-              <span
-                key={q.id}
-                className={cn('absolute inset-y-0 border-r border-deeper', COR_PLANO[q.tipo], q.id === c.id ? 'opacity-100' : 'opacity-45')}
-                style={{ left: `${(q.inicio / p.origem.duracao) * 100}%`, width: `${((q.fim - q.inicio) / p.origem.duracao) * 100}%` }}
-                title={`${p.categorias[q.tipo]} · ${seg(q.fim - q.inicio)}`}
-              />
-            ))}
-            <span
-              className="pointer-events-none absolute inset-y-0 border-2 border-yellow"
-              style={{ left: `${(c.inicio / p.origem.duracao) * 100}%`, width: `${((c.fim - c.inicio) / p.origem.duracao) * 100}%` }}
-            />
-            <span className="pointer-events-none absolute inset-y-0 w-0.5 bg-coral" style={{ left: `${(tempo / p.origem.duracao) * 100}%` }} />
-          </div>
         </div>
 
         {/* dados */}
@@ -334,7 +358,17 @@ function Player(p: {
             </span>
             {c.revisado && <span className="rounded-full bg-mint px-2 py-0.5 text-[10px] font-semibold text-ink">✓ revisado</span>}
             <span className="text-[11px] text-fog tabular-nums">{p.posicao}</span>
-            <button onClick={p.fechar} aria-label="Fechar" className="ml-auto grid size-8 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream">
+            <button
+              onClick={p.favoritar}
+              className={cn(
+                'ml-auto flex h-8 items-center gap-1.5 rounded-full border px-3 text-[12px] font-semibold transition-colors',
+                c.favorito ? 'border-yellow bg-yellow text-ink' : 'border-line-dark text-fog hover:border-yellow/60 hover:text-cream',
+              )}
+              title="Favoritos viram preferência para as próximas etapas"
+            >
+              <Star className={cn('size-3.5', c.favorito && 'fill-current')} /> {c.favorito ? 'Favorito' : 'Favoritar'}
+            </button>
+            <button onClick={p.fechar} aria-label="Fechar" className="grid size-8 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream">
               <X className="size-4" />
             </button>
           </div>
@@ -398,22 +432,36 @@ function Player(p: {
             </div>
           </Bloco>
 
-          <div className="mt-auto flex items-center gap-2 pt-1">
-            <button
-              onClick={() => p.anterior?.()}
-              disabled={!p.anterior}
-              className="flex h-9 items-center gap-1 rounded-full border border-line-dark px-3 text-[12px] font-semibold hover:border-cream/50 disabled:opacity-40"
-            >
-              <ChevronLeft className="size-4" /> Anterior
-            </button>
-            <button
-              onClick={() => p.proximo?.()}
-              disabled={!p.proximo}
-              className="flex h-9 items-center gap-1 rounded-full border border-line-dark px-3 text-[12px] font-semibold hover:border-cream/50 disabled:opacity-40"
-            >
-              Próximo <ChevronRight className="size-4" />
-            </button>
-            <span className="ml-2 text-[11px] text-fog">← → navegam · Espaço pausa · Esc fecha</span>
+        </div>
+
+        {/* todos os planos do vídeo de origem, na largura do modal; clique leva para aquele ponto */}
+        <div className="col-span-2 grid gap-1.5">
+        <div
+          className="relative h-8 w-full cursor-pointer overflow-hidden rounded-[4px] bg-deeper"
+          onClick={(ev) => {
+            const r = ev.currentTarget.getBoundingClientRect()
+            verOrigem(((ev.clientX - r.left) / r.width) * p.origem.duracao)
+          }}
+          title="Planos do vídeo de origem: clique para ver a partir dali"
+        >
+          {p.origem.planos.map((q) => (
+            <span
+              key={q.id}
+              className={cn('absolute inset-y-0 border-r border-deeper', COR_PLANO[q.tipo], q.id === c.id ? 'opacity-100' : 'opacity-45')}
+              style={{ left: `${(q.inicio / p.origem.duracao) * 100}%`, width: `${((q.fim - q.inicio) / p.origem.duracao) * 100}%` }}
+              title={`${p.categorias[q.tipo]} · ${seg(q.fim - q.inicio)}`}
+            />
+          ))}
+          <span
+            className="pointer-events-none absolute inset-y-0 border-2 border-yellow"
+            style={{ left: `${(c.inicio / p.origem.duracao) * 100}%`, width: `${((c.fim - c.inicio) / p.origem.duracao) * 100}%` }}
+          />
+          <span className="pointer-events-none absolute inset-y-0 w-0.5 bg-coral" style={{ left: `${(tempo / p.origem.duracao) * 100}%` }} />
+        </div>
+          <div className="flex justify-between text-[10px] text-fog tabular-nums">
+            <span>0 s</span>
+            <span>{p.origem.nome} · {p.origem.planos.length} planos</span>
+            <span>{seg(p.origem.duracao)}</span>
           </div>
         </div>
       </div>

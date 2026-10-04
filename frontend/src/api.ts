@@ -221,7 +221,13 @@ export type ClipeReferencia = {
   anterior: { tipo: string; duracao: number } | null
   seguinte: { tipo: string; duracao: number } | null
   elementos: { tipo: string; texto: string | null; inicio: number; fim: number }[]
+  /** Marcado como preferência (guiará as IAs depois). */
+  favorito: boolean
 }
+export const marcarFavorito = (ref: string, inicio: number, fim: number, favorito: boolean) =>
+  fetch(`/api/referencias/${ref}/favorito`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inicio, fim, favorito }) }).then(
+    json<{ favorito: boolean }>,
+  )
 /** Resumo do vídeo de origem de um clipe: todos os planos (para a faixa) e quanto do tempo cada categoria ocupa. */
 export type OrigemClipe = { nome: string; duracao: number; revisado: boolean; planos: { id: string; tipo: string; inicio: number; fim: number }[]; proporcao: Record<string, number> }
 export const listarClipes = () =>

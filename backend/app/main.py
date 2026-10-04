@@ -203,7 +203,30 @@ def clipes_referencias():
             continue
         lista, origens[r['id']] = direcao.clipes(r, itens, palavras)
         todos += lista
+    favoritos = referencias.ler_favoritos()
+    for c in todos:
+        c['favorito'] = any(referencias.mesmo_trecho(f, c['ref'], c['inicio'], c['fim']) for f in favoritos)
     return {'clipes': todos, 'origens': origens, 'categorias': direcao.PLANOS, 'elementos': direcao.ELEMENTOS}
+
+
+class Favorito(BaseModel):
+    inicio: float
+    fim: float
+    favorito: bool
+
+
+@app.put('/api/referencias/{id}/favorito')
+def favoritar(id: str, f: Favorito):
+    """Marca ou desmarca um trecho como favorito (preferência para guiar as IAs depois)."""
+    _ler_referencia(id)
+    base = referencias.pasta(id)
+    itens = json.loads((base / 'direcao.json').read_text())['itens'] if (base / 'direcao.json').exists() else []
+    plano = next((i for i in itens if i['camada'] == 'plano' and abs(i['inicio'] - f.inicio) < 0.05 and abs(i['fim'] - f.fim) < 0.05), None)
+    if f.favorito and plano is None:
+        raise HTTPException(404, 'Trecho não encontrado nesta referência')
+    dados = {k: plano.get(k) for k in ('tipo', 'conteudo', 'descricao', 'texto')} if plano else {}
+    referencias.marcar_favorito(id, f.inicio, f.fim, f.favorito, dados)
+    return {'favorito': f.favorito}
 
 
 @app.get('/api/direcao/categorias')
