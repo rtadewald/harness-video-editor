@@ -1,16 +1,17 @@
 """API do Harness Video Editor."""
 import json
+import os
 import shutil
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from . import cortes, midia, mocks, pipeline, projeto
+from . import cortes, midia, mocks, motores, pipeline, projeto
 
 load_dotenv(Path(__file__).resolve().parents[1] / '.env')
 
@@ -41,6 +42,39 @@ def _ler(id: str) -> dict:
         raise HTTPException(404, 'Projeto não encontrado')
 
 
+class Config(BaseModel):
+    motor_padrao: str | None = None
+    antes_do_corte_ms: int | None = Field(default=None, ge=0, le=1000)
+    depois_do_corte_ms: int | None = Field(default=None, ge=0, le=1000)
+    pausa_max_ms: int | None = Field(default=None, ge=0, le=30000)  # 0 = nunca encurtar pausas
+    respiro_ms: int | None = Field(default=None, ge=0, le=5000)
+
+
+def _config_completa() -> dict:
+    load_dotenv(pipeline.ENV, override=True)
+    return {**projeto.ler_config(), 'motores': {
+        vid: {'nome': m['nome'], 'familia': m['familia'], 'chave': (bool(os.getenv(m['chave'])) if m.get('chave') else None)}
+        for vid, m in projeto.MOTORES.items()}}
+
+
+@app.get('/api/config')
+def ler_config():
+    """Preferências do app e os motores de transcrição disponíveis (chave: se a API key está no .env, ou null se não precisa)."""
+    return _config_completa()
+
+
+@app.put('/api/config')
+def salvar_config(c: Config):
+    if c.motor_padrao is not None and c.motor_padrao not in projeto.MOTORES:
+        raise HTTPException(422, 'Motor de transcrição desconhecido')
+    mudancas = {k: v for k, v in c.model_dump().items() if v is not None}
+    nova = {**projeto.ler_config(), **mudancas}
+    if nova['pausa_max_ms'] and nova['respiro_ms'] > nova['pausa_max_ms']:
+        raise HTTPException(422, 'O que sobra de uma pausa cortada não pode ser maior que a pausa a partir da qual se corta.')
+    projeto.salvar_config(nova)
+    return _config_completa()
+
+
 @app.get('/api/projetos')
 def listar():
     return projeto.listar()
@@ -53,10 +87,13 @@ def criar(
     briefing_texto: Annotated[str, Form()] = '',
     briefing_audio: Annotated[UploadFile | None, File()] = None,
     apoios: Annotated[list[UploadFile], File()] = [],
+    motor: Annotated[str, Form()] = '',
 ):
     nome = nome.strip()
     if not nome:
         raise HTTPException(422, 'Dê um nome ao projeto')
+    if motor and motor not in projeto.MOTORES:
+        raise HTTPException(422, 'Motor de transcrição desconhecido')
     id = projeto.novo_id(nome)
     base = projeto.RAIZ / id
     try:
@@ -81,7 +118,7 @@ def criar(
             _guardar(briefing_audio, destino)
             briefing['audio'] = str(destino.relative_to(base))
 
-        novo = projeto.criar(id, nome, fontes, briefing)
+        novo = projeto.criar(id, nome, fontes, briefing, motor or None)
     except Exception as e:
         shutil.rmtree(base, ignore_errors=True)
         if isinstance(e, HTTPException):
@@ -114,13 +151,35 @@ def refazer_cortes(id: str):
     return projeto.ler(id)
 
 
+@app.post('/api/projetos/{id}/cortes/recalcular')
+def recalcular_cortes(id: str):
+    """Refaz os clipes a partir das palavras que já estão mantidas, com as margens vigentes em Configurações. Não chama a
+    IA. Descarta os ajustes manuais de borda (as palavras ligadas ou desligadas à mão continuam)."""
+    p = _ler(id)
+    if 'cortes' not in p:
+        raise HTTPException(409, 'Os cortes ainda não foram feitos')
+    palavras = projeto.ler_palavras(id)
+    silencios = json.loads((projeto.pasta(id) / 'silencios.json').read_text())['silencios']
+    bruto = next(f for f in p['fontes'] if f['papel'] == 'bruto')
+    params = cortes.parametros(projeto.ler_config())
+    clipes = cortes.montar_clipes(palavras, cortes.mantidas_por_indice(palavras, p['cortes']['mantidas']), silencios,
+                                  bruto['duracao'], **params)
+
+    def aplicar(p: dict) -> None:
+        p['timeline']['V1'] = clipes
+        p['cortes']['parametros'] = params
+        p['cortes'].pop('mantidas_auto', None)  # clipes novos: não há mais o que restaurar
+    projeto.atualizar(id, aplicar)
+    return projeto.ler(id)
+
+
 @app.get('/api/projetos/{id}/editor')
 def editor(id: str):
     """Transcrição e V1 reais (quando prontas); V2, V3 e LEG ainda simuladas."""
     p = _ler(id)
     if 'cortes' not in p:
         return {'projeto': p, 'palavras': [], 'timeline': {'V1': [], 'V2': [], 'V3': [], 'LEG': []}, 'duvidas': []}
-    palavras = json.loads((projeto.pasta(id) / 'transcricao.json').read_text(encoding='utf-8'))['palavras']
+    palavras = projeto.ler_palavras(id)
     for w, fica in zip(palavras, cortes.mantidas_por_indice(palavras, p['cortes']['mantidas'])):
         w['mantida'] = fica
     silencios = json.loads((projeto.pasta(id) / 'silencios.json').read_text())['silencios']
@@ -143,6 +202,95 @@ def conversar(id: str, etapa: str, msg: Mensagem):
     novas = [mocks.mensagem('rodrigo', msg.texto.strip()), mocks.responder(etapa)]
     projeto.atualizar(id, lambda p: p['chats'][etapa].extend(novas))
     return novas
+
+
+@app.get('/api/projetos/{id}/transcricoes/{vid}')
+def transcricao_de(id: str, vid: str):
+    """Palavras de uma transcrição (para comparar com a que está sendo vista)."""
+    t = _ler(id)['transcricoes'].get(vid)
+    if t is None or t['status'] != 'pronto':
+        raise HTTPException(404, 'Essa transcrição não está pronta')
+    return {'id': vid, 'nome': t['nome'], 'familia': t['familia'], 'palavras': projeto.ler_palavras(id, vid)}
+
+
+@app.post('/api/projetos/{id}/transcricoes/{vid}/ativar')
+def ativar_transcricao(id: str, vid: str):
+    """Troca a transcrição vista. Se for de outra família (texto diferente) e ainda sem cortes, a IA os faz."""
+    _ler(id)
+    precisa = [False]
+    try:
+        projeto.atualizar(id, lambda p: precisa.__setitem__(0, projeto.ativar_variante(p, vid)))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    if precisa[0]:
+        pipeline.enfileirar(id, ['cortes'])
+    return projeto.ler(id)
+
+
+@app.post('/api/projetos/{id}/transcricoes/rodar')
+def rodar_motores(id: str, vid: str | None = None):
+    """Roda os motores que faltam (ou só `vid`, de novo): útil depois de pôr a chave de API em backend/.env."""
+    p = _ler(id)
+    if vid is not None and (vid not in p['transcricoes'] or vid not in motores.EXTRAS):
+        raise HTTPException(404, 'Motor desconhecido')
+    pendentes = [vid] if vid else [v for v in motores.EXTRAS if p['transcricoes'][v]['status'] != 'pronto']
+    if pendentes:
+        pipeline.enfileirar_motores(id, pendentes)
+    return projeto.ler(id)
+
+
+class Ajuste(BaseModel):
+    lado: Literal['inicio', 'fim']
+    t: float
+
+
+def _com_cortes(id: str, mudar) -> None:
+    """Aplica uma edição manual nos cortes (palavras e clipes) e salva; regras violadas viram 422."""
+    p = _ler(id)
+    if 'cortes' not in p:
+        raise HTTPException(409, 'Os cortes ainda não foram feitos')
+    palavras = projeto.ler_palavras(id)
+    bruto = next(f for f in p['fontes'] if f['papel'] == 'bruto')
+
+    def aplicar(p: dict) -> None:
+        c = p['cortes']
+        c.setdefault('mantidas_auto', c['mantidas'])  # o que a IA decidiu, para poder restaurar
+        fica = cortes.mantidas_por_indice(palavras, c['mantidas'])
+        fica_auto = cortes.mantidas_por_indice(palavras, c['mantidas_auto'])
+        nova = mudar(p['timeline']['V1'], palavras, fica, fica_auto, bruto['duracao'])
+        c['mantidas'] = cortes.faixas_de(palavras, nova)
+        p['timeline']['V1'].sort(key=lambda x: x['inicio'])
+
+    try:
+        projeto.atualizar(id, aplicar)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+class Faixa(BaseModel):
+    inicio: float
+    fim: float
+    manter: bool = False  # False = cortar esse intervalo; True = devolvê-lo ao vídeo
+
+
+@app.post('/api/projetos/{id}/cortes/faixa')
+def alterar_faixa(id: str, f: Faixa):
+    """Cria um corte novo no intervalo (mesmo no meio de um trecho mantido) ou devolve um intervalo ao vídeo."""
+    _com_cortes(id, lambda clipes, palavras, fica, _auto, duracao: cortes.alterar_faixa(clipes, palavras, fica, f.inicio, f.fim, f.manter, duracao))
+    return {'ok': True}
+
+
+@app.post('/api/projetos/{id}/clipes/{cid}/ajustar')
+def ajustar_clipe(id: str, cid: str, a: Ajuste):
+    """Arrastar uma borda de corte: move o início ou o fim de um trecho mantido."""
+    _com_cortes(id, lambda clipes, palavras, fica, _auto, duracao: cortes.ajustar_borda(clipes, palavras, fica, cid, a.lado, a.t, duracao))
+    return {'ok': True}
+
+
+@app.post('/api/projetos/{id}/clipes/{cid}/restaurar')
+def restaurar(id: str, cid: str):
+    _com_cortes(id, lambda clipes, palavras, fica, fica_auto, _d: cortes.restaurar_clipe(clipes, palavras, fica, fica_auto, cid))
+    return {'ok': True}
 
 
 @app.get('/api/projetos/{id}/miniatura')

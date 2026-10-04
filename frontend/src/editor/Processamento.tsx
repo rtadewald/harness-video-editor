@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 const NOMES = {
   proxy: 'Preparando o vídeo para o player',
   silencios: 'Encontrando as pausas reais',
-  transcricao: 'Transcrevendo cada tentativa, palavra por palavra',
+  transcricao: 'Transcrevendo o áudio, palavra por palavra',
   cortes: 'Escolhendo o texto final com IA',
 } as const
 
@@ -46,6 +46,8 @@ export default function Processamento({ projeto, aoMudar }: { projeto: Projeto; 
             )
           })}
         </ul>
+
+        {passos.transcricao?.aviso && <p className="mt-5 border-l-2 border-yellow pl-3 text-[12px] leading-[1.6] break-words text-fog">{passos.transcricao.aviso}</p>}
 
         {erro && (
           <div className="mt-6 grid gap-4">

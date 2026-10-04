@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Play } from 'lucide-react'
-import { ms3, type DadosEditor, type Duvida, type Palavra } from '@/api'
+import { ms3, type DadosEditor, type Duvida, type Palavra, type TranscricaoCompleta } from '@/api'
 import { cn } from '@/lib/utils'
 import { bordasDoCorte, refCorte, refPalavra, type Corte, type Selecao } from './cortes'
 
@@ -19,7 +19,6 @@ type Props = {
 
 /** Texto da etapa de Cortes: o que a IA tirou fica riscado, cada corte mostra os tempos exatos no bruto. */
 export default function PainelCortes(p: Props) {
-  const [preciso, setPreciso] = useState(false)
   const { palavras, duvidas } = p.dados
   const indice = new Map(palavras.map((w, i) => [w.id, i]))
   const duvidaDe = (i: number) => duvidas.find((d: Duvida) => indice.get(d.ini)! <= i && i <= indice.get(d.fim)!)
@@ -36,20 +35,12 @@ export default function PainelCortes(p: Props) {
 
   return (
     <section className="flex h-full min-h-0 flex-col text-cream">
-      <div className="flex shrink-0 items-center justify-between gap-3 pb-3 text-[11px] text-fog">
-        <span>
-          Clique numa palavra ou num corte para ver os milissegundos. <kbd className="rounded border border-line-dark px-1">E</kbd> ouve a emenda mais próxima.
-        </span>
-        <button
-          onClick={() => setPreciso((v) => !v)}
-          className={cn('h-7 shrink-0 rounded-full border px-3 font-semibold', preciso ? 'border-yellow text-yellow' : 'border-line-dark hover:border-cream/50 hover:text-cream')}
-        >
-          Modo preciso
-        </button>
-      </div>
+      <p className="shrink-0 pb-3 text-[11px] text-fog">
+        Clique numa palavra ou num corte para ver os milissegundos. <kbd className="rounded border border-line-dark px-1">E</kbd> ouve a emenda mais próxima.
+      </p>
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-        <div className={cn('grid text-[17px] tracking-[-0.01em]', preciso ? 'gap-4 leading-[2.6]' : 'gap-3 leading-[1.9]')}>
+        <div className="grid gap-3 text-[17px] leading-[1.9] tracking-[-0.01em]">
           {duvidas.length > 0 && (
             <p className="border-l-2 border-yellow pl-3 text-[12px] leading-[1.6] text-fog">
               A IA ficou em dúvida em {duvidas.length} trecho{duvidas.length > 1 && 's'} (sublinhado amarelo) e os manteve.
@@ -80,14 +71,7 @@ export default function PainelCortes(p: Props) {
                         escolhida && 'ring-2 ring-yellow',
                       )}
                     >
-                      {preciso ? (
-                        <span className="inline-flex flex-col items-center leading-none">
-                          <span>{w.texto}</span>
-                          <span className="mt-0.5 font-mono text-[9px] tracking-tight text-fog no-underline">{ms3(w.inicio)}</span>
-                        </span>
-                      ) : (
-                        w.texto
-                      )}
+                      {w.texto}
                     </button>{' '}
                     {corte && marca(corte)}
                   </span>
@@ -129,7 +113,9 @@ function MarcaCorte({ corte: c, escolhido, selecionar, buscarBruto, ouvir }: { c
   )
 }
 
-function Detalhe(p: Props) {
+export type DetalheProps = Pick<Props, 'dados' | 'cortes' | 'selecao' | 'ouvirPalavra' | 'ouvirEmenda' | 'loop' | 'setLoop'> & { restaurar?: (clipeId: string) => void; devolver?: (ini: number, fim: number) => void; comparacao?: TranscricaoCompleta | null }
+
+export function Detalhe(p: DetalheProps) {
   const [copiado, setCopiado] = useState(false)
   if (!p.selecao) {
     return <div className="mt-3 shrink-0 border-t border-line-dark pt-3 text-[12px] text-fog">Selecione uma palavra ou um corte para ver os tempos em milissegundos.</div>
@@ -155,7 +141,15 @@ function Detalhe(p: Props) {
         <p className="tabular-nums">
           {ms3(w.inicio)} → {ms3(w.fim)} s · <b>{Math.round((w.fim - w.inicio) * 1000)} ms</b>
         </p>
-        {w.inicio_whisper != null && (
+        {p.comparacao && p.comparacao.familia === p.dados.projeto.transcricoes[p.dados.projeto.transcricao_ativa]?.familia && (() => {
+          const o = p.comparacao.palavras.find((x) => x.id === w.id)
+          return o ? (
+            <p className="text-yellow tabular-nums">
+              {p.comparacao.nome}: {ms3(o.inicio)} → {ms3(o.fim)} s (início {dif(o.inicio, w.inicio)}, fim {dif(o.fim, w.fim)} em relação a esta)
+            </p>
+          ) : null
+        })()}
+        {!p.comparacao && w.inicio_whisper != null && (
           <p className="text-fog tabular-nums">
             Whisper marcou {ms3(w.inicio_whisper)} → {ms3(w.fim_whisper!)} s (início {dif(w.inicio, w.inicio_whisper)}, fim {dif(w.fim, w.fim_whisper!)})
           </p>
@@ -194,6 +188,15 @@ function Detalhe(p: Props) {
           · {b.silencio ? `em pausa (${ms3(b.silencio.inicio)} → ${ms3(b.silencio.fim)})` : <b className="text-coral">⚠ fora de pausa</b>}
         </p>
       ))}
+      {bordas
+        .filter((b) => b.automatico != null && Math.abs(b.automatico - b.t) > 0.0005)
+        .map((b) => (
+          <p key={`aj${b.lado}`} className="flex flex-wrap items-center gap-2 tabular-nums text-yellow">
+            ✎ {b.lado === 'inicio' ? 'Início' : 'Fim'} ajustado à mão: a IA tinha posto {ms3(b.automatico!)} ({b.t - b.automatico! >= 0 ? '+' : '−'}
+            {Math.abs(Math.round((b.t - b.automatico!) * 1000))} ms)
+            {p.restaurar && <Botao onClick={() => p.restaurar!(b.clipeId)}>↺ Restaurar da IA</Botao>}
+          </p>
+        ))}
       {c.removidas.length > 0 && <p className="line-clamp-2 text-fog">“{c.removidas.map((w) => w.texto).join(' ')}”</p>}
       <Acoes>
         <Botao onClick={() => p.ouvirEmenda(c)}>▶ Ouvir emenda</Botao>
@@ -201,13 +204,14 @@ function Detalhe(p: Props) {
           <input type="checkbox" checked={p.loop} onChange={(e) => p.setLoop(e.target.checked)} /> repetir
         </label>
         <Botao onClick={() => copiar(refCorte(c))}>{copiado ? 'Copiado ✓' : 'Copiar referência'}</Botao>
+        {p.devolver && <Botao onClick={() => p.devolver!(c.ini, c.fim)}>✕ Excluir corte</Botao>}
       </Acoes>
     </Cartao>
   )
 }
 
 const Cartao = ({ children }: { children: React.ReactNode }) => (
-  <div className="mt-3 grid max-h-[42%] shrink-0 gap-1.5 overflow-y-auto border-t border-line-dark pt-3 text-[12px] leading-[1.55]">{children}</div>
+  <div className="mt-3 grid shrink-0 gap-1.5 border-t border-line-dark pt-3 text-[12px] leading-[1.55]">{children}</div>
 )
 const Acoes = ({ children }: { children: React.ReactNode }) => <div className="mt-1 flex items-center gap-3">{children}</div>
 const Botao = ({ onClick, children }: { onClick: () => void; children: React.ReactNode }) => (

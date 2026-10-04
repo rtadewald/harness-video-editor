@@ -12,6 +12,7 @@ export function usePlayer(seq: Sequencia | null) {
   const [bruto, setBruto] = useState(0)
   const [tocando, setTocando] = useState(false)
   const [pular, setPularEstado] = useState(true)
+  const [velocidade, setVelocidadeEstado] = useState(1)
   const [trecho, setTrechoEstado] = useState<Trecho | null>(null)
   const pularRef = useRef(true)
   const trechoRef = useRef<Trecho | null>(null)
@@ -20,6 +21,14 @@ export function usePlayer(seq: Sequencia | null) {
     pularRef.current = v
     setPularEstado(v)
   }, [])
+  /** 0,25× a 2×: devagar dá para ouvir uma emenda com calma; o tom é preservado. */
+  const setVelocidade = useCallback((v: number) => {
+    setVelocidadeEstado(v)
+    if (ref.current) ref.current.playbackRate = v
+  }, [])
+  useEffect(() => {
+    if (ref.current) ref.current.playbackRate = velocidade
+  }, [velocidade, seq])
   const definirTrecho = useCallback((t: Trecho | null) => {
     trechoRef.current = t
     setTrechoEstado(t)
@@ -116,5 +125,5 @@ export function usePlayer(seq: Sequencia | null) {
     [definirTrecho],
   )
 
-  return { ref, tempo, bruto, tocando, pular, setPular, trecho, buscar, buscarBruto, alternar, tocarTrecho }
+  return { ref, tempo, bruto, tocando, pular, setPular, velocidade, setVelocidade, trecho, buscar, buscarBruto, alternar, tocarTrecho }
 }
