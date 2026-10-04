@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { formatarDuracao, formatarTempo, type DadosEditor, type Etapa, type Palavra } from '@/api'
 import { cn } from '@/lib/utils'
 import type { Sequencia } from './sequencia'
@@ -9,7 +10,16 @@ export default function Painel({ etapa, dados, seq, tempo, buscar }: Props) {
   return (
     <section className="flex h-full min-h-0 flex-col text-cream">
       <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-        {etapa === 'legenda' ? (
+        {etapa === 'direcao' && <AvisoDirecao />}
+        {etapa === 'direcao' ? (
+          <Lista
+            itens={dados.timeline.DIR.map((d) => ({ ...d, rotulo: `${d.camada === 'elemento' ? '＋ ' : ''}${d.rotulo}${d.descricao ? ` · ${d.descricao}` : ''}` }))}
+            seq={seq}
+            tempo={tempo}
+            buscar={buscar}
+            palavras={dados.palavras}
+          />
+        ) : etapa === 'legenda' ? (
           <Lista itens={dados.timeline.LEG.map((l) => ({ ...l, rotulo: l.texto }))} seq={seq} tempo={tempo} buscar={buscar} palavras={[]} />
         ) : (
           <Lista itens={dados.timeline[etapa === 'inserts' ? 'V2' : 'V3']} seq={seq} tempo={tempo} buscar={buscar} palavras={dados.palavras} />
@@ -55,6 +65,21 @@ function Lista({ itens, seq, tempo, buscar, palavras }: { itens: ItemLista[]; se
         )
       })}
     </ul>
+  )
+}
+
+/** A Direção visual real só chega depois das Referências (SPEC §8.2.2); até lá, aviso + dados de exemplo. */
+function AvisoDirecao() {
+  return (
+    <div className="mb-5 grid gap-1.5 border-l-2 border-yellow pl-3 text-[12px] leading-[1.6] text-fog">
+      <p>
+        <b className="text-cream">Simulado.</b> Planos-base (Full ator, Insert tela cheia, Motion tela cheia, Tela dividida) e elementos (＋) de exemplo. A
+        direção de verdade vai aprender com seus vídeos de referência revisados.
+      </p>
+      <Link to="/referencias" className="w-fit font-semibold text-yellow hover:underline">
+        Abrir Referências ↗
+      </Link>
+    </div>
   )
 }
 

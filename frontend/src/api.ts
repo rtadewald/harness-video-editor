@@ -25,7 +25,7 @@ export type Transcricao = {
 export type Passo = { status: 'pendente' | 'rodando' | 'pronto' | 'erro'; segundos?: number; progresso?: number; aviso?: string; pulado?: boolean }
 export type Pipeline = { passos: Partial<Record<'proxy' | 'transcricao' | 'alinhamento' | 'silencios' | 'cortes' | 'variantes', Passo>>; erro: string | null }
 
-export type Etapa = 'cortes' | 'inserts' | 'motion' | 'legenda'
+export type Etapa = 'cortes' | 'direcao' | 'inserts' | 'motion' | 'legenda'
 
 export type Mensagem = {
   autor: 'rodrigo' | 'agente'
@@ -68,7 +68,9 @@ export type Ancora = { palavra_ini: string; palavra_fim: string }
 export type Clipe = Ancora & { id: string; fonte: string; inicio: number; fim: number; auto?: { inicio: number; fim: number } }
 export type Item = Ancora & { id: string; rotulo: string }
 export type Legenda = Ancora & { id: string; texto: string }
-export type Timeline = { V1: Clipe[]; V2: Item[]; V3: Item[]; LEG: Legenda[] }
+/** Item (mock) da Direção visual: um plano-base ou um elemento sobreposto, preso às palavras. */
+export type ItemDirecao = Item & { camada: 'plano' | 'elemento'; descricao?: string }
+export type Timeline = { V1: Clipe[]; V2: Item[]; V3: Item[]; LEG: Legenda[]; DIR: ItemDirecao[] }
 
 export type DadosEditor = { projeto: Projeto; palavras: Palavra[]; silencios: Silencio[]; timeline: Timeline; duvidas: Duvida[] }
 export type Picos = { por_segundo: number; picos: number[] }
@@ -139,6 +141,26 @@ export const cortarFaixa = (id: string, inicio: number, fim: number, manter: boo
     body: JSON.stringify({ inicio, fim, manter }),
   }).then(json<{ ok: boolean }>)
 export const recalcularCortes = (id: string) => post<Projeto>(`/api/projetos/${id}/cortes/recalcular`)
+
+/** Vídeo já editado de Rodrigo, usado para treinar a Direção visual (SPEC §8.2.1). */
+export type StatusReferencia = 'na_fila' | 'analisando' | 'a_revisar' | 'revisado' | 'erro'
+export type Referencia = {
+  id: string
+  nome: string
+  criado_em: string
+  formato: 'vertical' | 'horizontal' | 'quadrado'
+  video: { arquivo: string; nome_original: string; duracao: number; largura: number; altura: number }
+  status: StatusReferencia
+  erro: string | null
+}
+export const listarReferencias = () => fetch('/api/referencias').then(json<Referencia[]>)
+export const subirReferencias = (videos: File[]) => {
+  const corpo = new FormData()
+  videos.forEach((v) => corpo.append('videos', v))
+  return fetch('/api/referencias', { method: 'POST', body: corpo }).then(json<{ criadas: Referencia[]; recusadas: { nome: string; motivo: string }[] }>)
+}
+export const apagarReferencia = (id: string) => fetch(`/api/referencias/${id}`, { method: 'DELETE' }).then(json<{ ok: boolean }>)
+export const urlArquivoReferencia = (id: string, caminho: string) => `/api/referencias/${id}/arquivos/${caminho}`
 
 export const urlMiniatura = (id: string) => `/api/projetos/${id}/miniatura`
 export const urlArquivo = (id: string, caminho: string) => `/api/projetos/${id}/arquivos/${caminho}`

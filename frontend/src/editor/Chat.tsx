@@ -48,7 +48,7 @@ export default function Chat({ projetoId, etapa, mensagens, aoReceber }: Props) 
         {mensagens.length === 0 && (
           <div className="grid gap-4">
             <p className="eyebrow text-[#6d7972]">Comece por aqui</p>
-            <h3 className="titulo text-[30px]">Converse sobre {etapa === 'legenda' ? 'a legenda' : `os ${nome.toLowerCase()}`}.</h3>
+            <h3 className="titulo text-[30px]">Converse sobre {etapa === 'legenda' ? 'a legenda' : etapa === 'direcao' ? 'a direção visual' : `os ${nome.toLowerCase()}`}.</h3>
             <div className="flex flex-wrap gap-1.5">
               {SUGESTOES[etapa].map((s) => (
                 <button key={s} onClick={() => setTexto(s)} className="rounded-full border border-line px-3 py-1.5 text-left text-[11px] transition-colors hover:border-ink">

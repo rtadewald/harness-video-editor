@@ -8,7 +8,7 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[2] / 'projetos'
 SAIDA = {'largura': 1080, 'altura': 1920}
-ETAPAS = ['cortes', 'inserts', 'motion', 'legenda']
+ETAPAS = ['cortes', 'direcao', 'inserts', 'motion', 'legenda']
 _trava = threading.Lock()  # o pipeline roda em outra thread e também grava o projeto.json
 
 # Motores de transcrição. `familia` agrupa os que compartilham o MESMO texto (e IDs de palavra): trocar entre eles só muda
@@ -161,6 +161,10 @@ def ler(id: str) -> dict:
     elif any(vid not in p['transcricoes'] for vid in MOTORES):  # motor acrescentado depois que o projeto foi criado
         for vid, m in registro_de_motores().items():
             p['transcricoes'].setdefault(vid, m)
+        salvar(p)
+    if any(e not in p['etapas'] for e in ETAPAS):  # etapa criada depois do projeto (ex.: Direção visual)
+        p['etapas'] = {e: p['etapas'].get(e, 'pendente') for e in ETAPAS}
+        p['chats'] = {e: p['chats'].get(e, []) for e in ETAPAS}
         salvar(p)
     return p
 

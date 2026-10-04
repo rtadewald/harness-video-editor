@@ -202,7 +202,7 @@ export default function Editor() {
             </button>
           )}
         </div>
-        <span className="rounded-full bg-yellow px-3 py-1 text-[9px] font-semibold tracking-[0.12em] text-ink">INSERTS · MOTION · LEGENDA SIMULADOS</span>
+        <span className="rounded-full bg-yellow px-3 py-1 text-[9px] font-semibold tracking-[0.12em] text-ink">DIREÇÃO · INSERTS · MOTION · LEGENDA SIMULADOS</span>
         <Button variant="coral" size="sm" disabled title="Exportação chega na fase 4" className="h-9 gap-6 px-4">
           Exportar <span className="seta">↗</span>
         </Button>

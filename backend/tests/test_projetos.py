@@ -8,12 +8,13 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from app import cortes, main, midia, motores, pipeline, projeto, transcricao
+from app import cortes, main, midia, motores, pipeline, projeto, referencias, transcricao
 
 
 @pytest.fixture
 def enfileirados(tmp_path, monkeypatch):
     monkeypatch.setattr(projeto, 'RAIZ', tmp_path / 'projetos')
+    monkeypatch.setattr(referencias, 'RAIZ', tmp_path / 'referencias')
     # isolamento total: nenhum teste lê o .env de verdade nem chama serviço pago (ElevenLabs, OpenRouter)
     monkeypatch.setattr(pipeline, 'load_dotenv', lambda *a, **k: None)
     monkeypatch.setattr(main, 'load_dotenv', lambda *a, **k: None)
@@ -696,3 +697,42 @@ def test_erro_num_passo_fica_registrado(cliente, video, monkeypatch):
     assert p['pipeline']['passos']['transcricao']['status'] == 'erro'
     assert p['pipeline']['passos']['cortes']['status'] == 'pendente'
     assert 'modelo indisponível' in p['pipeline']['erro']
+
+
+@pytest.fixture(scope='session')
+def video_horizontal(tmp_path_factory):
+    arq = tmp_path_factory.mktemp('midia') / 'deitado.mp4'
+    subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=30:duration=1',
+                    '-pix_fmt', 'yuv420p', str(arq)], check=True)
+    return arq
+
+
+def test_referencias_sobem_varias_e_recusam_horizontal(cliente, video, video_horizontal):
+    with video.open('rb') as a, video.open('rb') as b, video_horizontal.open('rb') as c:
+        r = cliente.post('/api/referencias', files=[('videos', ('Reel bom.mp4', a, 'video/mp4')),
+                                                    ('videos', ('Reel bom.mp4', b, 'video/mp4')),
+                                                    ('videos', ('youtube.mp4', c, 'video/mp4'))])
+    assert r.status_code == 200, r.text
+    criadas, recusadas = r.json()['criadas'], r.json()['recusadas']
+    assert [x['id'] for x in criadas] == ['reel-bom', 'reel-bom-2']
+    assert criadas[0]['nome'] == 'Reel bom' and criadas[0]['status'] == 'na_fila' and criadas[0]['formato'] == 'vertical'
+    assert recusadas == [{'nome': 'youtube.mp4', 'motivo': 'é 640×360; por enquanto só vídeos verticais'}]
+    assert not (referencias.RAIZ / 'youtube').exists()
+    assert len(cliente.get('/api/referencias').json()) == 2
+    assert cliente.get('/api/referencias/reel-bom/arquivos/miniatura.jpg').status_code == 200
+    assert cliente.get('/api/referencias/reel-bom/arquivos/referencia.json').status_code == 404
+    assert cliente.get('/api/referencias/reel-bom/arquivos/../../x').status_code == 404
+    assert cliente.delete('/api/referencias/reel-bom').status_code == 200
+    assert [x['id'] for x in cliente.get('/api/referencias').json()] == ['reel-bom-2']
+    assert cliente.get('/api/referencias/reel-bom').status_code == 404
+
+
+def test_projeto_antigo_ganha_a_etapa_direcao(cliente, video):
+    id = _criar(cliente, video)['id']
+    arq = projeto.RAIZ / id / 'projeto.json'
+    p = json.loads(arq.read_text())
+    for chave in ('etapas', 'chats'):
+        p[chave].pop('direcao')
+    arq.write_text(json.dumps(p))
+    p = cliente.get(f'/api/projetos/{id}').json()
+    assert list(p['etapas']) == projeto.ETAPAS and p['etapas']['direcao'] == 'pendente' and p['chats']['direcao'] == []

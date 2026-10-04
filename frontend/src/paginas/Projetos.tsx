@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Plus, Search, Settings } from 'lucide-react'
 import { formatarDuracao, listarProjetos, urlMiniatura, type ResumoProjeto } from '@/api'
 import { Logo } from '@/components/Marca'
+import NavHome from '@/components/NavHome'
 import { Button } from '@/components/ui/button'
 import { ETAPAS } from '@/editor/etapas'
 import { cn } from '@/lib/utils'
@@ -28,7 +29,7 @@ export default function Projetos() {
       <header className="flex items-center gap-5 border-b border-line-dark bg-ink px-4">
         <Logo />
         <span className="h-5 w-px bg-line-dark" />
-        <span className="text-[13px] font-semibold">Projetos</span>
+        <NavHome />
 
         <label className="ml-auto flex h-9 w-64 items-center gap-2 rounded-full border border-line-dark px-3.5 text-fog focus-within:border-cream/50">
           <Search className="size-3.5" />
@@ -117,7 +118,7 @@ export default function Projetos() {
 /** Uma barrinha por etapa, na base da miniatura: menta quando pronta. */
 function Progresso({ etapas }: { etapas: ResumoProjeto['etapas'] }) {
   return (
-    <div className="absolute inset-x-2.5 bottom-2.5 grid grid-cols-4 gap-1">
+    <div className="absolute inset-x-2.5 bottom-2.5 grid gap-1" style={{ gridTemplateColumns: `repeat(${ETAPAS.length}, minmax(0, 1fr))` }}>
       {ETAPAS.map((e) => (
         <span
           key={e.id}

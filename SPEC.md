@@ -18,9 +18,10 @@ Editor de vídeo local, controlado por interface web, em que cada etapa da ediç
 | # | Etapa | O que faz | Na v1 |
 |---|---|---|---|
 | 1 | **Cortes** | Remove erros, retomadas e esperas; ajusta emendas e respiros; reenquadra para 9:16 | **Real** |
-| 2 | **Inserts** | Escolhe vídeos de apoio para ilustrar cada trecho, recorta e encaixa | Mock |
-| 3 | **Motion** | Cria motions específicos por trecho e encaixa | Mock |
-| 4 | **Legenda** | Gera e estiliza legendas | Mock |
+| 2 | **Direção visual** | Decide o que aparece na tela em cada momento (planos e elementos), aprendendo com vídeos de referência já editados (§8.2) | Mock → real depois das Referências |
+| 3 | **Inserts** | Escolhe vídeos de apoio para ilustrar cada trecho, recorta e encaixa | Mock |
+| 4 | **Motion** | Cria motions específicos por trecho e encaixa | Mock |
+| 5 | **Legenda** | Gera e estiliza legendas | Mock |
 
 Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produtividade e design, para Reels/TikTok. Os brutos têm erros, pausas e várias tentativas da mesma fala.
 
@@ -80,6 +81,7 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 ├── frontend/
 │   └── src/ (telas, timeline, player, chat)
 ├── projetos/          # dados dos projetos (fora do git)
+├── referencias/       # vídeos de referência analisados para a Direção visual (fora do git, §8.2)
 └── _legado/           # projeto anterior, só referência
 ```
 
@@ -224,19 +226,49 @@ O passo de silêncios também gera a forma de onda real (`picos.json`).
 
 ✅ **Refazer cortes com IA** (botão na timeline) pede uma nova seleção sem retranscrever. Depois da 3b, as palavras que Rodrigo ligou ou desligou à mão ficam **travadas**: a IA refaz o resto e respeita essas escolhas.
 
-### 8.2 Inserts (mock na v1)
+### 8.2 Direção visual
+
+✅ **O que é (decisão de Rodrigo, out/2026):** etapa entre Cortes e Inserts que decide **o que aparece na tela em cada momento** do vídeo cortado. Não edita mídia: escolher e recortar clipes fica em Inserts e Motion, que partem desta direção. Aprende com pares **transcrição → transcrição + o que aparece na tela**, tirados de vídeos já editados de Rodrigo e revisados por ele.
+
+✅ **Duas camadas, categorias fixas** (a IA não cria categorias; novas só quando Rodrigo cadastrar):
+- **Planos-base** (um por vez, cobrem o vídeo sem buracos; um grupo novo a cada troca): `Full ator` · `Insert tela cheia` · `Motion tela cheia` · `Tela dividida` (em cima insert **ou** motion, guardado como campo; embaixo o ator).
+- **Elementos** (dentro de um plano, podem durar menos e se sobrepor): `Lettering` (palavra destacada) · `Palavra ManyChat` (CTA de comentário) · `Caixinha de perguntas` · `Print/imagem sobreposta`.
+- Zoom/punch-in no ator não é plano: fica para Inserts/edição.
+
+✅ **Cada item guarda:** tipo; início e fim **nas palavras** (§9) **e em segundos** (pode começar no meio de uma palavra ou numa pausa); descrição do que aparece; texto exato (lettering, palavra do ManyChat, pergunta da caixinha); miniatura (um quadro do meio); **função** em texto livre (por que entrou ali: "ilustra a ferramenta citada", "prova o resultado", "reforça o CTA"…). Com ~20 pares, as funções que se repetem podem virar lista fixa.
+
+#### 8.2.1 Referências (treinamento) — construída primeiro
+
+✅ Tela **"Referências"** na home, ao lado de Projetos. É do app (vale para todos os projetos). Só vídeos **verticais** por enquanto; cada referência guarda `formato`.
+✅ **Entrada: só o MP4 final editado.** Upload de vários de uma vez; cada um entra numa fila com status visível: na fila → analisando → a revisar → revisado.
+✅ **Análise automática (híbrida):**
+1. **Código:** detector de cena (PySceneDetect, local) acha os cortes duros com precisão de quadro; a transcrição usa o motor padrão do app (ElevenLabs).
+2. **LLM multimodal em paralelo, uma chamada por trecho:** recebe o recorte do trecho (2 quadros/s) e o contexto (transcrição inteira e posição do trecho). Devolve plano-base, elementos com início/fim, descrição, texto exato e função, em saída estruturada, sempre dentro das categorias fixas.
+3. **Código:** prende os tempos às palavras e junta trechos vizinhos com o mesmo plano.
+✅ **Revisão** (mesma linguagem da tela de Cortes): vídeo de referência no centro, timeline vertical à esquerda com as palavras, uma faixa de planos-base e uma de elementos; bordas arrastáveis com ímã em palavras e cortes detectados; detalhe editável (tipo, descrição, texto, função, miniatura); criar item onde o detector perdeu o corte; **"✓ Marcar como revisado"**. Só pares revisados entram no dataset.
+✅ **Estatísticas** (por código, só dos revisados): duração de cada plano/elemento; quantos entram no meio da frase × na pausa; ms antes/depois da palavra citada; tempo máximo de Full ator seguido; proporção de cada plano no vídeo.
+✅ **Configurações › aba "Direção visual":** modelo multimodal (padrão: Gemini Flash mais recente via OpenRouter, vídeo em base64) e quadros por segundo por trecho (padrão 2).
+💡 Fatos levantados (out/2026): o OpenRouter aceita vídeo para Gemini como `video_url` com data URL base64 (o `langchain-openrouter` converte o bloco `video`); não está confirmado que repassa `fps`/recorte, então o recorte e a taxa de quadros são feitos antes, com FFmpeg. O Gemini sozinho localiza eventos com erro de ~±1 s (1 quadro/s padrão): por isso os cortes vêm do detector de cena. Custo estimado: centavos de dólar por vídeo de 2 min.
+
+#### 8.2.2 Direção visual no projeto — depois de 5 a 10 pares revisados
+
+✅ Até lá, a etapa aparece no projeto como **mock**.
+✅ Quando real: uma LLM recebe a transcrição do vídeo cortado, **todos os pares revisados** e as estatísticas, e propõe planos e elementos no mesmo formato da revisão, presos às palavras (acompanham mudanças nos cortes; itens sem palavras ficam órfãos, §9). Rodrigo corrige na mesma timeline. Inserts e Motion partem dessa direção.
+✅ Evolução: com o dataset maior, uma LLM **destila um guia de estilo** editável por Rodrigo (regra editorial explícita, como a §14 para cortes), e a Direção passa a usar guia + alguns exemplos.
+
+### 8.3 Inserts (mock na v1)
 
 ✅ Visão: selecionar vídeos de apoio ideais para ilustrar cada trecho; o agente recorta o apoio no momento certo e o encaixa na V2. Rodrigo comenta propostas de inserts, ângulos e formas de mostrar nesta etapa.
 ✅ Na v1: tela com layout real, inserts falsos na V2 e ferramentas fictícias no agente.
-⏳ Em aberto: como os apoios são analisados (visão/LLM multimodal), layouts (apoio em tela cheia, tela dividida com apoio em cima e Rodrigo embaixo), acervo global.
+⏳ Em aberto: como os apoios são analisados (visão/LLM multimodal) e acervo global. Os layouts (tela cheia, tela dividida) agora vêm da Direção visual (§8.2).
 
-### 8.3 Motion (mock na v1)
+### 8.4 Motion (mock na v1)
 
 ✅ Visão: criar motions explicativos por trecho e encaixá-los na V3.
 ✅ Na v1: mock, igual a Inserts.
 ⏳ Em aberto: tecnologia (ex.: Remotion), estilo, como o agente gera.
 
-### 8.4 Legenda (mock na v1)
+### 8.5 Legenda (mock na v1)
 
 ✅ Visão: gerar legendas a partir da transcrição já cortada e estilizar.
 ✅ Na v1: mock, com legendas falsas na trilha LEG.
@@ -321,7 +353,13 @@ Uma correção pontual num vídeo vale só para aquele vídeo, a menos que Rodri
 | 3b-2. Cortes: edição manual | Ligar/desligar palavras no texto, alças e respiros na timeline, travas manuais, desfazer/refazer e versões | Com o bruto de teste, chegar a um corte aprovado por Rodrigo só pela interface |
 | 4. Exportação | Render FFmpeg a partir do bruto | MP4 1080×1920 exportado, emendas aprovadas no ouvido por Rodrigo |
 
-Depois: Inserts → Motion → Legenda, cada uma com sua própria rodada de decisões. O agente do chat (antiga 3c) vem bem depois.
+| D1. Referências: casca (implementada, aguardando avaliação) | Tela Referências na home, upload múltiplo com fila, pasta `referencias/`, etapa "Direção visual" como mock na sidebar | Subir vários MP4 e vê-los na lista com status |
+| D2. Referências: análise | Detector de cena, transcrição, LLM multimodal por trecho em paralelo, montagem dos itens | Uma referência real analisada, com planos e elementos plausíveis |
+| D3. Referências: revisão | Timeline com faixas de planos e elementos, edição, "revisado" | Rodrigo revisa uma referência inteira só pela interface |
+| D4. Estatísticas | Painel calculado dos pares revisados | Números batem com o que Rodrigo vê nos vídeos |
+| D5. Direção visual no projeto | Proposta real a partir dos pares + estatísticas | Rodrigo avalia a direção proposta para um vídeo novo |
+
+A Direção visual (D1–D5) entra antes de Inserts (decisão de Rodrigo, out/2026). Depois: Inserts → Motion → Legenda, cada uma com sua própria rodada de decisões. O agente do chat (antiga 3c) vem bem depois.
 
 💡 Medido na 3a com o bruto de teste (2:02, 4K HEVC, M1 Max): proxy 19 s (em paralelo), silêncios 0,2 s, transcrição por pedaços ~19 s, seleção da LLM 18–42 s (varia muito). Total ≈ 40–60 s.
 

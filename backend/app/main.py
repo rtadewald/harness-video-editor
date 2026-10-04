@@ -11,7 +11,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import cortes, midia, mocks, motores, pipeline, projeto
+from . import cortes, midia, mocks, motores, pipeline, projeto, referencias
 
 load_dotenv(Path(__file__).resolve().parents[1] / '.env')
 
@@ -142,6 +142,66 @@ def criar(
     return projeto.ler(novo['id'])
 
 
+def _ler_referencia(id: str) -> dict:
+    try:
+        return referencias.ler(id)
+    except FileNotFoundError:
+        raise HTTPException(404, 'Referência não encontrada')
+
+
+@app.get('/api/referencias')
+def listar_referencias():
+    return referencias.listar()
+
+
+@app.post('/api/referencias')
+def criar_referencias(videos: Annotated[list[UploadFile], File()]):
+    """Vários MP4 de uma vez. Cada um vira uma referência na fila; os que não servem voltam em `recusadas` com o motivo
+    (só vídeos verticais por enquanto, SPEC §8.2.1)."""
+    criadas, recusadas = [], []
+    for v in videos:
+        nome = v.filename or 'video.mp4'
+        id = referencias.novo_id(nome)
+        base = referencias.RAIZ / id
+        destino = base / f'video{_extensao(v) or ".mp4"}'
+        try:
+            _guardar(v, destino)
+            info = midia.inspecionar(destino)
+            if 'largura' not in info:
+                raise ValueError('não tem imagem')
+            if referencias.formato(info['largura'], info['altura']) != 'vertical':
+                raise ValueError(f"é {info['largura']}×{info['altura']}; por enquanto só vídeos verticais")
+            midia.miniatura(destino, base / 'miniatura.jpg', info['duracao'])
+            criadas.append(referencias.criar(id, Path(nome).stem, {'arquivo': destino.name, 'nome_original': nome, **info}))
+        except Exception as e:
+            shutil.rmtree(base, ignore_errors=True)
+            motivo = str(e) if isinstance(e, ValueError) else 'não consegui ler o arquivo'
+            recusadas.append({'nome': nome, 'motivo': motivo})
+    return {'criadas': criadas, 'recusadas': recusadas}
+
+
+@app.get('/api/referencias/{id}')
+def abrir_referencia(id: str):
+    return _ler_referencia(id)
+
+
+@app.delete('/api/referencias/{id}')
+def apagar_referencia(id: str):
+    _ler_referencia(id)
+    referencias.apagar(id)
+    return {'ok': True}
+
+
+@app.get('/api/referencias/{id}/arquivos/{caminho:path}')
+def arquivo_referencia(id: str, caminho: str):
+    _ler_referencia(id)
+    base = referencias.pasta(id)
+    alvo = (base / caminho).resolve()
+    if not alvo.is_relative_to(base) or not alvo.is_file() or alvo.name == 'referencia.json':
+        raise HTTPException(404, 'Arquivo não encontrado')
+    return FileResponse(alvo)
+
+
 @app.get('/api/projetos/{id}')
 def abrir(id: str):
     return _ler(id)
@@ -192,7 +252,7 @@ def editor(id: str):
     """Transcrição e V1 reais (quando prontas); V2, V3 e LEG ainda simuladas."""
     p = _ler(id)
     if 'cortes' not in p:
-        return {'projeto': p, 'palavras': [], 'timeline': {'V1': [], 'V2': [], 'V3': [], 'LEG': []}, 'duvidas': []}
+        return {'projeto': p, 'palavras': [], 'timeline': {'V1': [], 'V2': [], 'V3': [], 'LEG': [], 'DIR': []}, 'duvidas': []}
     palavras = projeto.ler_palavras(id)
     for w, fica in zip(palavras, cortes.mantidas_por_indice(palavras, p['cortes']['mantidas'])):
         w['mantida'] = fica

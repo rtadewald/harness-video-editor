@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import './index.css'
 import Projetos from './paginas/Projetos'
 import Editor from './paginas/Editor'
+import Referencias from './paginas/Referencias'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -11,6 +12,7 @@ createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route path="/" element={<Projetos />} />
         <Route path="/p/:id" element={<Editor />} />
+        <Route path="/referencias" element={<Referencias />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,
