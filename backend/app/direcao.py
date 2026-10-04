@@ -22,8 +22,9 @@ from pydantic import BaseModel, Field
 
 from . import midia, motores, projeto, referencias, transcricao
 
-PLANOS = {'full_ator': 'Full ator', 'insert_tela_cheia': 'Insert tela cheia', 'motion_tela_cheia': 'Motion tela cheia',
-          'tela_dividida': 'Tela dividida'}
+PLANOS = {'full_ator': 'Full ator', 'full_ator_lettering': 'Full ator com lettering', 'insert_tela_cheia': 'Insert tela cheia',
+          'motion_tela_cheia': 'Motion tela cheia', 'tela_dividida': 'Tela dividida', 'comentario_insert_ator': 'Comentário + insert + ator'}
+PLANOS_COM_TEXTO = ('full_ator_lettering', 'comentario_insert_ator')  # o texto do lettering / do comentário fica no plano
 ELEMENTOS = {'lettering': 'Lettering', 'palavra_manychat': 'Palavra ManyChat', 'caixinha_perguntas': 'Caixinha de perguntas',
              'print_sobreposto': 'Print/imagem sobreposta'}
 PASSOS = ['proxy', 'transcricao', 'cenas', 'analise', 'montagem']
@@ -51,8 +52,9 @@ def _falta_credito(e: Exception) -> bool:
 # ---------------------------------------------------------------- resposta da LLM (saída estruturada)
 
 class PlanoIA(BaseModel):
-    tipo: Literal['full_ator', 'insert_tela_cheia', 'motion_tela_cheia', 'tela_dividida']
+    tipo: Literal['full_ator', 'full_ator_lettering', 'insert_tela_cheia', 'motion_tela_cheia', 'tela_dividida', 'comentario_insert_ator']
     conteudo_em_cima: Literal['insert', 'motion'] | None = Field(description='Só para tela_dividida: o que ocupa a parte de cima')
+    texto: str | None = Field(description='Só para full_ator_lettering (texto exato do lettering) e comentario_insert_ator (texto exato do comentário)')
     inicio: float = Field(description='Segundos do vídeo (use os tempos t= dos quadros)')
     fim: float
     descricao: str = Field(description='Momento a momento: o que aparece, quando entra/troca e para quê (que ideia da fala ilustra); 2 a 5 frases, sem detalhes cosméticos')
@@ -72,7 +74,7 @@ class AnaliseTrecho(BaseModel):
     elementos: list[ElementoIA]
 
 
-VERSAO_ANALISE = 5  # muda quando o prompt ou o que é enviado muda: os trechos guardados com outra versão são refeitos
+VERSAO_ANALISE = 6  # muda quando o prompt ou o que é enviado muda: os trechos guardados com outra versão são refeitos
 
 PROMPT = """Você analisa um Reel vertical JÁ EDITADO de Rodrigo Tadewald (Asimov Academy, IA e programação) para descobrir como ele foi dirigido visualmente: o que aparece na tela em cada momento da fala.
 
@@ -83,15 +85,17 @@ Você recebe UM trecho entre dois cortes de cena:
 
 PLANOS-BASE (um por vez; cobrem o trecho inteiro, sem buracos):
 - full_ator: o apresentador ocupa a tela (com ou sem coisas pequenas por cima). Zoom/reenquadramento no apresentador continua sendo full_ator.
+- full_ator_lettering: o apresentador ocupa a tela E há um lettering (texto grande de destaque, palavra ou expressão-chave) sobre ele. O plano dura enquanto o lettering está na tela: se ele entra e sai sem corte de cena, divida o trecho em full_ator → full_ator_lettering → full_ator. Ponha o texto exato do lettering no campo texto (e NÃO crie também um elemento lettering para ele).
 - insert_tela_cheia: material ilustrativo REAL ocupa a tela toda, sem o apresentador: gravação de tela, site, app, print, foto, vídeo de apoio.
 - motion_tela_cheia: peça gráfica ANIMADA criada para o vídeo ocupa a tela toda, sem o apresentador: logos animados, mockups estilizados, textos e formas animadas, infográficos.
-- tela_dividida: o apresentador aparece JUNTO com um insert ou motion. Normalmente o conteúdo fica em cima e o apresentador embaixo; se o apresentador estiver numa janela menor sobre o conteúdo, também é tela_dividida (diga "apresentador em janela" na descrição). Preencha conteudo_em_cima com "insert" ou "motion".
+- comentario_insert_ator: o COMENTÁRIO de um seguidor (card de comentário de post do Instagram/YouTube, com foto, nome, curtidas, "Responder") aparece sobre um insert ou motion na parte de cima, e o apresentador embaixo, respondendo. Ponha o texto exato do comentário no campo texto. Não confunda com a caixinha de perguntas dos Stories (elemento caixinha_perguntas).
+- tela_dividida: o apresentador aparece JUNTO com um insert ou motion (sem comentário de seguidor). Normalmente o conteúdo fica em cima e o apresentador embaixo; se o apresentador estiver numa janela menor sobre o conteúdo, também é tela_dividida (diga "apresentador em janela" na descrição). Preencha conteudo_em_cima com "insert" ou "motion".
 Insert × motion: insert é a captura de algo que existe (tela, site, print, filmagem), mesmo com zoom ou destaque simples; motion é uma peça gráfica animada produzida. Compare os quadros em sequência: o que muda entre eles (rolagem, cursor, digitação, elementos que se montam) ajuda a decidir.
 
 ELEMENTOS (sobrepostos ao plano; podem durar menos que ele):
-- lettering: texto grande de destaque com uma palavra ou expressão-chave (ex.: um título "Humanizer").
+- lettering: texto grande de destaque com uma palavra ou expressão-chave sobre um plano que NÃO é o apresentador em tela cheia (ex.: um título sobre um insert). Sobre o apresentador em tela cheia, use o plano full_ator_lettering.
 - palavra_manychat: chamada para comentar uma palavra (CTA de ManyChat, ex.: Comente "PROMPT").
-- caixinha_perguntas: caixinha de perguntas do Instagram (pergunta de seguidor) na tela.
+- caixinha_perguntas: a caixinha de perguntas dos Stories do Instagram (sticker "faça uma pergunta" com a pergunta de um seguidor) na tela. Comentário de post não é caixinha (veja comentario_insert_ator).
 - print_sobreposto: print, imagem ou logo pequeno sobre o plano, sem tomar a tela.
 
 IGNORE a legenda palavra a palavra queimada no vídeo (texto curto que acompanha a fala, uma ou poucas palavras por vez): ela é outra etapa e NÃO é lettering.
@@ -105,7 +109,7 @@ Para elementos, diga o que é, quando entra e o que destaca, em uma frase.
 
 Regras:
 - Use as categorias acima e nenhuma outra. Tempos SEMPRE em segundos do vídeo inteiro (não do clipe), dentro do trecho.
-- Normalmente o trecho tem UM plano. Só devolva mais de um se o layout claramente muda dentro do trecho.
+- Normalmente o trecho tem UM plano. Devolva mais de um quando o layout muda dentro do trecho (inclusive um lettering que entra e sai sobre o apresentador).
 - Escreva em português.
 - continua_anterior: true só se o primeiro plano do trecho mostra o MESMO conteúdo do quadro de contexto anterior (mesma tela/insert/motion, só mudou zoom ou posição)."""
 
@@ -404,9 +408,10 @@ def montar(resultados: list[dict], duracao: float) -> list[dict]:
                 planos[-1]['fim'] = fim
                 continue
             novo = {'camada': 'plano', 'tipo': p['tipo'], 'conteudo': p['conteudo_em_cima'] if p['tipo'] == 'tela_dividida' else None,
-                    'inicio': ini, 'fim': fim, 'descricao': p['descricao'], 'texto': None}
+                    'inicio': ini, 'fim': fim, 'descricao': p['descricao'],
+                    'texto': (p.get('texto') or None) if p['tipo'] in PLANOS_COM_TEXTO else None}
             ant = planos[-1] if planos else None
-            mesmo = ant and ant['tipo'] == novo['tipo'] and ant['conteudo'] == novo['conteudo']
+            mesmo = ant and ant['tipo'] == novo['tipo'] and ant['conteudo'] == novo['conteudo'] and ant['texto'] == novo['texto']
             if mesmo and (novo['tipo'] == 'full_ator' or (k == 0 and r['continua_anterior'])):
                 ant['fim'] = fim
                 if novo['tipo'] != 'full_ator' and novo['descricao']:  # a história continua: emenda as descrições

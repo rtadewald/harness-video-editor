@@ -815,3 +815,15 @@ def test_tempos_do_clipe_viram_tempos_do_video_inteiro():
     assert direcao._no_video_inteiro(resp(0.0, 2.6), 16.25, 18.92)['planos'][0] == {'inicio': 16.25, 'fim': 18.85}
     assert direcao._no_video_inteiro(resp(16.25, 18.92), 16.25, 18.92)['planos'][0] == {'inicio': 16.25, 'fim': 18.92}
     assert direcao._no_video_inteiro(resp(0.0, 1.0), 0.0, 1.0)['planos'][0] == {'inicio': 0.0, 'fim': 1.0}
+
+
+def test_planos_com_texto_guardam_o_texto_e_so_juntam_se_for_o_mesmo():
+    def t(a, b, tipo, texto, continua=False):
+        return {'inicio': a, 'fim': b, 'continua_anterior': continua, 'elementos': [],
+                'planos': [{'tipo': tipo, 'conteudo_em_cima': None, 'texto': texto, 'inicio': a, 'fim': b, 'descricao': 'd'}]}
+    itens = direcao.montar([t(0, 2, 'full_ator', 'ignorado'), t(2, 3, 'full_ator_lettering', 'Humano'),
+                            t(3, 4, 'full_ator_lettering', 'Humano', True), t(4, 5, 'full_ator_lettering', 'Outro', True),
+                            t(5, 8, 'comentario_insert_ator', 'Como saber se o app é seguro?')], 8)
+    assert [(i['tipo'], i['inicio'], i['fim'], i['texto']) for i in itens] == [
+        ('full_ator', 0, 2, None), ('full_ator_lettering', 2, 4, 'Humano'), ('full_ator_lettering', 4, 5, 'Outro'),
+        ('comentario_insert_ator', 5, 8, 'Como saber se o app é seguro?')]

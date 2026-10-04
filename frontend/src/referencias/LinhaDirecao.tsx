@@ -16,9 +16,11 @@ const ZONA_MORTA_PX = 3
 
 export const COR_PLANO: Record<string, string> = {
   full_ator: 'bg-[#2c4540] text-cream ring-1 ring-inset ring-cream/25',
+  full_ator_lettering: 'bg-[#2c4540] text-cream ring-2 ring-inset ring-coral',
   insert_tela_cheia: 'bg-blue text-cream',
   motion_tela_cheia: 'bg-yellow text-ink',
   tela_dividida: 'bg-mint text-ink',
+  comentario_insert_ator: 'bg-[#b9a6f2] text-ink',
 }
 export const COR_ELEMENTO: Record<string, string> = {
   lettering: 'bg-coral text-cream',
@@ -229,6 +231,7 @@ export default function LinhaDirecao(p: Props) {
                 {h >= 90 && pl.miniatura && (
                   <img src={urlArquivoReferencia(p.refId, pl.miniatura)} alt="" className="mt-1 max-h-[96px] w-auto rounded-[2px] object-cover" draggable={false} />
                 )}
+                {h >= 28 && pl.texto && <span className="mt-0.5 line-clamp-2 font-semibold">“{pl.texto}”</span>}
                 {h >= 40 && pl.descricao && <span className="mt-1 line-clamp-3 opacity-80">{pl.descricao}</span>}
               </button>
               {k < planos.length - 1 && (

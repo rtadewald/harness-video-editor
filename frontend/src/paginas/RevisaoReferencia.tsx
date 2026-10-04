@@ -435,8 +435,8 @@ function Detalhe(p: {
           </div>
         </Campo>
       )}
-      {i.camada === 'elemento' && (
-        <Campo rotulo="Texto exato">
+      {(i.camada === 'elemento' || i.tipo === 'full_ator_lettering' || i.tipo === 'comentario_insert_ator') && (
+        <Campo rotulo={i.tipo === 'comentario_insert_ator' ? 'Texto do comentário' : 'Texto exato'}>
           <input defaultValue={i.texto ?? ''} onBlur={(e) => e.target.value !== (i.texto ?? '') && p.editar({ texto: e.target.value })} className={CAMPO} />
         </Campo>
       )}
