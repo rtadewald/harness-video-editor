@@ -55,7 +55,7 @@ class PlanoIA(BaseModel):
     conteudo_em_cima: Literal['insert', 'motion'] | None = Field(description='Só para tela_dividida: o que ocupa a parte de cima')
     inicio: float = Field(description='Segundos do vídeo (use os tempos t= dos quadros)')
     fim: float
-    descricao: str = Field(description='Em alto nível: o que é, que ideia da fala ilustra, estilo em poucas palavras; 1 a 3 frases')
+    descricao: str = Field(description='Momento a momento: o que aparece, quando entra/troca e para quê (que ideia da fala ilustra); 2 a 5 frases, sem detalhes cosméticos')
 
 
 class ElementoIA(BaseModel):
@@ -63,7 +63,7 @@ class ElementoIA(BaseModel):
     inicio: float
     fim: float
     texto: str | None = Field(description='Texto exato do elemento, quando houver')
-    descricao: str = Field(description='O que é e o que destaca, em uma frase')
+    descricao: str = Field(description='O que é, quando entra e o que destaca, em uma frase')
 
 
 class AnaliseTrecho(BaseModel):
@@ -72,7 +72,7 @@ class AnaliseTrecho(BaseModel):
     elementos: list[ElementoIA]
 
 
-VERSAO_ANALISE = 4  # muda quando o prompt ou o que é enviado muda: os trechos guardados com outra versão são refeitos
+VERSAO_ANALISE = 5  # muda quando o prompt ou o que é enviado muda: os trechos guardados com outra versão são refeitos
 
 PROMPT = """Você analisa um Reel vertical JÁ EDITADO de Rodrigo Tadewald (Asimov Academy, IA e programação) para descobrir como ele foi dirigido visualmente: o que aparece na tela em cada momento da fala.
 
@@ -97,10 +97,11 @@ ELEMENTOS (sobrepostos ao plano; podem durar menos que ele):
 IGNORE a legenda palavra a palavra queimada no vídeo (texto curto que acompanha a fala, uma ou poucas palavras por vez): ela é outra etapa e NÃO é lettering.
 Se o texto em destaque É o próprio motion em tela cheia (ex.: uma animação tipográfica sem o apresentador), ele já é o plano motion_tela_cheia: não crie um lettering repetindo-o. Lettering é texto SOBRE outro plano.
 
-DESCRIÇÃO (o campo mais importante): em ALTO NÍVEL, como um editor explicaria a escolha para outro editor. Diga o que é (insert de qual site/app/ferramenta, motion de quê), qual ideia da fala aquilo ilustra e o estilo em poucas palavras (minimalista, escuro, 3D, print estático, gravação de tela…). Se o conteúdo muda de forma relevante ao longo do trecho, conte em ordem ("primeiro…, depois…"). NÃO descreva detalhes irrelevantes para a direção: cores exatas, texturas, posições, formatos de ícones, segundos internos, textos secundários. 1 a 3 frases.
-Exemplo BOM: "Motion minimalista ilustrando uma skill do Claude: uma pasta SKILL.md e o ícone do Claude surgindo dela."
-Exemplo RUIM (detalhista demais): "Em fundo bege claro texturizado aparece um desenho de uma pasta preta com o texto 'SKILL.MD'; em torno de 1.0 s surge acima um selo terracota com uma silhueta de cabeça de perfil branca e um cérebro/flor no interior."
-Para elementos, diga o que é e o que destaca, em uma frase.
+DESCRIÇÃO (o campo mais importante): escreva como um editor explicando a outro editor o que foi feito, momento a momento. Para cada coisa que aparece no trecho, em ordem: o que é (insert de qual site/app/ferramenta, motion de quê, com o estilo em poucas palavras: minimalista, escuro, 3D, gravação de tela…), quando entra ou troca (tempo aproximado em segundos do vídeo, ex.: "por volta de 17,5 s") e para quê (que ideia da fala aquilo ilustra ou reforça naquele momento). Inclua as transições e movimentos que importam para a edição (troca de tela, zoom num ponto, rolagem, algo sendo digitado, elementos que se montam). NÃO gaste palavras com detalhes cosméticos: cores exatas, texturas, posições, formato de ícones, textos secundários. Normalmente 2 a 5 frases; trechos com uma coisa só podem ter menos.
+Exemplo BOM: "Motion minimalista para ilustrar o que é uma skill do Claude, entrando junto com 'eu criei uma skill': primeiro aparece só uma pasta SKILL.md e, por volta de 1 s, o ícone do Claude surge acima dela, ligando a pasta ao Claude no momento em que ele explica o problema que a skill resolve."
+Exemplo RUIM (detalhista no que não importa): "Em fundo bege claro texturizado aparece um desenho de uma pasta preta com o texto 'SKILL.MD'; surge acima um selo terracota com uma silhueta de cabeça de perfil branca e um cérebro/flor no interior."
+Exemplo RUIM (raso demais): "Animação de uma pasta SKILL.md com o ícone do Claude."
+Para elementos, diga o que é, quando entra e o que destaca, em uma frase.
 
 Regras:
 - Use as categorias acima e nenhuma outra. Tempos SEMPRE em segundos do vídeo inteiro (não do clipe), dentro do trecho.
