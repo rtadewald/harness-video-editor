@@ -1,7 +1,7 @@
 import type { Clipe, Palavra, Silencio } from '@/api'
 import { ms3 } from '@/api'
 
-/** O que Rodrigo tem selecionado na etapa de Cortes (texto e timeline compartilham). */
+/** O que está selecionado na etapa de Cortes (texto e timeline compartilham). */
 export type Selecao = { tipo: 'palavra'; id: string } | { tipo: 'corte'; n: number } | null
 
 /** Um trecho do bruto que NÃO vai para o vídeo: antes do primeiro clipe, entre dois clipes, ou depois do último. */
@@ -56,7 +56,7 @@ export type Borda = {
   /** Folga entre a borda e a palavra vizinha, em ms. Negativo = o corte entra na palavra. */
   folgaMs: number | null
   silencio: Silencio | null
-  /** Clipe dono desta borda e onde a IA a tinha posto, se Rodrigo a moveu. */
+  /** Clipe dono desta borda e onde a IA a tinha posto, se o criador a moveu. */
   clipeId: string
   automatico: number | null
 }

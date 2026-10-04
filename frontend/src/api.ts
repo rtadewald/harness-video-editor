@@ -28,7 +28,7 @@ export type Pipeline = { passos: Partial<Record<'proxy' | 'transcricao' | 'alinh
 export type Etapa = 'cortes' | 'direcao' | 'inserts' | 'motion' | 'legenda'
 
 export type Mensagem = {
-  autor: 'rodrigo' | 'agente'
+  autor: 'criador' | 'agente'
   texto: string
   ferramentas: string[]
   mock: boolean
@@ -64,7 +64,7 @@ export type Duvida = { ini: string; fim: string; motivo: string }
 
 /** Itens das trilhas ficam presos a palavras (SPEC §9); o tempo na saída é sempre calculado. */
 export type Ancora = { palavra_ini: string; palavra_fim: string }
-/** `auto` existe só se Rodrigo mexeu numa borda: guarda o que a IA tinha decidido. */
+/** `auto` existe só se o criador mexeu numa borda: guarda o que a IA tinha decidido. */
 export type Clipe = Ancora & { id: string; fonte: string; inicio: number; fim: number; auto?: { inicio: number; fim: number } }
 export type Item = Ancora & { id: string; rotulo: string }
 export type Legenda = Ancora & { id: string; texto: string }
@@ -135,6 +135,8 @@ export type Config = {
   /** Como a IA vê cada trecho: o vídeo com áudio (padrão) ou mosaicos de quadros com o tempo escrito. */
   formato_analise: 'video' | 'mosaico'
   grade_mosaico: '3x2' | '3x1'
+  /** Quem é o criador e do que fala o canal: contexto para as IAs (opcional). */
+  perfil_criador: string
   motores: Record<string, { nome: string; familia: string; chave: boolean | null }> }
 export const lerConfig = () => fetch('/api/config').then(json<Config>)
 export const salvarConfig = (mudancas: Partial<Omit<Config, 'motores'>>) =>
@@ -148,7 +150,7 @@ export const cortarFaixa = (id: string, inicio: number, fim: number, manter: boo
   }).then(json<{ ok: boolean }>)
 export const recalcularCortes = (id: string) => post<Projeto>(`/api/projetos/${id}/cortes/recalcular`)
 
-/** Vídeo já editado de Rodrigo, usado para treinar a Direção visual (SPEC §8.2.1). */
+/** Vídeo já editado do criador, usado para calibrar a Direção visual (SPEC §8.2.1). */
 export type StatusReferencia = 'na_fila' | 'analisando' | 'a_revisar' | 'revisado' | 'erro'
 export type Referencia = {
   id: string

@@ -14,7 +14,7 @@ from . import cortes, midia, motores, projeto, transcricao
 
 PRINCIPAIS = ['proxy', 'silencios', 'transcricao', 'alinhamento', 'cortes']  # pausas antes: a transcrição é feita por pedaços entre elas
 PASSOS = [*PRINCIPAIS, 'variantes']
-_fila = ThreadPoolExecutor(max_workers=1)  # o que Rodrigo está esperando
+_fila = ThreadPoolExecutor(max_workers=1)  # o que o criador está esperando
 _fila_motores = ThreadPoolExecutor(max_workers=1)  # motores extras: não atrasam os cortes
 ENV = Path(__file__).resolve().parents[1] / '.env'
 

@@ -314,6 +314,8 @@ O passo de silêncios também gera a forma de onda real (`picos.json`).
 
 ## 12. Modelos de IA
 
+✅ **App agnóstico de criador (decisão de Rodrigo, out/2026):** nenhum prompt ou texto do app tem nome de pessoa ou marca fixo. Quem é o criador e do que o canal fala é uma configuração opcional, **Configurações › Geral › "Sobre o criador"** (`perfil_criador`, até 1.000 caracteres), que entra como contexto no prompt de cortes (antes do briefing) e no da direção visual (fim do prompt de sistema). As regras do §14 são escritas sem nomes porque vão para o prompt. Mensagens do chat usam o autor `criador` (históricos antigos são migrados ao abrir o projeto).
+
 ✅ Configuráveis por etapa, numa tela de configurações.
 
 | Uso | Padrão |
@@ -332,7 +334,7 @@ O passo de silêncios também gera a forma de onda real (`picos.json`).
 
 ## 14. Regras editoriais dos cortes
 
-✅ Aprovadas por Rodrigo. Ficam só aqui, sem cópia em prompts ou outros docs; o prompt do agente lê esta seção.
+✅ Aprovadas pelo criador. Ficam só aqui, sem cópia em prompts ou outros docs; o prompt do agente lê esta seção (por isso ela é escrita sem nomes: o app serve a qualquer criador).
 
 **Pode remover:**
 - Erros de gravação, tentativas abandonadas e retomadas da mesma fala.
@@ -353,7 +355,7 @@ O passo de silêncios também gera a forma de onda real (`picos.json`).
 
 **Na dúvida com impacto no sentido:** manter e sinalizar.
 
-Uma correção pontual num vídeo vale só para aquele vídeo, a menos que Rodrigo diga que é regra geral.
+Uma correção pontual num vídeo vale só para aquele vídeo, a menos que o criador diga que é regra geral.
 
 ## 15. Ordem de construção
 

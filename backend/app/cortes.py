@@ -28,7 +28,7 @@ def parametros(config: dict) -> dict:
             'pausa_max': config.get('pausa_max_ms', 2000) / 1000 or math.inf,
             'respiro': config.get('respiro_ms', 800) / 1000}
 
-PROMPT = """Você edita a fala de Rodrigo, que gravou várias tentativas da mesma frase.
+PROMPT = """Você edita a fala de um criador de conteúdo que gravou várias tentativas da mesma frase.
 Escolha quais palavras formam o texto final do vídeo.
 
 Você recebe a transcrição, uma palavra por linha: ID<TAB>texto. Linhas [pausa Ns] marcam silêncios reais no
@@ -85,7 +85,11 @@ def selecionar(palavras: list[dict], silencios: list[dict], briefing: str = '') 
 
     modelo = os.getenv('OPENROUTER_MODEL', MODELO)
     llm = ChatOpenRouter(model=modelo, temperature=0, timeout=180_000, max_retries=1)
-    usuario = (f'BRIEFING DESTE VÍDEO: {briefing}\n\n' if briefing else '') + _linhas(palavras, silencios)
+    from . import projeto
+
+    perfil = projeto.ler_config()['perfil_criador']
+    usuario = ((f'SOBRE O CRIADOR (contexto): {perfil}\n\n' if perfil else '') + (f'BRIEFING DESTE VÍDEO: {briefing}\n\n' if briefing else '')
+               + _linhas(palavras, silencios))
     sel = llm.with_structured_output(Selecao, method='json_schema').invoke(
         [('system', PROMPT.format(regras=regras())), ('human', usuario)])
     return {'mantidas': validar(sel, palavras), 'duvidas': [d.model_dump() for d in sel.duvidas], 'modelo': modelo}

@@ -61,7 +61,7 @@ export default function Chat({ projetoId, etapa, mensagens, aoReceber }: Props) 
 
         <div className="grid gap-6">
           {mensagens.map((m, i) =>
-            m.autor === 'rodrigo' ? (
+            m.autor === 'criador' ? (
               <div key={i} className="flex items-start gap-2.5 text-[12px] leading-[1.6]">
                 <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#eed8c9] text-[8px] font-semibold">VOCÊ</span>
                 <p className="pt-0.5">{m.texto}</p>

@@ -17,6 +17,7 @@ type Contexto = {
 /** Categorias de configuração, uma aba cada. Quando Inserts, Motion e Legenda tiverem configurações próprias,
  *  entram aqui como mais uma linha. */
 const CATEGORIAS: { id: string; nome: string; render: (c: Contexto) => ReactNode }[] = [
+  { id: 'geral', nome: 'Geral', render: (c) => <AbaGeral {...c} /> },
   { id: 'cortes', nome: 'Cortes', render: (c) => <AbaCortes {...c} /> },
   { id: 'direcao', nome: 'Direção visual', render: (c) => <AbaDirecao {...c} /> },
 ]
@@ -94,6 +95,27 @@ export default function Configuracoes({ aberto, aoFechar }: { aberto: boolean; a
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** O que vale para o app todo: quem é o criador (contexto para as IAs de cortes e de direção). */
+function AbaGeral({ config, salvar }: Contexto) {
+  return (
+    <Grupo
+      titulo="Sobre o criador"
+      texto="Quem grava os vídeos e do que o canal fala. Vai como contexto para as IAs (cortes e direção visual), para elas entenderem os termos e o assunto. Opcional; salva ao sair do campo."
+    >
+      <textarea
+        key={config?.perfil_criador}
+        defaultValue={config?.perfil_criador}
+        disabled={!config}
+        rows={4}
+        maxLength={1000}
+        placeholder="Ex.: Maria Souza, nutricionista; vídeos curtos sobre alimentação e receitas rápidas."
+        onBlur={(e) => e.target.value.trim() !== (config?.perfil_criador ?? '') && salvar({ perfil_criador: e.target.value.trim() })}
+        className="rounded-[3px] border border-line bg-white px-3.5 py-2.5 text-[13px] leading-[1.6] text-ink outline-none focus-visible:border-ink"
+      />
+    </Grupo>
   )
 }
 

@@ -93,7 +93,12 @@ def test_nao_sai_da_pasta_do_projeto(cliente, video):
 def test_chat_guarda_historico_por_etapa(cliente, video):
     _criar(cliente, video)
     r = cliente.post('/api/projetos/e/chat/cortes', json={'texto': 'volta a primeira tentativa'})
-    assert [m['autor'] for m in r.json()] == ['rodrigo', 'agente']
+    assert [m['autor'] for m in r.json()] == ['criador', 'agente']
+    arq = projeto.RAIZ / 'e' / 'projeto.json'
+    p = json.loads(arq.read_text())
+    p['chats']['cortes'][0]['autor'] = 'fulano'  # histórico antigo, com o nome de quem usava
+    arq.write_text(json.dumps(p))
+    assert projeto.ler('e')['chats']['cortes'][0]['autor'] == 'criador'
     p = cliente.get('/api/projetos/e').json()
     assert len(p['chats']['cortes']) == 2 and p['chats']['inserts'] == []
     assert cliente.post('/api/projetos/e/chat/xpto', json={'texto': 'oi'}).status_code == 404
@@ -167,7 +172,7 @@ def test_pausa_dentro_do_trecho_so_e_cortada_se_for_muito_longa():
     longa = [{'inicio': 0.6, 'fim': 2.9, 'dur': 2.3}]
     clipes = cortes.montar_clipes(palavras, [True, True], longa, 4.0)
     assert [(c['inicio'], c['fim']) for c in clipes] == [(0.0, 1.0), (2.5, 3.6)]  # sobra 0,4 s de cada lado
-    curta = [{'inicio': 0.6, 'fim': 1.9, 'dur': 1.3}]  # 1,3 s: respiro que Rodrigo quer manter
+    curta = [{'inicio': 0.6, 'fim': 1.9, 'dur': 1.3}]  # 1,3 s: respiro que o criador quer manter
     assert len(cortes.montar_clipes([*palavras[:1], {'id': 'w00001', 'texto': 'p1', 'inicio': 2.0, 'fim': 2.5}], [True, True], curta, 4.0)) == 1
 
 
@@ -747,15 +752,15 @@ def _trecho(a, b, planos, elementos=(), continua=False):
 
 def test_montar_junta_jump_cuts_e_continuacoes_mas_nao_inserts_novos():
     itens = direcao.montar([
-        _trecho(0, 2, [('full_ator', None, 'Rodrigo')]),
-        _trecho(2, 4, [('full_ator', None, 'Rodrigo de novo')]),  # jump cut: junta
+        _trecho(0, 2, [('full_ator', None, 'Ator')]),
+        _trecho(2, 4, [('full_ator', None, 'Ator de novo')]),  # jump cut: junta
         _trecho(4, 6, [('tela_dividida', 'insert', 'GitHub')]),
         _trecho(6, 7, [('tela_dividida', 'insert', 'GitHub com zoom')], continua=True),  # mesmo conteúdo: junta
         _trecho(7, 9, [('tela_dividida', 'insert', 'Claude')]),  # conteúdo novo: grupo novo
         _trecho(9, 10, [('insert_tela_cheia', None, 'Wikipedia')], [('lettering', 9.2, 9.9, 'Humano'), ('lettering', 8.0, 8.5, 'fora')]),
     ], 10.0)
     planos = [(i['tipo'], i['inicio'], i['fim'], i['descricao']) for i in itens if i['camada'] == 'plano']
-    assert planos == [('full_ator', 0, 4, 'Rodrigo'), ('tela_dividida', 4, 7, 'GitHub Depois: GitHub com zoom'), ('tela_dividida', 7, 9, 'Claude'),
+    assert planos == [('full_ator', 0, 4, 'Ator'), ('tela_dividida', 4, 7, 'GitHub Depois: GitHub com zoom'), ('tela_dividida', 7, 9, 'Claude'),
                       ('insert_tela_cheia', 9, 10.0, 'Wikipedia')]
     els = [i for i in itens if i['camada'] == 'elemento']
     assert [(e['id'], e['texto'], e['inicio'], e['fim']) for e in els] == [('e1', 'Humano', 9.2, 9.9)]  # o de fora do trecho sai

@@ -23,7 +23,7 @@ MOTORES = {
     'parakeet': {'nome': 'Parakeet v3', 'familia': 'parakeet'},
     'elevenlabs': {'nome': 'ElevenLabs Scribe v2', 'familia': 'elevenlabs', 'chave': 'ELEVENLABS_API_KEY'},
 }
-PADRAO = 'elevenlabs'  # motor de transcrição de fábrica (escolha de Rodrigo); muda em Configurações
+PADRAO = 'elevenlabs'  # motor de transcrição de fábrica; muda em Configurações
 MODELO_DIRECAO = 'google/gemini-3.8-flash'  # multimodal que analisa as referências (OpenRouter); muda em Configurações
 LEGADO = 'whisper-stable'  # projetos antigos e plano B quando o motor escolhido falha
 
@@ -33,10 +33,10 @@ def _arquivo_config() -> Path:
 
 
 def ler_config() -> dict:
-    """Preferências do app: Cortes (motor, margens, pausas) e Direção visual (modelo multimodal, quadros por segundo)."""
+    """Preferências do app: perfil do criador, Cortes (motor, margens, pausas) e Direção visual (modelo multimodal, formato)."""
     config = {'motor_padrao': PADRAO, 'antes_do_corte_ms': 100, 'depois_do_corte_ms': 100, 'pausa_max_ms': 2000, 'respiro_ms': 800,
               'modelo_direcao': MODELO_DIRECAO, 'quadros_por_segundo': 2,
-              'formato_analise': 'video', 'grade_mosaico': '3x2'}
+              'formato_analise': 'video', 'grade_mosaico': '3x2', 'perfil_criador': ''}
     try:
         config.update(json.loads(_arquivo_config().read_text(encoding='utf-8')))
     except (FileNotFoundError, ValueError):
@@ -47,6 +47,7 @@ def ler_config() -> dict:
         config[chave] = min(max(int(config[chave]), 0), maximo)
     config['quadros_por_segundo'] = min(max(int(config['quadros_por_segundo']), 1), 4)
     config['modelo_direcao'] = str(config['modelo_direcao']).strip() or MODELO_DIRECAO
+    config['perfil_criador'] = str(config.get('perfil_criador') or '').strip()[:1000]
     config.pop('formato_quadros', None)  # opção antiga (quadros separados), substituída por formato_analise
     if config['formato_analise'] not in ('video', 'mosaico'):
         config['formato_analise'] = 'video'
@@ -171,6 +172,11 @@ def ler(id: str) -> dict:
     elif any(vid not in p['transcricoes'] for vid in MOTORES):  # motor acrescentado depois que o projeto foi criado
         for vid, m in registro_de_motores().items():
             p['transcricoes'].setdefault(vid, m)
+        salvar(p)
+    antigas = [m for c in p.get('chats', {}).values() for m in c if m['autor'] not in ('criador', 'agente')]
+    if antigas:  # históricos de antes do app ser genérico guardavam o nome do criador como autor
+        for m in antigas:
+            m['autor'] = 'criador'
         salvar(p)
     if any(e not in p['etapas'] for e in ETAPAS):  # etapa criada depois do projeto (ex.: Direção visual)
         p['etapas'] = {e: p['etapas'].get(e, 'pendente') for e in ETAPAS}

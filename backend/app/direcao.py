@@ -80,9 +80,9 @@ class AnaliseTrecho(BaseModel):
     elementos: list[ElementoIA]
 
 
-VERSAO_ANALISE = 7  # muda quando o prompt ou o que é enviado muda: os trechos guardados com outra versão são refeitos
+VERSAO_ANALISE = 8  # muda quando o prompt ou o que é enviado muda: os trechos guardados com outra versão são refeitos
 
-PROMPT = """Você analisa um Reel vertical JÁ EDITADO de Rodrigo Tadewald (Asimov Academy, IA e programação) para descobrir como ele foi dirigido visualmente: o que aparece na tela em cada momento da fala.
+PROMPT = """Você analisa um vídeo vertical curto (Reels/Shorts/TikTok) JÁ EDITADO de um criador de conteúdo para descobrir como ele foi dirigido visualmente: o que aparece na tela em cada momento da fala.
 
 Você recebe UM trecho entre dois cortes de cena:
 - a transcrição do vídeo DO COMEÇO ATÉ O FIM DESTE TRECHO (nada do que vem depois), para você saber do que o vídeo está falando e o que já foi dito. O que é falado durante o trecho está marcado entre <momento_analisado> e </momento_analisado>, com o tempo de início de cada palavra;
@@ -342,7 +342,8 @@ def analisar_trecho(video: Path, palavras: list[dict], n: int, a: float, b: floa
         llm = ChatOpenRouter(model=config['modelo_direcao'], temperature=0, timeout=90_000, max_retries=1, max_tokens=4096,
                              reasoning={'effort': 'low'})
         r = llm.with_structured_output(AnaliseTrecho, method='json_schema', include_raw=True).invoke(
-            [('system', PROMPT), ('human', conteudo)])
+            [('system', PROMPT + (f"\n\nSOBRE O CRIADOR (contexto): {config['perfil_criador']}" if config['perfil_criador'] else '')),
+             ('human', conteudo)])
     if r.get('parsed') is None:
         raise RuntimeError(f'resposta inválida no trecho {n + 1}: {r.get("parsing_error")}')
     uso = getattr(r['raw'], 'usage_metadata', None) or {}

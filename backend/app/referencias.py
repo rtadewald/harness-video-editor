@@ -78,7 +78,7 @@ def apagar(id: str) -> None:
     shutil.rmtree(pasta(id))
 
 
-# Favoritos da galeria de Referências: trechos que Rodrigo marcou como preferência (vão guiar as IAs depois).
+# Favoritos da galeria de Referências: trechos que o criador marcou como preferência (vão guiar as IAs depois).
 # Identificados pela referência e pelo intervalo (não pelo id do plano, que muda quando o vídeo é reanalisado),
 # com uma cópia dos dados do momento em que foram marcados.
 

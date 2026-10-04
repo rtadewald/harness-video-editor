@@ -53,6 +53,7 @@ class Config(BaseModel):
     quadros_por_segundo: int | None = Field(default=None, ge=1, le=4)
     formato_analise: Literal['video', 'mosaico'] | None = None
     grade_mosaico: Literal['3x2', '3x1'] | None = None
+    perfil_criador: str | None = Field(default=None, max_length=1000)  # quem é o criador e do que fala: contexto para as IAs
 
 
 def _config_completa() -> dict:
@@ -379,13 +380,13 @@ class Mensagem(BaseModel):
 
 @app.post('/api/projetos/{id}/chat/{etapa}')
 def conversar(id: str, etapa: str, msg: Mensagem):
-    """Agente fictício: guarda a fala de Rodrigo e uma resposta pronta da etapa."""
+    """Agente fictício: guarda a mensagem do criador e uma resposta pronta da etapa."""
     _ler(id)
     if etapa not in projeto.ETAPAS:
         raise HTTPException(404, 'Etapa não existe')
     if not msg.texto.strip():
         raise HTTPException(422, 'Mensagem vazia')
-    novas = [mocks.mensagem('rodrigo', msg.texto.strip()), mocks.responder(etapa)]
+    novas = [mocks.mensagem('criador', msg.texto.strip()), mocks.responder(etapa)]
     projeto.atualizar(id, lambda p: p['chats'][etapa].extend(novas))
     return novas
 
