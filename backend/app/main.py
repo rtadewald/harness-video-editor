@@ -63,6 +63,20 @@ def ler_config():
     return _config_completa()
 
 
+class Renomear(BaseModel):
+    nome: str
+
+
+@app.put('/api/projetos/{id}/nome')
+def renomear(id: str, r: Renomear):
+    """Muda só o nome exibido; o id (e a pasta) do projeto continuam os mesmos."""
+    nome = r.nome.strip()
+    if not nome:
+        raise HTTPException(422, 'Dê um nome ao projeto')
+    _ler(id)
+    return projeto.atualizar(id, lambda p: p.update(nome=nome[:120]))
+
+
 @app.put('/api/config')
 def salvar_config(c: Config):
     if c.motor_padrao is not None and c.motor_padrao not in projeto.MOTORES:

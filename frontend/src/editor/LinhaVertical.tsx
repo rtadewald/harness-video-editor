@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
-import { ChevronsDownUp, ChevronsUpDown, Maximize2, Minus, Plus, RotateCcw, X } from 'lucide-react'
+import { ChevronsDownUp, ChevronsUpDown, Maximize2, Minus, Plus, X } from 'lucide-react'
 import { formatarDuracao, ms3, type Clipe, type Palavra, type Silencio, type Transcricao, type TranscricaoCompleta } from '@/api'
 import { cn } from '@/lib/utils'
 import type { Corte, Selecao } from './cortes'
@@ -43,8 +43,6 @@ type Props = {
   tentarMotor: (vid: string) => void
   /** Move uma borda de trecho mantido (o que arrastar nas pontas de um corte expandido). */
   ajustar: (clipeId: string, lado: 'inicio' | 'fim', t: number) => Promise<void>
-  refazendo: boolean
-  aoRefazer: () => void
   /** Refaz os trechos com as margens de Configurações, sem chamar a IA. */
   aoRecalcular: () => void
   /** Corta (`manter=false`) ou devolve ao vídeo (`manter=true`) um intervalo do bruto, mesmo no meio de um trecho mantido. */
@@ -418,15 +416,6 @@ export default function LinhaVertical(p: Props) {
             ✂ Cortar trecho
           </Chave>
           <Chave ligado={ima} onClick={() => setIma((v) => !v)} dica="Ímã ao arrastar um limite: gruda (4 px) nas bordas de palavras e de pausas. Desligado, o limite vai exatamente onde o mouse vai. Alt desliga só enquanto arrasta.">Ímã</Chave>
-          <button
-            onClick={p.aoRefazer}
-            disabled={p.refazendo}
-            title="Pede à IA uma nova seleção do texto final (não retranscreve)"
-            className="flex h-7 items-center gap-1.5 rounded-full border border-line-dark px-2.5 text-fog hover:border-cream/50 hover:text-cream disabled:opacity-60"
-          >
-            <RotateCcw className={cn('size-3', p.refazendo && 'animate-[otto-spin_1s_linear_infinite] [animation-direction:reverse]')} />
-            {p.refazendo ? 'Refazendo…' : 'Refazer'}
-          </button>
           <button
             onClick={p.aoRecalcular}
             title="Reaplica as margens e o limite de pausas de Configurações aos trechos, sem chamar a IA. Descarta os ajustes manuais de borda e os cortes feitos à mão."

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { History, Redo2, Settings, Undo2 } from 'lucide-react'
-import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, motoresRodando, recalcularCortes, refazerCortes, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Mensagem, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
+import { History, Pencil, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
+import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, motoresRodando, recalcularCortes, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Mensagem, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
 import { Logo } from '@/components/Marca'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -166,6 +166,11 @@ export default function Editor() {
       const r = seq.intervalo(i)
       return r && player.tempo >= r.ini && player.tempo < r.fim
     })
+  const refazerComIA = () => {
+    const n = timeline.V1.filter((c) => c.auto).length
+    if (n && !window.confirm(`Refazer os cortes com a IA descarta ${n} trecho(s) com ajuste manual. Continuar?`)) return
+    void refazerCortes(projeto.id).then((p) => setDados({ ...dados, projeto: p })).catch((e) => window.alert((e as Error).message))
+  }
   const receber = (novas: Mensagem[]) =>
     setDados({ ...dados, projeto: { ...projeto, chats: { ...projeto.chats, [etapa]: [...projeto.chats[etapa], ...novas] } } })
 
@@ -176,7 +181,7 @@ export default function Editor() {
           <Logo />
         </Link>
         <span className="h-5 w-px bg-line-dark" />
-        <span className="truncate text-[13px] font-semibold">{projeto.nome}</span>
+        <NomeDoProjeto nome={projeto.nome} salvar={(nome) => renomearProjeto(projeto.id, nome).then((p) => setDados({ ...dados, projeto: p }))} />
 
         <div className="ml-auto flex items-center gap-1 text-fog">
           <BotaoFuturo rotulo="Desfazer (fase 3b)"><Undo2 /></BotaoFuturo>
@@ -185,6 +190,17 @@ export default function Editor() {
           <button onClick={() => setConfigAberta(true)} aria-label="Configurações" title="Configurações" className="grid size-8 place-items-center rounded-full hover:bg-cream/10 hover:text-cream [&_svg]:size-4">
             <Settings />
           </button>
+          {vertical && (
+            <button
+              onClick={refazerComIA}
+              disabled={rodando}
+              title="Pede à IA uma nova seleção do texto final (não retranscreve). Mantém as palavras que você ligou ou desligou à mão."
+              className="ml-2 flex h-8 items-center gap-2 rounded-full border border-yellow/70 bg-yellow/10 px-3.5 text-[11px] font-semibold text-yellow transition-colors hover:bg-yellow hover:text-ink disabled:opacity-60"
+            >
+              <RotateCcw className={cn('size-3.5', rodando && 'animate-[otto-spin_1s_linear_infinite] [animation-direction:reverse]')} />
+              {rodando ? 'Refazendo…' : 'Refazer cortes com IA'}
+            </button>
+          )}
         </div>
         <span className="rounded-full bg-yellow px-3 py-1 text-[9px] font-semibold tracking-[0.12em] text-ink">INSERTS · MOTION · LEGENDA SIMULADOS</span>
         <Button variant="coral" size="sm" disabled title="Exportação chega na fase 4" className="h-9 gap-6 px-4">
@@ -257,16 +273,10 @@ export default function Editor() {
             tentarMotor={tentarMotor}
             ajustar={ajustar}
             editarFaixa={alterarFaixa}
-            refazendo={rodando}
             aoRecalcular={() => {
               const n = timeline.V1.filter((c) => c.auto).length
               if (n && !window.confirm(`Recalcular as margens descarta ${n} trecho(s) com ajuste manual de borda. Continuar?`)) return
               void recalcularCortes(projeto.id).then(recarregar).catch((e) => window.alert((e as Error).message))
-            }}
-            aoRefazer={() => {
-              const n = timeline.V1.filter((c) => c.auto).length
-              if (n && !window.confirm(`Refazer os cortes com a IA descarta ${n} trecho(s) com ajuste manual. Continuar?`)) return
-              void refazerCortes(projeto.id).then((p) => setDados({ ...dados, projeto: p }))
             }}
           />
         )}
@@ -343,6 +353,61 @@ function BotaoFuturo({ rotulo, children }: { rotulo: string; children: React.Rea
   return (
     <button disabled title={rotulo} aria-label={rotulo} className="grid size-8 place-items-center rounded-full opacity-40 [&_svg]:size-4">
       {children}
+    </button>
+  )
+}
+
+/** Nome do projeto na barra: clique para renomear (Enter ou sair do campo salva, Esc cancela). */
+function NomeDoProjeto({ nome, salvar }: { nome: string; salvar: (nome: string) => Promise<unknown> }) {
+  const [editando, setEditando] = useState(false)
+  const [valor, setValor] = useState(nome)
+  const [erro, setErro] = useState('')
+
+  async function confirmar() {
+    const novo = valor.trim()
+    setEditando(false)
+    if (!novo || novo === nome) return
+    try {
+      await salvar(novo)
+      setErro('')
+    } catch (e) {
+      setErro((e as Error).message)
+    }
+  }
+
+  if (editando) {
+    return (
+      <input
+        autoFocus
+        data-alca
+        value={valor}
+        maxLength={120}
+        onChange={(e) => setValor(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        onBlur={() => void confirmar()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Escape') {
+            setValor(nome)
+            setEditando(false)
+          }
+        }}
+        aria-label="Nome do projeto"
+        className="h-8 w-64 rounded-[3px] border border-cream/40 bg-deep px-2.5 text-[13px] font-semibold text-cream outline-none focus-visible:border-yellow"
+      />
+    )
+  }
+  return (
+    <button
+      onClick={() => {
+        setValor(nome)
+        setEditando(true)
+      }}
+      title={erro || 'Clique para renomear o projeto'}
+      className={cn('flex h-8 max-w-[320px] items-center gap-2 truncate rounded-[3px] px-2 text-[13px] font-semibold hover:bg-cream/10', erro && 'text-coral')}
+    >
+      <span className="truncate">{nome}</span>
+      <Pencil className="size-3 shrink-0 text-fog" />
     </button>
   )
 }

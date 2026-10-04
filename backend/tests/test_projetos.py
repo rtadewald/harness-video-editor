@@ -67,6 +67,15 @@ def test_nome_repetido_ganha_sufixo(cliente, video):
     assert _criar(cliente, video, 'Teste')['id'] == 'teste-2'
 
 
+def test_renomear_muda_so_o_nome(cliente, video):
+    id = _criar(cliente, video, 'Antigo')['id']
+    r = cliente.put(f'/api/projetos/{id}/nome', json={'nome': '  Novo nome  '})
+    assert r.status_code == 200 and r.json()['nome'] == 'Novo nome' and r.json()['id'] == id
+    assert cliente.get('/api/projetos').json()[0]['nome'] == 'Novo nome'
+    assert cliente.put(f'/api/projetos/{id}/nome', json={'nome': '   '}).status_code == 422
+    assert cliente.put('/api/projetos/nao-existe/nome', json={'nome': 'X'}).status_code == 404
+
+
 def test_arquivo_invalido_nao_deixa_lixo(cliente, enfileirados):
     r = cliente.post('/api/projetos', data={'nome': 'Ruim'}, files={'bruto': ('x.mp4', b'nao e video', 'video/mp4')})
     assert r.status_code == 422

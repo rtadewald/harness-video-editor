@@ -91,6 +91,8 @@ export const enviarMensagem = (id: string, etapa: Etapa, texto: string) =>
   }).then(json<Mensagem[]>)
 const post = <T,>(url: string) => fetch(url, { method: 'POST' }).then(json<T>)
 export const processar = (id: string) => post<Projeto>(`/api/projetos/${id}/processar`)
+export const renomearProjeto = (id: string, nome: string) =>
+  fetch(`/api/projetos/${id}/nome`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome }) }).then(json<Projeto>)
 export const refazerCortes = (id: string) => post<Projeto>(`/api/projetos/${id}/cortes/refazer`)
 
 /** O pipeline principal terminou (ou parou em erro)? Os motores extras rodam à parte e não contam. */
