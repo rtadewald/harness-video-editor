@@ -169,6 +169,17 @@ export default function RevisaoReferencia() {
     return () => window.removeEventListener('keydown', tecla)
   }, [desfazer, alternar, dividir, adicionarElemento, apagar, selecionado, buscar, tempo, duracao])
 
+  // o detalhe segue a cabeça de reprodução: ao entrar noutro plano (tocando ou navegando), mostra esse plano.
+  // Não troca enquanto um campo do painel está em edição.
+  const planoNoCursor = useMemo(() => planosDe(itens).find((p) => tempo >= p.inicio && tempo < p.fim)?.id ?? null, [itens, tempo])
+  const ultimoPlano = useRef<string | null>(null)
+  useEffect(() => {
+    if (planoNoCursor === ultimoPlano.current) return
+    ultimoPlano.current = planoNoCursor
+    if (document.activeElement?.closest('aside')) return
+    setSelecionado(planoNoCursor)
+  }, [planoNoCursor])
+
   const arrastar = useCallback(
     (a: Arrasto, t: number) =>
       mudar((atuais) => (a.tipo === 'borda' ? moverBorda(atuais, a.k, t) : moverElemento(atuais, a.id, a.lado, t, duracao)), false),
@@ -314,6 +325,9 @@ export default function RevisaoReferencia() {
               fala={dados.palavras.filter((w) => w.fim > sel.inicio && w.inicio < sel.fim).map((w) => w.texto).join(' ')}
               editar={(campos) => mudar((atuais) => editar(atuais, sel.id, campos))}
               ver={() => verTrecho(sel)}
+              elementos={sel.camada === 'plano' ? itens.filter((e) => e.camada === 'elemento' && e.fim > sel.inicio && e.inicio < sel.fim) : []}
+              nomesElementos={dados.categorias.elementos}
+              selecionar={setSelecionado}
               apagar={() => apagar(sel.id)}
               unicoPlano={sel.camada === 'plano' && planosDe(itens).length < 2}
             />
@@ -348,6 +362,9 @@ function Detalhe(p: {
   ver: () => void
   apagar: () => void
   unicoPlano: boolean
+  elementos: ItemRef[]
+  nomesElementos: Record<string, string>
+  selecionar: (id: string) => void
 }) {
   const i = p.item
   const cor = i.camada === 'plano' ? COR_PLANO[i.tipo] : COR_ELEMENTO[i.tipo]
@@ -362,6 +379,23 @@ function Detalhe(p: {
       </p>
       {i.miniatura && <img src={urlArquivoReferencia(p.refId, i.miniatura)} alt="" className="max-h-[220px] w-auto self-start rounded-[4px]" />}
       {p.fala && <p className="border-l-2 border-line-dark pl-3 leading-[1.6] text-fog">“{p.fala}”</p>}
+      {p.elementos.length > 0 && (
+        <div className="grid gap-1.5">
+          <span className="text-[10px] tracking-[0.1em] text-fog uppercase">Elementos neste plano</span>
+          <div className="flex flex-wrap gap-1.5">
+            {p.elementos.map((e) => (
+              <button
+                key={e.id}
+                onClick={() => p.selecionar(e.id)}
+                className={cn('rounded-full px-2.5 py-1 text-[10px] font-semibold hover:opacity-80', COR_ELEMENTO[e.tipo])}
+                title={`${fmt(e.inicio)} → ${fmt(e.fim)}`}
+              >
+                {e.texto ? `“${e.texto}”` : p.nomesElementos[e.tipo]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Campo rotulo="Tipo">
         <select value={i.tipo} onChange={(e) => p.editar({ tipo: e.target.value })} className="h-9 rounded-[3px] border border-line-dark bg-deeper px-2.5 text-cream outline-none focus:border-cream/60">
