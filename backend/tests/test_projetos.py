@@ -857,3 +857,15 @@ def test_clipes_trazem_posicao_entrada_vizinhos_e_elementos():
     assert p2['anterior'] == {'tipo': 'full_ator', 'duracao': 1.4} and p2['seguinte'] is None
     assert p2['elementos'] == [{'tipo': 'lettering', 'texto': 'Oi', 'inicio': 2, 'fim': 3}]
     assert resumo['proporcao'] == {'full_ator': 0.35, 'insert_tela_cheia': 0.65}
+
+
+def test_como_gerar_so_fica_em_planos_com_insert():
+    def t(a, b, tipo, conteudo, receita):
+        return {'inicio': a, 'fim': b, 'continua_anterior': False, 'elementos': [],
+                'planos': [{'tipo': tipo, 'conteudo_em_cima': conteudo, 'texto': None, 'inicio': a, 'fim': b, 'descricao': 'd', 'como_gerar': receita}]}
+    itens = direcao.montar([t(0, 1, 'full_ator', None, 'não'), t(1, 2, 'insert_tela_cheia', None, 'Gravar com browser use'),
+                            t(2, 3, 'tela_dividida', 'motion', 'não'), t(3, 4, 'tela_dividida', 'insert', 'Print e zoom')], 4)
+    assert [i['como_gerar'] for i in itens] == [None, 'Gravar com browser use', None, 'Print e zoom']
+    ok = direcao.validar_edicao([{'id': 'p1', 'camada': 'plano', 'tipo': 'insert_tela_cheia', 'inicio': 0, 'fim': 2, 'como_gerar': ' x '},
+                                 {'id': 'p2', 'camada': 'plano', 'tipo': 'full_ator', 'inicio': 2, 'fim': 4, 'como_gerar': 'y'}], 4)
+    assert [i['como_gerar'] for i in ok] == ['x', None]

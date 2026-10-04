@@ -25,6 +25,11 @@ from . import midia, motores, projeto, referencias, transcricao
 PLANOS = {'full_ator': 'Full ator', 'full_ator_lettering': 'Full ator com lettering', 'insert_tela_cheia': 'Insert tela cheia',
           'motion_tela_cheia': 'Motion tela cheia', 'tela_dividida': 'Tela dividida', 'comentario_insert_ator': 'Comentário + insert + ator'}
 PLANOS_COM_TEXTO = ('full_ator_lettering', 'comentario_insert_ator')  # o texto do lettering / do comentário fica no plano
+
+
+def tem_insert(tipo: str, conteudo: str | None) -> bool:
+    """Planos com um insert (material real): só neles faz sentido a receita de "como gerar"."""
+    return tipo in ('insert_tela_cheia', 'comentario_insert_ator') or (tipo == 'tela_dividida' and conteudo == 'insert')
 ELEMENTOS = {'lettering': 'Lettering', 'palavra_manychat': 'Palavra ManyChat', 'caixinha_perguntas': 'Caixinha de perguntas',
              'print_sobreposto': 'Print/imagem sobreposta'}
 PASSOS = ['proxy', 'transcricao', 'cenas', 'analise', 'montagem']
@@ -58,6 +63,7 @@ class PlanoIA(BaseModel):
     inicio: float = Field(description='Segundos do vídeo (use os tempos t= dos quadros)')
     fim: float
     descricao: str = Field(description='Momento a momento: o que aparece, quando entra/troca e para quê (que ideia da fala ilustra); 2 a 5 frases, sem detalhes cosméticos')
+    como_gerar: str | None = Field(description='Só para planos com insert (insert_tela_cheia, tela_dividida com insert, comentario_insert_ator): receita prática para reproduzir — como capturar e o que fazer na edição')
 
 
 class ElementoIA(BaseModel):
@@ -74,7 +80,7 @@ class AnaliseTrecho(BaseModel):
     elementos: list[ElementoIA]
 
 
-VERSAO_ANALISE = 6  # muda quando o prompt ou o que é enviado muda: os trechos guardados com outra versão são refeitos
+VERSAO_ANALISE = 7  # muda quando o prompt ou o que é enviado muda: os trechos guardados com outra versão são refeitos
 
 PROMPT = """Você analisa um Reel vertical JÁ EDITADO de Rodrigo Tadewald (Asimov Academy, IA e programação) para descobrir como ele foi dirigido visualmente: o que aparece na tela em cada momento da fala.
 
@@ -106,6 +112,8 @@ Exemplo BOM: "Motion minimalista para ilustrar o que é uma skill do Claude, ent
 Exemplo RUIM (detalhista no que não importa): "Em fundo bege claro texturizado aparece um desenho de uma pasta preta com o texto 'SKILL.MD'; surge acima um selo terracota com uma silhueta de cabeça de perfil branca e um cérebro/flor no interior."
 Exemplo RUIM (raso demais): "Animação de uma pasta SKILL.md com o ícone do Claude."
 Para elementos, diga o que é, quando entra e o que destaca, em uma frase.
+
+COMO GERAR (só para planos com insert: insert_tela_cheia, tela_dividida com insert em cima e comentario_insert_ator; nos outros, deixe vazio): uma receita prática, no imperativo, para alguém reproduzir esse insert num vídeo novo. Diga como capturar o material (gravar a tela do site com browser use, gravar a tela do app com computer use, gravar a tela à mão, tirar print, usar uma página/documentação, filmar, gerar imagem…) e o que fazer na edição (rotacionar o vídeo em 3D, dar zoom in rápido num elemento para destacar, rolar a página, destacar com borda/caixa/blur no resto, acelerar, mockup de navegador ou de celular…), citando o elemento a destacar quando houver. 1 a 3 frases. Exemplos: "Gravar a tela do site com browser use, rolando devagar pela home, e na edição rotacionar o vídeo em 3D." · "Gravar a tela do app com computer use e, na edição, dar um zoom in rápido no botão de exportar para destacá-lo." · "Tirar print do comentário e da página do GitHub do Strix; na edição, sobrepor o comentário e fazer um zoom lento na página."
 
 Regras:
 - Use as categorias acima e nenhuma outra. Tempos SEMPRE em segundos do vídeo inteiro (não do clipe), dentro do trecho.
@@ -409,13 +417,16 @@ def montar(resultados: list[dict], duracao: float) -> list[dict]:
                 continue
             novo = {'camada': 'plano', 'tipo': p['tipo'], 'conteudo': p['conteudo_em_cima'] if p['tipo'] == 'tela_dividida' else None,
                     'inicio': ini, 'fim': fim, 'descricao': p['descricao'],
-                    'texto': (p.get('texto') or None) if p['tipo'] in PLANOS_COM_TEXTO else None}
+                    'texto': (p.get('texto') or None) if p['tipo'] in PLANOS_COM_TEXTO else None,
+                    'como_gerar': (p.get('como_gerar') or None) if tem_insert(p['tipo'], p.get('conteudo_em_cima')) else None}
             ant = planos[-1] if planos else None
             mesmo = ant and ant['tipo'] == novo['tipo'] and ant['conteudo'] == novo['conteudo'] and ant['texto'] == novo['texto']
             if mesmo and (novo['tipo'] == 'full_ator' or (k == 0 and r['continua_anterior'])):
                 ant['fim'] = fim
                 if novo['tipo'] != 'full_ator' and novo['descricao']:  # a história continua: emenda as descrições
                     ant['descricao'] = f"{ant['descricao']} Depois: {novo['descricao']}"
+                if novo.get('como_gerar') and novo['como_gerar'] != ant.get('como_gerar'):
+                    ant['como_gerar'] = ' '.join(filter(None, [ant.get('como_gerar'), novo['como_gerar']]))
             else:
                 planos.append(novo)
         for e in r['elementos']:
@@ -493,6 +504,7 @@ def validar_edicao(itens: list[dict], duracao: float) -> list[dict]:
             conteudo = 'insert'
         limpo = {'id': id, 'camada': camada, 'tipo': i['tipo'], 'conteudo': conteudo, 'inicio': round(ini, 3), 'fim': round(fim, 3),
                  'descricao': str(i.get('descricao') or '').strip(), 'texto': (str(i['texto']).strip() or None) if i.get('texto') else None,
+                 'como_gerar': (str(i.get('como_gerar') or '').strip() or None) if tem_insert(i['tipo'], conteudo) else None,
                  'miniatura': i.get('miniatura'), 'miniatura_t': i.get('miniatura_t')}
         (planos if camada == 'plano' else elementos).append(limpo)
     planos.sort(key=lambda p: p['inicio'])
@@ -566,7 +578,7 @@ def clipes(ref: dict, itens: list[dict], palavras: list[dict]) -> tuple[list[dic
         lista.append({
             'ref': ref['id'], 'ref_nome': ref['nome'], 'revisado': ref['status'] == 'revisado', 'id': p['id'], 'tipo': p['tipo'],
             'conteudo': p.get('conteudo'), 'inicio': p['inicio'], 'fim': p['fim'], 'descricao': p.get('descricao') or '',
-            'texto': p.get('texto'), 'miniatura': p.get('miniatura'), 'fala': ' '.join(w['texto'] for w in faladas),
+            'texto': p.get('texto'), 'como_gerar': p.get('como_gerar'), 'miniatura': p.get('miniatura'), 'fala': ' '.join(w['texto'] for w in faladas),
             'numero': k + 1, 'total': len(planos), 'posicao': round(p['inicio'] / dur, 3) if dur else 0,
             'palavras': len(faladas), 'por_minuto': round(len(faladas) / d * 60) if d >= 2 and len(faladas) >= 3 else None,
             'entrada': entrada(p['inicio'], palavras) if k else None,

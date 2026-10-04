@@ -173,6 +173,8 @@ export type ItemRef = {
   fim: number
   descricao: string
   texto: string | null
+  /** Receita para reproduzir o insert (só em planos com insert). */
+  como_gerar?: string | null
   miniatura?: string
   miniatura_t?: number
   palavra_ini?: string | null
@@ -208,6 +210,7 @@ export type ClipeReferencia = {
   fim: number
   descricao: string
   texto: string | null
+  como_gerar: string | null
   miniatura?: string
   fala: string
   /** Posição do plano no vídeo de origem: número (1…total) e fração do tempo onde começa. */

@@ -443,6 +443,16 @@ function Detalhe(p: {
       <Campo rotulo="O que aparece">
         <textarea defaultValue={i.descricao} rows={8} onBlur={(e) => e.target.value !== i.descricao && p.editar({ descricao: e.target.value })} className={cn(CAMPO, 'h-auto py-2')} />
       </Campo>
+      {(i.tipo === 'insert_tela_cheia' || i.tipo === 'comentario_insert_ator' || (i.tipo === 'tela_dividida' && i.conteudo === 'insert')) && (
+        <Campo rotulo="Como gerar (receita do insert)">
+          <textarea
+            defaultValue={i.como_gerar ?? ''}
+            rows={4}
+            onBlur={(e) => e.target.value !== (i.como_gerar ?? '') && p.editar({ como_gerar: e.target.value })}
+            className={cn(CAMPO, 'h-auto py-2')}
+          />
+        </Campo>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <button onClick={p.ver} className="flex h-8 items-center gap-1.5 rounded-full border border-line-dark px-3 text-[11px] font-semibold hover:border-cream/50">

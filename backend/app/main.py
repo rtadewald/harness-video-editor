@@ -224,7 +224,7 @@ def favoritar(id: str, f: Favorito):
     plano = next((i for i in itens if i['camada'] == 'plano' and abs(i['inicio'] - f.inicio) < 0.05 and abs(i['fim'] - f.fim) < 0.05), None)
     if f.favorito and plano is None:
         raise HTTPException(404, 'Trecho não encontrado nesta referência')
-    dados = {k: plano.get(k) for k in ('tipo', 'conteudo', 'descricao', 'texto')} if plano else {}
+    dados = {k: plano.get(k) for k in ('tipo', 'conteudo', 'descricao', 'texto', 'como_gerar')} if plano else {}
     referencias.marcar_favorito(id, f.inicio, f.fim, f.favorito, dados)
     return {'favorito': f.favorito}
 

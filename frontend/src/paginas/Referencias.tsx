@@ -54,7 +54,7 @@ export default function Referencias() {
   const base = useMemo(() => {
     const q = busca.trim().toLowerCase()
     return (clipes ?? []).filter(
-      (c) => (!soRevisadas || c.revisado) && (!soFavoritos || c.favorito) && (!q || [c.descricao, c.texto ?? '', c.fala, c.ref_nome].some((t) => t.toLowerCase().includes(q))),
+      (c) => (!soRevisadas || c.revisado) && (!soFavoritos || c.favorito) && (!q || [c.descricao, c.texto ?? '', c.como_gerar ?? '', c.fala, c.ref_nome].some((t) => t.toLowerCase().includes(q))),
     )
   }, [clipes, busca, soRevisadas, soFavoritos])
 
@@ -80,7 +80,7 @@ export default function Referencias() {
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar na descrição, no texto ou na fala"
+            placeholder="Buscar na descrição, no texto, em como gerar ou na fala"
             className="w-full bg-transparent text-[12px] text-cream outline-none placeholder:text-fog/70"
           />
         </label>
@@ -377,6 +377,11 @@ function Player(p: {
           <Bloco titulo="O que aparece">
             <p className="leading-[1.7]">{c.descricao}</p>
           </Bloco>
+          {c.como_gerar && (
+            <Bloco titulo="Como gerar">
+              <p className="border-l-2 border-yellow pl-3 leading-[1.7]">{c.como_gerar}</p>
+            </Bloco>
+          )}
 
           <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-y border-line-dark py-4">
             <Dado rotulo="Duração" valor={seg(dur(c))} />
