@@ -808,3 +808,10 @@ def test_transcricao_ate_o_corte_marca_o_momento_e_esconde_o_futuro():
                  '<momento_analisado de="1.40 s" ate="2.50 s">\nAgora[1.50] vai[1.92]\n</momento_analisado>')
     assert 'depois' not in t
     assert direcao.transcricao_ate(fala, 0, 0.5).startswith('(começo do vídeo)')
+
+
+def test_tempos_do_clipe_viram_tempos_do_video_inteiro():
+    resp = lambda ini, fim: {'planos': [{'inicio': ini, 'fim': fim}], 'elementos': [{'inicio': ini + 0.5, 'fim': fim}]}  # noqa: E731
+    assert direcao._no_video_inteiro(resp(0.0, 2.6), 16.25, 18.92)['planos'][0] == {'inicio': 16.25, 'fim': 18.85}
+    assert direcao._no_video_inteiro(resp(16.25, 18.92), 16.25, 18.92)['planos'][0] == {'inicio': 16.25, 'fim': 18.92}
+    assert direcao._no_video_inteiro(resp(0.0, 1.0), 0.0, 1.0)['planos'][0] == {'inicio': 0.0, 'fim': 1.0}

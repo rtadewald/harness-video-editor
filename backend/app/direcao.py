@@ -72,14 +72,14 @@ class AnaliseTrecho(BaseModel):
     elementos: list[ElementoIA]
 
 
-VERSAO_ANALISE = 2  # muda quando o prompt ou o que é enviado muda: os trechos guardados com outra versão são refeitos
+VERSAO_ANALISE = 3  # muda quando o prompt ou o que é enviado muda: os trechos guardados com outra versão são refeitos
 
 PROMPT = """Você analisa um Reel vertical JÁ EDITADO de Rodrigo Tadewald (Asimov Academy, IA e programação) para descobrir como ele foi dirigido visualmente: o que aparece na tela em cada momento da fala.
 
 Você recebe UM trecho entre dois cortes de cena:
 - a transcrição do vídeo DO COMEÇO ATÉ O FIM DESTE TRECHO (nada do que vem depois), para você saber do que o vídeo está falando e o que já foi dito. O que é falado durante o trecho está marcado entre <momento_analisado> e </momento_analisado>, com o tempo de início de cada palavra;
-- os quadros do trecho, em ordem, cada um precedido do seu tempo no vídeo (t= segundos);
-- um quadro logo antes e um logo depois do trecho, só como contexto.
+- o trecho em si: um VÍDEO com áudio (o tempo 0 dele é o início do trecho) ou, em outra configuração, mosaicos de quadros com o tempo de cada um escrito no canto (t= segundos), como a mensagem indicar;
+- um quadro logo antes do trecho (e às vezes um logo depois), só como contexto.
 
 PLANOS-BASE (um por vez; cobrem o trecho inteiro, sem buracos):
 - full_ator: o apresentador ocupa a tela (com ou sem coisas pequenas por cima). Zoom/reenquadramento no apresentador continua sendo full_ator.
@@ -97,10 +97,10 @@ ELEMENTOS (sobrepostos ao plano; podem durar menos que ele):
 IGNORE a legenda palavra a palavra queimada no vídeo (texto curto que acompanha a fala, uma ou poucas palavras por vez): ela é outra etapa e NÃO é lettering.
 Se o texto em destaque É o próprio motion em tela cheia (ex.: uma animação tipográfica sem o apresentador), ele já é o plano motion_tela_cheia: não crie um lettering repetindo-o. Lettering é texto SOBRE outro plano.
 
-DESCRIÇÃO (o campo mais importante): conte a HISTÓRIA do que aparece na tela ao longo do trecho, em ordem, com descrição exata. Diga o que é (qual site, app, ferramenta, gráfico, texto — com os nomes e textos visíveis), como é visualmente (cores, estilo, composição, se é bonito/minimalista/escuro…) e o que acontece entre os quadros (rola, dá zoom, o cursor clica, algo é digitado, elementos se montam, troca de uma tela para outra). Use o contexto da fala para nomear as coisas com precisão. Exemplo do tom: "Primeiro aparece a home de um site de relógios Venezia, escura e elegante, com o relógio girando em 3D; a câmera dá zoom no produto e depois troca para a página de detalhes com fundo creme." Para elementos, descreva como ele é e como entra e sai.
+DESCRIÇÃO (o campo mais importante): conte a HISTÓRIA do que aparece na tela ao longo do trecho, em ordem, com descrição exata. Diga o que é (qual site, app, ferramenta, gráfico, texto — com os nomes e textos visíveis), como é visualmente (cores, estilo, composição, se é bonito/minimalista/escuro…) e o que acontece ao longo do trecho (rola, dá zoom, o cursor clica, algo é digitado, elementos se montam, troca de uma tela para outra). Use o contexto da fala para nomear as coisas com precisão. Exemplo do tom: "Primeiro aparece a home de um site de relógios Venezia, escura e elegante, com o relógio girando em 3D; a câmera dá zoom no produto e depois troca para a página de detalhes com fundo creme." Para elementos, descreva como ele é e como entra e sai.
 
 Regras:
-- Use as categorias acima e nenhuma outra. Tempos sempre dentro do trecho, a partir dos t= dos quadros.
+- Use as categorias acima e nenhuma outra. Tempos SEMPRE em segundos do vídeo inteiro (não do clipe), dentro do trecho.
 - Normalmente o trecho tem UM plano. Só devolva mais de um se o layout claramente muda dentro do trecho.
 - Escreva em português.
 - continua_anterior: true só se o primeiro plano do trecho mostra o MESMO conteúdo do quadro de contexto anterior (mesma tela/insert/motion, só mudou zoom ou posição)."""
@@ -235,28 +235,33 @@ def trechos(cortes: list[float], duracao: float) -> list[tuple[float, float]]:
     return [(a, b) for a, b in zip(bordas, bordas[1:]) if b - a > 0.02]
 
 
-def _quadros(video: Path, a: float, b: float, fps: float, pasta: Path) -> list[tuple[float, Path]]:
-    """Quadros do trecho [a, b), um por imagem, com o tempo de cada um no vídeo."""
-    d = b - a
-    fps = min(fps, MAX_QUADROS / max(d, 0.01))
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-ss', f'{a:.3f}', '-i', str(video), '-t', f'{d + 0.5:.3f}',
-                    '-vf', f'trim=end={d:.3f},fps={fps:.4f},scale=-2:{ALTURA_QUADRO}', '-q:v', '4', str(pasta / '%03d.jpg')], check=True)
-    return [(round(a + k / fps, 2), q) for k, q in enumerate(sorted(pasta.glob('*.jpg')))]
-
-
 FONTE = '/System/Library/Fonts/Supplemental/Arial.ttf'
-MOSAICO = (3, 2)  # quadros por imagem: o Gemini cobra ~1.100 tokens por imagem, qualquer que seja o tamanho
+def _clipe(video: Path, a: float, b: float, destino: Path) -> Path:
+    """O trecho [a, b) como um MP4 pequeno com áudio (640 px de altura): o Gemini amostra o vídeo sozinho (~1 quadro/s,
+    resolução reduzida) e ouve o áudio. Medido: ~4–8× mais barato que mandar quadros como imagens."""
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-ss', f'{a:.3f}', '-i', str(video), '-t', f'{b - a:.3f}', '-vf', 'scale=-2:640',
+                    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-c:a', 'aac', '-b:a', '64k', str(destino)], check=True)
+    return destino
 
 
-def _mosaicos(video: Path, a: float, b: float, fps: float, pasta: Path) -> list[Path]:
-    """Quadros do trecho [a, b) agrupados em mosaicos de 3×2, cada quadro com o seu tempo no vídeo escrito no canto
-    (t=segundos). Bem mais barato que mandar um quadro por imagem."""
+def _no_video_inteiro(analise: dict, a: float, b: float) -> dict:
+    """Se o modelo respondeu com tempos do clipe (0 = início do trecho) em vez do vídeo inteiro, soma o início."""
+    tempos = [x[k] for x in analise['planos'] + analise['elementos'] for k in ('inicio', 'fim')]
+    if a > 0.5 and tempos and max(tempos) <= (b - a) + 0.3 and min(tempos) < a - 0.3:
+        for x in analise['planos'] + analise['elementos']:
+            x['inicio'], x['fim'] = round(x['inicio'] + a, 3), round(x['fim'] + a, 3)
+    return analise
+
+
+def _mosaicos(video: Path, a: float, b: float, fps: float, grade: str, pasta: Path) -> list[Path]:
+    """Quadros do trecho [a, b) agrupados em mosaicos (3×2 ou 3×1), cada quadro com o seu tempo no vídeo escrito no
+    canto (t=segundos). O Gemini cobra ~1.100 tokens por imagem, qualquer que seja o tamanho."""
     d = b - a
     fps = min(fps, MAX_QUADROS / max(d, 0.01))
     tempo = "t=%{expr\\:t+" + f"{a:.3f}" + "}"
     vf = (f'trim=end={d:.3f},fps={fps:.4f},scale=-2:{ALTURA_QUADRO},'
           f"drawtext=fontfile={FONTE}:text='{tempo}':x=6:y=6:fontsize=20:fontcolor=yellow:box=1:boxcolor=black@0.75:boxborderw=4,"
-          f'tile={MOSAICO[0]}x{MOSAICO[1]}:padding=4:color=black')
+          f'tile={grade}:padding=4:color=black')
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-ss', f'{a:.3f}', '-i', str(video), '-t', f'{d + 0.5:.3f}', '-vf', vf,
                     '-q:v', '4', str(pasta / '%03d.jpg')], check=True)
     return sorted(pasta.glob('*.jpg'))
@@ -299,18 +304,21 @@ def analisar_trecho(video: Path, palavras: list[dict], n: int, a: float, b: floa
         if a > 0.05:
             conteudo += [{'type': 'text', 'text': f'QUADRO DE CONTEXTO ANTERIOR (t={max(a - 0.15, 0):.2f}, antes do trecho):'},
                          _imagem(quadro(video, a - 0.15, pasta / 'antes.jpg'))]
-        fps = config['quadros_por_segundo']
-        if config['formato_quadros'] == 'mosaico':
+        fps, grade = config['quadros_por_segundo'], config['grade_mosaico']
+        if config['formato_analise'] == 'mosaico':
+            n_grade = int(grade[0]) * int(grade[2])
             conteudo.append({'type': 'text', 'text': (
-                f"QUADROS DO TRECHO ({fps} por segundo), em mosaicos de {MOSAICO[0] * MOSAICO[1]}: em cada imagem, "
+                f"QUADROS DO TRECHO ({fps} por segundo), em mosaicos de {n_grade}: em cada imagem, "
                 'da esquerda para a direita e de cima para baixo; o tempo de cada quadro no vídeo está escrito no canto (t=segundos). '
                 'Áreas pretas no fim do último mosaico são só preenchimento.')})
-            conteudo += [_imagem(q) for q in _mosaicos(video, a, b, fps, pasta / 'q')]
+            conteudo += [_imagem(q) for q in _mosaicos(video, a, b, fps, grade, pasta / 'q')]
         else:
-            conteudo.append({'type': 'text', 'text': f'QUADROS DO TRECHO ({fps} por segundo), em ordem:'})
-            for t, q in _quadros(video, a, b, fps, pasta / 'q'):
-                conteudo += [{'type': 'text', 'text': f't={t:.2f}'}, _imagem(q)]
-        if b < duracao - 0.05:
+            conteudo += [{'type': 'text', 'text': (
+                f'VÍDEO DO TRECHO (com áudio): o tempo 0 deste vídeo é {a:.2f} s do vídeo inteiro, e ele termina em {b:.2f} s. '
+                f'Responda os tempos em segundos do vídeo inteiro (some {a:.2f}).')},
+                {'type': 'video', 'base64': base64.b64encode(_clipe(video, a, b, pasta / 'trecho.mp4').read_bytes()).decode(),
+                 'mime_type': 'video/mp4'}]
+        if b < duracao - 0.05 and config['formato_analise'] == 'mosaico':
             conteudo += [{'type': 'text', 'text': f'QUADRO DE CONTEXTO POSTERIOR (t={b + 0.1:.2f}, depois do trecho):'},
                          _imagem(quadro(video, b + 0.1, pasta / 'depois.jpg'))]
         # saída limitada (o OpenRouter reserva crédito pelo máximo), raciocínio curto (classificar não precisa de mais) e
@@ -322,7 +330,10 @@ def analisar_trecho(video: Path, palavras: list[dict], n: int, a: float, b: floa
     if r.get('parsed') is None:
         raise RuntimeError(f'resposta inválida no trecho {n + 1}: {r.get("parsing_error")}')
     uso = getattr(r['raw'], 'usage_metadata', None) or {}
-    return {'inicio': a, 'fim': b, **r['parsed'].model_dump(), 'tokens': uso.get('total_tokens')}
+    analise = r['parsed'].model_dump()
+    if config['formato_analise'] == 'video':
+        analise = _no_video_inteiro(analise, a, b)
+    return {'inicio': a, 'fim': b, **analise, 'tokens': uso.get('total_tokens')}
 
 
 def _analise(id: str, base: Path):
@@ -340,7 +351,7 @@ def _analise(id: str, base: Path):
         n, (a, b) = n_ab
         arq = cache / f'{n:03d}.json'
         chave = {'inicio': a, 'fim': b, 'modelo': config['modelo_direcao'], 'fps': config['quadros_por_segundo'],
-                 'formato': config['formato_quadros'], 'versao': VERSAO_ANALISE}
+                 'formato': config['formato_analise'], 'grade': config['grade_mosaico'], 'versao': VERSAO_ANALISE}
         if arq.exists():
             salvo = json.loads(arq.read_text())
             if salvo.get('chave') == chave:

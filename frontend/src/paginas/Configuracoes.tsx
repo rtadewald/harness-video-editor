@@ -198,46 +198,44 @@ function AbaDirecao({ config, salvar }: Contexto) {
         />
       </Grupo>
       <Grupo
-        titulo="Quadros por segundo"
-        texto="Quantos quadros de cada trecho o modelo vê. Mais quadros acham letterings rápidos com mais precisão, mas custam proporcionalmente mais. Trechos longos são amostrados com no máximo 40 quadros. Trocar faz a próxima análise refazer os trechos."
+        titulo="Como a IA vê cada trecho"
+        texto="Vídeo: o trecho vai como um clipe com áudio e o modelo vê o movimento (padrão; o mais barato, ~1 quadro/s em resolução reduzida). Mosaico: quadros com o tempo escrito, vários por imagem (você escolhe quantos por segundo; enxerga detalhes pequenos melhor, custa mais). Trocar faz a próxima análise refazer os trechos."
       >
-        <div className="flex gap-1.5">
-          {[1, 2, 3, 4].map((n) => (
-            <button
-              key={n}
-              onClick={() => salvar({ quadros_por_segundo: n })}
-              disabled={!config}
-              className={cn(
-                'h-10 w-14 rounded-full border text-[13px] font-semibold',
-                config?.quadros_por_segundo === n ? 'border-ink bg-ink text-cream' : 'border-line hover:border-ink',
-              )}
-            >
-              {n}/s
-            </button>
-          ))}
-        </div>
+        <Opcoes
+          valor={config?.formato_analise}
+          opcoes={[['video', 'Vídeo'], ['mosaico', 'Mosaico']]}
+          aoEscolher={(v) => salvar({ formato_analise: v as Config['formato_analise'] })}
+          desligado={!config}
+        />
       </Grupo>
-      <Grupo
-        titulo="Como os quadros vão"
-        texto="Separados: cada quadro é uma imagem, todos na mesma requisição (melhor para ler detalhes). Mosaico: 6 quadros por imagem, com o tempo escrito em cada um (~2,4× mais barato, cada quadro fica menor). Trocar faz a próxima análise refazer os trechos."
-      >
-        <div className="flex gap-1.5">
-          {(['separados', 'mosaico'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => salvar({ formato_quadros: f })}
-              disabled={!config}
-              className={cn(
-                'h-10 rounded-full border px-4 text-[13px] font-semibold',
-                config?.formato_quadros === f ? 'border-ink bg-ink text-cream' : 'border-line hover:border-ink',
-              )}
-            >
-              {f === 'separados' ? 'Separados' : 'Mosaico'}
-            </button>
-          ))}
-        </div>
-      </Grupo>
+      {config?.formato_analise === 'mosaico' && (
+        <Grupo titulo="Mosaico" texto="Quantos quadros por imagem (3×2 = 6, cada quadro menor; 3×1 = 3, cada quadro maior) e quantos quadros por segundo do trecho. Trechos longos ficam com no máximo 40 quadros.">
+          <Opcoes valor={config.grade_mosaico} opcoes={[['3x2', '3 × 2'], ['3x1', '3 × 1']]} aoEscolher={(v) => salvar({ grade_mosaico: v as Config['grade_mosaico'] })} />
+          <Opcoes
+            valor={String(config.quadros_por_segundo)}
+            opcoes={[['1', '1/s'], ['2', '2/s'], ['3', '3/s'], ['4', '4/s']]}
+            aoEscolher={(v) => salvar({ quadros_por_segundo: Number(v) })}
+          />
+        </Grupo>
+      )}
     </>
+  )
+}
+
+function Opcoes({ valor, opcoes, aoEscolher, desligado }: { valor: string | undefined; opcoes: [string, string][]; aoEscolher: (v: string) => void; desligado?: boolean }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {opcoes.map(([v, nome]) => (
+        <button
+          key={v}
+          onClick={() => aoEscolher(v)}
+          disabled={desligado}
+          className={cn('h-10 rounded-full border px-4 text-[13px] font-semibold', valor === v ? 'border-ink bg-ink text-cream' : 'border-line hover:border-ink')}
+        >
+          {nome}
+        </button>
+      ))}
+    </div>
   )
 }
 

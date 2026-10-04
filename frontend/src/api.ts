@@ -132,8 +132,9 @@ export type Config = {
   /** Direção visual: modelo multimodal (OpenRouter) que analisa as referências e quadros por segundo de cada trecho. */
   modelo_direcao: string
   quadros_por_segundo: number
-  /** Quadros como imagens separadas (padrão) ou em mosaicos de 6 (mais barato, cada quadro menor). */
-  formato_quadros: 'separados' | 'mosaico'
+  /** Como a IA vê cada trecho: o vídeo com áudio (padrão) ou mosaicos de quadros com o tempo escrito. */
+  formato_analise: 'video' | 'mosaico'
+  grade_mosaico: '3x2' | '3x1'
   motores: Record<string, { nome: string; familia: string; chave: boolean | null }> }
 export const lerConfig = () => fetch('/api/config').then(json<Config>)
 export const salvarConfig = (mudancas: Partial<Omit<Config, 'motores'>>) =>

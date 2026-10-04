@@ -35,7 +35,8 @@ def _arquivo_config() -> Path:
 def ler_config() -> dict:
     """Preferências do app: Cortes (motor, margens, pausas) e Direção visual (modelo multimodal, quadros por segundo)."""
     config = {'motor_padrao': PADRAO, 'antes_do_corte_ms': 100, 'depois_do_corte_ms': 100, 'pausa_max_ms': 2000, 'respiro_ms': 800,
-              'modelo_direcao': MODELO_DIRECAO, 'quadros_por_segundo': 2, 'formato_quadros': 'separados'}
+              'modelo_direcao': MODELO_DIRECAO, 'quadros_por_segundo': 2,
+              'formato_analise': 'video', 'grade_mosaico': '3x2'}
     try:
         config.update(json.loads(_arquivo_config().read_text(encoding='utf-8')))
     except (FileNotFoundError, ValueError):
@@ -46,8 +47,11 @@ def ler_config() -> dict:
         config[chave] = min(max(int(config[chave]), 0), maximo)
     config['quadros_por_segundo'] = min(max(int(config['quadros_por_segundo']), 1), 4)
     config['modelo_direcao'] = str(config['modelo_direcao']).strip() or MODELO_DIRECAO
-    if config['formato_quadros'] not in ('separados', 'mosaico'):
-        config['formato_quadros'] = 'separados'
+    config.pop('formato_quadros', None)  # opção antiga (quadros separados), substituída por formato_analise
+    if config['formato_analise'] not in ('video', 'mosaico'):
+        config['formato_analise'] = 'video'
+    if config['grade_mosaico'] not in ('3x2', '3x1'):
+        config['grade_mosaico'] = '3x2'
     return config
 
 

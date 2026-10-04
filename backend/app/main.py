@@ -51,7 +51,8 @@ class Config(BaseModel):
     respiro_ms: int | None = Field(default=None, ge=0, le=5000)
     modelo_direcao: str | None = Field(default=None, min_length=3, max_length=120)
     quadros_por_segundo: int | None = Field(default=None, ge=1, le=4)
-    formato_quadros: Literal['separados', 'mosaico'] | None = None
+    formato_analise: Literal['video', 'mosaico'] | None = None
+    grade_mosaico: Literal['3x2', '3x1'] | None = None
 
 
 def _config_completa() -> dict:
