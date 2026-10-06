@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { Plus, RotateCcw, Trash2 } from 'lucide-react'
 import {
   apagarReferencia,
@@ -15,6 +14,7 @@ import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { ModalVideo } from '@/referencias/PainelCalibragem'
 
 const STATUS: Record<StatusReferencia, { nome: string; cor: string }> = {
   na_fila: { nome: 'Na fila', cor: 'bg-cream/15 text-cream' },
@@ -24,7 +24,7 @@ const STATUS: Record<StatusReferencia, { nome: string; cor: string }> = {
   erro: { nome: 'Erro', cor: 'bg-destructive text-cream' },
 }
 
-const NOMES_PASSO = { proxy: 'Preparando o vídeo', transcricao: 'Transcrevendo', cenas: 'Detectando cortes', analise: 'Analisando trechos', montagem: 'Montando a direção' }
+const NOMES_PASSO = { proxy: 'Preparando o vídeo', transcricao: 'Transcrevendo', cenas: 'Detectando cortes', analise: 'Analisando trechos', montagem: 'Montando a direção', inserts: 'Descrevendo os inserts' }
 
 /** O que a análise está fazendo agora, para o card. */
 function andamento(r: Referencia): string | null {
@@ -48,6 +48,7 @@ export default function Calibragem() {
   const [recusadas, setRecusadas] = useState<{ nome: string; motivo: string }[]>([])
   const [arrastando, setArrastando] = useState(false)
   const entrada = useRef<HTMLInputElement>(null)
+  const [aberto, setAberto] = useState<Referencia | null>(null)
 
   const carregar = () => listarReferencias().then(setRefs).catch((e) => setErro(e.message))
   useEffect(() => {
@@ -207,9 +208,9 @@ export default function Calibragem() {
             return (
               <li key={r.id} className="group relative">
                 {revisavel(r) ? (
-                  <Link to={`/calibragem/${r.id}`} title="Abrir a revisão" className="block">
+                  <button onClick={() => setAberto(r)} title="Ver os números deste vídeo" className="block w-full text-left">
                     {capa}
-                  </Link>
+                  </button>
                 ) : (
                   capa
                 )}
@@ -244,7 +245,9 @@ export default function Calibragem() {
 
         {refs?.length === 0 && <p className="mt-8 text-[13px] text-fog">Nenhuma referência ainda. Comece com 5 a 10 Reels editados que você considera bons.</p>}
 
+
       </main>
+      {aberto && <ModalVideo r={aberto} fechar={() => setAberto(null)} />}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Pause, Play, SkipBack } from 'lucide-react'
 import { formatarTempo, type Item } from '@/api'
 import { Marca } from '@/components/Marca'
@@ -19,6 +19,8 @@ type Props = {
   insert?: Item
   motion?: Item
   legenda?: string
+  /** Desenho por cima do vídeo (ex.: o esboço do layout da Direção visual). */
+  sobreposicao?: ReactNode
 }
 
 /** Monitor 9:16. Recorte parado: bruto vertical só preenche; horizontal usa o centro do enquadramento. */
@@ -71,6 +73,7 @@ export default function Preview(p: Props) {
               <span className="mt-1 block text-[20px] leading-tight font-semibold tracking-[-0.04em]">{p.motion.rotulo}</span>
             </div>
           )}
+          {p.sobreposicao}
           {p.legenda && (
             <p className="absolute inset-x-4 bottom-[18%] text-center text-[22px] leading-tight font-extrabold tracking-[-0.03em] text-cream [text-shadow:0_2px_12px_#000a]">
               {p.legenda}

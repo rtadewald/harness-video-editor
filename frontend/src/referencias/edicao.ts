@@ -72,10 +72,7 @@ export function novoElemento(itens: ItemRef[], t: number, duracao: number): { it
 export function editar(itens: ItemRef[], id: string, campos: Partial<ItemRef>): ItemRef[] {
   return itens.map((i) => {
     if (i.id !== id) return i
-    const novo = { ...i, ...campos }
-    if (novo.tipo !== 'tela_dividida') novo.conteudo = null
-    else if (!novo.conteudo) novo.conteudo = 'insert'
-    return novo
+    return { ...i, ...campos }
   })
 }
 

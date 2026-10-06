@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { ChevronsDownUp, ChevronsUpDown, Maximize2, Minus, Plus, X } from 'lucide-react'
+import RoteiroCortes from './RoteiroCortes'
 import { formatarDuracao, ms3, type Clipe, type Palavra, type Silencio, type Transcricao, type TranscricaoCompleta } from '@/api'
 import { cn } from '@/lib/utils'
 import type { Corte, Selecao } from './cortes'
@@ -14,7 +15,6 @@ const ALT_PALAVRA = 17
 const ALT_COMPACTO = 34 // altura de um corte compactado, qualquer que seja a duração dele
 const PX_MIN_PALAVRAS = 60
 const PX_MAX = 6000
-const IMA_PX = 4 // alcance do ímã em PIXELS (não em tempo): quanto mais zoom, mais fino
 const ZONA_MORTA_PX = 3 // a alça só começa a andar depois disso
 const LISTRAS = 'repeating-linear-gradient(135deg, rgba(245,119,87,0.20) 0 5px, rgba(245,119,87,0.05) 5px 10px)'
 
@@ -73,7 +73,7 @@ export default function LinhaVertical(p: Props) {
   const [arrastando, setArrastando] = useState(false)
   const [expandidos, setExpandidos] = useState<Set<number>>(new Set())
   const [arrasto, setArrasto] = useState<Arrasto | null>(null)
-  const [ima, setIma] = useState(true)
+  const [roteiro, setRoteiro] = useState(false)
   const [cortando, setCortando] = useState(false) // ferramenta de corte: arrastar sobre a onda escolhe o trecho a cortar
   const [faixa, setFaixa] = useState<Faixa | null>(null)
   const novoCorte = useRef<{ t0: number; t1: number } | null>(null)
@@ -258,31 +258,13 @@ export default function LinhaVertical(p: Props) {
     onPointerUp: () => setArrastando(false),
   }
 
-  // ímã: bordas de palavras e de pausas reais (Alt desliga)
-  const pontosIma = useMemo(
-    () => [...p.palavras.flatMap((w) => [w.inicio, w.fim]), ...p.silencios.flatMap((s) => [s.inicio, s.fim])].sort((a, b) => a - b),
-    [p.palavras, p.silencios],
-  )
-  /** Ímã: aproxima o instante da borda de palavra ou de pausa mais próxima (até IMA_PX pixels). Alt ou "Ímã" desligado = sem ímã. */
-  const atrair = (t: number, alt: boolean) => {
-    if (!ima || alt) return t
-    const lim = IMA_PX / px
-    let melhor: number | null = null
-    for (const q of pontosIma) {
-      if (q < t - lim) continue
-      if (q > t + lim) break
-      if (melhor == null || Math.abs(q - t) < Math.abs(melhor - t)) melhor = q
-    }
-    return melhor ?? t
-  }
-
   // O ponto novo é o original + o quanto o mouse andou desde que a alça foi pega (não a posição absoluta do mouse,
   // senão a borda dá um salto de até metade da altura da alça ao começar a arrastar).
   const moverBorda = (e: PointerEvent<HTMLElement>) => {
     if (!arrasto) return
     const dy = e.clientY - arrasto.y0
     if (!arrasto.moveu && Math.abs(dy) < ZONA_MORTA_PX) return
-    const t = atrair(m.tDe(m.yDe(arrasto.orig) + dy), e.altKey)
+    const t = m.tDe(m.yDe(arrasto.orig) + dy)
     setArrasto({ ...arrasto, moveu: true, t: Math.min(Math.max(t, arrasto.min), arrasto.max) })
   }
   const soltarBorda = async () => {
@@ -298,12 +280,12 @@ export default function LinhaVertical(p: Props) {
       } catch {
         /* sem ponteiro ativo (eventos sintéticos) */
       }
-      const t = atrair(tempoNoPonteiro(e), e.altKey)
+      const t = tempoNoPonteiro(e)
       setFaixa({ t0: t, t1: t, y0: e.clientY, moveu: false })
     },
     onPointerMove: (e: PointerEvent<HTMLElement>) => {
       if (!faixa) return
-      setFaixa({ ...faixa, t1: atrair(tempoNoPonteiro(e), e.altKey), moveu: faixa.moveu || Math.abs(e.clientY - faixa.y0) >= ZONA_MORTA_PX })
+      setFaixa({ ...faixa, t1: tempoNoPonteiro(e), moveu: faixa.moveu || Math.abs(e.clientY - faixa.y0) >= ZONA_MORTA_PX })
     },
     onPointerUp: async () => {
       const f = faixa
@@ -386,6 +368,7 @@ export default function LinhaVertical(p: Props) {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col border-r border-line-dark bg-deeper text-cream">
+      {roteiro && <RoteiroCortes palavras={p.palavras} buscar={p.buscarBruto} fechar={() => setRoteiro(false)} />}
       <div className="shrink-0 border-b border-line-dark px-3 py-2">
         <div className="flex items-center justify-between gap-2">
           <span className="eyebrow truncate text-fog">
@@ -415,7 +398,13 @@ export default function LinhaVertical(p: Props) {
           >
             ✂ Cortar trecho
           </Chave>
-          <Chave ligado={ima} onClick={() => setIma((v) => !v)} dica="Ímã ao arrastar um limite: gruda (4 px) nas bordas de palavras e de pausas. Desligado, o limite vai exatamente onde o mouse vai. Alt desliga só enquanto arrasta.">Ímã</Chave>
+          <button
+            onClick={() => setRoteiro(true)}
+            title="O roteiro como a IA deixou: frase a frase, com o que foi cortado riscado"
+            className="flex h-7 items-center gap-1.5 rounded-full border border-line-dark px-2.5 text-fog hover:border-cream/50 hover:text-cream"
+          >
+            Roteiro
+          </button>
           <button
             onClick={p.aoRecalcular}
             title="Reaplica as margens e o limite de pausas de Configurações aos trechos, sem chamar a IA. Descarta os ajustes manuais de borda e os cortes feitos à mão."
@@ -594,7 +583,7 @@ export default function LinhaVertical(p: Props) {
                       key={a.lado}
                       className="group absolute inset-x-0 z-[16] flex h-3 -translate-y-1/2 cursor-row-resize touch-none items-center justify-center"
                       style={{ top: a.y }}
-                      title={`Arraste para ajustar este limite (${ms3(a.t)} s). Alt desliga o ímã${ajustada ? ` · a IA tinha posto ${ms3(a.auto!)}` : ''}`}
+                      title={`Arraste para ajustar este limite (${ms3(a.t)} s).${ajustada ? ` · a IA tinha posto ${ms3(a.auto!)}` : ''}`}
                       tabIndex={0}
                       data-alca
                       onKeyDown={(e) => nudge(e, a)}

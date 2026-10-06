@@ -7,6 +7,26 @@ from collections.abc import Callable
 from pathlib import Path
 
 
+def ffmpeg(*args: str) -> None:
+    """Roda o ffmpeg (sem perguntar, só erros); se falhar, o erro diz o código e o fim da mensagem."""
+    r = subprocess.run(['ffmpeg', '-v', 'error', '-y', *args], capture_output=True, text=True)
+    if r.returncode:
+        raise RuntimeError(f'ffmpeg (código {r.returncode}): {r.stderr.strip()[-400:] or "sem mensagem; o processo pode ter sido interrompido"}')
+
+
+def medidas(arq: Path) -> dict:
+    """Largura, altura e duração (0 numa imagem) de um vídeo ou imagem gerados pelo app (sem metadado de rotação)."""
+    r = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height:format=duration',
+                        '-of', 'json', str(arq)], capture_output=True, text=True, check=True)
+    d = json.loads(r.stdout)
+    s = (d.get('streams') or [{}])[0]
+    try:
+        duracao = round(float(d['format']['duration']), 3)
+    except (KeyError, ValueError):
+        duracao = 0.0
+    return {'largura': s.get('width'), 'altura': s.get('height'), 'duracao': duracao if Path(arq).suffix != '.jpg' else 0.0}
+
+
 def inspecionar(arquivo: Path) -> dict:
     """Duração e dimensões como o espectador vê (já aplicando a rotação do metadado)."""
     saida = subprocess.run(

@@ -54,7 +54,7 @@ export default function Referencias() {
   const base = useMemo(() => {
     const q = busca.trim().toLowerCase()
     return (clipes ?? []).filter(
-      (c) => (!soRevisadas || c.revisado) && (!soFavoritos || c.favorito) && (!q || [c.descricao, c.texto ?? '', c.como_gerar ?? '', c.fala, c.ref_nome].some((t) => t.toLowerCase().includes(q))),
+      (c) => (!soRevisadas || c.revisado) && (!soFavoritos || c.favorito) && (!q || [c.descricao, c.texto ?? '', c.fala, c.ref_nome].some((t) => t.toLowerCase().includes(q))),
     )
   }, [clipes, busca, soRevisadas, soFavoritos])
 
@@ -80,7 +80,7 @@ export default function Referencias() {
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar na descrição, no texto, em como gerar ou na fala"
+            placeholder="Buscar na marcação, no texto ou na fala"
             className="w-full bg-transparent text-[12px] text-cream outline-none placeholder:text-fog/70"
           />
         </label>
@@ -239,7 +239,6 @@ function Cartao({ clipe: c, nome, abrir, favoritar }: { clipe: ClipeReferencia; 
           )}
           <span className={cn('absolute top-2.5 left-2.5 rounded-full px-2 py-0.5 text-[9px] font-semibold', COR_PLANO[c.tipo])}>
             {nome}
-            {c.conteudo && ` · ${c.conteudo}`}
           </span>
           <span className="absolute right-2.5 bottom-2.5 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">{seg(dur(c))}</span>
           {c.revisado && <span className="absolute bottom-2.5 left-2.5 rounded-full bg-mint px-2 py-0.5 text-[9px] font-semibold text-ink">✓ revisado</span>}
@@ -354,7 +353,6 @@ function Player(p: {
           <div className="flex items-center gap-2">
             <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-semibold', COR_PLANO[c.tipo])}>
               {nome}
-              {c.conteudo && ` · ${c.conteudo} em cima`}
             </span>
             {c.revisado && <span className="rounded-full bg-mint px-2 py-0.5 text-[10px] font-semibold text-ink">✓ revisado</span>}
             <span className="text-[11px] text-fog tabular-nums">{p.posicao}</span>
@@ -374,14 +372,9 @@ function Player(p: {
           </div>
 
           {c.texto && <p className="text-[18px] leading-snug font-semibold">“{c.texto}”</p>}
-          <Bloco titulo="O que aparece">
+          <Bloco titulo="Marcação">
             <p className="leading-[1.7]">{c.descricao}</p>
           </Bloco>
-          {c.como_gerar && (
-            <Bloco titulo="Como gerar">
-              <p className="border-l-2 border-yellow pl-3 leading-[1.7]">{c.como_gerar}</p>
-            </Bloco>
-          )}
 
           <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-y border-line-dark py-4">
             <Dado rotulo="Duração" valor={seg(dur(c))} />

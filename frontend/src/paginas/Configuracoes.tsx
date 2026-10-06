@@ -205,7 +205,7 @@ function AbaDirecao({ config, salvar }: Contexto) {
   return (
     <>
       <Grupo
-        titulo="Modelo multimodal"
+        titulo="Modelo multimodal (Calibragem)"
         texto="Quem olha os quadros de cada trecho das referências e diz o plano, os elementos, o que aparece e a função. Qualquer modelo de visão do OpenRouter (nome como em openrouter.ai, ex.: google/gemini-3.8-flash). Trocar o modelo faz a próxima análise refazer os trechos."
       >
         <Label htmlFor="modelo-direcao">Modelo</Label>
@@ -215,6 +215,40 @@ function AbaDirecao({ config, salvar }: Contexto) {
           defaultValue={config?.modelo_direcao}
           disabled={!config}
           onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== config?.modelo_direcao && salvar({ modelo_direcao: e.target.value.trim() })}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+          className="h-11 rounded-[3px] border border-line bg-white px-3.5 font-mono text-[12px] text-ink outline-none focus-visible:border-ink"
+        />
+      </Grupo>
+      <Grupo
+        titulo="Diretora (projetos)"
+        texto="Quem lê as regras e os roteiros de exemplo e escreve o roteiro dirigido do vídeo novo. Escolhido comparando variações: Gemini 3.8 Flash com raciocínio médio. Nome do modelo como em openrouter.ai."
+      >
+        <input
+          key={config?.modelo_diretora}
+          defaultValue={config?.modelo_diretora}
+          disabled={!config}
+          aria-label="Modelo da diretora"
+          onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== config?.modelo_diretora && salvar({ modelo_diretora: e.target.value.trim() })}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+          className="h-11 rounded-[3px] border border-line bg-white px-3.5 font-mono text-[12px] text-ink outline-none focus-visible:border-ink"
+        />
+        <Opcoes
+          valor={config?.raciocinio_diretora}
+          opcoes={[['low', 'Raciocínio baixo'], ['medium', 'Médio'], ['high', 'Alto']]}
+          aoEscolher={(v) => salvar({ raciocinio_diretora: v as Config['raciocinio_diretora'] })}
+          desligado={!config}
+        />
+      </Grupo>
+      <Grupo
+        titulo="Modelo da formatadora (projetos)"
+        texto="Quem transforma o roteiro da diretora nos campos (tipo, texto, elementos, como gerar) e sugere as regras da heurística. Só texto. Nome como em openrouter.ai."
+      >
+        <input
+          key={config?.modelo_direcao_projeto}
+          defaultValue={config?.modelo_direcao_projeto}
+          disabled={!config}
+          aria-label="Modelo da proposta"
+          onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== config?.modelo_direcao_projeto && salvar({ modelo_direcao_projeto: e.target.value.trim() })}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
           className="h-11 rounded-[3px] border border-line bg-white px-3.5 font-mono text-[12px] text-ink outline-none focus-visible:border-ink"
         />

@@ -22,7 +22,9 @@ export function usePlayer(seq: Sequencia | null) {
     setPularEstado(v)
   }, [])
   /** 0,25× a 2×: devagar dá para ouvir uma emenda com calma; o tom é preservado. */
+  const velocidadeRef = useRef(1)
   const setVelocidade = useCallback((v: number) => {
+    velocidadeRef.current = v
     setVelocidadeEstado(v)
     if (ref.current) ref.current.playbackRate = v
   }, [])
@@ -35,12 +37,85 @@ export function usePlayer(seq: Sequencia | null) {
   }, [])
 
   useEffect(() => {
-    const v = ref.current
-    if (!v || !seq) return
+    if (!seq) return
     let raf = 0
+    // O <video> pode ser trocado (cada etapa tem o seu Preview): a cada quadro, segue o elemento atual.
+    let atual: HTMLVideoElement | null = null
+    const toca = () => setTocando(true)
+    const para = () => setTocando(false)
+    // Emenda precisa: conferir o tempo só a cada quadro de tela e depois saltar deixa vazar dezenas de ms do que foi
+    // cortado (o salto em si também demora). Perto do fim do trecho, agenda o salto para o instante exato (tempo
+    // extrapolado pelo relógio do sistema), silencia o vídeo nesse instante e devolve o som quando o salto termina.
+    let ultimoT = -1
+    let ultimoEm = 0
+    let agendado: { fim: number; timer: number } | null = null
+    const cancelarAgendado = () => {
+      if (agendado) clearTimeout(agendado.timer)
+      agendado = null
+    }
+    const saltarSilenciado = (v: HTMLVideoElement, destino: number | null) => {
+      const estava = v.muted
+      v.muted = true
+      if (destino == null) {
+        v.pause()
+        v.muted = estava
+        return
+      }
+      v.addEventListener('seeked', () => (v.muted = estava), { once: true })
+      v.currentTime = destino
+    }
+    const LOOKAHEAD = 0.15 // s de vídeo antes do fim do trecho em que o salto é agendado
+    const ligar = (v: HTMLVideoElement | null) => {
+      atual?.removeEventListener('play', toca)
+      atual?.removeEventListener('pause', para)
+      atual = v
+      if (!v) return
+      v.addEventListener('play', toca)
+      v.addEventListener('pause', para)
+      v.playbackRate = velocidadeRef.current
+      setTocando(!v.paused)
+    }
     const passo = () => {
+      const v = ref.current
+      if (v !== atual) ligar(v)
+      if (!v) {
+        raf = requestAnimationFrame(passo)
+        return
+      }
       const t = v.currentTime
+      const agora = performance.now()
+      if (t !== ultimoT || v.paused || v.seeking) {
+        ultimoT = t
+        ultimoEm = agora
+      }
       setBruto((b) => (Math.abs(b - t) > 0.0005 ? t : b))
+      if (v.paused || v.seeking) cancelarAgendado()
+      else if (!agendado) {
+        // onde o som está agora (o currentTime pode estar alguns ms atrasado)
+        const est = t + Math.min((agora - ultimoEm) / 1000, 0.1) * v.playbackRate
+        const trA = trechoRef.current
+        const k = seq.clipes.findIndex((c) => est >= c.inicio && est < c.fim)
+        const clipe = k >= 0 ? seq.clipes[k] : null
+        const prox = k >= 0 ? (seq.clipes[k + 1] ?? null) : null
+        const emendaReal = !!clipe && !(prox && prox.inicio - clipe.fim < 0.0005) // trechos colados não precisam de salto
+        const fimTrecho = trA && !trA.loop && trA.ate > est ? trA.ate : Infinity
+        const pulando = trA ? trA.pular : pularRef.current
+        const fim = Math.min(fimTrecho, pulando && clipe && emendaReal ? clipe.fim : Infinity)
+        if (fim - est < LOOKAHEAD) {
+          const atrasoMs = Math.max(0, ((fim - est) / v.playbackRate) * 1000)
+          agendado = {
+            fim,
+            timer: window.setTimeout(() => {
+              agendado = null
+              if (v.paused || v.seeking || Math.abs(v.currentTime - fim) > 0.3) return
+              if (fim === fimTrecho) {
+                saltarSilenciado(v, null)
+                definirTrecho(null)
+              } else saltarSilenciado(v, prox ? prox.inicio : null)
+            }, atrasoMs),
+          }
+        }
+      }
       const tr = trechoRef.current
       if (tr && !v.paused && t >= tr.ate) {
         if (tr.loop) v.currentTime = tr.de
@@ -55,7 +130,7 @@ export function usePlayer(seq: Sequencia | null) {
         // tocando e caiu num trecho cortado: salta para o próximo clipe ou para no fim.
         // Parado dentro de um corte, o vídeo fica onde está (dá para inspecionar o que saiu).
         const prox = seq.clipes.find((c) => c.inicio > t)
-        if (prox) v.currentTime = prox.inicio
+        if (prox) saltarSilenciado(v, prox.inicio)
         else {
           v.pause()
           setTempo(seq.duracao)
@@ -64,14 +139,10 @@ export function usePlayer(seq: Sequencia | null) {
       raf = requestAnimationFrame(passo)
     }
     raf = requestAnimationFrame(passo)
-    const toca = () => setTocando(true)
-    const para = () => setTocando(false)
-    v.addEventListener('play', toca)
-    v.addEventListener('pause', para)
     return () => {
       cancelAnimationFrame(raf)
-      v.removeEventListener('play', toca)
-      v.removeEventListener('pause', para)
+      cancelarAgendado()
+      ligar(null)
     }
   }, [seq, definirTrecho])
 

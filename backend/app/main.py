@@ -2,24 +2,30 @@
 import json
 import os
 import shutil
+import tempfile
+import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Literal
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import cortes, direcao, midia, mocks, motores, pipeline, projeto, referencias
+from . import calibragem, captura_site, comum, cortes, direcao, direcao_projeto, inserts, midia, mocks, motores, pipeline, projeto, referencias
 
-load_dotenv(Path(__file__).resolve().parents[1] / '.env')
+comum.carregar_env()
 
 
 @asynccontextmanager
 async def ciclo(_app):
     pipeline.retomar_interrompidos()
     direcao.retomar_interrompidas()
+    direcao_projeto.retomar_interrompidas()
+    inserts.retomar_interrompidos()
+    inserts.atualizar_proxies()
+    captura_site.retomar_interrompidas()
     yield
 
 
@@ -53,11 +59,14 @@ class Config(BaseModel):
     quadros_por_segundo: int | None = Field(default=None, ge=1, le=4)
     formato_analise: Literal['video', 'mosaico'] | None = None
     grade_mosaico: Literal['3x2', '3x1'] | None = None
-    perfil_criador: str | None = Field(default=None, max_length=1000)  # quem é o criador e do que fala: contexto para as IAs
+    perfil_criador: str | None = Field(default=None, max_length=1000)
+    modelo_direcao_projeto: str | None = Field(default=None, min_length=3, max_length=120)
+    modelo_diretora: str | None = Field(default=None, min_length=3, max_length=120)  # quem escreve o roteiro dirigido
+    raciocinio_diretora: Literal['low', 'medium', 'high'] | None = None
 
 
 def _config_completa() -> dict:
-    load_dotenv(pipeline.ENV, override=True)
+    comum.carregar_env()
     return {**projeto.ler_config(), 'motores': {
         vid: {'nome': m['nome'], 'familia': m['familia'], 'chave': (bool(os.getenv(m['chave'])) if m.get('chave') else None)}
         for vid, m in projeto.MOTORES.items()}}
@@ -225,14 +234,61 @@ def favoritar(id: str, f: Favorito):
     plano = next((i for i in itens if i['camada'] == 'plano' and abs(i['inicio'] - f.inicio) < 0.05 and abs(i['fim'] - f.fim) < 0.05), None)
     if f.favorito and plano is None:
         raise HTTPException(404, 'Trecho não encontrado nesta referência')
-    dados = {k: plano.get(k) for k in ('tipo', 'conteudo', 'descricao', 'texto', 'como_gerar')} if plano else {}
+    dados = {k: plano.get(k) for k in ('tipo', 'conteudo', 'descricao', 'texto')} if plano else {}
     referencias.marcar_favorito(id, f.inicio, f.fim, f.favorito, dados)
     return {'favorito': f.favorito}
 
 
-@app.get('/api/direcao/categorias')
-def categorias_direcao():
-    return {'planos': direcao.PLANOS, 'elementos': direcao.ELEMENTOS}
+@app.get('/api/referencias/{id}/roteiro')
+def roteiro_referencia(id: str):
+    """O roteiro dirigido de um vídeo da Calibragem: uma linha por corte de cena, com a marcação e a fala."""
+    r = _ler_referencia(id)
+    lista = calibragem.videos_da_calibragem(ref=id)
+    if not lista:
+        raise HTTPException(409, 'A análise ainda não terminou')
+    return {'referencia': r, 'linhas': calibragem.roteiro(*lista[0])}
+
+
+def _heuristica() -> dict:
+    h = calibragem.ler_heuristica()
+    return {'regras': h['regras'], 'gerado_em': h.get('gerado_em'), 'videos': h.get('videos'), 'tem_anterior': bool(h.get('anterior')),
+            'roteiros': calibragem.roteiros()}
+
+
+@app.get('/api/referencias/heuristica')
+def ler_heuristica():
+    """As regras (Markdown editável) e os roteiros de exemplo (montados da análise)."""
+    return _heuristica()
+
+
+class RegrasHeuristica(BaseModel):
+    regras: str = Field(max_length=20000)
+
+
+@app.put('/api/referencias/heuristica')
+def salvar_heuristica(h: RegrasHeuristica):
+    calibragem.salvar_heuristica({**calibragem.ler_heuristica(), 'regras': h.regras})
+    return _heuristica()
+
+
+@app.post('/api/referencias/heuristica/sugerir')
+def sugerir_regras():
+    """A IA lê os roteiros e refaz a seção "Regras sugeridas pela IA"; as regras do criador ficam como estão."""
+    try:
+        calibragem.sugerir_regras()
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    return _heuristica()
+
+
+@app.post('/api/referencias/heuristica/voltar')
+def voltar_heuristica():
+    """Desfaz a última sugestão: volta para as regras de antes."""
+    h = calibragem.ler_heuristica()
+    if not h.get('anterior'):
+        raise HTTPException(409, 'Não há versão anterior')
+    calibragem.salvar_heuristica({**h, 'regras': h['anterior'], 'anterior': h['regras']})
+    return _heuristica()
 
 
 @app.get('/api/referencias/{id}')
@@ -267,7 +323,7 @@ def revisao_referencia(id: str):
         raise HTTPException(409, 'A análise ainda não terminou')
     dados = json.loads((base / 'direcao.json').read_text())
     return {'referencia': r, 'palavras': json.loads((base / 'palavras.json').read_text())['palavras'],
-            'itens': dados['itens'], 'cortes': dados['cortes'], 'categorias': categorias_direcao()}
+            'itens': dados['itens'], 'cortes': dados['cortes'], 'categorias': {'planos': direcao.PLANOS, 'elementos': direcao.ELEMENTOS}}
 
 
 class EdicaoDirecao(BaseModel):
@@ -365,13 +421,145 @@ def editor(id: str):
     """Transcrição e V1 reais (quando prontas); V2, V3 e LEG ainda simuladas."""
     p = _ler(id)
     if 'cortes' not in p:
-        return {'projeto': p, 'palavras': [], 'timeline': {'V1': [], 'V2': [], 'V3': [], 'LEG': [], 'DIR': []}, 'duvidas': []}
+        return {'projeto': p, 'palavras': [], 'timeline': {'V1': [], 'V2': [], 'V3': [], 'LEG': []}, 'duvidas': []}
     palavras = projeto.ler_palavras(id)
     for w, fica in zip(palavras, cortes.mantidas_por_indice(palavras, p['cortes']['mantidas'])):
         w['mantida'] = fica
     silencios = json.loads((projeto.pasta(id) / 'silencios.json').read_text())['silencios']
     return {'projeto': p, 'palavras': palavras, 'silencios': silencios, 'duvidas': p['cortes']['duvidas'],
             'timeline': {'V1': p['timeline']['V1'], **mocks.trilhas(palavras, p)}}
+
+
+@app.post('/api/projetos/{id}/direcao/gerar')
+def gerar_direcao(id: str):
+    """Pede à IA a direção visual do vídeo cortado (em segundo plano; a tela acompanha `projeto.direcao.status`)."""
+    p = _ler(id)
+    if 'cortes' not in p or not p['timeline']['V1']:
+        raise HTTPException(409, 'Os cortes ainda não estão prontos')
+    if p.get('direcao', {}).get('status') == 'rodando':
+        raise HTTPException(409, 'A direção já está sendo gerada')
+    direcao_projeto.gerar(id)
+    return projeto.ler(id)
+
+
+class Correcao(BaseModel):
+    geral: str | None = Field(default=None, max_length=4000)
+
+
+@app.post('/api/projetos/{id}/direcao/corrigir')
+def corrigir_direcao(id: str, c: Correcao):
+    """Gera a próxima versão (v2, v3…) a partir da aberta: a corretora aplica os comentários dela."""
+    p = _ler(id)
+    d = p.get('direcao') or {}
+    if not d.get('versoes'):
+        raise HTTPException(409, 'A direção ainda não foi gerada')
+    if d.get('status') == 'rodando':
+        raise HTTPException(409, 'A direção já está sendo gerada')
+    try:
+        direcao_projeto.pedir_correcao(id, c.geral)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return projeto.ler(id)
+
+
+class Versao(BaseModel):
+    n: int
+
+
+@app.put('/api/projetos/{id}/direcao/versao')
+def abrir_versao_direcao(id: str, v: Versao):
+    """Abre outra versão da direção (é nela que se edita e comenta)."""
+    def abrir(p):
+        d = p.get('direcao') or {}
+        if not any(x['n'] == v.n for x in d.get('versoes', [])):
+            raise ValueError('Versão não encontrada')
+        d['ativa'] = v.n
+        projeto.espelhar_direcao(d)
+    try:
+        return projeto.atualizar(id, abrir)['direcao']
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
+class Comentario(BaseModel):
+    palavra: str
+    off: float = Field(ge=-10, le=10)
+    texto: str = Field(min_length=1, max_length=2000)
+
+
+class TextoComentario(BaseModel):
+    texto: str = Field(min_length=1, max_length=2000)
+
+
+def _na_versao_aberta(id: str, mudar) -> dict:
+    """Aplica uma mudança nos comentários da versão aberta e devolve a direção."""
+    def aplicar(p):
+        d = p.get('direcao') or {}
+        if not d.get('versoes'):
+            raise LookupError('A direção ainda não foi gerada')
+        v = projeto.versao_ativa(d)
+        v['comentarios'] = mudar(list(v.get('comentarios') or []))
+        projeto.espelhar_direcao(d)
+    try:
+        return projeto.atualizar(id, aplicar)['direcao']
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post('/api/projetos/{id}/direcao/comentarios')
+def comentar_direcao(id: str, c: Comentario):
+    if c.palavra not in {w['id'] for w in projeto.ler_palavras(id)}:
+        raise HTTPException(422, 'Comentário preso a uma palavra que não existe')
+    novo = {'id': uuid.uuid4().hex[:8], 'palavra': c.palavra, 'off': round(c.off, 3), 'texto': c.texto.strip(),
+            'criado_em': datetime.now().isoformat(timespec='seconds')}
+    return _na_versao_aberta(id, lambda cs: [*cs, novo])
+
+
+@app.put('/api/projetos/{id}/direcao/comentarios/{cid}')
+def editar_comentario_direcao(id: str, cid: str, c: TextoComentario):
+    def mudar(cs):
+        if not any(x['id'] == cid for x in cs):
+            raise LookupError('Comentário não encontrado')
+        return [{**x, 'texto': c.texto.strip()} if x['id'] == cid else x for x in cs]
+    return _na_versao_aberta(id, mudar)
+
+
+@app.delete('/api/projetos/{id}/direcao/comentarios/{cid}')
+def excluir_comentario_direcao(id: str, cid: str):
+    return _na_versao_aberta(id, lambda cs: [x for x in cs if x['id'] != cid])
+
+
+@app.get('/api/projetos/{id}/direcao/registro')
+def registro_direcao(id: str, versao: int | None = None):
+    """O prompt enviado e as respostas de uma versão (sem `versao`, a aberta; o histórico fica em projetos/<id>/direcao_log/)."""
+    p = _ler(id)
+    d = p.get('direcao') or {}
+    n = d.get('ativa') if versao is None else versao
+    nome = next((v.get('registro') for v in d.get('versoes', []) if v['n'] == n), None)
+    r = direcao_projeto.ler_registro(id, nome) if nome else direcao_projeto.ler_registro(id)
+    if r is None:
+        raise HTTPException(404, 'Nenhuma geração registrada ainda')
+    return r
+
+
+class EdicaoDirecaoProjeto(BaseModel):
+    itens: list[dict]
+
+
+@app.put('/api/projetos/{id}/direcao')
+def salvar_direcao_projeto(id: str, e: EdicaoDirecaoProjeto):
+    p = _ler(id)
+    if not (p.get('direcao') or {}).get('versoes'):
+        raise HTTPException(409, 'A direção ainda não foi gerada')
+    try:
+        itens = direcao_projeto.validar(e.itens, {w['id'] for w in projeto.ler_palavras(id)})
+    except ValueError as erro:
+        raise HTTPException(422, str(erro))
+
+    def salvar(x):  # os ajustes ficam na versão aberta
+        projeto.versao_ativa(x['direcao'])['itens'] = itens
+        projeto.espelhar_direcao(x['direcao'])
+    return projeto.atualizar(id, salvar)['direcao']
 
 
 class Mensagem(BaseModel):
@@ -499,3 +687,199 @@ def arquivo(id: str, caminho: str):
     if not alvo.is_relative_to(base) or not alvo.is_file():
         raise HTTPException(404, 'Arquivo não encontrado')
     return FileResponse(alvo)
+
+
+# ---------------------------------------------------------------- Inserts e banco (SPEC §8.3)
+
+@app.get('/api/projetos/{id}/inserts')
+def ler_inserts(id: str):
+    """Os inserts da versão aberta da direção, com as mídias ligadas (sincroniza: os que não mudaram mantêm as mídias)."""
+    _ler(id)
+    try:
+        return inserts.sincronizar(id)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+class MidiasInsert(BaseModel):
+    midias: list[dict] = Field(max_length=12)
+
+
+@app.put('/api/projetos/{id}/inserts/{pid}/midias')
+def definir_midias(id: str, pid: str, m: MidiasInsert):
+    """A lista de mídias de um insert, em ordem (item do banco e início no vídeo)."""
+    _ler(id)
+    try:
+        return inserts.definir_midias(id, pid, m.midias)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+
+
+class PreviaSite(BaseModel):
+    url: str = Field(max_length=2000)
+    proporcao: Literal['16:9', '4:3', '1:1', '9:16']
+
+
+@app.post('/api/projetos/{id}/inserts/captura/previa')
+def previa_do_site(id: str, c: PreviaSite):
+    """A página inteira numa imagem, para marcar as dobras (alguns segundos)."""
+    _ler(id)
+    try:
+        return captura_site.previa(id, c.url, c.proporcao)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    except Exception as e:
+        raise HTTPException(502, f'Não consegui abrir o site: {str(e)[:200]}')
+
+
+@app.get('/api/projetos/{id}/inserts/captura/previa/{cid}')
+def imagem_da_previa(id: str, cid: str):
+    _ler(id)
+    arq = captura_site.arquivo_previa(id, cid)
+    if not cid.isalnum() or not arq.exists():
+        raise HTTPException(404, 'Prévia não encontrada')
+    return FileResponse(arq)
+
+
+class CapturaSite(PreviaSite):
+    dobras: list[float] = Field(min_length=1, max_length=captura_site.MAX_DOBRAS)
+    titulo: str | None = Field(default=None, max_length=200)
+
+
+@app.post('/api/projetos/{id}/inserts/{pid}/captura')
+def capturar_site(id: str, pid: str, c: CapturaSite):
+    """Grava as dobras do site em segundo plano; cada uma vira uma mídia do banco ligada ao insert."""
+    _ler(id)
+    try:
+        return captura_site.capturar(id, pid, c.url, c.proporcao, c.dobras, c.titulo)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+def _subir_no_banco(arquivos: list[UploadFile]) -> list[dict]:
+    novos = []
+    for a in arquivos:
+        tmp = Path(tempfile.mkdtemp()) / 'arquivo'
+        _guardar(a, tmp)
+        try:
+            novos.append(inserts.subir(tmp, a.filename or 'arquivo'))
+        except ValueError as e:
+            raise HTTPException(422, f'{a.filename}: {e}')
+        finally:
+            shutil.rmtree(tmp.parent, ignore_errors=True)
+    return novos
+
+
+@app.get('/api/banco')
+def listar_banco(busca: str = '', tipo: Literal['video', 'imagem'] | None = None):
+    return inserts.listar_banco(busca, tipo)
+
+
+@app.post('/api/banco')
+def subir_no_banco(arquivos: Annotated[list[UploadFile], File()]):
+    """Sobe vídeos e imagens para o banco (a descrição por IA roda em segundo plano)."""
+    return _subir_no_banco(arquivos)
+
+
+def _item(bid: str) -> dict:
+    try:
+        return inserts.ler_item(bid)
+    except FileNotFoundError:
+        raise HTTPException(404, 'Mídia não encontrada')
+
+
+@app.get('/api/banco/{bid}')
+def ler_item_banco(bid: str):
+    """A mídia, onde é usada e, num vídeo original, os trechos dele (cada um com os seus usos)."""
+    item = _item(bid)
+    trechos = [] if item.get('pai') else [{**inserts.ler_item(t['id']), 'usos': inserts.usos(t['id'])} for t in inserts.trechos_de(bid)]
+    return {**item, 'usos': inserts.usos(bid), 'trechos': trechos}
+
+
+class EdicaoItem(BaseModel):
+    nome: str | None = Field(default=None, max_length=200)
+    descricao: str | None = Field(default=None, max_length=2000)
+    palavras: list[str] | None = Field(default=None, max_length=30)
+    inicio: float | None = Field(default=None, ge=0)  # só trechos
+    fim: float | None = Field(default=None, ge=0)
+
+
+@app.put('/api/banco/{bid}')
+def editar_item_banco(bid: str, e: EdicaoItem):
+    _item(bid)
+    try:
+        return inserts.atualizar_item(bid, e.model_dump(exclude_none=True))
+    except ValueError as erro:
+        raise HTTPException(422, str(erro))
+
+
+class Faixa(BaseModel):
+    inicio: float = Field(ge=0)
+    fim: float = Field(gt=0)
+    nome: str | None = Field(default=None, max_length=200)
+
+
+@app.post('/api/banco/{bid}/trechos')
+def criar_trecho(bid: str, f: Faixa):
+    """Um trecho do vídeo (sem arquivo próprio: toca o original)."""
+    _item(bid)
+    try:
+        return inserts.criar_trecho(bid, f.inicio, f.fim, f.nome)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+@app.post('/api/banco/{bid}/cortar')
+def cortar_original(bid: str, f: Faixa):
+    """Corta as pontas do vídeo original (em segundo plano); os trechos acompanham."""
+    _item(bid)
+    try:
+        return inserts.cortar_original(bid, f.inicio, f.fim)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+@app.get('/api/banco/{bid}/tira')
+def tira_do_banco(bid: str):
+    """Tira de quadros do vídeo, para a timeline do editor."""
+    item = _item(bid)
+    if item['tipo'] != 'video':
+        raise HTTPException(422, 'Só vídeos')
+    return _no_banco(inserts.tira(item))
+
+
+@app.delete('/api/banco/{bid}')
+def apagar_item_banco(bid: str):
+    """Apaga a mídia e a tira dos inserts que a usavam."""
+    _item(bid)
+    inserts.apagar_item(bid)
+    return {'ok': True}
+
+
+@app.post('/api/banco/{bid}/descrever')
+def descrever_item_banco(bid: str):
+    _item(bid)
+    try:
+        return inserts.pedir_descricao(bid)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+def _no_banco(arq: Path) -> FileResponse:
+    alvo = arq.resolve()
+    if not alvo.is_relative_to(inserts.RAIZ_BANCO.resolve()) or not alvo.is_file():
+        raise HTTPException(404, 'Arquivo não encontrado')
+    return FileResponse(alvo)
+
+
+@app.get('/api/banco/{bid}/arquivo')
+def arquivo_do_banco(bid: str):
+    """O que toca ou aparece: a versão leve do vídeo, ou a imagem original."""
+    return _no_banco(inserts.arquivo_para_tocar(_item(bid)))
+
+
+@app.get('/api/banco/{bid}/miniatura')
+def miniatura_do_banco(bid: str):
+    return _no_banco(inserts.miniatura(_item(bid)))

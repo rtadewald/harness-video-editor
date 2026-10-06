@@ -6,7 +6,7 @@ Editor de vídeo local onde a **IA faz cada etapa da edição** e você corrige 
 
 Você sobe o vídeo bruto e a IA propõe a edição, etapa por etapa: **Cortes → Inserts → Motion → Legenda**. Cada etapa tem controles manuais para corrigir o que a IA decidiu, e o render final só acontece depois que os cortes são aprovados.
 
-> **Estado atual:** a etapa de **Cortes** é real. A **Direção visual** (o que aparece na tela em cada momento) está sendo treinada: a tela **Referências** já analisa seus vídeos editados com IA multimodal e permite revisar o resultado; a proposta para vídeos novos vem depois. Inserts, Motion e Legenda são mocks. O agente de chat e o render final ainda não foram feitos.
+> **Estado atual:** as etapas de **Cortes** e **Direção visual** (o que aparece na tela em cada momento) são reais. A direção aprende com os seus vídeos editados na **Calibragem**. Inserts, Motion e Legenda são mocks. O agente de chat e o render final ainda não foram feitos.
 
 ## O que a etapa de Cortes faz
 
@@ -24,9 +24,13 @@ Você sobe o vídeo bruto e a IA propõe a edição, etapa por etapa: **Cortes �
 |---|---|
 | ![Tela de projetos](docs/img/projetos.png) | ![Configurações](docs/img/configuracoes.png) |
 
-## Referências (treino da Direção visual)
+## Calibragem e Referências (a Direção visual aprende com os seus vídeos)
 
-Na aba **Referências** da tela inicial você sobe Reels já editados (vários de uma vez). Cada um é analisado em segundo plano: o detector de cena acha os cortes, a fala é transcrita e um modelo multimodal (Gemini via OpenRouter) diz, trecho a trecho, qual **plano-base** está na tela (Full ator, Insert tela cheia, Motion tela cheia, Tela dividida) e quais **elementos** aparecem por cima (lettering, palavra ManyChat, caixinha de perguntas, print), com descrição, texto exato e a função de cada um. Você revisa numa timeline vertical e marca como revisada; as estatísticas mostram seu padrão de edição (duração típica de cada plano, onde eles entram na fala etc.).
+Na aba **Calibragem** você sobe Reels já editados (vários de uma vez). Cada um é analisado em segundo plano: o detector de cena acha os cortes, a fala é transcrita e um modelo multimodal (Gemini via OpenRouter) assiste a cada trecho e diz qual **plano-base** está na tela (Full ator, Full ator com lettering, Insert tela cheia, Motion tela cheia, Tela dividida, Comentário + insert + ator), quais **elementos** aparecem por cima, o que aparece, o texto exato e **como gerar** cada insert. Cada bloco também recebe a **função da fala** (gancho, cita ferramenta, explica conceito, CTA…). Você revisa numa timeline vertical; os **indicadores** (que fala pede que plano, o que vem depois, durações, abertura e fechamento) viram uma **heurística** editável que guia a direção dos projetos.
+
+Na aba **Referências** ficam todos os planos identificados, por categoria, para assistir um a um e favoritar.
+
+Dentro do projeto, a etapa **Direção visual** propõe o que mostrar em cada momento do vídeo cortado, seguindo as suas regras, a heurística e os exemplos.
 
 ## Como rodar
 

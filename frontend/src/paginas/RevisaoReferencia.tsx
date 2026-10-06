@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Minus, Pause, Play, Plus, Scissors, Trash2, Undo2 } from 'lucide-react'
+import { Minus, Pause, Play, Plus, Scissors, Undo2 } from 'lucide-react'
 import { abrirRevisao, marcarRevisada, reanalisarReferencia, salvarDirecao, urlArquivoReferencia, type ItemRef, type Revisao } from '@/api'
 import { Logo } from '@/components/Marca'
 import { cn } from '@/lib/utils'
 import { dividirPlano, editar, excluir, moverBorda, moverElemento, novoElemento, planosDe } from '@/referencias/edicao'
-import LinhaDirecao, { COR_ELEMENTO, COR_PLANO, type Arrasto } from '@/referencias/LinhaDirecao'
+import LinhaDirecao, { type Arrasto } from '@/referencias/LinhaDirecao'
+import { Ajuda, Botao, Detalhe, fmt } from '@/referencias/Detalhe'
 
-const fmt = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`.replace('.', ',')
 type Salvamento = 'salvo' | 'salvando' | 'pendente' | { erro: string }
 
 /** Revisão de uma referência (SPEC §8.2.1): o vídeo no centro, a timeline vertical com planos e elementos à esquerda
@@ -323,7 +323,6 @@ export default function RevisaoReferencia() {
           {noCursor && (
             <p className="text-[11px] text-fog">
               No cursor: <b className="text-cream">{nomes[noCursor.tipo]}</b>
-              {noCursor.conteudo && ` (${noCursor.conteudo} em cima)`}
             </p>
           )}
         </section>
@@ -350,170 +349,6 @@ export default function RevisaoReferencia() {
           )}
         </aside>
       </div>
-    </div>
-  )
-}
-
-function Botao({ onClick, titulo, desligado, children }: { onClick: () => void; titulo: string; desligado?: boolean; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      title={titulo}
-      disabled={desligado}
-      className="flex h-7 items-center gap-1.5 rounded-full border border-line-dark px-2.5 text-fog hover:border-cream/50 hover:text-cream disabled:opacity-40"
-    >
-      {children}
-    </button>
-  )
-}
-
-function Detalhe(p: {
-  item: ItemRef
-  refId: string
-  nomes: Record<string, string>
-  fala: string
-  editar: (c: Partial<ItemRef>) => void
-  ver: () => void
-  apagar: () => void
-  unicoPlano: boolean
-  elementos: ItemRef[]
-  nomesElementos: Record<string, string>
-  selecionar: (id: string) => void
-}) {
-  const i = p.item
-  const cor = i.camada === 'plano' ? COR_PLANO[i.tipo] : COR_ELEMENTO[i.tipo]
-  return (
-    <div className="grid gap-4 text-[12px]">
-      <div className="flex items-center gap-2">
-        <span className={cn('rounded-full px-2.5 py-1 text-[10px] font-semibold', cor)}>{p.nomes[i.tipo]}</span>
-        <span className="text-[10px] tracking-[0.1em] text-fog uppercase">{i.camada === 'plano' ? 'Plano-base' : 'Elemento'}</span>
-      </div>
-      <p className="tabular-nums">
-        {fmt(i.inicio)} → {fmt(i.fim)} · <b>{(i.fim - i.inicio).toFixed(2).replace('.', ',')} s</b>
-      </p>
-      {i.miniatura && <img src={urlArquivoReferencia(p.refId, i.miniatura)} alt="" className="max-h-[220px] w-auto self-start rounded-[4px]" />}
-      {p.fala && <p className="border-l-2 border-line-dark pl-3 leading-[1.6] text-fog">“{p.fala}”</p>}
-      {p.elementos.length > 0 && (
-        <div className="grid gap-1.5">
-          <span className="text-[10px] tracking-[0.1em] text-fog uppercase">Elementos neste plano</span>
-          <div className="flex flex-wrap gap-1.5">
-            {p.elementos.map((e) => (
-              <button
-                key={e.id}
-                onClick={() => p.selecionar(e.id)}
-                className={cn('rounded-full px-2.5 py-1 text-[10px] font-semibold hover:opacity-80', COR_ELEMENTO[e.tipo])}
-                title={`${fmt(e.inicio)} → ${fmt(e.fim)}`}
-              >
-                {e.texto ? `“${e.texto}”` : p.nomesElementos[e.tipo]}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <Campo rotulo="Tipo">
-        <select value={i.tipo} onChange={(e) => p.editar({ tipo: e.target.value })} className="h-9 rounded-[3px] border border-line-dark bg-deeper px-2.5 text-cream outline-none focus:border-cream/60">
-          {Object.entries(p.nomes).map(([k, n]) => (
-            <option key={k} value={k}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </Campo>
-      {i.tipo === 'tela_dividida' && (
-        <Campo rotulo="Em cima">
-          <div className="flex gap-1.5">
-            {(['insert', 'motion'] as const).map((c) => (
-              <button
-                key={c}
-                onClick={() => p.editar({ conteudo: c })}
-                className={cn('rounded-full px-3 py-1.5 text-[11px] font-semibold', i.conteudo === c ? 'bg-cream text-ink' : 'border border-line-dark text-fog hover:text-cream')}
-              >
-                {c === 'insert' ? 'Insert' : 'Motion'}
-              </button>
-            ))}
-          </div>
-        </Campo>
-      )}
-      {(i.camada === 'elemento' || i.tipo === 'full_ator_lettering' || i.tipo === 'comentario_insert_ator') && (
-        <Campo rotulo={i.tipo === 'comentario_insert_ator' ? 'Texto do comentário' : 'Texto exato'}>
-          <input defaultValue={i.texto ?? ''} onBlur={(e) => e.target.value !== (i.texto ?? '') && p.editar({ texto: e.target.value })} className={CAMPO} />
-        </Campo>
-      )}
-      <Campo rotulo="O que aparece">
-        <textarea defaultValue={i.descricao} rows={8} onBlur={(e) => e.target.value !== i.descricao && p.editar({ descricao: e.target.value })} className={cn(CAMPO, 'h-auto py-2')} />
-      </Campo>
-      {(i.tipo === 'insert_tela_cheia' || i.tipo === 'comentario_insert_ator' || (i.tipo === 'tela_dividida' && i.conteudo === 'insert')) && (
-        <Campo rotulo="Como gerar (receita do insert)">
-          <textarea
-            defaultValue={i.como_gerar ?? ''}
-            rows={4}
-            onBlur={(e) => e.target.value !== (i.como_gerar ?? '') && p.editar({ como_gerar: e.target.value })}
-            className={cn(CAMPO, 'h-auto py-2')}
-          />
-        </Campo>
-      )}
-
-      <div className="flex flex-wrap gap-2">
-        <button onClick={p.ver} className="flex h-8 items-center gap-1.5 rounded-full border border-line-dark px-3 text-[11px] font-semibold hover:border-cream/50">
-          <Play className="size-3 fill-current" /> Ver trecho
-        </button>
-        <button
-          onClick={p.apagar}
-          disabled={p.unicoPlano}
-          className="flex h-8 items-center gap-1.5 rounded-full border border-line-dark px-3 text-[11px] font-semibold text-fog hover:border-coral hover:text-coral disabled:opacity-40"
-          title={i.camada === 'plano' ? 'O plano some e o anterior (ou o seguinte) ocupa o lugar dele' : 'Tira o elemento'}
-        >
-          <Trash2 className="size-3" /> {i.camada === 'plano' ? 'Juntar com o vizinho' : 'Excluir'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-const CAMPO = 'h-9 w-full rounded-[3px] border border-line-dark bg-deeper px-2.5 text-[12px] text-cream outline-none focus:border-cream/60'
-
-function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
-  return (
-    <label className="grid gap-1.5">
-      <span className="text-[10px] tracking-[0.1em] text-fog uppercase">{rotulo}</span>
-      {children}
-    </label>
-  )
-}
-
-function Ajuda({ planos, elementos }: { planos: Record<string, string>; elementos: Record<string, string> }) {
-  return (
-    <div className="grid gap-5 text-[12px] leading-[1.7] text-fog">
-      <p>
-        Confira o que a IA viu em cada trecho. Clique num bloco para editar tipo, descrição, texto e função. Arraste a linha entre dois planos para mudar
-        o momento da troca e as pontas de um elemento para ajustar a duração. O ímã gruda em palavras e nos cortes de cena detectados (linhas tracejadas);
-        Alt desliga.
-      </p>
-      <div className="grid gap-1.5">
-        <p className="text-[10px] tracking-[0.1em] uppercase">Planos-base</p>
-        {Object.entries(planos).map(([k, n]) => (
-          <span key={k} className={cn('w-fit rounded-full px-2.5 py-0.5 text-[10px] font-semibold', COR_PLANO[k])}>
-            {n}
-          </span>
-        ))}
-      </div>
-      <div className="grid gap-1.5">
-        <p className="text-[10px] tracking-[0.1em] uppercase">Elementos</p>
-        {Object.entries(elementos).map(([k, n]) => (
-          <span key={k} className={cn('w-fit rounded-full px-2.5 py-0.5 text-[10px] font-semibold', COR_ELEMENTO[k])}>
-            {n}
-          </span>
-        ))}
-      </div>
-      <div className="grid gap-1 text-[11px]">
-        <p className="text-[10px] tracking-[0.1em] uppercase">Atalhos</p>
-        <p>
-          <kbd>Espaço</kbd> tocar/pausar · <kbd>←</kbd> <kbd>→</kbd> 0,1 s (Shift: 1 s) · <kbd>S</kbd> dividir plano no cursor · <kbd>E</kbd> novo elemento ·{' '}
-          <kbd>Delete</kbd> excluir · <kbd>⌘Z</kbd> desfazer
-        </p>
-      </div>
-      <p className="text-[11px]">Quando tudo estiver certo, “Marcar como revisada” põe este vídeo no dataset da Direção visual.</p>
     </div>
   )
 }

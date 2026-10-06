@@ -7,10 +7,9 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from . import projeto
+from . import comum, projeto
 
 RAIZ = Path(__file__).resolve().parents[2] / 'referencias'
-STATUS = ['na_fila', 'analisando', 'a_revisar', 'revisado', 'erro']
 _trava = threading.Lock()
 
 
@@ -103,6 +102,6 @@ def marcar_favorito(ref: str, inicio: float, fim: float, favorito: bool, dados: 
         if favorito:
             favs.append({'ref': ref, 'inicio': round(inicio, 3), 'fim': round(fim, 3), 'criado_em': datetime.now().isoformat(timespec='seconds'), **dados})
         RAIZ.mkdir(exist_ok=True)
-        _arquivo_favoritos().write_text(json.dumps(favs, ensure_ascii=False, indent=1), encoding='utf-8')
+        comum.salvar_json(_arquivo_favoritos(), favs)
         return favs
 

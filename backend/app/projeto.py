@@ -6,9 +6,11 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 
+from . import comum
+
 RAIZ = Path(__file__).resolve().parents[2] / 'projetos'
 SAIDA = {'largura': 1080, 'altura': 1920}
-ETAPAS = ['cortes', 'direcao', 'inserts', 'motion', 'legenda']
+ETAPAS = ['cortes', 'direcao', 'inserts', 'enriquecimento', 'motion', 'audio', 'legenda']
 _trava = threading.Lock()  # o pipeline roda em outra thread e também grava o projeto.json
 
 # Motores de transcrição. `familia` agrupa os que compartilham o MESMO texto (e IDs de palavra): trocar entre eles só muda
@@ -36,7 +38,8 @@ def ler_config() -> dict:
     """Preferências do app: perfil do criador, Cortes (motor, margens, pausas) e Direção visual (modelo multimodal, formato)."""
     config = {'motor_padrao': PADRAO, 'antes_do_corte_ms': 100, 'depois_do_corte_ms': 100, 'pausa_max_ms': 2000, 'respiro_ms': 800,
               'modelo_direcao': MODELO_DIRECAO, 'quadros_por_segundo': 2,
-              'formato_analise': 'video', 'grade_mosaico': '3x2', 'perfil_criador': ''}
+              'formato_analise': 'video', 'grade_mosaico': '3x2', 'perfil_criador': '',
+              'modelo_direcao_projeto': MODELO_DIRECAO, 'regras_direcao': '', 'modelo_diretora': MODELO_DIRECAO, 'raciocinio_diretora': 'medium'}
     try:
         config.update(json.loads(_arquivo_config().read_text(encoding='utf-8')))
     except (FileNotFoundError, ValueError):
@@ -48,6 +51,14 @@ def ler_config() -> dict:
     config['quadros_por_segundo'] = min(max(int(config['quadros_por_segundo']), 1), 4)
     config['modelo_direcao'] = str(config['modelo_direcao']).strip() or MODELO_DIRECAO
     config['perfil_criador'] = str(config.get('perfil_criador') or '').strip()[:1000]
+    config['modelo_direcao_projeto'] = str(config['modelo_direcao_projeto']).strip() or MODELO_DIRECAO
+    config['regras_direcao'] = str(config.get('regras_direcao') or '').strip()[:3000]  # antigo: migra para a heurística (calibragem.ler_heuristica)
+    config['modelo_diretora'] = str(config.get('modelo_diretora') or '').strip() or MODELO_DIRECAO
+    if config.get('raciocinio_diretora') not in ('low', 'medium', 'high'):
+        config['raciocinio_diretora'] = 'medium'
+    config.pop('diretora_variante', None)
+    for antiga in ('modelo_inserts', 'raciocinio_inserts', 'inserts_paralelo', 'inserts_max_capturas'):  # do agente automático, que saiu
+        config.pop(antiga, None)
     config.pop('formato_quadros', None)  # opção antiga (quadros separados), substituída por formato_analise
     if config['formato_analise'] not in ('video', 'mosaico'):
         config['formato_analise'] = 'video'
@@ -58,7 +69,7 @@ def ler_config() -> dict:
 
 def salvar_config(config: dict) -> None:
     RAIZ.mkdir(exist_ok=True)
-    _arquivo_config().write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding='utf-8')
+    comum.salvar_json(_arquivo_config(), config)
 
 
 def slug(nome: str) -> str:
@@ -93,11 +104,9 @@ def criar(id: str, nome: str, fontes: list[dict], briefing: dict, motor: str | N
         'fontes': fontes,
         'briefing': briefing,
         'enquadramento': {'x': 0.5},
-        'timeline': {'trilhas': {'V1': [], 'V2': [], 'V3': [], 'LEG': []}},
+        'timeline': {'V1': []},
         'etapas': {e: 'pendente' for e in ETAPAS},
         'chats': {e: [] for e in ETAPAS},
-        'historico': [],
-        'versoes': [],
         'pipeline': {'passos': {}, 'erro': None},
         'transcricoes': registro_de_motores(),
         'motor_inicial': motor,  # o do momento da criação: mudar a configuração depois não altera projetos existentes
@@ -134,7 +143,7 @@ def arquivo_palavras(base: Path, vid: str) -> Path:
 def escrever_palavras(base: Path, vid: str, palavras: list[dict]) -> None:
     arq = arquivo_palavras(base, vid)
     arq.parent.mkdir(exist_ok=True)
-    arq.write_text(json.dumps({'palavras': palavras}, ensure_ascii=False, indent=1), encoding='utf-8')
+    comum.salvar_json(arq, {'palavras': palavras})
 
 
 def ler_palavras(id: str, vid: str | None = None) -> list[dict]:
@@ -178,6 +187,29 @@ def ler(id: str) -> dict:
         for m in antigas:
             m['autor'] = 'criador'
         salvar(p)
+    if 'direcoes' in p:  # houve um teste com 4 variações da diretora; ficou a (a), Flash com raciocínio médio
+        escolhida = p['direcoes'].get('a') or p.get('direcao') or {}
+        p['direcao'] = escolhida
+        p.pop('direcoes')
+        p.pop('direcao_variante', None)
+        salvar(p)
+    d = p.get('direcao')
+    if d and d.get('itens') is not None and 'versoes' not in d:  # direção de antes das versões vira a v1
+        d['versoes'] = [{'n': 1, 'origem': None, 'comentarios': [], 'geral': None,
+                         **{k: d[k] for k in CAMPOS_VERSAO if k in d and k not in ('n', 'origem', 'comentarios', 'geral')}}]
+        d['ativa'] = 1
+        espelhar_direcao(d)
+        salvar(p)
+    if d and d.get('versoes') and min(v['n'] for v in d['versoes']) == 0:  # numeração começava em v0; agora a primeira é a v1
+        for v in d['versoes']:
+            v['n'] += 1
+            if v.get('origem') is not None:
+                v['origem'] += 1
+        d['ativa'] = (d.get('ativa') or 0) + 1
+        if (d.get('pedido') or {}).get('de') is not None:
+            d['pedido']['de'] += 1
+        espelhar_direcao(d)
+        salvar(p)
     if any(e not in p['etapas'] for e in ETAPAS):  # etapa criada depois do projeto (ex.: Direção visual)
         p['etapas'] = {e: p['etapas'].get(e, 'pendente') for e in ETAPAS}
         p['chats'] = {e: p['chats'].get(e, []) for e in ETAPAS}
@@ -204,6 +236,22 @@ def ativar_variante(p: dict, vid: str) -> bool:
             p['timeline']['V1'], p['etapas']['cortes'], precisa = [], 'pendente', True
     p['transcricao_ativa'] = vid
     return precisa
+
+
+# Versões da direção visual (SPEC §8.2.2): v1 = diretora + formatadora; v2, v3… = corretora sobre uma versão + comentários.
+# `direcao.versoes` guarda todas; os campos da versão aberta (`direcao.ativa`) ficam espelhados no topo de `direcao`.
+CAMPOS_VERSAO = ('n', 'origem', 'itens', 'itens_ia', 'roteiro', 'modelo', 'exemplos', 'tokens', 'gerado_em', 'segundos', 'registro',
+                 'comentarios', 'geral')
+
+
+def versao_ativa(d: dict) -> dict:
+    return next(v for v in d['versoes'] if v['n'] == d['ativa'])
+
+
+def espelhar_direcao(d: dict) -> dict:
+    v = versao_ativa(d)
+    d.update({k: v.get(k) for k in CAMPOS_VERSAO})
+    return d
 
 
 def listar() -> list[dict]:

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { History, Pencil, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
-import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, motoresRodando, recalcularCortes, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Mensagem, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
+import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, gerarDirecao, motoresRodando, recalcularCortes, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Mensagem, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
 import { Logo } from '@/components/Marca'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import Chat from '@/editor/Chat'
+import EtapaDirecao from '@/editor/EtapaDirecao'
+import EtapaInserts from '@/editor/EtapaInserts'
 import { ETAPAS } from '@/editor/etapas'
 import { calcularCortes, trechoDaEmenda, type Corte, type Selecao } from '@/editor/cortes'
 import LinhaVertical from '@/editor/LinhaVertical'
@@ -155,6 +157,11 @@ export default function Editor() {
   }, [player, etapa, cortes, ouvirEmenda])
 
   const vertical = etapa === 'cortes'
+  const direcaoReal = etapa === 'direcao'
+  const insertsReal = etapa === 'inserts'
+  useEffect(() => {
+    if ((direcaoReal || insertsReal) && !player.pular) player.setPular(true) // direção e inserts são sempre sobre o vídeo cortado
+  }, [direcaoReal, insertsReal, player])
 
   if (erro) return <p className="p-12 text-destructive">{erro}</p>
   if (!dados || !seq) return <div className="h-svh bg-deep" />
@@ -170,6 +177,17 @@ export default function Editor() {
     const n = timeline.V1.filter((c) => c.auto).length
     if (n && !window.confirm(`Refazer os cortes com a IA descarta ${n} trecho(s) com ajuste manual. Continuar?`)) return
     void refazerCortes(projeto.id).then((p) => setDados({ ...dados, projeto: p })).catch((e) => window.alert((e as Error).message))
+  }
+  const dirStatus = projeto.direcao?.status
+  const refazerDirecao = () => {
+    const d = projeto.direcao
+    const versoes = d?.versoes ?? []
+    const comentarios = versoes.reduce((n, v) => n + (v.comentarios?.length ?? 0), 0)
+    const aviso =
+      `Gerar a direção do zero APAGA todas as versões (${versoes.map((v) => `v${v.n}`).join(', ') || 'v1'})` +
+      `${comentarios ? `, os ${comentarios} comentário(s)` : ''} e os seus ajustes, e começa de novo na v1. Continuar?`
+    if (!window.confirm(aviso)) return
+    void gerarDirecao(projeto.id).then((p) => setDados({ ...dados, projeto: p })).catch((e) => window.alert((e as Error).message))
   }
   const receber = (novas: Mensagem[]) =>
     setDados({ ...dados, projeto: { ...projeto, chats: { ...projeto.chats, [etapa]: [...projeto.chats[etapa], ...novas] } } })
@@ -201,8 +219,19 @@ export default function Editor() {
               {rodando ? 'Refazendo…' : 'Refazer cortes com IA'}
             </button>
           )}
+          {direcaoReal && projeto.direcao?.itens && (
+            <button
+              onClick={refazerDirecao}
+              disabled={dirStatus === 'rodando'}
+              title="Gera a direção do zero (nova v1), a partir dos exemplos da Calibragem. Apaga as versões e os comentários."
+              className="ml-2 flex h-8 items-center gap-2 rounded-full border border-yellow/70 bg-yellow/10 px-3.5 text-[11px] font-semibold text-yellow transition-colors hover:bg-yellow hover:text-ink disabled:opacity-60"
+            >
+              <RotateCcw className={cn('size-3.5', dirStatus === 'rodando' && 'animate-[otto-spin_1s_linear_infinite] [animation-direction:reverse]')} />
+              {dirStatus === 'rodando' ? 'Gerando…' : 'Refazer direção do zero'}
+            </button>
+          )}
         </div>
-        <span className="rounded-full bg-yellow px-3 py-1 text-[9px] font-semibold tracking-[0.12em] text-ink">DIREÇÃO · INSERTS · MOTION · LEGENDA SIMULADOS</span>
+        <span className="rounded-full bg-yellow px-3 py-1 text-[9px] font-semibold tracking-[0.12em] text-ink">ENRIQUECIMENTO · MOTION · ÁUDIO · LEGENDA SIMULADOS</span>
         <Button variant="coral" size="sm" disabled title="Exportação chega na fase 4" className="h-9 gap-6 px-4">
           Exportar <span className="seta">↗</span>
         </Button>
@@ -216,7 +245,11 @@ export default function Editor() {
         style={{
           gridTemplateColumns: vertical
             ? 'clamp(170px,13vw,200px) clamp(460px,46vw,820px) minmax(0,1fr)'
-            : 'clamp(170px,14vw,210px) minmax(0,1fr) clamp(290px,25vw,380px)',
+            : direcaoReal
+              ? 'clamp(170px,13vw,200px) minmax(440px,560px) minmax(0,1fr) minmax(320px,380px)'
+              : insertsReal
+                ? 'clamp(170px,13vw,200px) minmax(360px,440px) minmax(0,1fr) minmax(340px,420px)'
+              : 'clamp(170px,14vw,210px) minmax(0,1fr) clamp(290px,25vw,380px)',
         }}
       >
         <nav className="flex min-h-0 flex-col gap-1 border-r border-line-dark px-3 py-6">
@@ -281,7 +314,18 @@ export default function Editor() {
           />
         )}
 
-        {vertical ? (
+        {insertsReal ? (
+          <EtapaInserts dados={dados} seq={seq} player={player} src={urlArquivo(projeto.id, bruto.proxy ?? bruto.arquivo)} enquadramentoX={projeto.enquadramento.x} />
+        ) : direcaoReal ? (
+          <EtapaDirecao
+            dados={dados}
+            seq={seq}
+            player={player}
+            src={urlArquivo(projeto.id, bruto.proxy ?? bruto.arquivo)}
+            enquadramentoX={projeto.enquadramento.x}
+            aoMudarProjeto={(p) => setDados((d) => d && { ...d, projeto: p })}
+          />
+        ) : vertical ? (
           <div className="grid min-h-0 min-w-0 grid-cols-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden">
             <div className="min-h-0 px-6 pt-6 pb-3">
               <Preview
@@ -337,7 +381,7 @@ export default function Editor() {
         </div>
         )}
 
-        {!vertical && (
+        {!vertical && !direcaoReal && !insertsReal && (
           <div className="min-h-0 border-l border-line-dark">
             <Chat projetoId={projeto.id} etapa={etapa} mensagens={projeto.chats[etapa]} aoReceber={receber} />
           </div>

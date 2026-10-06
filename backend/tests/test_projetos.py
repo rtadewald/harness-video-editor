@@ -8,7 +8,16 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from app import cortes, direcao, main, midia, motores, pipeline, projeto, referencias, transcricao
+from app import calibragem, comum, cortes, direcao, direcao_projeto, inserts, main, midia, motores, pipeline, projeto, referencias, transcricao
+
+
+@pytest.fixture(autouse=True)
+def _nada_real(tmp_path, monkeypatch):
+    """Todo teste usa pastas temporárias: nenhum teste lê ou grava projetos, referências ou configurações de verdade."""
+    monkeypatch.setattr(projeto, 'RAIZ', tmp_path / 'projetos')
+    monkeypatch.setattr(referencias, 'RAIZ', tmp_path / 'referencias')
+    monkeypatch.setattr(inserts, 'RAIZ_BANCO', tmp_path / 'banco')
+    monkeypatch.setattr(comum, 'carregar_env', lambda: None)  # nenhum teste lê o .env de verdade (chaves de API)
 
 
 @pytest.fixture
@@ -17,8 +26,6 @@ def enfileirados(tmp_path, monkeypatch):
     monkeypatch.setattr(referencias, 'RAIZ', tmp_path / 'referencias')
     monkeypatch.setattr(direcao, 'enfileirar', lambda id: chamadas.append(('referencia', id)))
     # isolamento total: nenhum teste lê o .env de verdade nem chama serviço pago (ElevenLabs, OpenRouter)
-    monkeypatch.setattr(pipeline, 'load_dotenv', lambda *a, **k: None)
-    monkeypatch.setattr(main, 'load_dotenv', lambda *a, **k: None)
     for chave in ('ELEVENLABS_API_KEY', 'OPENROUTER_API_KEY'):
         monkeypatch.delenv(chave, raising=False)
     projeto.salvar_config({'motor_padrao': 'whisper-stable'})  # o padrão de fábrica é o ElevenLabs; os testes partem do Whisper
@@ -387,7 +394,6 @@ def test_transcricao_de_outro_motor_so_quando_pronta(cliente, video, monkeypatch
 def test_motores_extras_gravam_o_resultado_e_isolam_falhas(cliente, video, monkeypatch):
     _processado(cliente, video, monkeypatch)
     monkeypatch.delenv('ELEVENLABS_API_KEY', raising=False)
-    monkeypatch.setattr(pipeline, 'load_dotenv', lambda *a, **k: None)
 
     def falso(vid, audio, whisper, silencios):
         if vid == 'whisper-ctc':
@@ -750,23 +756,6 @@ def _trecho(a, b, planos, elementos=(), continua=False):
             'elementos': [{'tipo': t, 'inicio': i, 'fim': f, 'texto': x, 'descricao': 'd'} for t, i, f, x in elementos]}
 
 
-def test_montar_junta_jump_cuts_e_continuacoes_mas_nao_inserts_novos():
-    itens = direcao.montar([
-        _trecho(0, 2, [('full_ator', None, 'Ator')]),
-        _trecho(2, 4, [('full_ator', None, 'Ator de novo')]),  # jump cut: junta
-        _trecho(4, 6, [('tela_dividida', 'insert', 'GitHub')]),
-        _trecho(6, 7, [('tela_dividida', 'insert', 'GitHub com zoom')], continua=True),  # mesmo conteúdo: junta
-        _trecho(7, 9, [('tela_dividida', 'insert', 'Claude')]),  # conteúdo novo: grupo novo
-        _trecho(9, 10, [('insert_tela_cheia', None, 'Wikipedia')], [('lettering', 9.2, 9.9, 'Humano'), ('lettering', 8.0, 8.5, 'fora')]),
-    ], 10.0)
-    planos = [(i['tipo'], i['inicio'], i['fim'], i['descricao']) for i in itens if i['camada'] == 'plano']
-    assert planos == [('full_ator', 0, 4, 'Ator'), ('tela_dividida', 4, 7, 'GitHub Depois: GitHub com zoom'), ('tela_dividida', 7, 9, 'Claude'),
-                      ('insert_tela_cheia', 9, 10.0, 'Wikipedia')]
-    els = [i for i in itens if i['camada'] == 'elemento']
-    assert [(e['id'], e['texto'], e['inicio'], e['fim']) for e in els] == [('e1', 'Humano', 9.2, 9.9)]  # o de fora do trecho sai
-    assert [i['id'] for i in itens if i['camada'] == 'plano'] == ['p1', 'p2', 'p3', 'p4']
-
-
 def test_montar_aceita_troca_de_plano_dentro_do_trecho():
     t = _trecho(0, 6, [('full_ator', None, 'a'), ('insert_tela_cheia', None, 'b')])
     t['planos'][0]['fim'], t['planos'][1]['inicio'] = 2.5, 2.5
@@ -779,7 +768,7 @@ def test_validar_edicao_exige_planos_contiguos_e_categorias_fixas():
     ok = direcao.validar_edicao([p('p2', 3, 10, 'tela_dividida'), p('p1', 0, 3),
                                  {'id': 'e1', 'camada': 'elemento', 'tipo': 'lettering', 'inicio': 1, 'fim': 2, 'texto': ' Oi '}], 10)
     assert [(i['id'], i['inicio'], i['fim']) for i in ok] == [('p1', 0, 3), ('p2', 3, 10), ('e1', 1, 2)]
-    assert ok[1]['conteudo'] == 'insert' and ok[2]['texto'] == 'Oi'
+    assert ok[1]['tipo'] == 'tela_dividida_insert' and ok[1]['conteudo'] is None and ok[2]['texto'] == 'Oi'  # o formato antigo vira o tipo novo
     for ruim, motivo in [([p('p1', 0, 3), p('p2', 4, 10)], 'Buraco'), ([p('p1', 0, 9)], 'cobrir'),
                          ([p('p1', 0, 10, 'zoom')], 'Categoria'), ([p('p1', 0, 5), p('p1', 5, 10)], 'repetido'),
                          ([{'id': 'e1', 'camada': 'elemento', 'tipo': 'lettering', 'inicio': 1, 'fim': 2}], 'plano-base')]:
@@ -836,18 +825,6 @@ def test_tempos_do_clipe_viram_tempos_do_video_inteiro():
     assert direcao._no_video_inteiro(resp(0.0, 1.0), 0.0, 1.0)['planos'][0] == {'inicio': 0.0, 'fim': 1.0}
 
 
-def test_planos_com_texto_guardam_o_texto_e_so_juntam_se_for_o_mesmo():
-    def t(a, b, tipo, texto, continua=False):
-        return {'inicio': a, 'fim': b, 'continua_anterior': continua, 'elementos': [],
-                'planos': [{'tipo': tipo, 'conteudo_em_cima': None, 'texto': texto, 'inicio': a, 'fim': b, 'descricao': 'd'}]}
-    itens = direcao.montar([t(0, 2, 'full_ator', 'ignorado'), t(2, 3, 'full_ator_lettering', 'Humano'),
-                            t(3, 4, 'full_ator_lettering', 'Humano', True), t(4, 5, 'full_ator_lettering', 'Outro', True),
-                            t(5, 8, 'comentario_insert_ator', 'Como saber se o app é seguro?')], 8)
-    assert [(i['tipo'], i['inicio'], i['fim'], i['texto']) for i in itens] == [
-        ('full_ator', 0, 2, None), ('full_ator_lettering', 2, 4, 'Humano'), ('full_ator_lettering', 4, 5, 'Outro'),
-        ('comentario_insert_ator', 5, 8, 'Como saber se o app é seguro?')]
-
-
 def test_clipes_trazem_posicao_entrada_vizinhos_e_elementos():
     w = lambda id, t, a, b: {'id': id, 'texto': t, 'inicio': a, 'fim': b}  # noqa: E731
     fala = [w('w0', 'Olha', 0.0, 0.4), w('w1', 'isso.', 0.45, 0.9), w('w2', 'Agora', 1.5, 1.9), w('w3', 'vai', 1.92, 2.2)]
@@ -864,13 +841,440 @@ def test_clipes_trazem_posicao_entrada_vizinhos_e_elementos():
     assert resumo['proporcao'] == {'full_ator': 0.35, 'insert_tela_cheia': 0.65}
 
 
-def test_como_gerar_so_fica_em_planos_com_insert():
-    def t(a, b, tipo, conteudo, receita):
+def test_etapa_inserts_reescreve_a_marcacao_e_tira_os_campos_antigos(tmp_path, monkeypatch):
+    def t(a, b, tipo, conteudo):
         return {'inicio': a, 'fim': b, 'continua_anterior': False, 'elementos': [],
-                'planos': [{'tipo': tipo, 'conteudo_em_cima': conteudo, 'texto': None, 'inicio': a, 'fim': b, 'descricao': 'd', 'como_gerar': receita}]}
-    itens = direcao.montar([t(0, 1, 'full_ator', None, 'não'), t(1, 2, 'insert_tela_cheia', None, 'Gravar com browser use'),
-                            t(2, 3, 'tela_dividida', 'motion', 'não'), t(3, 4, 'tela_dividida', 'insert', 'Print e zoom')], 4)
-    assert [i['como_gerar'] for i in itens] == [None, 'Gravar com browser use', None, 'Print e zoom']
-    ok = direcao.validar_edicao([{'id': 'p1', 'camada': 'plano', 'tipo': 'insert_tela_cheia', 'inicio': 0, 'fim': 2, 'como_gerar': ' x '},
-                                 {'id': 'p2', 'camada': 'plano', 'tipo': 'full_ator', 'inicio': 2, 'fim': 4, 'como_gerar': 'y'}], 4)
-    assert [i['como_gerar'] for i in ok] == ['x', None]
+                'planos': [{'tipo': tipo, 'conteudo_em_cima': conteudo, 'texto': None, 'inicio': a, 'fim': b, 'descricao': 'd', 'como_gerar': 'x'}]}
+    itens = direcao.montar([t(0, 1, 'full_ator', None), t(1, 2, 'insert_tela_cheia', None), t(2, 3, 'tela_dividida', 'insert')], 3)
+    assert not any('como_gerar' in i for i in itens)
+    ok = direcao.validar_edicao([{'id': 'p1', 'camada': 'plano', 'tipo': 'insert_tela_cheia', 'inicio': 0, 'fim': 3, 'como_gerar': 'x',
+                                  'insert': {'narrativa': 'n'}, 'descricao': ' o site '}], 3)
+    assert ok[0]['descricao'] == 'o site' and 'como_gerar' not in ok[0] and 'insert' not in ok[0]
+    # a etapa assiste cada plano com insert e põe o que acontece nele na marcação; os campos antigos saem
+    planos = [{'id': 'p1', 'camada': 'plano', 'tipo': 'full_ator', 'conteudo': None, 'inicio': 0, 'fim': 1, 'descricao': 'ator'},
+              {'id': 'p2', 'camada': 'plano', 'tipo': 'tela_dividida_insert', 'conteudo': None, 'inicio': 1, 'fim': 3, 'descricao': 'tela dividida, autor embaixo',
+               'como_gerar': 'gravar', 'captura': {}, 'insert': {'narrativa': 'n', 'midias': []}}]
+    comum.salvar_json(tmp_path / 'direcao.json', {'itens': planos})
+    monkeypatch.setattr(direcao, 'analisar_insert', lambda base, b, config: f"o GitHub entra e dá zoom ({b['id']})")
+    assert direcao._inserts('ref', tmp_path) == {'blocos': 1}
+    p1, p2 = comum.ler_json(tmp_path / 'direcao.json')['itens']
+    assert p1['descricao'] == 'ator' and p2['descricao'] == 'o GitHub entra e dá zoom (p2)'
+    assert not {'como_gerar', 'captura', 'insert'} & set(p2)
+    assert calibragem.marcacao(p2, []) == '[Tela dividida · insert: o GitHub entra e dá zoom (p2)]'
+
+
+def _w(id, t, a, b):
+    return {'id': id, 'texto': t, 'inicio': a, 'fim': b}
+
+
+def test_palavras_na_saida_seguem_a_v1():
+    palavras = [_w('w0', 'a', 0.0, 0.5), _w('w1', 'b', 1.0, 1.4), _w('w2', 'c', 3.0, 3.5)]
+    clipes = [{'inicio': 2.8, 'fim': 3.6}, {'inicio': 0.0, 'fim': 0.6}]  # fora de ordem de propósito
+    s = direcao_projeto.palavras_na_saida(palavras, clipes)
+    assert [(w['id'], w['saida_ini'], w['saida_fim']) for w in s] == [('w0', 0.0, 0.5), ('w2', 0.8, 1.3)]
+    assert direcao_projeto.duracao_saida(clipes) == 1.4
+
+
+def test_montar_direcao_cobre_tudo_e_poe_a_troca_na_pausa():
+    saida = [{'id': f'w{k}', 'texto': str(k), 'saida_ini': ini, 'saida_fim': ini + 0.3} for k, ini in enumerate([0.1, 0.5, 1.5, 1.9, 2.3])]
+    resp = {'planos': [  # o primeiro não começa na primeira palavra e há um ID que não existe: o código corrige
+        {'tipo': 'tela_dividida_insert', 'palavra_ini': 'w1', 'palavra_fim': 'w1', 'texto': 'x', 'descricao': 'd'},
+        {'tipo': 'full_ator', 'conteudo_em_cima': None, 'palavra_ini': 'w2', 'palavra_fim': 'w4', 'texto': None, 'descricao': 'f'},
+        {'tipo': 'insert_tela_cheia', 'conteudo_em_cima': None, 'palavra_ini': 'w99', 'palavra_fim': 'w99', 'texto': None, 'descricao': 'z'}],
+        'elementos': [{'tipo': 'lettering', 'palavra_ini': 'w3', 'palavra_fim': 'w2', 'texto': 'Oi', 'descricao': 'e'}]}
+    itens = direcao_projeto.montar(resp, saida)
+    p1, p2, e1 = itens
+    assert (p1['palavra_ini'], p1['palavra_fim'], p1['off_ini'], p1['conteudo'], p1['texto']) == ('w0', 'w1', -0.1, None, None)
+    assert (p2['palavra_ini'], p2['palavra_fim'], p2['off_ini']) == ('w2', 'w4', -0.08)  # pausa de 0,7 s: entra 80 ms antes
+    assert (e1['palavra_ini'], e1['palavra_fim'], e1['off_ini'], e1['off_fim']) == ('w2', 'w3', -0.05, 0.05)
+
+
+def test_validar_direcao_do_projeto():
+    ok = direcao_projeto.validar([{'id': 'p1', 'camada': 'plano', 'tipo': 'full_ator_lettering', 'palavra_ini': 'w0', 'palavra_fim': 'w1',
+                                   'off_ini': -99, 'texto': ' Oi ', 'como_gerar': 'x'}], {'w0', 'w1'})
+    assert (ok[0]['off_ini'], ok[0]['texto'], 'como_gerar' in ok[0]) == (-10.0, 'Oi', False)
+    for ruim, motivo in [([{'id': 'p1', 'camada': 'plano', 'tipo': 'zoom', 'palavra_ini': 'w0', 'palavra_fim': 'w0'}], 'Categoria'),
+                         ([{'id': 'p1', 'camada': 'plano', 'tipo': 'full_ator', 'palavra_ini': 'w9', 'palavra_fim': 'w0'}], 'não existe'),
+                         ([{'id': 'e1', 'camada': 'elemento', 'tipo': 'lettering', 'palavra_ini': 'w0', 'palavra_fim': 'w0'}], 'plano-base')]:
+        with pytest.raises(ValueError, match=motivo):
+            direcao_projeto.validar(ruim, {'w0', 'w1'})
+
+
+def test_rotas_da_direcao_do_projeto(cliente, video, monkeypatch):
+    id = _criar(cliente, video)['id']
+    assert cliente.post(f'/api/projetos/{id}/direcao/gerar').status_code == 409  # sem cortes
+    pedidos = []
+    monkeypatch.setattr(direcao_projeto, 'gerar', lambda i: pedidos.append(i))
+    projeto.atualizar(id, lambda p: p.update(cortes={'mantidas': [], 'duvidas': []}) or p['timeline'].update(V1=[{'id': 'c1', 'inicio': 0, 'fim': 1}]))
+    assert cliente.post(f'/api/projetos/{id}/direcao/gerar').status_code == 200 and pedidos == [id]
+    assert cliente.put(f'/api/projetos/{id}/direcao', json={'itens': []}).status_code == 409  # ainda não gerada
+    projeto.escrever_palavras(projeto.pasta(id), projeto.ler(id)['transcricao_ativa'], [_w('w0', 'oi', 0, 0.5)])
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': []}))
+    item = {'id': 'p1', 'camada': 'plano', 'tipo': 'full_ator', 'palavra_ini': 'w0', 'palavra_fim': 'w0'}
+    r = cliente.put(f'/api/projetos/{id}/direcao', json={'itens': [item]})
+    assert r.status_code == 200, r.text
+    assert projeto.ler(id)['direcao']['itens'][0]['tipo'] == 'full_ator'
+    assert cliente.put(f'/api/projetos/{id}/direcao', json={'itens': [{**item, 'tipo': 'zoom'}]}).status_code == 422
+
+
+def _plano(id, tipo, a, b, funcao=None, conteudo=None):
+    return {'id': id, 'camada': 'plano', 'tipo': tipo, 'conteudo': conteudo, 'inicio': a, 'fim': b, 'funcao_fala': funcao}
+
+
+def test_montar_so_junta_os_jump_cuts_do_ator():
+    itens = direcao.montar([
+        _trecho(0, 2, [('full_ator', None, 'Ator')]),
+        _trecho(2, 4, [('full_ator', None, 'Ator de novo')]),  # jump cut: junta
+        _trecho(4, 6, [('tela_dividida', 'insert', 'GitHub')]),
+        _trecho(6, 7, [('tela_dividida', 'insert', 'GitHub com zoom')], continua=True),  # cada corte de cena é uma linha do roteiro
+        _trecho(7, 10, [('insert_tela_cheia', None, 'Wikipedia')], [('lettering', 8.2, 8.9, 'Humano'), ('lettering', 5.0, 5.5, 'fora')]),
+    ], 10.0)
+    planos = [(i['tipo'], i['inicio'], i['fim'], i['descricao']) for i in itens if i['camada'] == 'plano']
+    assert planos == [('full_ator', 0, 4, 'Ator'), ('tela_dividida_insert', 4, 6, 'GitHub'), ('tela_dividida_insert', 6, 7, 'GitHub com zoom'),
+                      ('insert_tela_cheia', 7, 10.0, 'Wikipedia')]
+    assert [(e['texto'], e['inicio']) for e in itens if e['camada'] == 'elemento'] == [('Humano', 8.2)]
+
+
+def test_roteiro_dirigido_de_um_video():
+    ref = {'id': 'r', 'nome': 'R', 'status': 'a_revisar', 'video': {'duracao': 6.0}}
+    base = referencias.RAIZ / 'r'
+    base.mkdir(parents=True)
+    (base / 'referencia.json').write_text(json.dumps(ref))
+    (base / 'palavras.json').write_text(json.dumps({'palavras': [_w('w0', 'Por', 0.1, 0.4), _w('w1', 'onde?', 0.5, 0.9), _w('w2', 'Cara,', 2.2, 2.6)]}))
+    itens = [{**_plano('p1', 'comentario_insert_ator', 0, 2), 'descricao': 'pergunta do seguidor sobre um print do YouTube', 'texto': 'Por onde?'},
+             {**_plano('p2', 'full_ator', 2, 6), 'descricao': 'ele olhando para a câmera'},
+             {'id': 'e1', 'camada': 'elemento', 'tipo': 'lettering', 'inicio': 2.1, 'fim': 2.7, 'texto': 'CARA'}]
+    linhas = calibragem.roteiro(ref, itens)
+    assert [l['marcacao'] for l in linhas] == ['[Comentário + insert + ator: pergunta do seguidor sobre um print do YouTube «Por onde?»]',
+                                               '[Full ator: ele olhando para a câmera]']  # o lettering vai na fala
+    assert [l['fala'] for l in linhas] == ['Por onde?', '<lettering>Cara,</lettering>']
+    texto = calibragem.roteiro_em_texto('R', linhas)
+    assert texto.startswith('### R\n\n[Comentário + insert + ator:') and '\n“Por onde?”\n\n[Full ator' in texto
+
+
+def test_heuristica_migra_e_fica_so_com_as_regras(cliente):
+    projeto.salvar_config({**projeto.ler_config(), 'regras_direcao': '1. Não comece com o ator.\n- Comentário primeiro'})
+    h = calibragem.ler_heuristica()
+    assert calibragem.secao(h['regras'], calibragem.SECAO_CRIADOR) == '- Não comece com o ator.\n- Comentário primeiro'
+    calibragem.salvar_heuristica({'markdown': '# H\n\n## Regras do criador\n- minha\n\n## Regras gerais sugeridas\n- da ia\n\n## Que fala pede que visual\n### Quando…'})
+    h = calibragem.ler_heuristica()
+    assert calibragem.secao(h['regras'], calibragem.SECAO_CRIADOR) == '- minha'
+    assert calibragem.secao(h['regras'], calibragem.SECAO_IA) == '- da ia' and 'Que fala' not in h['regras']
+    calibragem.salvar_heuristica({'regras': [{'texto': 'sua', 'origem': 'criador'}, {'texto': 'ia', 'origem': 'ia'}], 'padroes': []})
+    assert calibragem.secao(calibragem.ler_heuristica()['regras'], calibragem.SECAO_IA) == '- ia'
+
+
+def test_rotas_da_heuristica(cliente):
+    h = cliente.get('/api/referencias/heuristica').json()
+    assert h['regras'].startswith('## Regras do criador') and h['roteiros'] == []
+    assert cliente.post('/api/referencias/heuristica/sugerir').status_code == 409  # sem referências
+    assert cliente.post('/api/referencias/heuristica/voltar').status_code == 409
+    h = cliente.put('/api/referencias/heuristica', json={'regras': '## Regras do criador\n- abrir com tela dividida\n'}).json()
+    assert 'abrir com tela dividida' in h['regras']
+    assert cliente.get('/api/referencias/nao-existe/roteiro').status_code == 404
+
+
+def test_sugerir_regras_mantem_as_do_criador(cliente, monkeypatch):
+    calibragem.salvar_heuristica({'regras': '## Regras do criador\n- minha regra\n\n## Regras sugeridas pela IA\n- velha\n'})
+    monkeypatch.setattr(calibragem, 'roteiros', lambda *a: [{'ref': 'v', 'nome': 'V', 'revisado': False,
+                                                            'linhas': [{'marcacao': '[Full ator: ele]', 'fala': 'oi'}]}])
+    pedidos = []
+
+    class Falso:
+        def __init__(self, **k): pass
+        def with_structured_output(self, *a, **k): return self
+        def invoke(self, msgs):
+            pedidos.append(msgs[1][1])
+            return calibragem.Regras(regras=['Abra mostrando algo.', ' '], inserts=['Use imagem para tabelas.'])
+    import langchain_openrouter
+    monkeypatch.setattr(langchain_openrouter, 'ChatOpenRouter', Falso)
+    h = cliente.post('/api/referencias/heuristica/sugerir').json()
+    assert calibragem.secao(h['regras'], calibragem.SECAO_CRIADOR) == '- minha regra'
+    assert calibragem.secao(h['regras'], calibragem.SECAO_IA) == '- Abra mostrando algo.\n\n### Inserts\n- Use imagem para tabelas.'
+    assert 'minha regra' in pedidos[0] and '[Full ator: ele]' in pedidos[0]
+    volta = cliente.post('/api/referencias/heuristica/voltar').json()
+    assert '- velha' in volta['regras']
+    doc = calibragem.documento(calibragem.ler_heuristica(), [{'ref': 'v', 'nome': 'V', 'linhas': [{'marcacao': '[Full ator: ele]', 'fala': 'oi'}]}])
+    assert '## Roteiros de exemplo' in doc and '### V\n\n[Full ator: ele]\n“oi”' in doc
+
+
+def test_registro_do_diretor(cliente, video):
+    id = _criar(cliente, video)['id']
+    assert cliente.get(f'/api/projetos/{id}/direcao/registro').status_code == 404
+    direcao_projeto.registrar(id, {'modelo': 'm', 'tokens': 10, 'sistema': 'S', 'usuario': 'U', 'resposta': {'planos': []}})
+    r = cliente.get(f'/api/projetos/{id}/direcao/registro').json()
+    assert (r['sistema'], r['usuario'], r['resposta'], r['total']) == ('S', 'U', {'planos': []}, 1)
+    md = (projeto.pasta(id) / r['arquivo']).read_text()
+    assert '## Prompt de sistema\n\nS' in md and '## Resposta formatada' in md
+
+
+def _saida(texto):
+    return [{'id': f'w{k}', 'texto': t, 'saida_ini': k * 0.5, 'saida_fim': k * 0.5 + 0.4} for k, t in enumerate(texto.split())]
+
+
+def test_ler_roteiro_da_diretora():
+    texto = """Aqui vai o roteiro:
+[Comentário + insert + ator: dúvida sobre IA «Por onde começo?»]
+“Por onde começo?”
+
+[Full ator: ele responde]
+“Cara, eu não tentaria
+aprender tudo.”
+[Tela dividida (insert em cima): o YouTube abrindo]"""
+    blocos = direcao_projeto.ler_roteiro(texto)
+    assert [b['marcacao'] for b in blocos] == ['Comentário + insert + ator: dúvida sobre IA «Por onde começo?»', 'Full ator: ele responde',
+                                               'Tela dividida (insert em cima): o YouTube abrindo']
+    assert [b['fala'] for b in blocos] == ['Por onde começo?', 'Cara, eu não tentaria aprender tudo.', '']
+
+
+def test_alinhar_casa_a_fala_com_as_palavras_reais():
+    saida = _saida('Por onde começo? Cara, eu não tentaria aprender tudo ao mesmo tempo. Porque você abre o YouTube')
+    blocos = [{'marcacao': 'a', 'fala': 'Por onde começo?'},
+              {'marcacao': 'b', 'fala': 'Cara eu nao tentaria aprender tudo ao mesmo tempo'},  # sem acento nem pontuação: casa mesmo assim
+              {'marcacao': 'c', 'fala': 'Porque você abre'},  # pulou "o YouTube": as palavras ficam com este bloco
+              {'marcacao': 'd', 'fala': 'algo que não foi dito'}]  # nada casa: o bloco some
+    assert direcao_projeto.alinhar(blocos, saida) == [(0, 2), (3, 11), (12, 16), (-1, -1)]
+
+
+def test_transcricao_corrida_quebra_em_frases():
+    saida = _saida('Oi. Tudo bem? sim')
+    assert direcao_projeto.transcricao_corrida(saida) == 'Oi.\nTudo bem?\nsim'
+
+
+def test_variacoes_antigas_da_diretora_viram_a_escolhida(cliente, video):
+    id = _criar(cliente, video)['id']
+    projeto.atualizar(id, lambda p: p.update(direcoes={'atual': {'itens': [1]}, 'a': {'itens': [2]}}, direcao_variante='atual', direcao={'itens': [1]}))
+    p = projeto.ler(id)
+    assert p['direcao']['itens'] == [2] and 'direcoes' not in p and 'direcao_variante' not in p
+    assert [(v['n'], v['itens']) for v in p['direcao']['versoes']] == [(1, [2])] and p['direcao']['ativa'] == 1  # vira a v1
+    c = cliente.get('/api/config').json()
+    assert (c['modelo_diretora'], c['raciocinio_diretora']) == ('google/gemini-3.8-flash', 'medium')
+
+
+
+def test_troca_de_plano_nao_atravessa_a_emenda():
+    from app import direcao_projeto as d
+    palavras = [{'id': 'w1', 'texto': 'a', 'inicio': 0.0, 'fim': 0.5}, {'id': 'w2', 'texto': 'b', 'inicio': 2.0, 'fim': 2.5}]
+    saida = d.palavras_na_saida(palavras, [{'id': 'c1', 'inicio': 0.0, 'fim': 0.52}, {'id': 'c2', 'inicio': 1.98, 'fim': 3.0}])
+    assert d._folga(saida, 1, True, 0.08) == 0.0  # a pausa de 40 ms na saída é de dois trechos: a troca fica na emenda
+
+
+def test_lettering_na_fala_vira_elemento_preso_as_palavras():
+    from app import direcao_projeto as d
+    texto = ['Hoje', 'o', 'GPT', '3.7', 'Flash', 'custa', 'noventa', 'e', 'sete', 'reais.']
+    saida = [{'id': f'w{k}', 'texto': t, 'saida_ini': k * 0.3, 'saida_fim': k * 0.3 + 0.25} for k, t in enumerate(texto)]
+    roteiro = ('[Full ator: apresenta]\n“Hoje o <lettering>GPT 3.7 Flash</lettering>”\n\n'
+               '[Tela dividida (insert em cima): página de preços]\n“custa <lettering texto=\"R$ 97\">noventa e sete reais.</lettering>”')
+    blocos = d.ler_roteiro(roteiro)
+    assert d.sem_tags(blocos[1]['fala']) == 'custa noventa e sete reais.'
+    lets: list[dict] = []
+    assert d.alinhar(blocos, saida, lets) == [(0, 4), (5, 9)]
+    assert lets == [{'texto': None, 'falado': 'GPT 3.7 Flash', 'ini': 2, 'fim': 4},
+                    {'texto': 'R$ 97', 'falado': 'noventa e sete reais.', 'ini': 6, 'fim': 9}]
+    # tag aninhada ou sem par não quebra o alinhamento
+    lets = []
+    assert d.alinhar(d.ler_roteiro('[Full ator: x]\n“Hoje <lettering>o <lettering>GPT</lettering> 3.7</lettering> Flash custa noventa e sete reais.”'), saida, lets) == [(0, 9)]
+    assert [(l['ini'], l['fim']) for l in lets] == [(1, 2)]
+
+
+def test_roteiro_da_calibragem_marca_lettering_na_fala():
+    from app import calibragem
+    palavras = [{'texto': t, 'inicio': k * 1.0, 'fim': k * 1.0 + 0.8} for k, t in enumerate(['custa', 'noventa', 'e', 'sete', 'reais', 'hoje'])]
+    lets = [{'inicio': 0.9, 'fim': 4.9, 'texto': 'R$ 97'}, {'inicio': 5.0, 'fim': 6.0, 'texto': 'HOJE'}]
+    assert calibragem._fala(palavras, 0, 6, lets) == 'custa <lettering texto="R$ 97">noventa e sete reais</lettering> <lettering>hoje</lettering>'
+
+
+def test_versoes_e_comentarios_da_direcao(cliente, video, monkeypatch):
+    id = _criar(cliente, video)['id']
+    monkeypatch.setattr(projeto, 'ler_palavras', lambda i: [{'id': 'w0', 'texto': 'oi', 'inicio': 0, 'fim': 0.5}, {'id': 'w1', 'texto': 'tudo', 'inicio': 0.6, 'fim': 1}])
+    palavras = ['w0', 'w1']
+    plano = {'id': 'p1', 'camada': 'plano', 'tipo': 'full_ator', 'conteudo': None, 'palavra_ini': palavras[0], 'palavra_fim': palavras[-1],
+             'off_ini': 0, 'off_fim': 0, 'texto': None, 'descricao': 'ator', 'como_gerar': None}
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': [plano], 'itens_ia': [plano], 'gerado_em': 'x'}))
+    pedidos = []
+    monkeypatch.setattr(direcao_projeto._fila, 'submit', lambda f, i: pedidos.append(i))
+    url = f'/api/projetos/{id}/direcao'
+    # sem comentário não há o que corrigir
+    assert cliente.post(f'{url}/corrigir', json={}).status_code == 422
+    d = cliente.post(f'{url}/comentarios', json={'palavra': palavras[0], 'off': 0.1, 'texto': 'aqui um insert'}).json()
+    cid = d['comentarios'][0]['id']
+    d = cliente.put(f'{url}/comentarios/{cid}', json={'texto': 'aqui um insert do site'}).json()
+    assert d['comentarios'][0]['texto'] == 'aqui um insert do site' and d['versoes'][0]['comentarios'] == d['comentarios']
+    assert cliente.post(f'{url}/comentarios', json={'palavra': 'nao-existe', 'off': 0, 'texto': 'x'}).status_code == 422
+    # pedir a v2: guarda o comentário geral na v1 e enfileira
+    p = cliente.post(f'{url}/corrigir', json={'geral': 'menos tela cheia'}).json()
+    assert p['direcao']['status'] == 'rodando' and p['direcao']['pedido'] == {'tipo': 'corrigir', 'de': 1} and pedidos == [id]
+    assert p['direcao']['versoes'][0]['geral'] == 'menos tela cheia'
+    # a corretora devolve a v2 (simulada)
+    monkeypatch.setattr(direcao_projeto, 'corrigir', lambda i, de: {'n': 2, 'origem': de, 'itens': [{**plano, 'descricao': 'novo'}], 'itens_ia': [], 'registro': None})
+    direcao_projeto._rodar(id)
+    d = projeto.ler(id)['direcao']
+    assert [(v['n'], v['origem']) for v in d['versoes']] == [(1, None), (2, 1)] and d['ativa'] == 2
+    assert d['itens'][0]['descricao'] == 'novo' and d['comentarios'] == [] and d['status'] == 'pronto'
+    # ajustes vão para a versão aberta; voltar à v1 mostra a v1 com os comentários dela
+    cliente.put(url, json={'itens': [{**plano, 'descricao': 'ajustado'}]})
+    d = cliente.put(f'{url}/versao', json={'n': 1}).json()
+    assert d['itens'][0]['descricao'] == 'ator' and len(d['comentarios']) == 1
+    assert next(v for v in d['versoes'] if v['n'] == 2)['itens'][0]['descricao'] == 'ajustado'
+    assert cliente.put(f'{url}/versao', json={'n': 9}).status_code == 404
+    d = cliente.delete(f'{url}/comentarios/{cid}').json()
+    assert d['comentarios'] == []
+
+
+def test_roteiro_da_versao_com_lettering_e_comentarios():
+    texto = ['Hoje', 'o', 'GPT', 'saiu.', 'Veja', 'o', 'site']
+    saida = [{'id': f'w{k}', 'texto': t, 'saida_ini': k * 0.4, 'saida_fim': k * 0.4 + 0.3} for k, t in enumerate(texto)]
+    def item(id, camada, tipo, a, b, **kw):
+        return {'id': id, 'camada': camada, 'tipo': tipo, 'conteudo': kw.get('conteudo'), 'palavra_ini': f'w{a}', 'palavra_fim': f'w{b}',
+                'texto': kw.get('texto'), 'descricao': kw.get('descricao', ''), 'como_gerar': None}
+    itens = [item('p1', 'plano', 'full_ator', 0, 3, descricao='apresenta'),
+             item('p2', 'plano', 'tela_dividida', 4, 6, conteudo='insert', descricao='o site'),
+             item('e1', 'elemento', 'lettering', 2, 2, texto='GPT'),
+             item('e2', 'elemento', 'palavra_manychat', 5, 5, texto='SITE')]
+    com = [{'palavra': 'w3', 'texto': 'troque aqui'}, {'palavra': 'w2', 'texto': 'maior'}]
+    r = direcao_projeto.roteiro_da_versao(itens, saida, com)
+    assert r == ('[Full ator: apresenta]\n“Hoje o <lettering>GPT</lettering> {💬 maior} saiu. {💬 troque aqui}”\n\n'
+                 '[Tela dividida · insert: o site + palavra manychat «SITE»]\n“Veja o site”')
+    # os comentários não voltam para a fala ao ler de novo, e o alinhamento casa tudo
+    lets = []
+    assert direcao_projeto.alinhar(direcao_projeto.ler_roteiro(r), saida, lets) == [(0, 3), (4, 6)] and [(l['ini'], l['fim']) for l in lets] == [(2, 2)]
+
+
+def test_versoes_numeradas_de_zero_viram_de_um(cliente, video):
+    id = _criar(cliente, video)['id']
+    vs = [{'n': 0, 'origem': None, 'itens': [1]}, {'n': 1, 'origem': 0, 'itens': [2]}]
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'versoes': vs, 'ativa': 1, 'itens': [2]}))
+    d = projeto.ler(id)['direcao']
+    assert [(v['n'], v['origem']) for v in d['versoes']] == [(1, None), (2, 1)] and d['ativa'] == 2 and d['itens'] == [2]
+
+
+
+# ---------------------------------------------------------------- inserts
+
+def _saida_inserts():
+    texto = ['Qual', 'a', 'melhor', 'IA?', 'Cara,', 'olha', 'esses', 'sites', 'lindos', 'aqui.']
+    return [{'id': f'w{k}', 'texto': t, 'saida_ini': k * 0.5, 'saida_fim': k * 0.5 + 0.4} for k, t in enumerate(texto)]
+
+
+def _plano_ins(id, tipo, a, b, conteudo=None, descricao='x'):
+    return {'id': id, 'camada': 'plano', 'tipo': tipo, 'conteudo': conteudo, 'palavra_ini': f'w{a}', 'palavra_fim': f'w{b}',
+            'off_ini': 0, 'off_fim': 0, 'texto': None, 'descricao': descricao, 'como_gerar': 'grave'}
+
+
+def test_pedidos_de_insert_saem_dos_planos_com_insert():
+    itens = [_plano_ins('p1', 'comentario_insert_ator', 0, 3), _plano_ins('p2', 'full_ator', 4, 5),
+             _plano_ins('p3', 'insert_tela_cheia', 6, 9), {'id': 'e1', 'camada': 'elemento', 'tipo': 'lettering', 'palavra_ini': 'w7', 'palavra_fim': 'w7'}]
+    ps = inserts.pedidos_da_direcao(itens, _saida_inserts())
+    assert [(x['plano'], x['formato'], x['inicio'], x['duracao']) for x in ps] == [('p1', 'dividida', 0.0, 2.0), ('p3', 'vertical', 3.0, 1.9)]
+    assert ps[1]['fala'] == 'esses sites lindos aqui.'
+
+
+def _imagem_teste(destino, w=320, h=180):
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', f'color=c=blue:s={w}x{h}', '-frames:v', '1', str(destino)], check=True)
+    return destino
+
+
+def test_banco_sobe_descreve_busca_edita_e_apaga(cliente, tmp_path, monkeypatch):
+    chamadas = []
+    monkeypatch.setattr(inserts, '_descricoes', types.SimpleNamespace(submit=lambda f, bid: chamadas.append(bid)))
+    img = _imagem_teste(tmp_path / 'print do github.png')
+    with img.open('rb') as f:
+        r = cliente.post('/api/banco', files=[('arquivos', ('print do github.png', f, 'image/png'))])
+    assert r.status_code == 200
+    item = r.json()[0]
+    assert (item['tipo'], item['nome'], item['formato'], item['largura'], item['ia']['status']) == ('imagem', 'print do github', '16:9', 320, 'fila')
+    assert chamadas == [item['id']]  # a descrição por IA vai para a fila
+    assert cliente.get(f"/api/banco/{item['id']}/miniatura").status_code == 200
+    assert cliente.get(f"/api/banco/{item['id']}/arquivo").status_code == 200
+    with img.open('rb') as f:
+        assert cliente.post('/api/banco', files=[('arquivos', ('x.gif', f, 'image/gif'))]).status_code == 422
+    # a IA descreve (simulada): a descrição entra se o criador não escreveu nada; as palavras se somam
+    cliente.put(f"/api/banco/{item['id']}", json={'palavras': ['GitHub ', 'github', 'repo']})
+
+    class Falso:
+        def __init__(self, **k): pass
+        def with_structured_output(self, *a, **k): return self
+        def invoke(self, msgs): return inserts.DescricaoMidia(descricao='Página do GitHub do Graphify.', palavras=['Graphify', 'repo'])
+    import langchain_openrouter
+    monkeypatch.setattr(langchain_openrouter, 'ChatOpenRouter', Falso)
+    inserts.descrever(item['id'])
+    i = cliente.get(f"/api/banco/{item['id']}").json()
+    assert (i['descricao'], i['palavras'], i['ia']['status'], i['usos']) == ('Página do GitHub do Graphify.', ['github', 'repo', 'graphify'], 'pronto', [])
+    assert [x['id'] for x in cliente.get('/api/banco?busca=graphify').json()] == [item['id']]
+    assert cliente.get('/api/banco?busca=graphify&tipo=video').json() == []
+    assert cliente.get('/api/banco?busca=sora').json() == []
+    assert cliente.delete(f"/api/banco/{item['id']}").json() == {'ok': True}
+    assert cliente.get(f"/api/banco/{item['id']}").status_code == 404
+
+
+def test_inserts_ligam_midias_do_banco_e_sobrevivem_a_versoes(cliente, video, monkeypatch):
+    id = _criar(cliente, video)['id']
+    monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
+    itens = [_plano_ins('p1', 'tela_dividida_insert', 0, 5), _plano_ins('p2', 'insert_tela_cheia', 6, 9)]
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': itens}))
+    ins = cliente.get(f'/api/projetos/{id}/inserts').json()
+    p1, p2 = ins['pedidos']
+    assert p1['midias'] == [] and p2['midias'] == [] and p1['formato'] == 'dividida'
+    inserts.salvar_item({'id': 'b1', 'nome': 'site A', 'tipo': 'video', 'arquivo': 'original.mp4', 'proxy': 'proxy.mp4', 'largura': 1600, 'altura': 900})
+    inserts.salvar_item({'id': 'b2', 'nome': 'print', 'tipo': 'imagem', 'arquivo': 'original.png', 'largura': 900, 'altura': 900})
+    r = cliente.put(f"/api/projetos/{id}/inserts/{p1['id']}/midias", json={'midias': [{'banco': 'b1', 'inicio': 3.5}, {'banco': 'b2'}]}).json()
+    assert [(m['banco'], 'inicio' in m) for m in r['pedidos'][0]['midias']] == [('b1', False), ('b2', False)]
+    assert cliente.put(f"/api/projetos/{id}/inserts/{p1['id']}/midias", json={'midias': [{'banco': 'zz'}]}).status_code == 404
+    assert [u['pedido'] for u in cliente.get('/api/banco/b1').json()['usos']] == [p1['id']]
+    assert inserts.ler_item('b2')['formato'] == '1:1'
+    # versão nova da direção: o insert que não mudou mantém as mídias
+    projeto.atualizar(id, lambda p: p['direcao'].update(itens=[{**itens[0]}, {**itens[1], 'descricao': 'outra'}]))
+    ins = cliente.get(f'/api/projetos/{id}/inserts').json()
+    assert ins['pedidos'][0]['id'] == p1['id'] and len(ins['pedidos'][0]['midias']) == 2 and ins['pedidos'][1]['midias'] == []
+    # apagar a mídia do banco a tira do insert
+    cliente.delete('/api/banco/b1')
+    assert [m['banco'] for m in cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]['midias']] == ['b2']
+
+
+def test_pedido_do_agente_antigo_vira_midias(cliente, video, monkeypatch):
+    id = _criar(cliente, video)['id']
+    monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': [_plano_ins('p1', 'insert_tela_cheia', 0, 9)]}))
+    pid = cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]['id']
+    inserts.salvar_item({'id': 'cap1', 'midia': 'video', 'arquivo': 'captura.mp4', 'resumo': 'site', 'origem': {'titulo': 'Site A'}, 'largura': 2880, 'altura': 1800})
+
+    def antigo(p):
+        x = p['inserts']['pedidos'][0]
+        x.pop('midias')
+        x['takes'] = [{'id': 't1', 'escolhido': 'c1', 'candidatos': [{'id': 'c1', 'banco': 'cap1', 'inicio': 2.5}, {'id': 'c2', 'banco': 'cap1', 'inicio': 9}]},
+                      {'id': 't2', 'escolhido': None, 'candidatos': []}]
+    projeto.atualizar(id, antigo)
+    x = cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]
+    assert x['id'] == pid and [m['banco'] for m in x['midias']] == ['cap1']
+    item = inserts.ler_item('cap1')  # captura antiga vira item comum do banco
+    assert (item['tipo'], item['nome'], item['formato'], item['origem']['tipo']) == ('video', 'Site A', '16:10', 'captura automática')
+
+
+
+def test_trechos_do_banco_e_corte_do_original(cliente, video, tmp_path, monkeypatch):
+    monkeypatch.setattr(inserts, '_descricoes', types.SimpleNamespace(submit=lambda f, bid: None))
+    monkeypatch.setattr(inserts, '_cortes', types.SimpleNamespace(submit=lambda f, *a: f(*a)))  # corta na hora
+    with video.open('rb') as f:
+        orig = cliente.post('/api/banco', files=[('arquivos', ('gravacao.mp4', f, 'video/mp4'))]).json()[0]
+    inserts.atualizar_item(orig['id'], {'descricao': 'tela do app', 'palavras': ['app']})
+    a = cliente.post(f"/api/banco/{orig['id']}/trechos", json={'inicio': 0.5, 'fim': 1.5}).json()
+    b = cliente.post(f"/api/banco/{orig['id']}/trechos", json={'inicio': 2.0, 'fim': 2.9, 'nome': 'final'}).json()
+    assert (a['pai'], a['duracao'], a['nome'], a['descricao'], a['palavras']) == (orig['id'], 1.0, 'gravacao · trecho 1', 'tela do app', ['app'])
+    assert cliente.post(f"/api/banco/{orig['id']}/trechos", json={'inicio': 1, 'fim': 1.1}).status_code == 422  # curto demais
+    assert cliente.post(f"/api/banco/{a['id']}/trechos", json={'inicio': 0, 'fim': 0.5}).status_code == 422  # trecho de trecho
+    # o banco lista só os originais, cada um com os trechos; o trecho toca o arquivo do original
+    lista = cliente.get('/api/banco').json()
+    assert [i['id'] for i in lista] == [orig['id']] and [t['nome'] for t in lista[0]['trechos']] == ['gravacao · trecho 1', 'final']
+    assert cliente.get('/api/banco?busca=final').json()[0]['id'] == orig['id']
+    assert cliente.get(f"/api/banco/{a['id']}/arquivo").status_code == 200 and cliente.get(f"/api/banco/{a['id']}/miniatura").status_code == 200
+    assert cliente.get(f"/api/banco/{orig['id']}/tira").status_code == 200
+    assert cliente.put(f"/api/banco/{a['id']}", json={'inicio': 0.4, 'fim': 1.6}).json()['duracao'] == 1.2
+    # cortar as pontas do original: os trechos acompanham o novo começo; o que cai fora some
+    r = cliente.post(f"/api/banco/{orig['id']}/cortar", json={'inicio': 0.3, 'fim': 1.9}).json()
+    det = cliente.get(f"/api/banco/{orig['id']}").json()
+    assert det['edicao']['status'] == 'pronto' and det['duracao'] == pytest.approx(1.6, abs=0.1) and r['id'] == orig['id']
+    assert [(t['id'], t['inicio'], t['fim']) for t in det['trechos']] == [(a['id'], 0.1, pytest.approx(1.3, abs=0.01))]
+    assert cliente.get(f"/api/banco/{b['id']}").status_code == 404
+    # apagar o original apaga os trechos
+    cliente.delete(f"/api/banco/{orig['id']}")
+    assert cliente.get(f"/api/banco/{a['id']}").status_code == 404

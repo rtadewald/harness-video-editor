@@ -6,6 +6,8 @@ import Projetos from './paginas/Projetos'
 import Editor from './paginas/Editor'
 import Calibragem from './paginas/Calibragem'
 import Referencias from './paginas/Referencias'
+import Heuristica from './paginas/Heuristica'
+import Banco from './paginas/Banco'
 import RevisaoReferencia from './paginas/RevisaoReferencia'
 
 createRoot(document.getElementById('root')!).render(
@@ -17,6 +19,8 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/referencias" element={<Referencias />} />
         <Route path="/calibragem" element={<Calibragem />} />
         <Route path="/calibragem/:id" element={<RevisaoReferencia />} />
+        <Route path="/heuristica" element={<Heuristica />} />
+        <Route path="/banco" element={<Banco />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,
