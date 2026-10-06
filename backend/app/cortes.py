@@ -81,10 +81,10 @@ def _linhas(palavras: list[dict], silencios: list[dict]) -> str:
 
 def selecionar(palavras: list[dict], silencios: list[dict], briefing: str = '') -> dict:
     """Chama a LLM e valida a resposta. Devolve {'mantidas': [[ini, fim], ...], 'duvidas': [...], 'modelo': ...}."""
-    from langchain_openrouter import ChatOpenRouter
+    from . import comum
 
     modelo = os.getenv('OPENROUTER_MODEL', MODELO)
-    llm = ChatOpenRouter(model=modelo, temperature=0, timeout=180_000, max_retries=1)
+    llm = comum.chat(modelo)
     from . import projeto
 
     perfil = projeto.ler_config()['perfil_criador']

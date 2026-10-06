@@ -8,15 +8,13 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from dotenv import load_dotenv
 
-from . import cortes, midia, motores, projeto, transcricao
+from . import comum, cortes, midia, motores, projeto, transcricao
 
 PRINCIPAIS = ['proxy', 'silencios', 'transcricao', 'alinhamento', 'cortes']  # pausas antes: a transcrição é feita por pedaços entre elas
 PASSOS = [*PRINCIPAIS, 'variantes']
 _fila = ThreadPoolExecutor(max_workers=1)  # o que o criador está esperando
 _fila_motores = ThreadPoolExecutor(max_workers=1)  # motores extras: não atrasam os cortes
-ENV = Path(__file__).resolve().parents[1] / '.env'
 
 
 def estado_inicial(passos=PASSOS) -> dict:
@@ -110,7 +108,7 @@ def _rodar_motor(id: str, vid: str, base: Path) -> None:
 
 def _rodar_motores(id: str, vids: list[str] | None) -> None:
     """Gera as outras transcrições a partir do áudio. Um motor que falha não derruba os demais."""
-    load_dotenv(ENV, override=True)  # pega a chave de API posta no .env sem reiniciar o servidor
+    comum.carregar_env()  # pega a chave de API posta no .env sem reiniciar o servidor
     base = projeto.pasta(id)
     forcar = vids is not None
     _passo(id, 'variantes', status='rodando')
@@ -137,7 +135,8 @@ def _executar(id: str, passos: list[str]) -> bool:
         except Exception as e:
             traceback.print_exc()
             _passo(id, nome, status='erro')
-            projeto.atualizar(id, lambda p: p['pipeline'].update(erro=f'{nome}: {e}'))
+            msg = f'{nome}: {e}'
+            projeto.atualizar(id, lambda p: p['pipeline'].update(erro=msg))
             return False
         _passo(id, nome, status='pronto', segundos=round(time.perf_counter() - t0, 1), **extra)
     return True
@@ -163,15 +162,15 @@ def _proxy(id, base: Path, video: Path, bruto: dict):
 def _silencios(id, base: Path, video: Path, bruto: dict):
     midia.extrair_audio(video, base / 'audio.wav')
     s = midia.silencios(base / 'audio.wav')
-    (base / 'silencios.json').write_text(json.dumps({'silencios': s}, indent=1), encoding='utf-8')
-    (base / 'picos.json').write_text(json.dumps({'por_segundo': midia.PICOS_POR_SEGUNDO, 'picos': midia.picos(base / 'audio.wav')}), encoding='utf-8')
+    comum.salvar_json((base / 'silencios.json'), {'silencios': s})
+    comum.salvar_json((base / 'picos.json'), {'por_segundo': midia.PICOS_POR_SEGUNDO, 'picos': midia.picos(base / 'audio.wav')}, indent=None)
     return {'silencios': len(s)}
 
 
 def _transcricao(id, base: Path, video: Path, bruto: dict):
     """Transcreve com o motor escolhido para o projeto. Se ele falhar (sem chave, sem rede…), segue com o Whisper
     + stable-ts em vez de travar, e o motivo fica registrado."""
-    load_dotenv(ENV, override=True)
+    comum.carregar_env()
     vid = projeto.ler(id)['transcricao_ativa']
     aviso = None
     if projeto.MOTORES[vid]['familia'] != 'whisper':

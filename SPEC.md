@@ -7,7 +7,7 @@ Editor de vídeo local, controlado por interface web, em que cada etapa da ediç
 - 💡 **Proposta:** detalhe técnico sugerido pelo agente, que pode mudar sem nova aprovação, desde que não contradiga o que foi aprovado.
 - ⏳ **Em aberto:** ainda não decidido.
 
-**Estado:** fases 1, 2, 3a, 3b-0 e 3b-1 implementadas; a 3b-1 (tela de navegação e inspeção dos cortes) aguarda avaliação de Rodrigo (§15). Depois: experimento em branch separada com a timeline vertical só na etapa de Cortes.
+**Estado (out/2026):** **Cortes** real (timeline vertical, vários motores de transcrição, edição manual das bordas e dos cortes). **Direção visual** real: Calibragem (referências analisadas por IA multimodal e revisadas), Referências (galeria dos planos), Heurística da direção (regras + roteiros de exemplo) e a direção do projeto em duas etapas (diretora + formatadora), com versões e comentários. **Inserts** real e **manual**: o criador liga a cada insert vídeos e imagens do **Banco** (página própria, com descrição e palavras-chave sugeridas pela IA), com prévia no lugar. Enriquecimento de inserts, Motion, Áudio e Legenda continuam mock; agente do chat, desfazer/versões do editor e exportação ainda não foram feitos (§15).
 
 ---
 
@@ -18,10 +18,14 @@ Editor de vídeo local, controlado por interface web, em que cada etapa da ediç
 | # | Etapa | O que faz | Na v1 |
 |---|---|---|---|
 | 1 | **Cortes** | Remove erros, retomadas e esperas; ajusta emendas e respiros; reenquadra para 9:16 | **Real** |
-| 2 | **Direção visual** | Decide o que aparece na tela em cada momento (planos e elementos), aprendendo com vídeos de referência já editados (§8.2) | Mock → real depois das Referências |
-| 3 | **Inserts** | Escolhe vídeos de apoio para ilustrar cada trecho, recorta e encaixa | Mock |
-| 4 | **Motion** | Cria motions específicos por trecho e encaixa | Mock |
-| 5 | **Legenda** | Gera e estiliza legendas | Mock |
+| 2 | **Direção visual** | Decide o que aparece na tela em cada momento (planos e elementos) e, nos inserts, o que acontece e quais mídias entram; aprende com vídeos de referência já editados (§8.2) | **Real** |
+| 3 | **Inserts** | O criador liga a cada insert as mídias (vídeos e imagens) do banco, subindo ou escolhendo (§8.3) | **Real** (manual) |
+| 4 | **Enriquecimento de inserts** | Moldura (card, fundo), zoom (onde e como), rolagem na pós com easing, transições entre as mídias (§8.4) | Mock |
+| 5 | **Motion** | Cria motions específicos por trecho e encaixa | Mock |
+| 6 | **Áudio** | Efeitos sonoros (whoosh na entrada dos inserts, cliques…) | Mock |
+| 7 | **Legenda** | Gera e estiliza legendas | Mock |
+
+Ordem decidida por Rodrigo (out/2026): Cortes → Direção → Inserts → Enriquecimento de inserts → Motions → Áudio → Legendas. A **Direção** decide o que aparece e descreve cada insert (o que acontece nele e quais mídias entram: vídeo ou imagem, formato); a **Inserts** liga as mídias reais (por ora, manualmente, a partir do banco); tudo o que é edição do insert (moldura, zoom, rolagem animada, transição) é do **Enriquecimento**; o som, do **Áudio**.
 
 Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produtividade e design, para Reels/TikTok. Os brutos têm erros, pausas e várias tentativas da mesma fala.
 
@@ -33,14 +37,16 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 - Pipeline automático ao criar o projeto, até a primeira sugestão de cortes.
 - Interface completa (etapas, preview, timeline multitrilha, chat) em todas as etapas.
 - Etapa **Cortes** funcionando de verdade.
-- **Inserts, Motion e Legenda** como mocks: layout real, dados falsos na timeline e ferramentas fictícias no agente.
+- Etapa **Direção visual** funcionando de verdade, com a Calibragem (§8.2).
+- Etapa **Inserts** funcionando de verdade para sites, páginas e vídeos por URL (§8.3).
+- **Enriquecimento, Motion, Áudio e Legenda** como mocks: layout real, dados falsos na timeline e ferramentas fictícias no agente.
 - Desfazer/refazer e versões nomeadas.
 - Exportação MP4 a partir de qualquer etapa.
 
 ✅ **Fica fora da v1:**
-- Lógica real de inserts, motion e legenda (cada uma é implementada depois, uma de cada vez).
+- Lógica real de enriquecimento, motion, áudio e legenda (cada uma é implementada depois, uma de cada vez).
 - Multicâmera / mais de um bruto por projeto (o modelo de dados já aceita várias fontes).
-- Acervo global de apoios compartilhado entre projetos.
+- ~~Acervo global de apoios compartilhado entre projetos.~~ Entrou: o Banco de mídias dos Inserts (§8.3).
 - Exportar XML para Premiere/DaVinci.
 - Anotações entre etapas (comentários sobre inserts são feitos na etapa de inserts).
 - Formatos de saída além de 9:16.
@@ -66,22 +72,35 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 18-harness-video-editor/
 ├── AGENTS.md          # instruções curtas para agentes (≤ ~40 linhas)
 ├── SPEC.md            # este documento
+├── README.md          # o que é e como rodar
 ├── dev.sh             # sobe backend + frontend
 ├── backend/
 │   ├── app/
-│   │   ├── main.py        # FastAPI, rotas
-│   │   ├── projeto.py     # ler/salvar projeto.json, histórico, versões
-│   │   ├── jobs.py        # fila de tarefas + progresso
-│   │   ├── midia.py       # ffprobe, proxy, silêncios, render (FFmpeg)
-│   │   ├── transcricao.py # MLX Whisper
-│   │   ├── agente.py      # agente LangChain + ferramentas por etapa
-│   │   └── etapas/        # cortes.py, inserts.py (mock), motion.py (mock), legenda.py (mock)
+│   │   ├── main.py            # FastAPI, rotas
+│   │   ├── comum.py           # .env, modelos do OpenRouter, mídia para a IA (base64), normalizador de texto, JSON atômico
+│   │   ├── projeto.py         # projeto.json, configuração do app (_config.json), motores de transcrição
+│   │   ├── pipeline.py        # fila do projeto: proxy, silêncios, transcrição, alinhamento, cortes, motores extras
+│   │   ├── midia.py           # ffmpeg/ffprobe (erro legível, medidas), proxy, áudio, silêncios, forma de onda, miniatura
+│   │   ├── transcricao.py     # MLX Whisper por pedaços + stable-ts
+│   │   ├── motores.py         # outros motores (Qwen, CTC, Parakeet, ElevenLabs…)
+│   │   ├── cortes.py          # seleção pela LLM, montagem dos clipes, edição manual
+│   │   ├── referencias.py     # vídeos da Calibragem em disco, favoritos
+│   │   ├── direcao.py         # análise das referências (cenas, IA multimodal, montagem, descrição dos inserts) e revisão
+│   │   ├── calibragem.py      # roteiros dirigidos e heurística da direção (regras + roteiros de exemplo)
+│   │   ├── direcao_projeto.py # direção do projeto: diretora, formatadora, corretora, versões
+│   │   ├── inserts.py         # banco de mídias (subir, descrever com IA, buscar, usos, trechos, corte do original) e as mídias ligadas a cada insert
+│   │   ├── captura_site.py    # captura de site para um insert: prévia da página inteira, dobras, gravação (Playwright)
+│   │   └── mocks.py           # V2/V3/LEG e chat simulados
 │   ├── tests/
 │   └── pyproject.toml
-├── frontend/
-│   └── src/ (telas, timeline, player, chat)
+├── frontend/src/
+│   ├── paginas/       # Projetos, Editor, Banco, Calibragem, RevisaoReferencia, Referencias, Heuristica, Configuracoes, NovoProjeto
+│   ├── editor/        # timeline vertical de Cortes, player, preview, etapas Direção e Inserts, painel/timeline das etapas simuladas
+│   ├── components/    # marca, navegação da home, Modal, componentes shadcn (ui/)
+│   └── referencias/   # timeline de direção, edição, detalhe (com o editor do insert), Markdown, painel da Calibragem
 ├── projetos/          # dados dos projetos (fora do git)
-├── referencias/       # vídeos de referência analisados para a Direção visual (fora do git, §8.2)
+├── referencias/       # vídeos da Calibragem, _favoritos.json, _heuristica.json (fora do git, §8.2)
+├── banco/             # mídias dos inserts (global, fora do git, §8.3)
 └── _legado/           # projeto anterior, só referência
 ```
 
@@ -102,6 +121,8 @@ projetos/<slug>/
 │   ├── apoio/          # vídeos de apoio originais
 │   └── proxy/          # versões 720p para o player
 ├── briefing/           # texto e/ou áudio
+├── direcao_log/        # prompt e resposta de cada geração da direção (§8.2.2)
+├── inserts_log/        # registro de cada busca de insert (§8.3)
 └── exports/            # MP4 finais, com data e hora no nome
 ```
 
@@ -120,9 +141,13 @@ projetos/<slug>/
   ],
   "briefing": { "texto": "...", "audio": "briefing/audio.m4a", "transcricao_audio": "..." },
   "enquadramento": { "x": 0.5 },          // centro do recorte parado (só se o bruto for horizontal)
-  "timeline": { "trilhas": { "V1": [], "V2": [], "V3": [], "LEG": [], "A1": "segue V1" } },
-  "etapas": { "cortes": "pronta", "inserts": "mock", "motion": "mock", "legenda": "mock" },
-  "chats": { "cortes": [], "inserts": [], "motion": [], "legenda": [] },
+  "timeline": { "V1": [], "V2": [], "V3": [], "LEG": [] },   // V1 = clipes do bruto; A1 segue a V1
+  "transcricoes": { "elevenlabs": { "status": "pronto", … } }, "transcricao_ativa": "elevenlabs",
+  "cortes": { "mantidas": [], "duvidas": [] },
+  "direcao": { "status": "pronto", "versoes": [], "ativa": 1, "itens": [] },   // §8.2.2 (campos da versão aberta espelhados)
+  "inserts": { "versao": 1, "pedidos": [] },                                 // §8.3
+  "etapas": { "cortes": "pronta", "direcao": "pronta", "inserts": "pendente", "enriquecimento": "pendente", "motion": "pendente", "audio": "pendente", "legenda": "pendente" },
+  "chats": { "cortes": [], "direcao": [], "inserts": [], "enriquecimento": [], "motion": [], "audio": [], "legenda": [] },
   "historico": [],                        // ver §10
   "versoes": []
 }
@@ -159,17 +184,13 @@ O passo de silêncios também gera a forma de onda real (`picos.json`).
 - Cores das trilhas: V1 menta, V2 azul, V3 amarelo, LEG creme, A1 coral. Cabeça de reprodução coral.
 - Tokens em `frontend/src/index.css`; botões (`default` tinta, `cream`, `coral`, `pill`) em `components/ui/button.tsx`.
 
-```text
-┌─ topo: marca · nome do projeto · desfazer/refazer/versões · Exportar ───────────┐
-├──────────┬──────────────────────────────────────────────┬──────────────────────┤
-│ Etapas   │  Painel da etapa (sem     │  Preview 9:16    │  Chat do agente      │
-│ 01 Cortes│  título: texto riscado,   │  + controles     │  (da etapa aberta)   │
-│ 02 Inser.│  listas)                  │                  │                      │
-│ 03 Motion├──────────────────────────────────────────────┤                      │
-│ 04 Leg.  │  Timeline: LEG · V3 · V2 · V1 · A1, régua,   │                      │
-│ Projeto  │  cabeça arrastável, zoom                     │                      │
-└──────────┴──────────────────────────────────────────────┴──────────────────────┘
-```
+💡 Layout atual do editor (o chat só aparece nas etapas ainda simuladas):
+- **Home:** barra de cima com **Projetos · Banco · Referências · Calibragem · Heurística da direção** (§8.2.0).
+- **Topo do editor:** marca · nome do projeto (clique renomeia) · desfazer/refazer/versões (futuro) · Configurações · botão especial da etapa ("Refazer cortes com IA" / "Refazer direção do zero") · Exportar (fase 4).
+- **Cortes:** etapas · timeline vertical do bruto · vídeo + detalhe.
+- **Direção visual:** etapas · barra de versões + timeline vertical (fala, planos, elementos, 💬 comentários) · vídeo cortado com esboço do layout · detalhe.
+- **Inserts:** etapas · lista dos inserts · vídeo cortado com as mídias no lugar · detalhe (o que acontece no insert, mídias ligadas).
+- **Enriquecimento, Motion, Áudio, Legenda (mock):** etapas · painel + preview com timeline horizontal multitrilha · chat.
 
 ✅ Telas: **lista de projetos** (criar/abrir) → **editor** do projeto.
 ✅ Cada etapa tem seus próprios controles manuais, além do chat.
@@ -193,19 +214,20 @@ O passo de silêncios também gera a forma de onda real (`picos.json`).
 - **Timeline no bruto inteiro**, só a trilha do bruto (V2, V3 e LEG só aparecem nas suas etapas, no tempo do vídeo final): forma de onda **real** com zoom até milissegundos; trechos mantidos em menta e removidos em coral listrado; cortes numerados (✂ 1, ✂ 2…); ao aproximar, as palavras aparecem sobre a onda com início e fim.
 - **Nada é renderizado em Cortes.** O player toca o proxy do bruto pulando os trechos removidos; o vídeo final só sai na exportação (fase 4), depois de Rodrigo aprovar. Um botão alterna entre "tocar o resultado" e "tocar o bruto sem pular". Limitação: o pulo é um *seek* do navegador e pode ter um pequeno tranco que o render final não terá.
 - **Texto:** em cada fronteira de corte, uma marca inline com os tempos exatos no bruto e o que foi removido (`✂ 3 · 27,512 → 31,260 · −3,75 s`); tempo de cada palavra ao passar o mouse e num painel de detalhe.
-- 🧪 **Experimento (branch `timeline-vertical`, descartável):** na etapa de Cortes a timeline fica **vertical**, entre a sidebar e o vídeo: o tempo corre de cima para baixo, com régua, forma de onda, barras de tempo exato e cada palavra ao lado do seu instante (se dois rótulos colidem, o de baixo desce e uma linha o liga ao seu tempo). O vídeo ocupa a coluna central, com o detalhe embaixo. Os controles (Resultado/Bruto, ✂ Cortar trecho, Ímã, Recalcular, Expandir tudo, zoom) ficam no topo da timeline. **Refazer cortes com IA** é um botão de destaque na barra do topo, à direita da engrenagem de Configurações (só na etapa de Cortes). Na `main` continua a versão horizontal.
-- ✅ **Vários motores de transcrição (decidido com Rodrigo; na branch vertical):** o mesmo áudio é transcrito por mais de um motor e Rodrigo escolhe, na tela, qual **ver** e qual **comparar** (o texto do motor B aparece numa **segunda coluna ao lado do A, com as palavras e os tempos de cada um** e o instante exato de cada palavra no `title` e no detalhe; assim se veem palavras que um motor perde, escreve diferente ou marca em outro instante. Com o mesmo texto, o detalhe da palavra mostra a diferença em ms). **Nesta etapa o chat do agente não aparece** (Rodrigo: não é necessário agora; volta quando o agente existir).
+- ✅ **Timeline vertical (adotada; começou como experimento numa branch):** na etapa de Cortes a timeline fica **vertical**, entre a sidebar e o vídeo: o tempo corre de cima para baixo, com régua, forma de onda, barras de tempo exato e cada palavra ao lado do seu instante (se dois rótulos colidem, o de baixo desce e uma linha o liga ao seu tempo). O vídeo ocupa a coluna central, com o detalhe embaixo. Os controles (Resultado/Bruto, ✂ Cortar trecho, Recalcular, Expandir tudo, zoom) ficam no topo da timeline. **Refazer cortes com IA** é um botão de destaque na barra do topo, à direita da engrenagem de Configurações (só na etapa de Cortes).
+- ✅ **Vários motores de transcrição (decidido com Rodrigo):** o mesmo áudio é transcrito por mais de um motor e Rodrigo escolhe, na tela, qual **ver** e qual **comparar** (o texto do motor B aparece numa **segunda coluna ao lado do A, com as palavras e os tempos de cada um** e o instante exato de cada palavra no `title` e no detalhe; assim se veem palavras que um motor perde, escreve diferente ou marca em outro instante. Com o mesmo texto, o detalhe da palavra mostra a diferença em ms). **Nesta etapa o chat do agente não aparece** (Rodrigo: não é necessário agora; volta quando o agente existir).
   - **Famílias:** motores que só realinham o texto do Whisper (stable-ts, Qwen3-ForcedAligner, CTC, Whisper puro) compartilham texto e IDs de palavra, então **trocar entre eles mantém os cortes e os ajustes** e só muda os tempos exibidos. Motores que escrevem texto próprio (Parakeet, ElevenLabs) têm **cortes próprios**: ao escolher um pela primeira vez a IA os faz (~25 s); os cortes da família anterior ficam guardados e voltam intactos ao retornar.
   - **Padrão (decisão de Rodrigo, depois de comparar):** o **ElevenLabs Scribe v2** — acertou as palavras repetidas ("gastando gastando") que o Whisper reduzia a uma, sem "limpar" o texto. O motor padrão dos projetos **novos** é uma configuração do app (engrenagem na tela inicial e no editor; `projetos/_config.json`) e também pode ser escolhido ao criar cada projeto. Mudar a configuração não altera projetos existentes (`motor_inicial` fica no projeto).
   - **Fluxo:** o passo de transcrição usa o motor do projeto; os cortes saem dele. Os outros motores (inclusive o Whisper e o Whisper + stable-ts, que os alinhadores usam como base) rodam depois, em segundo plano e em fila própria, e aparecem no seletor quando ficam prontos; falhas e falta de chave aparecem com o motivo e "Tentar de novo". Um motor que falha não derruba os outros. **Se o motor padrão falhar** (sem chave, sem rede, cota), o projeto **segue com Whisper + stable-ts** e avisa o motivo na tela de processamento, em vez de travar. Medido no bruto de teste (2:02): com o ElevenLabs, cortes prontos ~32 s depois de criar o projeto (transcrição 4 s).
   - **Motores que transcrevem + dão tempos** (interesse de Rodrigo, para achar palavras que o Whisper perde): Parakeet v3, **Qwen3-ASR 1.7B + Qwen3-ForcedAligner** (o ASR escreve pedaço a pedaço entre as pausas e o alinhador dá os tempos de cada pedaço), **Whisper large-v3 + stable-ts** e ElevenLabs Scribe v2. O Qwen3-ForcedAligner sozinho (`whisper-qwen`) **não transcreve**: só calcula tempos para um texto pronto.
   - **ElevenLabs:** só roda com `ELEVENLABS_API_KEY` em `backend/.env` (lida a cada execução, sem reiniciar). **Envia o áudio da voz a um terceiro** (Rodrigo autorizou API na Q8 b). Já rodou com a API real no bruto de teste (3,4 s, 353 palavras).
-- 🧪 **Cortes compactados (na branch vertical):** cada corte aparece como uma linha de 34 px (`✂3 −9,6 s · 30 pal. “mas na minha opinião…”`) com o ícone ⇕ para expandi-lo no tempo real; os trechos mantidos continuam proporcionais ao tempo. O botão **"Expandir tudo" / "Compactar tudo"** (com texto, na linha de controles) abre ou fecha todos de uma vez. O ícone de expandir fica no **canto direito** da linha compactada, e o controle de compactar de um corte expandido **acompanha a rolagem** (gruda no topo da janela enquanto o corte aparece), para não precisar rolar de volta até ele. Selecionar uma palavra escondida num corte compactado o expande.
-- 🧪 **Precisão do arrasto (corrigida a pedido de Rodrigo):** o limite se move pelo **deslocamento do mouse desde onde a alça foi pega** (antes saltava até metade da altura da alça ao começar: medido +227 ms para um arrasto esperado de +182 ms; agora +182 ms em qualquer ponto de pegada) e só começa a andar após 3 px. O **ímã** (chip "Ímã" no cabeçalho; Alt desliga só durante o arrasto) tem alcance de **4 px** (antes 8 px ≈ 73 ms a 110 px/s) e gruda em bordas de palavras e de pausas reais; desligado, o limite vai exatamente onde o mouse vai. Os tempos das palavras vêm do motor de transcrição e podem errar dezenas de ms: gruda-se no que o motor marcou, não no que o áudio tem. Por isso o rótulo do arrasto diz onde a borda cai ("em pausa", "entre palavras" ou "dentro de “x”, N ms depois do início" em vermelho) e, com uma alça selecionada, **↑/↓ ajustam 10 ms (Shift 1 ms, Alt 50 ms)**. A forma de onda tem um pico a cada 5 ms.
-- 🧪 **Arrastar os limites dos cortes (na branch vertical):** nos cortes expandidos, as duas pontas têm alças. Arrastar muda o fim do trecho mantido de cima ou o início do de baixo (ímã nas bordas de palavras e de pausas reais; Alt desliga). Uma linha tracejada mostra de onde a borda saiu e uma amarela, onde vai cair, com o deslocamento em ms. Regras no servidor (`cortes.ajustar_borda`): a borda não passa do trecho vizinho nem deixa um trecho com menos de 50 ms ou sem palavras mantidas; as palavras entre a posição antiga e a nova passam a ficar (ou sair) conforme pelo menos metade delas esteja dentro de algum trecho; a âncora do trecho é recalculada. O primeiro ajuste guarda o valor da IA em `auto` (e a seleção original em `cortes.mantidas_auto`), e o detalhe do corte mostra "ajustado à mão" com **Restaurar da IA**. Refazer os cortes com a IA pede confirmação se houver ajustes e os descarta. Desfazer/refazer em geral continua para a 3b-2.
-- 🧪 **Cortes à mão (branch vertical):** o botão **✂ Cortar trecho** arrasta um intervalo sobre a onda (ímã nas bordas de palavras e pausas, Esc sai) e cria um corte onde a IA não cortou; o novo corte já abre selecionado. Cada corte tem um **✕ Excluir corte** (na linha compacta e nos controles do corte expandido, que acompanham a rolagem) que devolve o trecho. No servidor, `POST /cortes/faixa {inicio, fim, manter}` (`cortes.alterar_faixa`): ancora por sobreposição de palavra (≥ 30 ms), descarta pedaços sem palavras e respeita `MIN_CORTE` 20 ms e `MIN_CLIPE` 50 ms.
+- ✅ **Cortes compactados:** cada corte aparece como uma linha de 34 px (`✂3 −9,6 s · 30 pal. “mas na minha opinião…”`) com o ícone ⇕ para expandi-lo no tempo real; os trechos mantidos continuam proporcionais ao tempo. O botão **"Expandir tudo" / "Compactar tudo"** (com texto, na linha de controles) abre ou fecha todos de uma vez. O ícone de expandir fica no **canto direito** da linha compactada, e o controle de compactar de um corte expandido **acompanha a rolagem** (gruda no topo da janela enquanto o corte aparece), para não precisar rolar de volta até ele. Selecionar uma palavra escondida num corte compactado o expande.
+- ✅ **Precisão do arrasto (corrigida a pedido de Rodrigo):** o limite se move pelo **deslocamento do mouse desde onde a alça foi pega** (antes saltava até metade da altura da alça ao começar: medido +227 ms para um arrasto esperado de +182 ms; agora +182 ms em qualquer ponto de pegada) e só começa a andar após 3 px. **Sem ímã** (removido a pedido de Rodrigo, out/2026: prefere controle preciso): o limite vai exatamente onde o mouse vai. Os tempos das palavras vêm do motor de transcrição e podem errar dezenas de ms, então o rótulo do arrasto diz onde a borda cai ("em pausa", "entre palavras" ou "dentro de “x”, N ms depois do início" em vermelho) e, com uma alça selecionada, **↑/↓ ajustam 10 ms (Shift 1 ms, Alt 50 ms)**. A forma de onda tem um pico a cada 5 ms.
+- ✅ **Emendas precisas na prévia (out/2026, a pedido de Rodrigo: sobrava o começo do "mas" depois de um corte):** o dado do corte estava certo (medido: o "mas" começa em 13,29 s no áudio, o corte termina em 13,213 s; o ASR marcava 13,42 s); o vazamento era do player, que conferia o tempo só a cada quadro de tela e depois saltava (o salto também demora). Agora, a 150 ms do fim de um trecho, o salto é agendado para o instante exato (tempo extrapolado pelo relógio do sistema), o vídeo é silenciado nesse instante e o som volta quando o salto termina (`usePlayer`). Vale também para o fim de "ouvir trecho". A exportação, quando existir, corta no ponto exato pelo ffmpeg.
+- ✅ **Arrastar os limites dos cortes:** nos cortes expandidos, as duas pontas têm alças. Arrastar muda o fim do trecho mantido de cima ou o início do de baixo. Uma linha tracejada mostra de onde a borda saiu e uma amarela, onde vai cair, com o deslocamento em ms. Regras no servidor (`cortes.ajustar_borda`): a borda não passa do trecho vizinho nem deixa um trecho com menos de 50 ms ou sem palavras mantidas; as palavras entre a posição antiga e a nova passam a ficar (ou sair) conforme pelo menos metade delas esteja dentro de algum trecho; a âncora do trecho é recalculada. O primeiro ajuste guarda o valor da IA em `auto` (e a seleção original em `cortes.mantidas_auto`), e o detalhe do corte mostra "ajustado à mão" com **Restaurar da IA**. Refazer os cortes com a IA pede confirmação se houver ajustes e os descarta. Desfazer/refazer em geral continua para a 3b-2.
+- ✅ **Cortes à mão:** o botão **✂ Cortar trecho** arrasta um intervalo sobre a onda (Esc sai) e cria um corte onde a IA não cortou; o novo corte já abre selecionado. Cada corte tem um **✕ Excluir corte** (na linha compacta e nos controles do corte expandido, que acompanham a rolagem) que devolve o trecho. No servidor, `POST /cortes/faixa {inicio, fim, manter}` (`cortes.alterar_faixa`): ancora por sobreposição de palavra (≥ 30 ms), descarta pedaços sem palavras e respeita `MIN_CORTE` 20 ms e `MIN_CLIPE` 50 ms.
 - ✏️ **Renomear o projeto:** clique no nome na barra do topo (Enter ou sair do campo salva, Esc cancela). Muda só o nome exibido; o id e a pasta continuam (`PUT /api/projetos/{id}/nome`).
-- ⚙️ **Configurações com abas por categoria:** hoje só "Cortes" (motor, margens, pausas longas); Inserts, Motion e Legenda entram como novas abas. Cada mudança é gravada na hora em `projetos/_config.json` como padrão do app (`GET/PUT /api/config`).
+- ⚙️ **Configurações com abas por categoria:** **Geral** (sobre o criador), **Cortes** (motor, margens, pausas longas) e **Direção visual** (modelos, formato da análise, o que o diretor recebe); Inserts, Motion e Legenda entram como novas abas. Cada mudança é gravada na hora em `projetos/_config.json` como padrão do app (`GET/PUT /api/config`).
 - ✅ **Correção (montagem dos clipes):** a borda de um trecho mantido nunca passa do início da palavra removida vizinha. Antes, a borda era puxada para o silêncio mais próximo e, se esse silêncio ficasse depois de uma palavra removida, o áudio dela voltava para o vídeo.
 - ✅ **Velocidade do vídeo:** 0,25×, 0,5×, 1× e 2× ao lado do play (o tom é preservado); vale também para "ouvir emenda".
 - 💡 **Atalhos na etapa:** espaço toca/pausa; ←/→ 0,5 s (Shift 5 s, Alt 10 ms); **E** ouve a emenda mais próxima; **B** alterna "tocar resultado" e "tocar bruto"; Ctrl/⌘ + roda do mouse dá zoom na timeline (até 1 ms ≈ 12 px). Parado dentro de um trecho cortado, o player fica onde está (dá para inspecionar o que saiu); o pulo só acontece ao tocar.
@@ -213,7 +235,7 @@ O passo de silêncios também gera a forma de onda real (`picos.json`).
 - **Referências:** cortes e palavras têm rótulos estáveis (✂ 3, w00091); botão "copiar referência" (`✂3 · 27,512 s · w00091`) para colar no chat. Marcadores com nota ficam para depois.
 - **Ouvir emenda:** botão e atalho em cada corte, tocando ~2 s antes e ~2 s depois com o corte aplicado, com loop opcional.
 
-✅ **Como Rodrigo corrige** (3b-2, só depois de usar a tela acima). São três formas, sempre sincronizadas: mudar em uma atualiza as outras.
+✅ **Como Rodrigo corrige** (3b-2). Feito: alças nas bordas, cortar e excluir trechos, restaurar da IA, recalcular. Falta: ligar/desligar palavras pelo texto, travas manuais, desfazer/refazer e versões. São três formas, sempre sincronizadas: mudar em uma atualiza as outras.
 1. **Texto:** transcrição com as palavras cortadas riscadas. Clicar ou selecionar liga e desliga o corte, o que permite escolher outra tentativa da mesma frase.
 2. **Timeline:** clipes com waveform, alças para arrastar as bordas, ajuste fino quadro a quadro pelo teclado e aumento ou redução de respiros.
 3. **Chat:** pedidos em linguagem natural ("volta a primeira tentativa da abertura", "corta mais seco entre 0:12 e 0:20"). ✅ **Adiado para bem depois** (o chat segue simulado).
@@ -228,20 +250,22 @@ O passo de silêncios também gera a forma de onda real (`picos.json`).
 
 ### 8.2 Direção visual
 
-✅ **O que é (decisão de Rodrigo, out/2026):** etapa entre Cortes e Inserts que decide **o que aparece na tela em cada momento** do vídeo cortado. Não edita mídia: escolher e recortar clipes fica em Inserts e Motion, que partem desta direção. Aprende com pares **transcrição → transcrição + o que aparece na tela**, tirados de vídeos já editados de Rodrigo e revisados por ele.
+✅ **O que é (decisão de Rodrigo, out/2026):** etapa entre Cortes e Inserts que decide **o que aparece na tela em cada momento** do vídeo cortado. Não edita mídia: escolher e recortar clipes fica em Inserts e Motion, que partem desta direção. Aprende com vídeos já editados do criador (Calibragem): os pares **fala → o que apareceu na tela**, os **indicadores** tirados deles e a **heurística** escrita a partir dos indicadores (§8.2.1). Só jogar os pares para a IA não funcionou tão bem, e uma heurística numérica ("62% das vezes depois de X vem Y") também não captou o espírito (Rodrigo, out/2026): o que vale é a **intuição qualitativa** — que tipo de frase casa com que visual —, com os números só como noção de proporção e duração.
 
 ✅ **Duas camadas, categorias fixas** (a IA não cria categorias; novas só quando Rodrigo cadastrar):
-- **Planos-base** (um por vez, cobrem o vídeo sem buracos; um grupo novo a cada troca): `Full ator` · `Full ator com lettering` (o ator em tela cheia com um texto de destaque sobre ele; dura enquanto o texto está na tela, então pode dividir um trecho sem corte de cena) · `Insert tela cheia` · `Motion tela cheia` · `Tela dividida` (em cima insert **ou** motion, guardado como campo; embaixo o ator) · `Comentário + insert + ator` (comentário de seguidor sobre um insert/motion em cima, o ator embaixo respondendo). Os dois planos com texto guardam o texto exato (do lettering ou do comentário).
+- **Planos-base** (um por vez, cobrem o vídeo sem buracos; um grupo novo a cada troca): `Full ator` · `Full ator com lettering` (o ator em tela cheia com um texto de destaque sobre ele; dura enquanto o texto está na tela, então pode dividir um trecho sem corte de cena) · `Insert tela cheia` · `Motion tela cheia` · `Tela dividida · insert` (material real em cima — gravação de tela, site, app, print, filmagem —, o ator embaixo) · `Tela dividida · motion` (motion em cima, o ator embaixo). Até out/2026 era um tipo só, `Tela dividida`, com o que vai em cima num campo (`conteudo`); Rodrigo pediu dois tipos (`tela_dividida_insert`, `tela_dividida_motion`). Os dados salvos foram convertidos e o código ainda aceita o formato antigo (`direcao.tipo_atual`), inclusive no cache de trechos das referências · `Comentário + insert + ator` (comentário de seguidor sobre um insert/motion em cima, o ator embaixo respondendo). Os dois planos com texto guardam o texto exato (do lettering ou do comentário).
 - **Elementos** (dentro de um plano, podem durar menos e se sobrepor): `Lettering` (palavra destacada sobre um plano que não é o ator em tela cheia) · `Palavra ManyChat` (CTA de comentário) · `Caixinha de perguntas` · `Print/imagem sobreposta`.
-- Zoom/punch-in no ator não é plano: fica para Inserts/edição.
+- Zoom/punch-in no ator não é plano: fica para a edição (Enriquecimento).
+- **Inserts na marcação** (decisão de Rodrigo, out/2026, quando a Inserts passou a ser manual): nos planos com insert, a **marcação é o que acontece no insert**, em ordem, edições incluídas ("o GitHub do Graphify entra subindo, zoom no número de estrelas, troca para o README"). Um campo só: sem lista de mídias, sem vídeo × imagem, sem formato (as mídias sobem à mão; distinguir material com movimento próprio de imagem editada era pouco confiável) e sem "como gerar" (a receita de captura perdeu o sentido). Em nenhum plano a marcação descreve o layout que o nome do plano já diz (tela dividida, apresentador embaixo); num full ator sem nada de especial, ela pode ficar vazia. (Antes houve uma `captura` com categoria e takes, depois um `insert` com narrativa e mídias; os dois saíram.)
 
-✅ **Cada item guarda:** tipo; início e fim **nas palavras** (§9) **e em segundos** (pode começar no meio de uma palavra ou numa pausa); **descrição momento a momento, no tom de um editor** (o que aparece, quando entra ou troca, com o tempo aproximado, e para quê, ligando com a fala; 2 a 5 frases; sem detalhes cosméticos como cores, texturas e posições — Rodrigo achou a versão detalhista demais e a versão em alto nível rasa demais); texto exato (lettering, palavra do ManyChat, pergunta da caixinha); **como gerar**, só nos planos com insert (Insert tela cheia, Tela dividida com insert, Comentário + insert + ator): receita prática para reproduzir o insert, como capturar (browser use, computer use, print, gravação…) e o que fazer na edição (rotacionar em 3D, zoom in num elemento, destaque…) — pedido de Rodrigo para orientar a produção dos inserts; miniatura (um quadro do meio). O campo "função" saiu (decisão de Rodrigo, out/2026).
+✅ **Cada item guarda:** tipo; início e fim **nas palavras** (§9) **e em segundos** (pode começar no meio de uma palavra ou numa pausa); **marcação** — a anotação de roteiro do bloco, em 1 a 2 frases: o que aparece e o que acontece na tela, ligado à fala, sem repetir o nome do plano (campo `descricao`; substituiu a descrição longa em out/2026); texto exato (lettering, palavra do ManyChat, pergunta da caixinha, comentário); miniatura (um quadro do meio). (Houve um campo "função", depois uma "função da fala" em lista fixa, e um "como gerar"; saíram em out/2026.)
 
 #### 8.2.0 Telas na home (decisão de Rodrigo, out/2026)
 
-✅ Três abas: **Projetos** · **Referências** · **Calibragem**.
+✅ Barra de cima: **Projetos** · **Banco** (§8.3) · **Referências** · **Calibragem** · **Heurística da direção**. (Houve abas dentro da Calibragem e de Referências, e uma heurística de captura separada por categoria; saíram quando a captura passou a fazer parte da direção.)
 - **Calibragem** (`/calibragem`, antiga "Referências"): sobe os vídeos editados, a IA analisa e Rodrigo revisa (§8.2.1). O nome deixa claro que ainda estamos calibrando o modelo.
-- **Referências** (`/referencias`): galeria de **todos os planos-base** identificados nos vídeos analisados (`GET /api/referencias/clipes`). Segunda barra com as categorias (Todos + os 6 planos, com contagem), busca na descrição/texto/fala, "só revisadas" e ordem (aleatório, mais longos, mais curtos, por vídeo). Cada card toca o seu trecho, mudo, ao passar o mouse; clicar abre um modal com o player ("Este trecho" em loop ou "Vídeo de origem" inteiro), uma faixa com todos os planos do vídeo de origem (este destacado; clique leva o vídeo para ali), texto, descrição, fala e os dados do clipe: duração, posição (tempo, % e "plano N de M"), como entra na fala (pausa / entre palavras / dentro da palavra, começo ou meio de frase, ms até a palavra), palavras e ritmo, plano anterior e seguinte, elementos dentro dele; e do vídeo de origem: duração, nº de planos e quanto do tempo cada categoria ocupa (`direcao.clipes`). ← → passam para o próximo; a faixa de planos ocupa a largura do modal, embaixo. Grade de 8 clipes por linha.
+- **Heurística da direção** (`/heuristica`): as regras (do criador e sugeridas pela IA, cada uma com a seção "Inserts") e os roteiros de exemplo de cada referência (§8.2.1).
+- **Referências** (`/referencias`): galeria de **todos os planos-base** (com a marcação de cada um) identificados nos vídeos analisados (`GET /api/referencias/clipes`). Segunda barra com as categorias (Todos + os 6 planos, com contagem), busca na descrição/texto/fala, "só revisadas" e ordem (aleatório, mais longos, mais curtos, por vídeo). Cada card toca o seu trecho, mudo, ao passar o mouse; clicar abre um modal com o player ("Este trecho" em loop ou "Vídeo de origem" inteiro), uma faixa com todos os planos do vídeo de origem (este destacado; clique leva o vídeo para ali), texto, descrição, fala e os dados do clipe: duração, posição (tempo, % e "plano N de M"), como entra na fala (pausa / entre palavras / dentro da palavra, começo ou meio de frase, ms até a palavra), palavras e ritmo, plano anterior e seguinte, elementos dentro dele; e do vídeo de origem: duração, nº de planos e quanto do tempo cada categoria ocupa (`direcao.clipes`). ← → passam para o próximo; a faixa de planos ocupa a largura do modal, embaixo. Grade de 8 clipes por linha.
 - **Favoritos** (estrela no card, no modal ou tecla F; filtro "★ Favoritos"): ficam em `referencias/_favoritos.json`, identificados pela referência e pelo intervalo (não pelo id do plano, que muda ao reanalisar), com uma cópia de tipo, conteúdo, descrição e texto. São as **preferências** de Rodrigo que vão guiar as IAs na próxima etapa (`PUT /api/referencias/{id}/favorito`).
 
 #### 8.2.1 Calibragem (treinamento) — construída primeiro
@@ -252,39 +276,93 @@ O passo de silêncios também gera a forma de onda real (`picos.json`).
 1. **Código:** detector de cena (PySceneDetect, local) acha os cortes duros com precisão de quadro; a transcrição usa o motor padrão do app (ElevenLabs).
 2. **LLM multimodal em paralelo, uma chamada por trecho:** recebe o **trecho em vídeo, com áudio** (padrão; opção: mosaicos de quadros com o tempo escrito) e a **transcrição do começo do vídeo até o fim do trecho** (nada do que vem depois), com a fala do trecho marcada entre `<momento_analisado>` e `</momento_analisado>`. Devolve plano-base, elementos com início/fim, descrição e texto exato, em saída estruturada, sempre dentro das categorias fixas.
 3. **Código:** prende os tempos às palavras e junta trechos vizinhos com o mesmo plano.
-✅ **Revisão** (mesma linguagem da tela de Cortes): vídeo de referência no centro, timeline vertical à esquerda com as palavras, uma faixa de planos-base e uma de elementos; bordas arrastáveis com ímã em palavras e cortes detectados; detalhe editável (tipo, descrição, texto, função, miniatura); criar item onde o detector perdeu o corte; **"✓ Marcar como revisado"**. Só pares revisados entram no dataset.
-✅ ~~Estatísticas~~: construídas na D4 e **removidas** (decisão de Rodrigo, out/2026): o de-para transcrição → direção será montado de outro jeito.
+4. **Inserts (etapa "inserts", depois da montagem):** cada plano com insert é assistido de novo, inteiro (a análise só viu pedaços entre cortes de cena), e o modelo reescreve a **marcação** dele: o que acontece no insert, sem descrever o layout. 3 blocos por vez. A detecção de planos e elementos não muda. Medido nas 8 referências: 141 blocos em ~4 min. As marcações dos planos sem insert das 8 referências passaram uma vez por uma limpeza só de texto (out/2026), que tirou o layout e o óbvio ("o apresentador falando para a câmera"); full ator comum ficou com a marcação vazia. O original ficou em `direcao.antes-limpeza.json`. Sem isso, a diretora imitava os exemplos e continuava descrevendo layout.
+✅ **Revisão** (mesma linguagem da tela de Cortes): vídeo de referência no centro, timeline vertical à esquerda com as palavras, uma faixa de planos-base e uma de elementos; bordas arrastáveis com ímã em palavras e cortes detectados; detalhe editável (tipo, marcação — nos inserts, "o que acontece no insert" —, texto, miniatura); criar item onde o detector perdeu o corte; **"✓ Marcar como revisado"**. Só pares revisados entram no dataset.
+✅ **Roteiros dirigidos (decisão de Rodrigo, out/2026):** a Calibragem não produz números nem padrões: produz **roteiros**. Cada vídeo de referência vira a fala com a marcação do que aparecia na tela, uma linha por corte de cena:
+```text
+[Comentário + insert + ator: pergunta do seguidor sobre um print do YouTube «Por onde começo?»]
+“Se eu tivesse que começar a IA hoje, por onde começaria?”
+
+[Full ator: ele olhando para a câmera, respondendo direto]
+“Cara, eu não tentaria aprender tudo ao mesmo tempo.”
+```
+Sem tempos nem proporções: só o roteiro e o que fazia sentido mostrar ali. Montado pelo código (`calibragem.roteiro`) a partir da análise: a marcação vem do campo do bloco, com o nome do plano, o texto, os elementos (`+ palavra manychat «X»`, `+ caixinha…`, `+ print…`). O **lettering vai na fala**, preso às palavras (decisão de Rodrigo, out/2026): `<lettering>GPT 3.7 Flash</lettering>`, ou `<lettering texto="R$ 97">noventa e sete reais</lettering>` quando o que aparece na tela é diferente do falado; uma palavra é do lettering se o meio dela cai dentro do intervalo do elemento analisado (sem reanalisar nada). Na tela da Calibragem, as palavras com lettering aparecem destacadas. Corrige-se na revisão do vídeo e o roteiro acompanha. A **função da fala** e os **números** (D4 e a versão seguinte) saíram: "a coisa mais importante é a direção sobre o roteiro".
+✅ **Telas:** clicar num vídeo da Calibragem abre um **modal** com o **roteiro decupado** ao lado do vídeo (clicar numa linha toca aquele trecho em loop) e **"Abrir calibragem"** (a revisão). A **Heurística da direção** é uma página própria na barra de cima (§8.2.0).
+✅ **Heurística da direção = regras + roteiros de exemplo** (`calibragem.py`, `referencias/_heuristica.json › regras`):
+- **`## Regras do criador`** (dele, obrigatórias) e **`## Regras sugeridas pela IA`** — texto Markdown, com **Ler** e **Editar**. Cada uma tem uma subseção **`### Inserts`** (como escrever a marcação dos inserts: o que aparece, como entra, zooms, destaques, trocas; nunca o layout). A heurística de captura que existiu separada foi unificada (out/2026; a versão separada ficou em `referencias/_heuristica_captura.antiga.json`) e depois trocada pela de inserts. "Sugerir regras com IA" lê os roteiros e refaz só a seção sugerida (2 a 5 regras de direção + 2 a 5 de inserts); as do criador nunca são tocadas; a versão anterior fica guardada ("↺ Voltar"). As versões anteriores da heurística (catálogo, padrões, campo das Configurações) migraram: ficaram só as regras.
+- **`## Roteiros de exemplo`**: todos os vídeos analisados, montados na hora a partir da análise (não se editam no documento). Na tela, cada vídeo abre e cada linha toca o trecho.
+- Vai **inteiro** para o prompt do diretor dos projetos (§8.2.2): ele aprende a dirigir "olhando o roteiro acima de tudo".
 ✅ **Configurações › aba "Direção visual":** modelo multimodal (padrão `google/gemini-3.8-flash` via OpenRouter) e como a IA vê cada trecho: **Vídeo** (padrão) ou **Mosaico** (grade 3×2 ou 3×1, 1 a 4 quadros/s, no máximo 40 quadros por trecho). Trocar qualquer um faz a próxima análise refazer os trechos.
 💡 Fatos levantados (out/2026): o OpenRouter aceita vídeo para Gemini como `video_url` com data URL base64 (o `langchain-openrouter` converte o bloco `video`); não está confirmado que repassa `fps`/recorte, então o recorte e a taxa de quadros são feitos antes, com FFmpeg. O Gemini sozinho localiza eventos com erro de ~±1 s (1 quadro/s padrão): por isso os cortes vêm do detector de cena. Custo estimado: centavos de dólar por vídeo de 2 min.
-✅ **Como foi construído (D2–D4, out/2026):**
-- Passos por referência (estado em `referencia.json` › `analise.passos`, a tela acompanha): proxy 720p → áudio, silêncios e transcrição (motor padrão; ElevenLabs ou, se falhar, Whisper + stable-ts) → cenas (PySceneDetect **adaptativo** no proxy; ~1–6 s por vídeo) → análise por trecho → montagem. Arquivos: `proxy.mp4`, `palavras.json`, `cenas.json`, `trechos/NNN.json` (cache por trecho, chave = início, fim, modelo e quadros/s), `analise.json`, `direcao.json` (`itens` revisados, `itens_ia` como a IA entregou, `cortes`), `quadros/` (miniaturas).
+✅ **Como foi construído (D2–D3, out/2026):**
+- Passos por referência (estado em `referencia.json` › `analise.passos`, a tela acompanha): proxy 720p → áudio, silêncios e transcrição (motor padrão; ElevenLabs ou, se falhar, Whisper + stable-ts) → cenas (PySceneDetect **adaptativo** no proxy; ~1–6 s por vídeo) → análise por trecho → montagem → descrição dos inserts. Arquivos: `proxy.mp4`, `palavras.json`, `cenas.json`, `trechos/NNN.json` (cache por trecho, chave = início, fim, modelo e quadros/s), `analise.json`, `direcao.json` (`itens` revisados, `itens_ia` como a IA entregou, `cortes`), `quadros/` (miniaturas).
 - A LLM recebe, por padrão, o **trecho como vídeo MP4 com áudio** (640 px de altura; o Gemini amostra ~1 quadro/s em resolução reduzida e ouve o áudio), a transcrição até o fim do trecho com o momento marcado e um quadro logo antes do trecho. Os tempos que ela devolve são do vídeo inteiro (se vierem do clipe, o código soma o início). Opção em Configurações: **mosaico** 3×2 ou 3×1 de quadros com o tempo escrito (1–4 quadros/s), mais um quadro depois do trecho. Quadros separados (um por imagem) foram testados e descartados. Responde em saída estruturada (`AnaliseTrecho`: `continua_anterior`, `planos[]`, `elementos[]`; LangChain `with_structured_output(..., method='json_schema')`, os `Literal` viram `enum` e impõem as categorias). Raciocínio `low`, saída máx. 4.096 tokens, timeout 90 s, 2 trechos em paralelo. `VERSAO_ANALISE` entra na chave do cache: mudar o prompt refaz os trechos.
-- Montagem: planos contíguos; trechos vizinhos com o **mesmo plano** viram um só quando é Full ator (jump cut) ou quando a IA diz que o trecho **continua o mesmo conteúdo** (as descrições são emendadas com "Depois:"); inserts diferentes em sequência continuam separados. Itens presos às palavras (`palavra_ini`/`palavra_fim`), com miniatura do meio.
+- Montagem: planos contíguos, **um por corte de cena** (cada um é uma linha do roteiro); só os jump cuts do Full ator se juntam. Itens presos às palavras (`palavra_ini`/`palavra_fim`), com miniatura do meio.
 - Revisão (`/calibragem/:id`): timeline vertical própria (tempo linear, zoom 8–600 px/s), colunas fala · planos-base · elementos (elementos sobrepostos em faixas lado a lado), cortes de cena tracejados, ímã em palavras e cortes (Alt desliga), arrastar a troca entre planos e as pontas/corpo de elementos, dividir plano no cursor (S), novo elemento (E), excluir/juntar (Delete), desfazer (⌘Z), salvamento automático (`PUT /direcao`, o servidor valida com `direcao.validar_edicao`), "✓ Marcar como revisada" (`PUT /status`), "↻ Reanalisar" (refaz com o prompt atual; a versão anterior fica em `direcao.anterior.json`). O detalhe da direita segue o plano sob o cursor.
 - Erros: se o OpenRouter recusar por **falta de crédito**, a fila pausa (as próximas referências ficam em erro com o aviso, sem gastar transcrição) até alguém clicar "Tentar de novo"; o que já foi analisado é reaproveitado.
 💡 Medido (out/2026, Gemini 3.8 Flash): **vídeo é o mais barato**: trecho de 2,7 s = 2,4 mil tokens em vídeo × 9,9 mil em quadros separados; trecho de 13 s = 4,1 mil × 34 mil, com descrições tão boas ou melhores (vê o movimento). Rodrigo escolheu vídeo como padrão. Antes disso: o Gemini 3 cobra ~1.100 tokens **por imagem**, qualquer que seja o tamanho; mandar um quadro por imagem custava ~9–19 mil tokens por trecho. Com mosaicos 3×2, o mesmo trecho de 6,5 s caiu de 18,7 mil para 7,7 mil tokens (5,5 s), mesma análise. Um Reel de ~50 s tem ~20 trechos. A análise acerta muito bem planos, caixinha de perguntas (com o texto) e motions; a legenda palavra a palavra precisa ser ignorada explicitamente no prompt, e um texto que é o próprio motion não deve virar lettering.
 💡 Lição: `referencias/` no `.gitignore` sem a barra inicial ignorava também `frontend/src/referencias/` (o Tailwind não lia as classes e o git não versionaria os arquivos). Pastas de dados ficam ancoradas na raiz (`/referencias/`).
 💡 Lição: um `ffmpeg` filho continua rodando quando o servidor recarrega no meio do proxy; dois escrevendo no mesmo arquivo temporário corromperam um proxy. O temporário agora é único por processo/thread.
 
-#### 8.2.2 Direção visual no projeto — depois de 5 a 10 pares revisados
+#### 8.2.2 Direção visual no projeto
 
-✅ Até lá, a etapa aparece no projeto como **mock**.
-✅ Quando real: uma LLM recebe a transcrição do vídeo cortado, **todos os pares revisados** e as estatísticas, e propõe planos e elementos no mesmo formato da revisão, presos às palavras (acompanham mudanças nos cortes; itens sem palavras ficam órfãos, §9). Rodrigo corrige na mesma timeline. Inserts e Motion partem dessa direção.
-✅ Evolução: com o dataset maior, uma LLM **destila um guia de estilo** editável por Rodrigo (regra editorial explícita, como a §14 para cortes), e a Direção passa a usar guia + alguns exemplos.
+✅ **Implementada (D5, out/2026), aguardando avaliação.** Decisões de Rodrigo: entrada só o necessário (a transcrição do vídeo cortado); exemplos = **todas** as referências analisadas por enquanto (revisadas ✓ e favoritos ★ marcados no prompt; a regra muda depois); saída no formato da Calibragem; bordas por **intervalos de palavras** escolhidos pela IA; exemplos inteiros no prompt; **nenhuma regra extra** (a IA infere dos exemplos); modelo Gemini Flash configurável (Configurações › Direção visual › "Modelo da proposta").
+- **Em duas etapas (decisão de Rodrigo, out/2026):** (1) a **diretora** recebe a heurística inteira (regras + roteiros de exemplo) e a fala do vídeo novo **como texto corrido** (sem IDs nem tempos) e escreve o **roteiro dirigido** no mesmo formato dos exemplos (`[plano: marcação + elementos]` + a fala copiada, bloco a bloco) — só intuição, sem formatação; (2) o **código alinha** a fala de cada bloco às palavras reais em sequência (`difflib`, tolera acentos, pontuação e palavras puladas; palavras sem par ficam com o bloco anterior; bloco sem nenhuma palavra some) — exato e sem custo, porque transformar texto em IDs de palavra é onde as IAs mais erram; (3) a **formatadora** transforma cada marcação nos campos (tipo, texto, elementos e marcação limpa), sem decidir nada. Nos inserts, a marcação da diretora conta o que acontece neles (§8.2), como nos roteiros de exemplo. **Letterings:** a diretora os marca na fala com `<lettering>` (uma tag por trecho, sem aninhar; tag aninhada ou sem par é ignorada e vale a de fora); o **código** lê as tags no mesmo passo do alinhamento e cada trecho marcado vira um elemento Lettering preso exatamente às palavras casadas (texto = o atributo `texto` ou as palavras faladas). A formatadora não cria letterings. Não há agente separado para destaques (cogitado e descartado por Rodrigo). O roteiro intermediário fica no registro. Medido no vídeo de teste: 224 de 224 palavras alinhadas; ~20 s e ~14 mil tokens; a diretora fez blocos mais longos que a versão de uma etapa (14 contra 20 planos), mesmo com o pedido de blocos curtos.
+- Montagem (`direcao_projeto.montar`): planos contíguos (o primeiro começa na primeira palavra) e a troca dentro da pausa (até 80 ms antes da palavra; elementos 50 ms antes e até 150 ms depois).
+- **Diretora (decidido por Rodrigo, out/2026):** Gemini 3.8 Flash com raciocínio médio; modelo e raciocínio ficam em Configurações › Direção visual › "Diretora" (`modelo_diretora`, `raciocinio_diretora`). A formatadora usa o "Modelo da formatadora". Uma direção por projeto (`projeto.json › direcao`); projetos antigos com `direcoes` por variação migram para a variação (a). Comparação que embasou a escolha (vídeo de teste, só a diretora): Flash raciocínio baixo 14 blocos, 2 Full ator > 4 s; Flash médio 22 blocos, 2 > 4 s, 51 s; Claude Sonnet 5.5 22 blocos, nenhum > 4 s; fala em pedaços curtos 28 blocos, picado demais.
+- **Trocas de plano nas emendas:** a folga em volta da palavra-âncora (para a troca cair no silêncio) nunca atravessa uma emenda de corte: se a palavra é a primeira do trecho, a troca fica exatamente na emenda (no servidor, `_folga` = 0; na tela, o item é preso às bordas do trecho da palavra).
+- **Versões e comentários (decisão de Rodrigo, out/2026):** a **v1** é a diretora + formatadora (numeração a partir de 1, pedido de Rodrigo). A partir dela, o criador **comenta pontos do vídeo** e pede a próxima versão: a **corretora** (mesmo modelo e raciocínio da diretora) parte da versão aberta, com os ajustes manuais, reescrita como roteiro dirigido (`roteiro_da_versao`: `[plano: marcação]` + fala com `<lettering>`). Cada comentário entra no ponto da fala como `{💬 comentário}`, e há um **comentário geral** opcional. Ela recebe também a heurística e devolve o roteiro inteiro corrigido, mudando só o necessário. Ele passa pelo mesmo alinhamento + formatadora. v2 = v1 + comentários + corretora, v3 = v2 + comentários…; gerar a partir de uma versão antiga cria uma nova no fim (ex.: v4 ← v2) sem apagar nada.
+  - **Dados:** `projeto.json › direcao.versoes[]` (`n`, `origem`, `itens`, `itens_ia`, `roteiro`, `comentarios[]`, `geral`, `registro`…), `direcao.ativa`, e os campos da versão aberta espelhados no topo de `direcao` (`projeto.espelhar_direcao`). Direções de antes viram a v1 (e versões numeradas a partir de v0 são renumeradas). Ajustes e comentários ficam na versão aberta; os comentários de uma versão ficam guardados nela (a nova começa sem). O pedido em andamento fica em `direcao.pedido` (`gerar` ou `corrigir` + `de`) e é retomado se o servidor reiniciar.
+  - **Comentário:** preso a um ponto (palavra + deslocamento, como os itens, para acompanhar os cortes); a IA entende que fala daquela região. Na tela, uma coluna 💬 à direita dos elementos, com uma bolinha por comentário; passar o mouse mostra o texto com Editar e Excluir; clicar leva o vídeo ao ponto. O botão **💬+** anda com a cabeça de reprodução (e a tecla **C**), pausa o vídeo e abre o modal para escrever.
+  - **Barra de versões** acima da timeline: `v1 · v2 ← v1 · v3 ← v2` (com 💬N); clicar abre a versão. **"Gerar vN"** abre um modal com os comentários da versão aberta e o comentário geral (exige pelo menos um dos dois); enquanto a corretora trabalha, a versão atual continua na tela. **"Refazer direção do zero"** (barra do topo) apaga todas as versões e comentários e gera uma nova v1, com aviso antes.
+  - Rotas: `POST /direcao/corrigir {geral}`, `PUT /direcao/versao {n}`, `POST /direcao/comentarios {palavra, off, texto}`, `PUT|DELETE /direcao/comentarios/{cid}`, `GET /direcao/registro?versao=n`.
+  - Medido (cópia do vídeo de teste, um comentário "aqui prefiro tela dividida mostrando o GPT Astra" + geral "lettering nos números"): 44 s, ~20 mil tokens; o Full ator comentado virou Tela dividida, entraram letterings nos números e os outros 20 planos ficaram iguais. A v3 do vídeo de teste foi gerada pela corretora com o geral "acrescente a captura": os 14 inserts saíram com captura (ex.: "designs de sites, de aplicativos, de apresentações" → 3 takes, o 2º na versão de celular 9:16); ponto fraco: "esses dois sites aqui" saiu com 1 take só.
+  - 💡 Depois: comentários que se repetem entre vídeos virarem sugestões de Regras do criador.
+- **Registro de cada geração** (pedido de Rodrigo): `projetos/<id>/direcao_log/<data-hora>.json` (cru: modelo e raciocínio da diretora, modelo da formatadora, tokens, prompt de sistema, mensagem, roteiro da diretora, resposta formatada) e `.md` (legível). Na etapa, "Prompt e resposta" mostra o da versão aberta (diretora na v1, corretora nas outras), em abas (`GET /api/projetos/{id}/direcao/registro`).
+- Guardado em `projeto.json › direcao` (versões; os campos da versão aberta espelhados: `itens`, `itens_ia`, `roteiro`, `modelo`, `segundos`…). Cada item é **preso a palavras** + deslocamento (`palavra_ini`, `palavra_fim`, `off_ini`, `off_fim`); os tempos no vídeo final são calculados na tela. Se as palavras de um item forem cortadas, ele fica órfão (guardado, fora da timeline, com aviso).
+- **Regras do criador:** ficavam em Configurações › Direção visual › "Regras da direção" e migraram para as Regras gerais da heurística. As de Rodrigo (out/2026): não começar com o apresentador em tela cheia (começar com tela dividida ou, no máximo, comentário + insert + ator); vídeo que começa lendo uma pergunta é de dúvida e começa com comentário + insert + ator.
+- Tela (etapa 02): "Gerar direção com IA" na primeira vez (roda em segundo plano, ~40–60 s, alguns centavos); depois versões pela corretora ou "Refazer direção do zero" no topo. Mesma timeline e mesmo detalhe da revisão, sobre o vídeo cortado, com as emendas dos cortes tracejadas e no ímã; salvamento automático (`PUT /api/projetos/{id}/direcao`, convertido de volta para palavras); o preview desenha um **esboço do layout** (caixa de insert/motion em tela cheia ou em cima, lettering, comentário, elementos).
+✅ O "guia de estilo destilado" previsto para depois virou a **Heurística** (§8.2.1). Com mais vídeos, falta decidir se os exemplos inteiros continuam no prompt ou só os mais parecidos (⏳ §17).
 
-### 8.3 Inserts (mock na v1)
+### 8.3 Inserts
 
-✅ Visão: selecionar vídeos de apoio ideais para ilustrar cada trecho; o agente recorta o apoio no momento certo e o encaixa na V2. Rodrigo comenta propostas de inserts, ângulos e formas de mostrar nesta etapa.
-✅ Na v1: tela com layout real, inserts falsos na V2 e ferramentas fictícias no agente.
-⏳ Em aberto: como os apoios são analisados (visão/LLM multimodal) e acervo global. Os layouts (tela cheia, tela dividida) agora vêm da Direção visual (§8.2).
+✅ **O que é (Rodrigo, out/2026, inspirado num colega que começou assim):** por ora, **manual**. A direção diz o que acontece em cada insert e quais mídias ele pede (§8.2); o criador **sobe** os vídeos e imagens para o banco e os **liga** a cada insert. Zoom, destaques, caixas, entradas e o arranjo das mídias (lado a lado, uma depois da outra) são do **Enriquecimento**; o som, do **Áudio**. Um agente automático (busca na web, captura de páginas com Playwright, download de vídeos, login em ferramentas, sites úteis) existiu e foi **removido** nesta mudança; a captura automática pode voltar depois, separada por tipo (imagem: print da página no formato; vídeo: gravação).
 
-### 8.4 Motion (mock na v1)
+✅ **Pedidos:** cada plano com insert da versão aberta da direção vira um pedido: a marcação (o que acontece no insert), a fala do bloco e a duração. Um pedido é identificado por tipo + palavras + marcação: numa versão nova da direção, os que não mudaram mantêm as mídias ligadas (`inserts.sincronizar`). Os candidatos escolhidos no agente antigo viraram mídias ligadas.
+
+✅ **Mídias ligadas** (`pedido.midias`, em ordem): `{id, banco}` — um item do banco, original ou **trecho**. Até 12 por insert, opcionais, reordenáveis; sem divisão de tempo entre elas (é do Enriquecimento). `PUT …/inserts/{pid}/midias` grava a lista inteira (`inserts.definir_midias`, confere que cada item existe no banco). (Houve um "ponto de início" por mídia; saiu quando vieram os trechos.)
+
+✅ **Banco de mídias** (`banco/<id>/`, global, fora dos projetos; página **Banco** na barra de cima): `original.<ext>` (o arquivo como veio), no vídeo `proxy.mp4` (lado maior 1280, para tocar) e `miniatura.jpg`; `item.json` com nome, descrição, palavras-chave, **tipo** (vídeo · imagem, pela extensão), **formato** (o mais próximo da proporção real do arquivo, entre 16:9 · 16:10 · 4:3 · 1:1 · 4:5 · 3:4 · 9:16 · alto), dimensões, duração, origem e o estado da IA. Ao subir, a **IA descreve** em segundo plano (`modelo_direcao`; vê a versão leve `analise.mp4`/`analise.jpg`): descrição e palavras-chave sugeridas (não apaga o que o criador escreveu; a dela fica em `descricao_ia`), para no futuro sugerir o que vai onde. Descrições interrompidas por um reinício voltam para a fila. Busca no nome, na descrição e nas palavras-chave; filtro vídeo/imagem; **usos** calculados lendo os projetos; apagar tira a mídia de todos os inserts. As capturas do agente antigo ficaram (origem "captura automática").
+
+✅ **Trechos e edição de vídeo (decisão de Rodrigo, out/2026):** um vídeo do banco pode ter **trechos** — itens filhos (`pai`, `inicio`, `fim`), **virtuais**: sem arquivo próprio, tocam o original; herdam dele descrição, palavras-chave e formato (descrição própria fica para o futuro). O **editor de vídeo** (modal) abre ao subir um vídeo num insert, ao escolher um vídeo original do banco e em "Editar" numa mídia ligada (e em "Editar vídeo" na página Banco): player, régua de tempo (clicar ou arrastar nela só anda pelo vídeo), timeline com tira de quadros (`GET /api/banco/{id}/tira`), cabeça de reprodução; clicar na timeline só busca, arrastar no vazio (6 px ou mais) cria um trecho, clicar num trecho o seleciona (com a lixeira no canto dele; Delete também apaga; espaço toca só ele) e arrastá-lo o move, as pontas ajustam, **I**/**O** marcam entrada e saída no ponto do player, setas andam um quadro (shift = 1 s), precisão de 1/30 s. Dentro de um insert, os trechos marcados entram no lugar das mídias daquele vídeo, em ordem, cada um uma mídia; sem trecho marcado, entra o vídeo inteiro (fechar sem salvar também deixa o inteiro). Mudar um trecho usado em outros inserts pergunta: muda em todos, ou salva como trecho novo. **Cortar o original** (aba do editor) regrava o arquivo só com a parte escolhida (H.264 CRF 14, em segundo plano; `edicao.status` no item) — é o único jeito de o original mudar; os trechos acompanham o novo começo e os que caem fora somem. Apagar o original apaga os trechos. Na grade do Banco só aparecem os originais, com o selo "N trechos"; o detalhe lista os trechos; no "Escolher do banco" cada original mostra os trechos logo abaixo, para escolher direto.
+
+✅ **Captura de site** (`captura_site.py`; botão "Capturar site" no insert): URL e proporção — 16:9 (1440×810), 4:3 (1200×900), 1:1 (1080×1080), versões de computador, ou 9:16 (390×693, **versão de celular**) — → "Abrir página" mostra a página inteira numa imagem (rolada até o fim antes, para carregar tudo) → o criador clica onde começa cada dobra (a 1ª é o topo, até 3) → a captura roda em segundo plano, uma por vez, com o andamento no insert. Cada dobra grava **em tempo real** (decisão de Rodrigo: qualidade máxima), parada, com as animações de entrada: screencast do Chrome (CDP `Page.startScreencast`, JPEG q100) no headless novo com GPU (`channel='chromium'`, Metal; o headless antigo renderiza WebGL em software e cai à metade dos quadros), densidade real forçada (`--force-device-scale-factor`) — 2× no computador (16:9 → 2880×1620), 3× no celular (1170×2078) — e os quadros (que chegam quando a tela muda, ~47–56/s) reamostrados para 30/s constantes (em cada tique, o último quadro chegado) e gravados em H.264 CRF 16. Antes de gravar, uma visita de aquecimento aceita os cookies e deixa a rede quente; a gravação abre uma aba nova, com o estado da página limpo (só os cookies de consentimento ficam). A 1ª dobra grava o carregamento e começa no 1º quadro pintado do site (sem o branco); as outras recarregam a página sem gravar, pulam direto até a dobra (inclusive com Lenis) e começam no 1º quadro já na posição nova. Medido (Linear, 4 s): ~10–13 s por dobra. Limite conhecido: o screencast às vezes engasga uma vez (~100–250 ms) logo no começo; sem engasgo só gravando uma janela visível pela captura nativa do macOS, que nesta máquina (monitor 3440×1440 em 1×) sairia em 1×. Duração de cada dobra: a do insert + 2 s de folga. Cada dobra vira uma mídia do banco ("Site · dobra 2", origem "captura de site" com a URL), ligada ao insert. Cookies: tenta fechar os banners mais comuns; login fica de fora. Captura interrompida por um reinício vira erro (pede-se de novo). Rotas: `POST /api/projetos/{id}/inserts/captura/previa {url, proporcao}`, `GET …/captura/previa/{cid}`, `POST …/inserts/{pid}/captura {url, proporcao, dobras, titulo}`.
+
+✅ **Tela da etapa:** à esquerda todos os planos do vídeo em ordem: os sem insert numa linha só, apagados (tempo, tipo, fala; clicar leva até lá), e os inserts em destaque (tempo, tipo, fala, o que acontece, quantas mídias, miniaturas); no centro a prévia com as mídias no lugar — **uma depois da outra, em partes iguais** do tempo do insert (imagem parada, cobrindo; vídeo do começo, ou do início do trecho), até o Enriquecimento existir; tela cheia cobre tudo, tela dividida ocupa a metade de cima e o ator desce para a de baixo, comentário + insert mostra o card; à direita o detalhe: a fala, o que acontece no insert (a marcação), as mídias ligadas (vídeo tocável — um trecho toca só a parte dele —, Editar, ordem, tirar), "Subir mídia"/"+ outra mídia", "Escolher do banco" e "Capturar site". Arrastar arquivos para o detalhe sobe e liga.
+
+✅ **Página Banco** (`/banco`): grade com miniaturas (o vídeo toca mudo com o mouse em cima), subir vários arquivos arrastando para qualquer lugar da página, busca, filtro; o detalhe edita nome, descrição e palavras-chave, mostra a descrição da IA ("Descrever de novo"), onde é usada e apaga (com aviso quando está em uso).
+
+💡 **Rotas:** `GET /api/projetos/{id}/inserts` (sincroniza), `PUT …/inserts/{pid}/midias {midias}`, `GET /api/banco?busca=&tipo=` (originais, cada um com os trechos), `POST /api/banco` (multipart `arquivos`), `GET|PUT|DELETE /api/banco/{id}` (num trecho, o PUT aceita `inicio`/`fim`), `POST /api/banco/{id}/trechos {inicio, fim, nome}`, `POST /api/banco/{id}/cortar {inicio, fim}`, `POST /api/banco/{id}/descrever`, `GET /api/banco/{id}/arquivo` (num trecho, o do original), `GET /api/banco/{id}/miniatura`, `GET /api/banco/{id}/tira`.
+
+💡 **Histórico (out/2026):** fase 1 gravava a página no formato do espaço com roteiro de navegação; fase 2 trouxe modos, enquadramentos, takes e heurística de captura (depois por categoria e, por fim, dentro da direção, com a Inserts só executando); depois (decisão de Rodrigo) o agente saiu e a etapa virou manual, com o banco no centro.
+
+⏳ Próximos: categorizar o banco; a IA sugerir mídias do banco para cada insert (pelas descrições); captura automática por tipo; exportação com os inserts.
+
+### 8.4 Enriquecimento de inserts (mock)
+
+✅ Visão (Rodrigo, out/2026): define a moldura de cada insert (card arredondado com sombra sobre degradê, ou tela inteira), o zoom (se, onde e como: curva, intensidade), a rolagem na pós sobre as imagens de página inteira (com easing), entradas ("sobe e assenta") e transições entre as mídias (corte seco, chicote com borrão). Referência: os favoritos mostram o site num card de ~90% da largura sobre degradê, entrada subindo e crescendo de ~85% a 100% em 0,4–0,8 s, zoom de até ~3%. Por ora, simulada.
+
+### 8.5 Motion (mock na v1)
 
 ✅ Visão: criar motions explicativos por trecho e encaixá-los na V3.
 ✅ Na v1: mock, igual a Inserts.
 ⏳ Em aberto: tecnologia (ex.: Remotion), estilo, como o agente gera.
 
-### 8.5 Legenda (mock na v1)
+### 8.6 Áudio (mock)
+
+✅ Visão: efeitos sonoros do vídeo (whoosh na entrada dos inserts, cliques, transições). Os efeitos de áudio dos inserts ficam aqui, não na Inserts. Por ora, simulada.
+
+### 8.7 Legenda (mock na v1)
 
 ✅ Visão: gerar legendas a partir da transcrição já cortada e estilizar.
 ✅ Na v1: mock, com legendas falsas na trilha LEG.
@@ -292,17 +370,17 @@ O passo de silêncios também gera a forma de onda real (`picos.json`).
 
 ## 9. Timeline e ligação entre etapas
 
-✅ A timeline nasce **multitrilha**: V1 (Rodrigo/bruto), V2 (inserts), V3 (motion), LEG (legenda), A1 (áudio do bruto). Na v1 só V1/A1 têm conteúdo real.
+✅ A timeline nasce **multitrilha**: V1 (Rodrigo/bruto), V2 (inserts), V3 (motion), LEG (legenda), A1 (áudio do bruto). V1/A1 têm conteúdo real; os inserts reais aparecem na prévia da etapa de Inserts (sobre o vídeo cortado), presos aos planos da direção; a trilha V2 da timeline horizontal das etapas simuladas ainda é mock.
 
 ✅ Tudo que vem depois dos cortes (inserts, motion, legendas) fica **preso às palavras** da transcrição, não a segundos. Ao mexer no corte, esses itens acompanham a fala. Se as palavras de um item forem removidas, ele fica marcado como **órfão** para Rodrigo decidir.
 
-💡 Ancoragem: `{ "palavra_ini": "w00051", "palavra_fim": "w00060", "offset_ini": 0, "offset_fim": 0 }`. A posição em segundos na saída é sempre calculada, nunca guardada.
+💡 Ancoragem: `{ "palavra_ini": "w00051", "palavra_fim": "w00060", "off_ini": -0.08, "off_fim": 0 }` (deslocamentos em segundos a partir do começo da primeira e do fim da última palavra). A posição na saída é sempre calculada, nunca guardada. Implementado na Direção visual; V2/V3/LEG ainda são mock.
 
 ## 10. Desfazer e versões
 
 ✅ Toda ação, de Rodrigo ou do agente, entra numa pilha de histórico, com Ctrl+Z / Ctrl+Shift+Z.
 ✅ Versões nomeadas podem ser salvas e restauradas (ex.: "antes do agente mexer").
-💡 Cada entrada do histórico guarda autor (`rodrigo` ou `agente`), etapa, descrição curta e um snapshot da timeline. O snapshot é JSON pequeno, então é mais simples do que guardar diffs.
+💡 Cada entrada do histórico guarda autor (`criador` ou `agente`), etapa, descrição curta e um snapshot da timeline. O snapshot é JSON pequeno, então é mais simples do que guardar diffs.
 
 ## 11. Agente
 
@@ -320,11 +398,17 @@ O passo de silêncios também gera a forma de onda real (`picos.json`).
 
 | Uso | Padrão |
 |---|---|
-| Chat do agente | `google/gemini-3.8-flash` via OpenRouter |
-| Seleção de cortes | `google/gemini-3.8-flash` via OpenRouter |
-| Transcrição (bruto e briefing em áudio) | `mlx-community/whisper-large-v3-turbo`, local, refinada por stable-ts. Alternativas por projeto: Qwen3-ForcedAligner 0.6B 8-bit (só tempos), CTC (MMS/ONNX), Parakeet TDT v3, Qwen3-ASR 1.7B 8-bit + Aligner, Whisper large-v3 + stable-ts, ElevenLabs Scribe v2 (API) |
+| Chat do agente (futuro) | `google/gemini-3.8-flash` via OpenRouter |
+| Seleção de cortes | `google/gemini-3.8-flash` via OpenRouter (`OPENROUTER_MODEL` no `.env`) |
+| Transcrição | **ElevenLabs Scribe v2** (API; Configurações › Cortes), com plano B Whisper turbo local + stable-ts. Outros motores rodam em segundo plano para comparar (§8.1) |
+| Análise das referências (Calibragem) | `google/gemini-3.8-flash`, multimodal, vídeo do trecho com áudio (Configurações › Direção visual) |
+| Diretora e corretora (direção do projeto) | `google/gemini-3.8-flash`, raciocínio médio (Configurações › Direção visual › "Diretora") |
+| Formatadora e regras sugeridas | `google/gemini-3.8-flash`, só texto ("Modelo da formatadora") |
+| Marcação dos inserts nas referências e descrição das mídias do banco | `google/gemini-3.8-flash`, raciocínio baixo (o mesmo modelo da análise das referências) |
 
-💡 A chave do OpenRouter fica em `backend/.env` (fora do git). `OPENROUTER_MODEL` no `.env` troca o modelo dos cortes.
+💡 Todos os modelos são criados por `comum.chat` (timeout em ms, uma nova tentativa, saída limitada).
+
+💡 As chaves (`OPENROUTER_API_KEY`, `ELEVENLABS_API_KEY`) ficam em `backend/.env` (fora do git; lido por `comum.carregar_env`, que os testes desligam: nenhum teste lê o `.env` de verdade). Sem crédito no OpenRouter, a fila da Calibragem pausa e avisa.
 
 ## 13. Preview e exportação
 
@@ -363,27 +447,29 @@ Uma correção pontual num vídeo vale só para aquele vídeo, a menos que o cri
 
 | Fase | Entrega | Pronto quando |
 |---|---|---|
-| 1. Fundação | `git init`, esqueleto backend + frontend, `dev.sh`, criar/abrir projeto, upload de bruto, briefing e apoios | Criar um projeto pela interface e ver os arquivos na pasta dele |
-| 2. Casca com mocks | Editor completo: etapas, preview, timeline multitrilha, chat, mocks de todas as etapas | Navegar pelas 4 etapas com dados falsos e o chat respondendo |
-| 3a. Cortes: pipeline real | Proxy, transcrição, silêncios e seleção pela LLM rodando ao criar o projeto; preview tocando o corte real; "Refazer cortes com IA" | Rodrigo avalia o corte da IA no player |
-| 3b-0. Teste de transcrição ✅ | Comparou Whisper atual, + alinhador forçado, + stable-ts e Parakeet no áudio real (§16). Adotado: stable-ts como refinamento | Feito |
-| 3b-1. Cortes: navegar e inspecionar (implementada, aguardando avaliação) | A tela descrita em §8.1: timeline do bruto, forma de onda real, milissegundos no texto, ouvir emenda | Rodrigo consegue apontar com precisão onde e como o algoritmo errou |
-| 3b-2. Cortes: edição manual | Ligar/desligar palavras no texto, alças e respiros na timeline, travas manuais, desfazer/refazer e versões | Com o bruto de teste, chegar a um corte aprovado por Rodrigo só pela interface |
+| 1. Fundação ✅ | `git init`, esqueleto backend + frontend, `dev.sh`, criar/abrir projeto, upload de bruto, briefing e apoios | Criar um projeto pela interface e ver os arquivos na pasta dele |
+| 2. Casca com mocks ✅ | Editor completo: etapas, preview, timeline multitrilha, chat, mocks de todas as etapas | Navegar pelas etapas com dados falsos e o chat respondendo |
+| 3a. Cortes: pipeline real ✅ | Proxy, transcrição, silêncios e seleção pela LLM rodando ao criar o projeto; preview tocando o corte real; "Refazer cortes com IA" | Rodrigo avalia o corte da IA no player |
+| 3b-0. Teste de transcrição ✅ | Comparou motores no áudio real (§16); padrão hoje: ElevenLabs | Feito |
+| 3b-1. Cortes: navegar e inspecionar ✅ (em uso) | Timeline vertical do bruto, forma de onda real, milissegundos, vários motores, ouvir emenda | Rodrigo aponta com precisão onde o algoritmo errou |
+| 3b-2. Cortes: edição manual (parcial) | Feito: alças, cortar/excluir trecho, restaurar, recalcular. Falta: palavras pelo texto, travas, desfazer/refazer e versões | Chegar a um corte aprovado só pela interface |
+| D1. Calibragem: casca ✅ | Upload múltiplo com fila, pasta `referencias/`, etapa "Direção visual" na sidebar | Subir vários MP4 e vê-los na lista |
+| D2. Calibragem: análise (aguardando avaliação) | Detector de cena, transcrição, IA multimodal por trecho (vídeo), montagem, marcação dos inserts | Uma referência real analisada com planos e elementos plausíveis |
+| D3. Calibragem: revisão (aguardando avaliação) + Referências | Timeline de planos e elementos, edição, "revisado"; galeria de Referências com favoritos | Rodrigo revisa uma referência inteira só pela interface |
+| D4. Estatísticas (1ª versão) | Removida e refeita na D6 | — |
+| D5. Direção visual no projeto (aguardando avaliação) | Proposta da IA a partir da Calibragem, regras do criador, esboço do layout | Rodrigo avalia a direção proposta para um vídeo novo |
+| D6. Roteiros dirigidos e heurística (aguardando avaliação) | Marcação por bloco, um bloco por corte; roteiro decupado por vídeo; heurística = regras (do criador + sugeridas) + roteiros de exemplo; diretor aprende pelos roteiros e responde frase a frase. (Função da fala e números foram tentados e saíram.) | A direção proposta se lê como um dos roteiros do criador |
+| D7. Direção: versões e comentários, descrição dos inserts | Corretora, v1/v2…, comentários por ponto; a diretora conta o que acontece em cada insert | Cada insert diz o que acontece |
+| I1. Inserts manuais + Banco | Pedidos da direção, banco de mídias (subir, descrição por IA, busca, usos), mídias ligadas por insert, prévia em sequência. (Um agente de captura automática existiu e saiu.) | Cada insert do vídeo de teste com mídia ligada |
 | 4. Exportação | Render FFmpeg a partir do bruto | MP4 1080×1920 exportado, emendas aprovadas no ouvido por Rodrigo |
 
-| D1. Referências: casca ✅ | Tela Referências na home, upload múltiplo com fila, pasta `referencias/`, etapa "Direção visual" como mock na sidebar | Subir vários MP4 e vê-los na lista com status |
-| D2. Referências: análise (implementada, aguardando avaliação) | Detector de cena, transcrição, LLM multimodal por trecho em paralelo, montagem dos itens | Uma referência real analisada, com planos e elementos plausíveis |
-| D3. Referências: revisão (implementada, aguardando avaliação) | Timeline com faixas de planos e elementos, edição, "revisado" | Rodrigo revisa uma referência inteira só pela interface |
-| ~~D4. Estatísticas~~ | Removida (o de-para vai ser montado de outro jeito) | — |
-| D5. Direção visual no projeto | Proposta real a partir dos pares + estatísticas | Rodrigo avalia a direção proposta para um vídeo novo |
-
-A Direção visual (D1–D5) entra antes de Inserts (decisão de Rodrigo, out/2026). Depois: Inserts → Motion → Legenda, cada uma com sua própria rodada de decisões. O agente do chat (antiga 3c) vem bem depois.
+A Direção visual (D1–D7) entrou antes de Inserts (decisão de Rodrigo, out/2026). Depois: Inserts → Enriquecimento → Motion → Áudio → Legenda, cada uma com sua própria rodada de decisões. O agente do chat (antiga 3c) vem bem depois.
 
 💡 Medido na 3a com o bruto de teste (2:02, 4K HEVC, M1 Max): proxy 19 s (em paralelo), silêncios 0,2 s, transcrição por pedaços ~19 s, seleção da LLM 18–42 s (varia muito). Total ≈ 40–60 s.
 
-## 16. Aprendizados do projeto anterior
+## 16. Aprendizados medidos
 
-Fatos medidos em `_legado/`, úteis para a implementação:
+Fatos medidos (no projeto anterior, em `_legado/`, e neste), úteis para a implementação:
 - **MLX Whisper turbo** transcreveu 122 s de vídeo em ~7 s no M1 Max, com cache. O primeiro uso baixa os pesos (~5 min). A qualidade foi aprovada.
 - ✅ **Transcrever o áudio inteiro de uma vez faz o Whisper fundir tentativas repetidas** (fase 3a, apontado por Rodrigo): "Qual a melhor IA… qual é a melhor IA do mundo" saiu como uma frase só, com "do" esticado por 3 s sobre a pausa, e o corte manteve as duas falas. Transcrevendo **por pedaços entre pausas ≥ 0,5 s**, todas as tentativas aparecem (com 0,7 s ainda sobravam 4 fundidas no bruto de teste). Custo: transcrição de ~11 s para ~19 s. Sinal de alerta: palavra com mais de 1,5 s contendo uma pausa.
 - ✅ **Teste de transcrição (fase 3b-0, no bruto de teste, métricas medidas no próprio áudio, sem ouvido humano):**
@@ -402,7 +488,7 @@ Fatos medidos em `_legado/`, úteis para a implementação:
   | Motor | Tempo | Palavras | Folga p90 / pior | > 300 ms | Fala fora de palavras | Texto vs Whisper |
   |---|---|---|---|---|---|---|
   | Whisper (puro) | 19 s | 352 | 230 / 830 ms | 19 | 1,6 s | — |
-  | Whisper + stable-ts (padrão) | +4 a 9 s | 352 | 130 / 800 ms | 7 | 4,3 s | igual |
+  | Whisper + stable-ts (plano B) | +4 a 9 s | 352 | 130 / 800 ms | 7 | 4,3 s | igual |
   | Whisper + Qwen3-Aligner | 9 s | 352 | 140 / 390 ms | 4 | 1,1 s | igual |
   | Whisper + CTC | 22 s | 352 | 149 / 1190 ms | 4 | 2,3 s | igual |
   | Qwen3-ASR 1.7B + Aligner | 14 s | 362 | 140 / 430 ms | 2 | **0,7 s** | 95% |
@@ -410,7 +496,7 @@ Fatos medidos em `_legado/`, úteis para a implementação:
   | Parakeet v3 | 7 s | 355 | 256 / 810 ms | 28 | 2,6 s | 95% |
   | Whisper large-v3 + stable-ts | 34 s | 355 | 140 / 1120 ms | 14 | 5,2 s | 98% |
 
-  O Qwen3-ASR 0,6B escreve bem pior que o 1,7B ("melhoria" por "melhor IA"). Os dois ASR com tempos próprios e boa cobertura (Qwen3-ASR e ElevenLabs) acharam 1 a 10 palavras a mais que o Whisper turbo; o ElevenLabs deixa mais fala sem palavra marcada (7,5 s). **Decisão de qual fica como padrão: de Rodrigo, depois de comparar na tela.**
+  O Qwen3-ASR 0,6B escreve bem pior que o 1,7B ("melhoria" por "melhor IA"). Os dois ASR com tempos próprios e boa cobertura (Qwen3-ASR e ElevenLabs) acharam 1 a 10 palavras a mais que o Whisper turbo; o ElevenLabs deixa mais fala sem palavra marcada (7,5 s). **Decidido por Rodrigo, depois de comparar na tela: ElevenLabs Scribe v2** (§8.1).
 - O **Whisper às vezes estica palavras** para dentro das pausas: uma palavra curta ("do") chegou a quase 3 s. Por isso as bordas são puxadas para os silêncios do `silencedetect`, com janela de ~0,5 s antes e ~0,35 s depois da borda.
 - **Seleção por ID de palavra** funcionou bem. O Gemini 3.1 Flash Lite deixou várias retomadas óbvias; o Gemini 3.8 Flash acertou muito mais (~17 s e ~US$ 0,03 por vídeo de 2 min).
 - O bruto de teste (`_legado/brutos/melhor ia design.MOV`) é 4K **vertical via metadado de rotação**: as dimensões cruas dizem 3840×2160. É preciso considerar a rotação.
@@ -419,6 +505,11 @@ Fatos medidos em `_legado/`, úteis para a implementação:
 ## 17. Em aberto
 
 - ⏳ Meta de desempenho (antes: 5 min de bruto processados em até 3 min). Não reconfirmada.
-- ⏳ Tudo listado como "em aberto" em Inserts, Motion e Legenda.
+- 💡 Limpeza feita (out/2026) a partir de uma auditoria: rotas, funções, trilha DIR e arquivos sem uso removidos; `.env`, modelos, mídia para a IA, normalizador e JSON atômico em `comum.py`; ffmpeg/ffprobe em `midia.py`; `Modal` e `tempoBR` compartilhados no frontend. Ficaram de fora, de propósito: as migrações de dados antigos no `projeto.ler` (apagá-las tiraria o suporte a projetos antigos — só com um script de migração único), e dividir `direcao.py` (análise · captura · revisão · galeria), `inserts.py` (banco · pedidos) e `main.py` (rotas por domínio), que são refatorações maiores para quando a estrutura estabilizar.
+- ⏳ Tudo listado como "em aberto" em Inserts, Enriquecimento, Motion, Áudio e Legenda.
 - ⏳ Música, transições e estilo de legenda.
 - ⏳ Aprendizado das correções: como uma correção recorrente vira regra.
+- ⏳ Direção: quando os exemplos passarem de algumas dezenas, mandar só os mais parecidos? Usar só as referências revisadas (hoje, todas)?
+- ⏳ Regra de abertura: uma pergunta retórica do criador às vezes é tratada como "leitura de comentário" (ambíguo só pela transcrição).
+- ⏳ Briefing e vídeos de apoio ainda não entram na Direção visual (só a transcrição cortada).
+- ⏳ A diretora às vezes põe 1 mídia onde a fala cita duas coisas ("esses dois sites"): reforçar nas regras ou nos exemplos.

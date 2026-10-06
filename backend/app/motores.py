@@ -4,14 +4,13 @@ Cada motor devolve uma lista de palavras {id, texto, inicio, fim}. Os alinhadore
 Whisper já transcreveu e só recalculam os tempos: o texto e os IDs não mudam, então os cortes continuam valendo.
 Os transcritores de verdade (Parakeet, ElevenLabs) escrevem um texto próprio, com IDs próprios."""
 import os
-import re
 import tempfile
 import wave
 from pathlib import Path
 
 import numpy as np
 
-from . import transcricao
+from . import comum, transcricao
 
 # Quais motores rodam em segundo plano depois do padrão (Whisper + stable-ts), em ordem.
 EXTRAS = ['whisper', 'whisper-stable', 'whisper-qwen', 'whisper-ctc', 'parakeet', 'qwen-asr', 'whisper-v3', 'elevenlabs']
@@ -19,10 +18,6 @@ EXTRAS = ['whisper', 'whisper-stable', 'whisper-qwen', 'whisper-ctc', 'parakeet'
 QWEN_ASR = 'mlx-community/Qwen3-ASR-1.7B-8bit'
 QWEN_ALINHADOR = 'mlx-community/Qwen3-ForcedAligner-0.6B-8bit'
 WHISPER_V3 = 'mlx-community/whisper-large-v3-mlx'
-
-
-def norm(t: str) -> str:
-    return re.sub(r'[^\wÀ-ÿ]', '', t.lower())
 
 
 def _amostras(audio: Path) -> tuple[np.ndarray, int]:
@@ -34,16 +29,16 @@ def _amostras(audio: Path) -> tuple[np.ndarray, int]:
 def mapear_por_nucleo(palavras: list[dict], itens: list[tuple[str, float, float]]) -> list[dict]:
     """Casa os itens de um alinhador (texto sem pontuação, início, fim) com as palavras originais pela parte
     alfanumérica. Palavras sem núcleo ("%") não têm item e ficam no vão entre as vizinhas."""
-    alvo = [k for k, w in enumerate(palavras) if norm(w['texto'])]
+    alvo = [k for k, w in enumerate(palavras) if comum.norm(w['texto'])]
     if len(alvo) != len(itens):
         raise RuntimeError(f'o alinhador devolveu {len(itens)} palavras para {len(alvo)} com som')
     out = [dict(w) for w in palavras]
     for k, (texto, inicio, fim) in zip(alvo, itens):
-        if norm(texto) != norm(palavras[k]['texto']):
+        if comum.norm(texto) != comum.norm(palavras[k]['texto']):
             raise RuntimeError(f'o alinhador leu “{texto}” onde está “{palavras[k]["texto"]}” ({palavras[k]["id"]})')
         out[k]['inicio'], out[k]['fim'] = round(inicio, 3), round(fim, 3)
     for k, w in enumerate(out):
-        if not norm(w['texto']):
+        if not comum.norm(w['texto']):
             ant = out[k - 1]['fim'] if k else 0.0
             prox = out[k + 1]['inicio'] if k + 1 < len(out) else ant + 0.02
             w['inicio'], w['fim'] = round(ant, 3), round(max(prox, ant + 0.02), 3)
