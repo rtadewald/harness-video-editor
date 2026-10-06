@@ -54,6 +54,18 @@ def fechar_cookies(page) -> None:
             continue
 
 
+# o site de verdade está num iframe que ocupa a tela (ex.: as galerias do ds.asimov.academy): a página de fora não rola
+IFRAME_DA_TELA = """() => {
+    const d = document.documentElement
+    if (d.scrollHeight > innerHeight + 20) return null
+    const f = [...document.querySelectorAll('iframe')].find(f => {
+        const r = f.getBoundingClientRect()
+        return r.width >= innerWidth * 0.9 && r.height >= innerHeight * 0.9 && f.src && f.src.startsWith('http')
+    })
+    return f ? f.src : null
+}"""
+
+
 def _pasta(id: str, cid: str) -> Path:
     return projeto.pasta(id) / 'capturas' / cid
 
@@ -74,8 +86,15 @@ def previa(id: str, url: str, proporcao: str) -> dict:
         browser = pw.chromium.launch()
         try:
             page = _contexto(browser, proporcao, 1).new_page()
+            titulo_fora = ''
             page.goto(url, wait_until='load', timeout=45_000)
             page.wait_for_timeout(1500)
+            dentro = page.evaluate(IFRAME_DA_TELA)
+            titulo_fora = page.title().strip()
+            if dentro:  # abre o iframe direto: é ele que rola e é ele que vai ser gravado
+                url = dentro
+                page.goto(url, wait_until='load', timeout=45_000)
+                page.wait_for_timeout(1500)
             fechar_cookies(page)
             # rola até o fim (imagens preguiçosas e animações de rolagem) e volta ao topo
             altura = page.evaluate('() => document.documentElement.scrollHeight')
@@ -88,7 +107,7 @@ def previa(id: str, url: str, proporcao: str) -> dict:
             altura = min(page.evaluate('() => document.documentElement.scrollHeight'), ALTURA_MAXIMA_PREVIA)
             page.screenshot(path=str(pasta / 'previa.jpg'), full_page=True, quality=80, type='jpeg',
                             clip={'x': 0, 'y': 0, 'width': JANELAS[proporcao][0], 'height': altura})
-            titulo = page.title().strip()
+            titulo = titulo_fora or page.title().strip()
         finally:
             browser.close()
     return {'id': cid, 'url': url, 'proporcao': proporcao, 'titulo': titulo or urlparse(url).netloc, 'altura_pagina': altura,
