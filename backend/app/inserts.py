@@ -31,7 +31,7 @@ EXT_IMAGEM = ('.png', '.jpg', '.jpeg', '.webp')
 PROPORCOES = {'16:9': 16 / 9, '16:10': 16 / 10, '4:3': 4 / 3, '1:1': 1.0, '4:5': 4 / 5, '3:4': 3 / 4, '9:16': 9 / 16, 'alto': 9 / 22}
 
 MIN_TRECHO = 0.2
-HERDADOS = ('tipo', 'formato', 'largura', 'altura', 'descricao', 'palavras', 'descricao_ia', 'origem', 'ia', 'arquivo', 'proxy')
+HERDADOS = ('tipo', 'formato', 'largura', 'altura', 'descricao', 'palavras', 'descricao_ia', 'origem', 'ia', 'arquivo', 'proxy', 'cortes')
 
 _descricoes = ThreadPoolExecutor(max_workers=2)
 _cortes = ThreadPoolExecutor(max_workers=1)
@@ -455,7 +455,7 @@ def sincronizar(id: str) -> dict:
             velho = antigos.get(n['chave'])
             midias = (velho['midias'] if 'midias' in velho else _midias_antigas(velho)) if velho else []
             pedidos.append({'id': velho['id'] if velho else uuid.uuid4().hex[:8], **n, 'midias': midias,
-                            **({'captura': velho['captura']} if velho and velho.get('captura') else {})})
+                            **{k: velho[k] for k in ('capturas', 'captura') if velho and velho.get(k)}})
         p['inserts'] = {'versao': d.get('ativa'), 'pedidos': pedidos}
     return projeto.atualizar(id, aplicar)['inserts']
 

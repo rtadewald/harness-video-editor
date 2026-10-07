@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Pause, Play, Scissors, Trash2 } from 'lucide-react'
-import { apagarItemBanco, cortarOriginal, criarTrecho, editarItemBanco, lerItemBanco, urlBancoArquivo, urlBancoTira, type ItemBanco } from '@/api'
+import { ArrowLeft, Pause, Play, Scissors, Trash2 } from 'lucide-react'
+import { apagarItemBanco, cortarOriginal, criarTrecho, editarItemBanco, lerItemBanco, urlBancoArquivo, urlBancoTira, versaoBanco, type ItemBanco } from '@/api'
 import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -28,6 +28,8 @@ type Props = {
   ligados?: string[]
   /** O banco mudou (trechos criados, editados, apagados, corte pedido). */
   mudou?: () => void
+  /** Aberto a partir do "Escolher do banco": volta para a escolha. */
+  voltar?: () => void
 }
 
 /** Editor de vídeo do banco (SPEC §8.3): marca trechos (arrastando na timeline ou com I e O) que viram itens do banco
@@ -236,13 +238,37 @@ export default function EditorVideo(p: Props) {
   const marcadas = faixas.filter((f) => f.usar).length
   const ordenadas = [...faixas].sort((a, b) => a.inicio - b.inicio)
   return (
-    <Modal titulo={original ? `Editar vídeo · ${original.nome}` : 'Editar vídeo'} fechar={p.fechar} tamanho="largo">
+    <Modal
+      titulo={
+        <span className="flex items-center gap-3">
+          {p.voltar && (
+            <button
+              onClick={p.voltar}
+              className="flex items-center gap-1 rounded-full border border-line-dark px-2.5 py-1 text-[12px] font-semibold text-fog hover:text-cream"
+              title="Voltar para a escolha no banco"
+            >
+              <ArrowLeft className="size-3.5" /> Banco
+            </button>
+          )}
+          {original ? `Editar vídeo · ${original.nome}` : 'Editar vídeo'}
+        </span>
+      }
+      fechar={p.fechar}
+      tamanho="largo"
+    >
       {!original ? (
         <p className="text-[12.5px] text-fog">Carregando…</p>
       ) : (
         <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_300px] grid-rows-[minmax(0,1fr)_auto] gap-x-5 gap-y-4">
-          <div className="grid min-h-0 place-items-center rounded-[6px] bg-black">
-            <video ref={video} src={urlBancoArquivo(original.id)} playsInline className="max-h-full max-w-full" onClick={alternar} />
+          {/* o vídeo ocupa a área e cabe nela (em pé ou deitado), sem empurrar a timeline */}
+          <div className="relative min-h-0 overflow-hidden rounded-[6px] bg-black">
+            <video
+              ref={video}
+              src={urlBancoArquivo(original.id) + versaoBanco(original)}
+              playsInline
+              className="absolute inset-0 size-full object-contain"
+              onClick={alternar}
+            />
           </div>
 
           {/* trechos */}
@@ -363,13 +389,14 @@ export default function EditorVideo(p: Props) {
                 {tocando ? <Pause className="size-4" /> : <Play className="size-4 fill-current" />}
               </button>
               <span>
-                {tc(tempo)} / {tc(dur)}
+                {tc(Math.min(tempo, dur))} / {tc(dur)}
               </span>
               {entrada != null && <span className="text-yellow">entrada em {tc(entrada)} · aperte O para fechar</span>}
               <span className="ml-auto text-[11px] text-fog">{modo === 'trechos' ? 'arraste para criar · I / O · ' : ''}← → um quadro · espaço toca</span>
             </div>
             <Timeline
               bid={original.id}
+              versao={versaoBanco(original)}
               dur={dur}
               tempo={tempo}
               modo={modo}
@@ -396,6 +423,7 @@ export default function EditorVideo(p: Props) {
  *  pontas ajusta. */
 function Timeline(p: {
   bid: string
+  versao: string
   dur: number
   tempo: number
   modo: 'trechos' | 'cortar'
@@ -412,7 +440,7 @@ function Timeline(p: {
 }) {
   const area = useRef<HTMLDivElement>(null)
   const [arrasto, setArrasto] = useState<{ a: number; b: number } | null>(null)
-  const pct = (t: number) => `${(t / Math.max(p.dur, 0.001)) * 100}%`
+  const pct = (t: number) => `${Math.max(0, Math.min(1, t / Math.max(p.dur, 0.001))) * 100}%`
   const emT = (x: number) => {
     const r = area.current!.getBoundingClientRect()
     return q(Math.max(0, Math.min(1, (x - r.left) / r.width)) * p.dur)
@@ -518,7 +546,7 @@ function Timeline(p: {
         ref={area}
         onPointerDown={comecar}
         className="relative h-[72px] cursor-crosshair touch-none rounded-[4px] bg-deeper select-none"
-        style={{ backgroundImage: `url(${urlBancoTira(p.bid)})`, backgroundSize: '100% 100%' }}
+        style={{ backgroundImage: `url(${urlBancoTira(p.bid)}${p.versao})`, backgroundSize: '100% 100%' }}
       >
         {p.modo === 'trechos' ? (
           <>

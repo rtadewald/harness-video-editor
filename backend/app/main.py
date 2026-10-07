@@ -368,7 +368,8 @@ def arquivo_referencia(id: str, caminho: str):
     alvo = (base / caminho).resolve()
     if not alvo.is_relative_to(base) or not alvo.is_file() or alvo.name == 'referencia.json':
         raise HTTPException(404, 'Arquivo não encontrado')
-    return FileResponse(alvo)
+    # o original pode ser cortado (e a versão leve, a miniatura e a tira refeitas) no mesmo endereço: o navegador confere sempre
+    return FileResponse(alvo, headers={'Cache-Control': 'no-cache'})
 
 
 @app.get('/api/projetos/{id}')
@@ -686,7 +687,8 @@ def arquivo(id: str, caminho: str):
     alvo = (base / caminho).resolve()
     if not alvo.is_relative_to(base) or not alvo.is_file():
         raise HTTPException(404, 'Arquivo não encontrado')
-    return FileResponse(alvo)
+    # o original pode ser cortado (e a versão leve, a miniatura e a tira refeitas) no mesmo endereço: o navegador confere sempre
+    return FileResponse(alvo, headers={'Cache-Control': 'no-cache'})
 
 
 # ---------------------------------------------------------------- Inserts e banco (SPEC §8.3)
@@ -744,6 +746,7 @@ def imagem_da_previa(id: str, cid: str):
 class CapturaSite(PreviaSite):
     dobras: list[float] = Field(min_length=1, max_length=captura_site.MAX_DOBRAS)
     titulo: str | None = Field(default=None, max_length=200)
+    duracao: float = Field(default=captura_site.DURACAO_PADRAO, ge=1, le=30)  # s por dobra
 
 
 @app.post('/api/projetos/{id}/inserts/{pid}/captura')
@@ -751,7 +754,7 @@ def capturar_site(id: str, pid: str, c: CapturaSite):
     """Grava as dobras do site em segundo plano; cada uma vira uma mídia do banco ligada ao insert."""
     _ler(id)
     try:
-        return captura_site.capturar(id, pid, c.url, c.proporcao, c.dobras, c.titulo)
+        return captura_site.capturar(id, pid, c.url, c.proporcao, c.dobras, c.titulo, c.duracao)
     except LookupError as e:
         raise HTTPException(404, str(e))
     except ValueError as e:
@@ -871,7 +874,8 @@ def _no_banco(arq: Path) -> FileResponse:
     alvo = arq.resolve()
     if not alvo.is_relative_to(inserts.RAIZ_BANCO.resolve()) or not alvo.is_file():
         raise HTTPException(404, 'Arquivo não encontrado')
-    return FileResponse(alvo)
+    # o original pode ser cortado (e a versão leve, a miniatura e a tira refeitas) no mesmo endereço: o navegador confere sempre
+    return FileResponse(alvo, headers={'Cache-Control': 'no-cache'})
 
 
 @app.get('/api/banco/{bid}/arquivo')
