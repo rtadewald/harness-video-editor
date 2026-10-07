@@ -3,6 +3,7 @@ import { Maximize2, Minus, Plus } from 'lucide-react'
 import { urlBancoMiniatura, type ItemRef, type PedidoInsert } from '@/api'
 import { cn } from '@/lib/utils'
 import { COR_ELEMENTO, COR_PLANO } from '@/referencias/LinhaDirecao'
+import { useAtalhoZoom } from './useAtalhoZoom'
 
 export type PlanoLinha = ItemRef & { n: number; fala: string }
 type Aba = 'midias' | 'motion' | 'enriquecimento'
@@ -31,6 +32,7 @@ export default function LinhaInserts(p: {
 }) {
   const rolagem = useRef<HTMLDivElement>(null)
   const [px, setPx] = useState(14)
+  useAtalhoZoom(() => setPx((v) => Math.min(v * 1.4, 400)), () => setPx((v) => Math.max(v / 1.4, 2)))
   const largura = Math.max(p.duracao * px, 200)
   const x = (t: number) => t * px
 

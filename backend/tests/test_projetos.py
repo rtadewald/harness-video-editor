@@ -1384,3 +1384,76 @@ def test_transicao_do_video(cliente, video):
     id = _criar(cliente, video)['id']
     assert cliente.put(f'/api/projetos/{id}/inserts/transicao', json={'transicao': 'zoom'}).json()['transicao'] == 'zoom'
     assert cliente.put(f'/api/projetos/{id}/inserts/transicao', json={'transicao': 'girar'}).status_code == 422
+
+
+# --- exportação (SPEC §13) ---
+
+def test_exportacao_ator_mantem_cortes_e_sincronia_e_camada_no_instante_certo(video, tmp_path):
+    """Dois clipes viram um vídeo só, na duração somada, com áudio do mesmo tamanho; um clipe da camada (ProRes 4444, 3
+    quadros vermelhos opacos) entra exatamente nos quadros 10 a 12, sem perder nenhum quadro."""
+    from app import exportacao
+    clipes = [{'inicio': 0.2, 'fim': 0.8}, {'inicio': 2.1, 'fim': 2.9}]
+    w, h, fps, dur = 180, 320, 24, 1.4
+    camada = tmp_path / 'camada.mov'
+    subprocess.run(['ffmpeg', '-v', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', f'{w}x{h}', '-framerate', str(fps), '-i', '-',
+                    '-c:v', 'prores_videotoolbox', '-profile:v', '4444', str(camada)], input=bytes([255, 0, 0, 255]) * (w * h * 3), check=True)
+    saida = tmp_path / 'final.mp4'
+    subprocess.run(exportacao.comando_final(video, clipes, False, 0.5, w, h, fps, [(0, 0.6)], [(camada, 10 / fps)], 'h264', dur, saida),
+                   check=True, capture_output=True)
+    n = round(dur * fps)
+    info = json.loads(subprocess.run(['ffprobe', '-v', 'error', '-count_frames', '-show_entries', 'stream=codec_type,width,height,nb_read_frames,duration',
+                                      '-of', 'json', str(saida)], capture_output=True, text=True).stdout)['streams']
+    v = next(s for s in info if s['codec_type'] == 'video')
+    a = next(s for s in info if s['codec_type'] == 'audio')
+    assert (v['width'], v['height'], int(v['nb_read_frames'])) == (w, h, n)
+    assert abs(float(a['duration']) - dur) < 0.05
+    cor = lambda k: subprocess.run(['ffmpeg', '-v', 'error', '-i', str(saida), '-vf', f'select=eq(n\\,{k}),scale=1:1', '-frames:v', '1',
+                                    '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], capture_output=True).stdout
+    vermelho = lambda k: cor(k)[0] > 200 and cor(k)[1] < 60 and cor(k)[2] < 60
+    assert [vermelho(k) for k in (9, 10, 11, 12, 13)] == [False, True, True, True, False]
+
+
+def test_exportacao_divide_os_inserts_em_pedacos():
+    from app import exportacao
+    trechos = [{'ini': 0.0, 'fim': 1.828}, {'ini': 10.751, 'fim': 14.341}]
+    g = exportacao.pedacos(trechos, 24, 6)
+    quadros = [[q for x in grupo for q in x] for grupo in g]
+    assert quadros == [list(range(0, 44)), list(range(259, 345))]  # quadro q no insert se ini <= q/fps < fim
+    assert all(12 <= len(x) <= 48 for grupo in g for x in grupo[:-1])  # só o último pedaço de cada insert é menor
+    assert exportacao.pedacos([], 24, 6) == []
+
+
+def test_exportar_valida_e_roda_uma_por_projeto(cliente, video, monkeypatch):
+    from app import exportacao
+    rodou = []
+    monkeypatch.setattr(exportacao, '_fila', types.SimpleNamespace(submit=lambda f, *a: rodou.append(a)))
+    monkeypatch.setattr(exportacao, '_andamento', {})
+    id = _criar(cliente, video)['id']
+    url = f'/api/projetos/{id}/exportacao'
+    assert cliente.post(url, json={'resolucao': '8k'}).status_code == 422
+    assert cliente.post(url, json={'navegadores': 9}).status_code == 422
+    assert cliente.post(url, json={}).status_code == 409  # ainda sem cortes
+    projeto.atualizar(id, lambda p: p['timeline'].update(V1=[{'id': 'c1', 'fonte': 'f1', 'inicio': 0.0, 'fim': 1.0}]))
+    e = cliente.post(url, json={'nome': 'meu/vídeo: final'}).json()
+    assert (e['status'], e['resolucao'], e['fps'], e['codec'], e['navegadores'], e['nome']) == ('rodando', '4k', 24, 'hevc', 6, 'meu vídeo final')
+    assert cliente.post(url, json={}).status_code == 409  # uma por projeto
+    assert cliente.get(url).json()['atual']['status'] == 'rodando' and len(rodou) == 1
+    cliente.post(f'{url}/cancelar')
+    assert exportacao._andamento[id]['cancelar'].is_set()
+    assert cliente.get(f'{url}/arquivo').status_code == 404
+
+
+def test_exportacao_interrompida_vira_erro_e_pedacos_saem(cliente, video):
+    from app import exportacao
+    id = _criar(cliente, video)['id']
+    projeto.atualizar(id, lambda p: p.update(exportacao={'status': 'rodando', 'progresso': 0.4, 'nome': 'x', 'arquivo': None}))
+    pasta = exportacao.pasta_exports(id)
+    pasta.mkdir()
+    (pasta / 'x.parte.mp4').write_bytes(b'1')
+    (pasta / 'x.parte.camadas').mkdir()
+    (pasta / 'x.parte.camadas' / '000_000.mov').write_bytes(b'1')
+    (pasta / 'pronto.mp4').write_bytes(b'1')
+    exportacao.retomar_interrompidas()
+    e = projeto.ler(id)['exportacao']
+    assert e['status'] == 'erro' and 'reiniciou' in e['erro']
+    assert [f.name for f in pasta.iterdir()] == ['pronto.mp4']

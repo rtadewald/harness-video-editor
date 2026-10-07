@@ -9,6 +9,7 @@ import Referencias from './paginas/Referencias'
 import Heuristica from './paginas/Heuristica'
 import Banco from './paginas/Banco'
 import RevisaoReferencia from './paginas/RevisaoReferencia'
+import { RenderChuva, RenderProjeto } from './paginas/Render'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -21,6 +22,8 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/calibragem/:id" element={<RevisaoReferencia />} />
         <Route path="/heuristica" element={<Heuristica />} />
         <Route path="/banco" element={<Banco />} />
+        <Route path="/render/chuva" element={<RenderChuva />} />
+        <Route path="/render/p/:id" element={<RenderProjeto />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

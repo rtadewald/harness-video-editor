@@ -15,6 +15,7 @@ o original. Herdam do original a descrição, as palavras-chave e o formato. O o
 pontas): aí os trechos acompanham o novo começo, e os que caem fora somem."""
 import math
 import shutil
+import threading
 import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -315,6 +316,28 @@ def apagar_item(bid: str) -> None:
 def arquivo_para_tocar(item: dict) -> Path:
     """O que o navegador toca ou mostra: a versão leve do vídeo, ou a imagem original (num trecho, a do original)."""
     return pasta_item(item.get('pai') or item['id']) / (item.get('proxy') or item['arquivo'])
+
+
+_trava_exportacao = threading.Lock()
+
+
+def arquivo_para_exportar(item: dict) -> Path:
+    """O que a exportação toca (SPEC §13): o vídeo na resolução original, com quadro-chave a cada 6 quadros, para a busca
+    quadro a quadro ser rápida (as capturas e os vídeos subidos costumam ter um a cada vários segundos). Feito na primeira
+    vez e refeito se o original mudar. Imagem: a original."""
+    base = pasta_item(item.get('pai') or item['id'])
+    original = base / item['arquivo']
+    if item['tipo'] != 'video':
+        return original
+    pronto = base / 'exportacao.mp4'
+    with _trava_exportacao:
+        if not pronto.exists() or pronto.stat().st_mtime < original.stat().st_mtime:
+            tmp = base / 'exportacao.tmp.mp4'
+            midia.ffmpeg('-i', str(original), '-map', '0:v:0', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-c:v', 'libx264',
+                         '-preset', 'veryfast', '-crf', '14', '-g', '6', '-keyint_min', '6', '-pix_fmt', 'yuv420p', '-an',
+                         '-movflags', '+faststart', str(tmp))
+            tmp.replace(pronto)
+    return pronto
 
 
 def miniatura(item: dict) -> Path:

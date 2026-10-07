@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { dividirPlano, editar, excluir, moverBorda, moverElemento, novoElemento, planosDe } from '@/referencias/edicao'
 import LinhaDirecao, { type Arrasto } from '@/referencias/LinhaDirecao'
 import { Ajuda, Botao, Detalhe, fmt } from '@/referencias/Detalhe'
+import { useAtalhoZoom } from '@/editor/useAtalhoZoom'
 
 type Salvamento = 'salvo' | 'salvando' | 'pendente' | { erro: string }
 
@@ -22,6 +23,7 @@ export default function RevisaoReferencia() {
   const [selecionado, setSelecionado] = useState<string | null>(null)
   const [salvamento, setSalvamento] = useState<Salvamento>('salvo')
   const [px, setPx] = useState(60)
+  useAtalhoZoom(() => setPx((v) => Math.min(v * 1.4, 600)), () => setPx((v) => Math.max(v / 1.4, 8)))
   const [tempo, setTempo] = useState(0)
   const [tocando, setTocando] = useState(false)
   const [velocidade, setVelocidade] = useState(1)

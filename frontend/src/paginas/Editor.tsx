@@ -5,11 +5,11 @@ import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, 
 import { abrirAba } from '@/components/abasProjetos'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import Chat from '@/editor/Chat'
 import EtapaDirecao from '@/editor/EtapaDirecao'
 import EtapaInserts from '@/editor/EtapaInserts'
+import Exportar from '@/editor/Exportar'
 import { ETAPAS } from '@/editor/etapas'
 import { calcularCortes, trechoDaEmenda, type Corte, type Selecao } from '@/editor/cortes'
 import LinhaVertical from '@/editor/LinhaVertical'
@@ -276,9 +276,7 @@ export default function Editor() {
         >
           SIMULADOS
         </span>
-        <Button variant="coral" size="sm" disabled title="Exportação chega na fase 4" className="h-9 shrink-0 gap-6 px-4">
-          Exportar <span className="seta">↗</span>
-        </Button>
+        {seq && <Exportar projeto={projeto} duracao={seq.duracao} />}
       </header>
 
       {dados.palavras.length === 0 ? (
