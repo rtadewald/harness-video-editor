@@ -13,7 +13,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import calibragem, captura_site, comum, cortes, direcao, direcao_projeto, inserts, midia, mocks, motores, pipeline, projeto, referencias
+from . import calibragem, captura_site, comum, exportacao, cortes, direcao, direcao_projeto, inserts, midia, mocks, motores, pipeline, projeto, referencias
 
 comum.carregar_env()
 
@@ -26,6 +26,7 @@ async def ciclo(_app):
     inserts.retomar_interrompidos()
     inserts.atualizar_proxies()
     captura_site.retomar_interrompidas()
+    exportacao.retomar_interrompidas()
     yield
 
 
@@ -840,6 +841,59 @@ class CurvaPadrao(BaseModel):
     duracao: float | None = None  # s
 
 
+class Exportar(BaseModel):
+    resolucao: Literal['720p', '1080p', '4k'] = '4k'
+    fps: Literal[24, 30, 60] = 24
+    codec: Literal['hevc', 'h264'] = 'hevc'
+    navegadores: int = Field(default=6, ge=1, le=8)
+    nome: str | None = None
+
+
+@app.get('/api/projetos/{id}/exportacao')
+def ver_exportacao(id: str):
+    """A última exportação do projeto (com o progresso ao vivo)."""
+    _ler(id)
+    return {'atual': exportacao.estado(id)}
+
+
+@app.post('/api/projetos/{id}/exportacao')
+def exportar(id: str, e: Exportar):
+    """Começa a exportação em segundo plano (SPEC §13)."""
+    _ler(id)
+    try:
+        return exportacao.exportar(id, e.resolucao, e.fps, e.codec, e.nome, e.navegadores)
+    except ValueError as erro:
+        raise HTTPException(409, str(erro))
+
+
+@app.post('/api/projetos/{id}/exportacao/cancelar')
+def cancelar_exportacao(id: str):
+    exportacao.cancelar(id)
+    return {'ok': True}
+
+
+def _exportado(id: str) -> Path:
+    e = exportacao.estado(id) or {}
+    arq = exportacao.pasta_exports(id) / e['arquivo'] if e.get('arquivo') else None
+    if not arq or not arq.is_file():
+        raise HTTPException(404, 'Arquivo exportado não encontrado')
+    return arq
+
+
+@app.get('/api/projetos/{id}/exportacao/arquivo')
+def baixar_exportacao(id: str):
+    arq = _exportado(id)
+    return FileResponse(arq, filename=arq.name)
+
+
+@app.post('/api/projetos/{id}/exportacao/finder')
+def mostrar_exportacao(id: str):
+    """Abre o Finder com o arquivo exportado selecionado."""
+    import subprocess
+    subprocess.run(['open', '-R', str(_exportado(id))], check=False)
+    return {'ok': True}
+
+
 @app.put('/api/projetos/{id}/inserts/curva-padrao')
 def definir_curva_padrao(id: str, c: CurvaPadrao):
     """A curva e a duração da entrada padrão do vídeo (para os inserts sem curva própria)."""
@@ -984,9 +1038,10 @@ def _no_banco(arq: Path) -> FileResponse:
 
 
 @app.get('/api/banco/{bid}/arquivo')
-def arquivo_do_banco(bid: str):
-    """O que toca ou aparece: a versão leve do vídeo, ou a imagem original."""
-    return _no_banco(inserts.arquivo_para_tocar(_item(bid)))
+def arquivo_do_banco(bid: str, qualidade: Literal['previa', 'exportacao'] = 'previa'):
+    """O que toca ou aparece: a versão leve do vídeo, ou a imagem original; na exportação, o vídeo em resolução original."""
+    item = _item(bid)
+    return _no_banco(inserts.arquivo_para_exportar(item) if qualidade == 'exportacao' else inserts.arquivo_para_tocar(item))
 
 
 @app.get('/api/banco/{bid}/miniatura')

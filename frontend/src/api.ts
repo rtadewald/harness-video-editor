@@ -461,4 +461,24 @@ export const configurarComentario = (id: string, pid: string, campos: Record<str
   enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/${pid}/comentario`, { campos })
 export const enriquecerTipo = (id: string, pid: string) => enviar<InsertsProjeto>('POST', `/api/projetos/${id}/inserts/${pid}/enriquecimento/tipo`)
 export const urlBancoArquivo = (bid: string) => `/api/banco/${bid}/arquivo`
+/** O vídeo em resolução original, com quadro-chave curto (só a exportação usa). */
+export const urlBancoExportacao = (i: ItemBanco) => `/api/banco/${i.id}/arquivo?qualidade=exportacao${i.cortes?.length ? `&v=${i.cortes.length}` : ''}`
 export const urlBancoMiniatura = (bid: string) => `/api/banco/${bid}/miniatura`
+
+// exportação (SPEC §13)
+export type OpcoesExportacao = { resolucao: '720p' | '1080p' | '4k'; fps: 24 | 30 | 60; codec: 'hevc' | 'h264'; navegadores: number }
+export type Exportacao = OpcoesExportacao & {
+  status: 'rodando' | 'pronta' | 'erro' | 'cancelada'
+  progresso: number
+  nome: string
+  arquivo: string | null
+  erro: string | null
+  inicio: string
+  fim: string | null
+}
+export const verExportacao = (id: string) => fetch(`/api/projetos/${id}/exportacao`).then(json<{ atual: Exportacao | null }>)
+export const exportarProjeto = (id: string, o: OpcoesExportacao & { nome: string }) =>
+  fetch(`/api/projetos/${id}/exportacao`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) }).then(json<Exportacao>)
+export const cancelarExportacao = (id: string) => fetch(`/api/projetos/${id}/exportacao/cancelar`, { method: 'POST' }).then(json<{ ok: boolean }>)
+export const mostrarExportacao = (id: string) => fetch(`/api/projetos/${id}/exportacao/finder`, { method: 'POST' }).then(json<{ ok: boolean }>)
+export const urlExportacao = (id: string) => `/api/projetos/${id}/exportacao/arquivo`

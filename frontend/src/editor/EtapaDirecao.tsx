@@ -27,6 +27,7 @@ import Modal from '@/components/Modal'
 import Preview from './Preview'
 import type { Sequencia } from './sequencia'
 import type { usePlayer } from './usePlayer'
+import { useAtalhoZoom } from './useAtalhoZoom'
 
 type Salvamento = 'salvo' | 'salvando' | 'pendente' | { erro: string }
 
@@ -129,6 +130,7 @@ function Edicao(p: Props) {
   const [selecionado, setSelecionado] = useState<string | null>(null)
   const [salvamento, setSalvamento] = useState<Salvamento>('salvo')
   const [px, setPx] = useState(60)
+  useAtalhoZoom(() => setPx((v) => Math.min(v * 1.4, 600)), () => setPx((v) => Math.max(v / 1.4, 8)))
   const [registro, setRegistro] = useState<RegistroDirecao | null>(null)
   const itensRef = useRef(itens)
   itensRef.current = itens

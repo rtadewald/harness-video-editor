@@ -4,6 +4,7 @@ import RoteiroCortes from './RoteiroCortes'
 import { formatarDuracao, ms3, type Clipe, type Palavra, type Silencio, type Transcricao, type TranscricaoCompleta } from '@/api'
 import { cn } from '@/lib/utils'
 import type { Corte, Selecao } from './cortes'
+import { useAtalhoZoom } from './useAtalhoZoom'
 
 // colunas, da esquerda para a direita: régua · forma de onda · barras de tempo exato · palavras · cortes
 const X_ONDA = 52
@@ -145,6 +146,7 @@ export default function LinhaVertical(p: Props) {
     ancora.current = { t: m.tDe(scroll + y), y }
     setPx(Math.min(Math.max(novo, pxFit), PX_MAX))
   }
+  useAtalhoZoom(() => zoomPara(px * 1.6), () => zoomPara(px / 1.6))
 
   useEffect(() => {
     const el = rolagem.current!

@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { createContext, useContext, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 
 /** Os fundos atrás dos inserts com moldura (SPEC §8.4): 3 claros e 2 escuros. A **chuva** é o fundo do Overview do design
  *  system da Asimov, reproduzido com os arquivos originais (em `public/fundos/aura/`): a cena do Unicorn Studio (arco de
- *  luz e riscos de chuva) em mix-blend screen com o filtro do tema teal, por baixo da paisagem a 30% e dos degradês. */
+ *  luz e riscos de chuva) em mix-blend screen com o filtro do tema teal, por baixo da paisagem a 30% e dos degradês. Na
+ *  prévia e na exportação ela toca como vídeo (`chuva.mp4`, um loop de 12 s gravado da cena ao vivo, quadro a quadro). */
 export const FUNDOS: { id: string; nome: string; claro: boolean; amostra: string }[] = [
   { id: 'verde_claro', nome: 'Verde claro', claro: true, amostra: 'linear-gradient(180deg,#dfe8e1 0%,#a9c6b3 55%,#6f9c84 100%)' },
   { id: 'papel', nome: 'Papel', claro: true, amostra: 'radial-gradient(120% 90% at 50% 40%,#f1ecdd 0%,#e4dcc7 70%,#d6ccb3 100%)' },
@@ -38,7 +39,11 @@ function carregarAura(): Promise<void> {
   return carregando
 }
 
-function FundoChuva() {
+/** O relógio da exportação (s): com ele, vídeos e animações mostram exatamente esse instante, parados. */
+export const RelogioRender = createContext<number | null>(null)
+
+/** A cena ao vivo (só para gravar o `chuva.mp4`; `fps` alto para a gravação quadro a quadro não pular nenhum). */
+export function ChuvaAoVivo({ fps = 30 }: { fps?: number }) {
   const alvo = useRef<HTMLDivElement>(null)
   useEffect(() => {
     let cena: Cena | null = null
@@ -48,7 +53,7 @@ function FundoChuva() {
       if (!vivo || !alvo.current || !us) return
       // mesmos parâmetros do design system: cena local pelo id do JSON, dpi 1, 30 fps, sem mouse
       const c = await us.addScene({
-        element: alvo.current, filePath: 'asimov-aura-scene', dpi: 1, fps: 30, scale: 1, production: true, lazyLoad: false,
+        element: alvo.current, filePath: 'asimov-aura-scene', dpi: 1, fps, scale: 1, production: true, lazyLoad: false,
         fixed: false, interactivity: { mouse: { disabled: true } },
       })
       if (vivo) cena = c
@@ -58,7 +63,7 @@ function FundoChuva() {
       vivo = false
       cena?.destroy()
     }
-  }, [])
+  }, [fps])
   return (
     <div className="absolute inset-0 bg-[#050505]">
       {/* a cena do Unicorn Studio, com o filtro do tema teal (o mesmo do Overview) */}
@@ -75,11 +80,28 @@ function FundoChuva() {
   )
 }
 
+function ChuvaEmVideo() {
+  const ref = useRef<HTMLVideoElement>(null)
+  const relogio = useContext(RelogioRender)
+  // na exportação: parado no instante do relógio (o loop dá a volta)
+  const aplicar = () => {
+    const v = ref.current
+    if (!v || relogio == null || !v.duration) return
+    v.pause()
+    const alvo = relogio % v.duration
+    if (Math.abs(v.currentTime - alvo) > 0.001) v.currentTime = alvo
+  }
+  useEffect(aplicar, [relogio]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <video ref={ref} src="/fundos/aura/chuva.mp4" autoPlay={relogio == null} loop muted playsInline preload="auto" onLoadedMetadata={aplicar} className="absolute inset-0 size-full object-cover" />
+  )
+}
+
 export default function Fundo({ id, className }: { id: string; className?: string }) {
   const f = FUNDOS.find((x) => x.id === id) ?? FUNDOS[4]
   return (
     <div className={cn('absolute inset-0 overflow-hidden', className)} style={{ background: f.id === 'chuva' ? '#050505' : f.amostra }}>
-      {f.id === 'chuva' && <FundoChuva />}
+      {f.id === 'chuva' && <ChuvaEmVideo />}
       {f.id === 'nevoa' && (
         // névoa: manchas desfocadas, como no fundo de referência
         <>

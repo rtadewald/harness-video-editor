@@ -3,6 +3,7 @@ import { Maximize2, Minus, Plus, RotateCcw } from 'lucide-react'
 import { formatarDuracao, formatarTempo, type Palavra, type Timeline as TTimeline } from '@/api'
 import { cn } from '@/lib/utils'
 import type { Sequencia } from './sequencia'
+import { useAtalhoZoom } from './useAtalhoZoom'
 
 type Trilha = 'LEG' | 'V3' | 'V2' | 'V1' | 'A1'
 const TRILHAS: { id: Trilha; altura: number }[] = [
@@ -30,6 +31,7 @@ type Props = {
 export default function Timeline({ seq, duracaoBruto, timeline, palavras, tempo, tocando, ativa, buscar, refazendo, aoRefazer }: Props) {
   const rolagem = useRef<HTMLDivElement>(null)
   const [px, setPx] = useState(0) // pixels por segundo
+  useAtalhoZoom(() => setPx((v) => Math.min(v * 1.5, 400)), () => setPx((v) => Math.max(v / 1.5, 1)))
   const [arrastando, setArrastando] = useState(false)
 
   const ajustar = () => {
