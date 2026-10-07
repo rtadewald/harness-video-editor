@@ -455,7 +455,7 @@ def sincronizar(id: str) -> dict:
             velho = antigos.get(n['chave'])
             midias = (velho['midias'] if 'midias' in velho else _midias_antigas(velho)) if velho else []
             pedidos.append({'id': velho['id'] if velho else uuid.uuid4().hex[:8], **n, 'midias': midias,
-                            **{k: velho[k] for k in ('capturas', 'captura') if velho and velho.get(k)}})
+                            **{k: velho[k] for k in ('capturas', 'captura', 'enriquecimento') if velho and velho.get(k)}})
         p['inserts'] = {'versao': d.get('ativa'), 'pedidos': pedidos}
     return projeto.atualizar(id, aplicar)['inserts']
 
@@ -475,4 +475,60 @@ def definir_midias(id: str, pid: str, midias: list[dict]) -> dict:
                 x['midias'] = limpas
                 return
         raise LookupError('Pedido não encontrado')
+    return projeto.atualizar(id, aplicar)['inserts']
+
+
+# ---------------------------------------------------------------- enriquecimento (mock; SPEC §8.3)
+# Como cada insert aparece: layout, entrada, como as mídias se combinam, movimento e saída. Cada plano vem com o ESTILO do
+# tipo dele; o criador muda só o que quiser (o pedido guarda só o que difere do estilo). Por ora, a prévia aproxima o
+# que é barato com CSS; o resto fica escolhido para o Enriquecimento de verdade.
+OPCOES_ENRIQUECIMENTO = {
+    'layout': {'vertical': ('tela_cheia', 'card', 'janela_3d', 'inclinado', 'destaque'),
+               'dividida': ('metade', 'card_metade', 'janela_3d_metade', 'mesclada')},
+    'entrada': ('sem', 'surgir', 'deslizar', 'subir', 'mola', 'girar', 'voo_3d', 'zoom_borrado'),
+    'entre': ('sequencia_corte', 'sequencia_transicao', 'lado_a_lado', 'grade', 'empilhadas'),
+    'movimento': ('parado', 'zoom_lento', 'zoom_ponto', 'rolagem'),
+    'saida': ('corte', 'sumir', 'deslizar'),
+}
+ESTILO = {
+    'vertical': {'layout': 'card', 'entrada': 'surgir', 'entre': 'sequencia_corte', 'movimento': 'zoom_lento', 'saida': 'corte'},
+    'dividida': {'layout': 'metade', 'entrada': 'surgir', 'entre': 'sequencia_corte', 'movimento': 'zoom_lento', 'saida': 'corte'},
+}
+
+
+def _validar_enriquecimento(formato: str, campos: dict) -> dict:
+    limpo = {}
+    for k, v in campos.items():
+        if k not in OPCOES_ENRIQUECIMENTO:
+            raise ValueError(f'Categoria desconhecida: {k}')
+        opcoes = OPCOES_ENRIQUECIMENTO[k][formato] if k == 'layout' else OPCOES_ENRIQUECIMENTO[k]
+        if v is not None and v not in opcoes:
+            raise ValueError(f'Opção inválida para {k}: {v}')
+        limpo[k] = v
+    return limpo
+
+
+def enriquecer(id: str, pid: str, campos: dict) -> dict:
+    """Muda o enriquecimento de um insert. `None` numa categoria volta ao estilo; o pedido guarda só o que difere."""
+    def aplicar(p):
+        for x in (p.get('inserts') or {}).get('pedidos', []):
+            if x['id'] == pid:
+                novos = _validar_enriquecimento(x['formato'], campos)
+                atual = {**(x.get('enriquecimento') or {}), **novos}
+                x['enriquecimento'] = {k: v for k, v in atual.items() if v is not None and v != ESTILO[x['formato']][k]}
+                return
+        raise LookupError('Pedido não encontrado')
+    return projeto.atualizar(id, aplicar)['inserts']
+
+
+def enriquecer_tipo(id: str, pid: str) -> dict:
+    """Copia o enriquecimento deste insert para todos os inserts do mesmo tipo."""
+    def aplicar(p):
+        pedidos = (p.get('inserts') or {}).get('pedidos', [])
+        x = next((x for x in pedidos if x['id'] == pid), None)
+        if x is None:
+            raise LookupError('Pedido não encontrado')
+        for y in pedidos:
+            if y['tipo'] == x['tipo']:
+                y['enriquecimento'] = dict(x.get('enriquecimento') or {})
     return projeto.atualizar(id, aplicar)['inserts']

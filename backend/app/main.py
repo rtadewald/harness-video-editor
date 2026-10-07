@@ -761,6 +761,38 @@ def capturar_site(id: str, pid: str, c: CapturaSite):
         raise HTTPException(409, str(e))
 
 
+@app.get('/api/inserts/enriquecimento')
+def opcoes_de_enriquecimento():
+    """O catálogo do enriquecimento (opções por categoria) e o estilo de cada formato de plano."""
+    return {'opcoes': inserts.OPCOES_ENRIQUECIMENTO, 'estilo': inserts.ESTILO}
+
+
+class Enriquecimento(BaseModel):
+    campos: dict[str, str | None]
+
+
+@app.put('/api/projetos/{id}/inserts/{pid}/enriquecimento')
+def enriquecer_insert(id: str, pid: str, e: Enriquecimento):
+    """Muda layout, entrada, combinação, movimento ou saída de um insert (None volta ao estilo)."""
+    _ler(id)
+    try:
+        return inserts.enriquecer(id, pid, e.campos)
+    except LookupError as erro:
+        raise HTTPException(404, str(erro))
+    except ValueError as erro:
+        raise HTTPException(422, str(erro))
+
+
+@app.post('/api/projetos/{id}/inserts/{pid}/enriquecimento/tipo')
+def enriquecer_tipo(id: str, pid: str):
+    """Aplica o enriquecimento deste insert a todos os do mesmo tipo."""
+    _ler(id)
+    try:
+        return inserts.enriquecer_tipo(id, pid)
+    except LookupError as erro:
+        raise HTTPException(404, str(erro))
+
+
 def _subir_no_banco(arquivos: list[UploadFile]) -> list[dict]:
     novos = []
     for a in arquivos:
