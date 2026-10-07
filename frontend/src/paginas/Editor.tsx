@@ -287,7 +287,7 @@ export default function Editor() {
       <div
         className="grid min-h-0"
         style={{
-          gridTemplateColumns: `${recolhida ? '58px' : 'clamp(170px,13vw,200px)'} ${
+          gridTemplateColumns: `${recolhida ? '58px' : '232px'} ${
             vertical
               ? 'clamp(460px,46vw,820px) minmax(0,1fr)'
               : direcaoReal
@@ -324,7 +324,7 @@ export default function Editor() {
               <b className={cn('tabular-nums', recolhida ? 'text-[11px]' : 'text-[9px] tracking-[0.1em]', e.id === etapa ? 'text-[#c4502f]' : 'text-[#9fb3a6]')}>
                 {String(i + 1).padStart(2, '0')}
               </b>
-              {!recolhida && e.nome}
+              {!recolhida && <span className="whitespace-nowrap">{e.nome}</span>}
               {!recolhida && e.id === etapa && <span className="seta ml-auto text-[16px]">↗</span>}
             </button>
           ))}

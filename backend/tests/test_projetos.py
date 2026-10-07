@@ -1299,3 +1299,88 @@ def test_enriquecimento_guarda_so_o_que_difere_do_estilo(cliente, video, monkeyp
     projeto.atualizar(id, lambda p: p['direcao'].update(itens=[{**itens[0]}, {**itens[1]}]))
     assert cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][1]['enriquecimento'] == {'layout': 'inclinado'}
     assert cliente.get('/api/inserts/enriquecimento').json()['estilo']['vertical']['layout'] == 'card'
+
+
+def test_card_de_comentario_guarda_so_o_que_difere(cliente, video, monkeypatch):
+    id = _criar(cliente, video)['id']
+    monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
+    itens = [{**_plano_ins('p1', 'comentario_insert_ator', 0, 5), 'texto': 'Qual a melhor IA?'}, _plano_ins('p2', 'insert_tela_cheia', 6, 9)]
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': itens}))
+    p1, p2 = cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos']
+    url = f"/api/projetos/{id}/inserts/{p1['id']}/comentario"
+    r = cliente.put(url, json={'campos': {'avatar': 3, 'y': 200, 'tempo': '4 sem', 'texto': ' Outra pergunta '}}).json()
+    assert r['pedidos'][0]['comentario'] == {'avatar': 3, 'y': 95.0, 'texto': 'Outra pergunta'}  # 4 sem é o padrão; y limitado
+    assert cliente.put(url, json={'campos': {'cor': 'azul'}}).status_code == 422
+    assert cliente.put(f"/api/projetos/{id}/inserts/{p2['id']}/comentario", json={'campos': {'avatar': 1}}).status_code == 422
+    assert cliente.put(url, json={'campos': {'texto': None}}).json()['pedidos'][0]['comentario'] == {'avatar': 3, 'y': 95.0}
+    projeto.atualizar(id, lambda p: p['direcao'].update(itens=[{**itens[0]}, {**itens[1]}]))
+    assert cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]['comentario']['avatar'] == 3
+
+
+def test_renomear_referencia(cliente, monkeypatch):
+    monkeypatch.setattr(referencias, 'ler', lambda id: {'id': id, 'nome': 'velho'})
+    feito = {}
+    monkeypatch.setattr(referencias, 'atualizar', lambda id, f: (f(feito), feito)[1])
+    assert cliente.put('/api/referencias/r1/nome', json={'nome': '  Novo nome '}).json()['nome'] == 'Novo nome'
+    assert cliente.put('/api/referencias/r1/nome', json={'nome': '   '}).status_code == 422
+
+
+def test_fundo_vale_para_o_projeto_e_sobrevive_a_sincronizar(cliente, video, monkeypatch):
+    id = _criar(cliente, video)['id']
+    monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': [_plano_ins('p1', 'insert_tela_cheia', 0, 5)]}))
+    cliente.get(f'/api/projetos/{id}/inserts')
+    assert cliente.put(f'/api/projetos/{id}/inserts/fundo', json={'fundo': 'chuva'}).json()['fundo'] == 'chuva'
+    assert cliente.put(f'/api/projetos/{id}/inserts/fundo', json={'fundo': 'roxo'}).status_code == 422
+    assert cliente.get(f'/api/projetos/{id}/inserts').json()['fundo'] == 'chuva'
+
+
+def test_enriquecimento_antigo_com_fundo_por_insert_nao_quebra(cliente, video, monkeypatch):
+    id = _criar(cliente, video)['id']
+    monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': [_plano_ins('p1', 'tela_dividida_insert', 0, 5)]}))
+    pid = cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]['id']
+    projeto.atualizar(id, lambda p: p['inserts']['pedidos'][0].update(enriquecimento={'fundo': 'chuva', 'entrada': 'voo_3d'}))
+    r = cliente.put(f'/api/projetos/{id}/inserts/{pid}/enriquecimento', json={'campos': {'layout': 'card_metade'}})
+    assert r.status_code == 200 and r.json()['pedidos'][0]['enriquecimento'] == {'entrada': 'voo_3d', 'layout': 'card_metade'}
+
+
+def test_curva_e_duracao_da_entrada(cliente, video, monkeypatch):
+    id = _criar(cliente, video)['id']
+    monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': [_plano_ins('p1', 'insert_tela_cheia', 0, 5)]}))
+    pid = cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]['id']
+    url = f'/api/projetos/{id}/inserts/{pid}/enriquecimento'
+    r = cliente.put(url, json={'campos': {'curva': [0.16, 1, 1.4, 3], 'duracao': 9}}).json()
+    assert r['pedidos'][0]['enriquecimento'] == {'curva': [0.16, 1.0, 1.0, 2.0], 'duracao': 5.0}
+    assert cliente.put(url, json={'campos': {'duracao': 1.4}}).json()['pedidos'][0]['enriquecimento']['duracao'] == 1.5
+    assert cliente.put(url, json={'campos': {'curva': [1, 2]}}).status_code == 422
+    assert cliente.put(url, json={'campos': {'curva': None, 'duracao': None}}).json()['pedidos'][0]['enriquecimento'] == {}
+
+
+def test_curva_padrao_do_video(cliente, video, monkeypatch):
+    id = _criar(cliente, video)['id']
+    monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': [_plano_ins('p1', 'insert_tela_cheia', 0, 5)]}))
+    cliente.get(f'/api/projetos/{id}/inserts')
+    r = cliente.put(f'/api/projetos/{id}/inserts/curva-padrao', json={'curva': [0.05, 0.7, 0.1, 1], 'duracao': 2.25}).json()
+    assert r['curva_padrao'] == {'curva': [0.05, 0.7, 0.1, 1.0], 'duracao': 2.25}
+    assert cliente.get(f'/api/projetos/{id}/inserts').json()['curva_padrao']['duracao'] == 2.25
+    assert 'curva_padrao' not in cliente.put(f'/api/projetos/{id}/inserts/curva-padrao', json={}).json()
+
+
+def test_entradas_que_sairam_voltam_ao_estilo(cliente, video, monkeypatch):
+    id = _criar(cliente, video)['id']
+    monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': [_plano_ins('p1', 'insert_tela_cheia', 0, 5)]}))
+    pid = cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]['id']
+    url = f'/api/projetos/{id}/inserts/{pid}/enriquecimento'
+    assert cliente.put(url, json={'campos': {'entrada': 'mola'}}).status_code == 422
+    projeto.atualizar(id, lambda p: p['inserts']['pedidos'][0].update(enriquecimento={'entrada': 'girar'}))
+    assert cliente.put(url, json={'campos': {'layout': 'inclinado'}}).json()['pedidos'][0]['enriquecimento'] == {'layout': 'inclinado'}
+
+
+def test_transicao_do_video(cliente, video):
+    id = _criar(cliente, video)['id']
+    assert cliente.put(f'/api/projetos/{id}/inserts/transicao', json={'transicao': 'zoom'}).json()['transicao'] == 'zoom'
+    assert cliente.put(f'/api/projetos/{id}/inserts/transicao', json={'transicao': 'girar'}).status_code == 422

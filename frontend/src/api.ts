@@ -255,6 +255,7 @@ export const marcarRevisada = (id: string, revisado: boolean) =>
   fetch(`/api/referencias/${id}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revisado }) }).then(json<Referencia>)
 export const reanalisarReferencia = (id: string, refazer = false) => post<Referencia>(`/api/referencias/${id}/analisar${refazer ? '?refazer=true' : ''}`)
 
+export const renomearReferencia = (id: string, nome: string) => enviar<Referencia>('PUT', `/api/referencias/${id}/nome`, { nome })
 export const listarReferencias = () => fetch('/api/referencias').then(json<Referencia[]>)
 export const subirReferencias = (videos: File[]) => {
   const corpo = new FormData()
@@ -366,7 +367,9 @@ export type PedidoInsert = {
   duracao: number
   midias: MidiaLigada[]
   /** O que o criador mudou no enriquecimento (o resto vem do estilo do formato; SPEC §8.3). */
-  enriquecimento?: Partial<Record<'layout' | 'entrada' | 'entre' | 'movimento' | 'saida', string>>
+  enriquecimento?: Partial<Record<'layout' | 'entrada' | 'entre' | 'movimento' | 'saida', string> & { curva: [number, number, number, number]; duracao: number }>
+  /** O card de comentário (só em Comentário + insert + ator): o que difere do padrão. */
+  comentario?: Partial<{ texto: string | null; avatar: number; usuario: string; tempo: string; traducao: boolean; x: number; y: number; escala: number }>
   /** As capturas de site deste insert: as em andamento (várias podem rodar ao mesmo tempo) e as que falharam (§8.3). */
   capturas?: CapturaInsert[]
 }
@@ -384,7 +387,16 @@ export type ProporcaoCaptura = '16:9' | '4:3' | '1:1' | '9:16'
 export const PROPORCOES_CAPTURA: ProporcaoCaptura[] = ['16:9', '4:3', '1:1', '9:16']
 /** A página inteira numa imagem, para marcar as dobras (em px de CSS da janela). */
 export type PreviaSite = { id: string; url: string; proporcao: ProporcaoCaptura; titulo: string; altura_pagina: number; largura_janela: number; altura_janela: number }
-export type InsertsProjeto = { versao: number | null; pedidos: PedidoInsert[] }
+/** `fundo`: o fundo atrás dos inserts com moldura, do vídeo todo (§8.4). */
+export type InsertsProjeto = {
+  versao: number | null
+  pedidos: PedidoInsert[]
+  fundo?: string
+  /** A transição em cada troca de plano (seca, zoom com desfoque, piscada), para o vídeo todo. */
+  transicao?: string
+  /** A curva e a duração da entrada que valem para o vídeo todo (inserts sem curva própria). */
+  curva_padrao?: { curva?: [number, number, number, number]; duracao?: number }
+}
 /** Uma mídia do banco global. */
 export type ItemBanco = {
   id: string
@@ -439,8 +451,14 @@ export const previaSite = (id: string, url: string, proporcao: ProporcaoCaptura)
 export const urlPreviaSite = (id: string, cid: string) => `/api/projetos/${id}/inserts/captura/previa/${cid}`
 export const capturarSite = (id: string, pid: string, c: { url: string; proporcao: ProporcaoCaptura; dobras: number[]; titulo?: string; duracao?: number }) =>
   enviar<InsertsProjeto>('POST', `/api/projetos/${id}/inserts/${pid}/captura`, c)
-export const enriquecerInsert = (id: string, pid: string, campos: Record<string, string | null>) =>
+export const enriquecerInsert = (id: string, pid: string, campos: Record<string, string | number | number[] | null>) =>
   enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/${pid}/enriquecimento`, { campos })
+export const definirCurvaPadrao = (id: string, c: { curva?: number[] | null; duracao?: number | null }) =>
+  enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/curva-padrao`, c)
+export const definirTransicao = (id: string, transicao: string) => enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/transicao`, { transicao })
+export const definirFundo = (id: string, fundo: string) => enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/fundo`, { fundo })
+export const configurarComentario = (id: string, pid: string, campos: Record<string, unknown>) =>
+  enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/${pid}/comentario`, { campos })
 export const enriquecerTipo = (id: string, pid: string) => enviar<InsertsProjeto>('POST', `/api/projetos/${id}/inserts/${pid}/enriquecimento/tipo`)
 export const urlBancoArquivo = (bid: string) => `/api/banco/${bid}/arquivo`
 export const urlBancoMiniatura = (bid: string) => `/api/banco/${bid}/miniatura`
