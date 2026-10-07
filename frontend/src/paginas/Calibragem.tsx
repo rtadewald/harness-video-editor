@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { BarChart3, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import {
   apagarReferencia,
   formatarDuracao,
   listarReferencias,
   reanalisarReferencia,
+  renomearReferencia,
   subirReferencias,
   urlArquivoReferencia,
   type Referencia,
@@ -208,11 +210,21 @@ export default function Calibragem() {
             return (
               <li key={r.id} className="group relative">
                 {revisavel(r) ? (
-                  <button onClick={() => setAberto(r)} title="Ver os números deste vídeo" className="block w-full text-left">
+                  <Link to={`/calibragem/${r.id}`} title="Abrir a revisão deste vídeo" className="block w-full text-left">
                     {capa}
-                  </button>
+                  </Link>
                 ) : (
                   capa
+                )}
+                {revisavel(r) && (
+                  <button
+                    onClick={() => setAberto(r)}
+                    aria-label={`Números de ${r.nome}`}
+                    title="Ver os números deste vídeo"
+                    className="absolute top-2.5 left-11 grid size-7 place-items-center rounded-full bg-ink/85 text-fog opacity-0 transition-opacity group-hover:opacity-100 hover:text-cream focus-visible:opacity-100"
+                  >
+                    <BarChart3 className="size-3.5" />
+                  </button>
                 )}
                 <button
                   onClick={() => void apagar(r)}
@@ -222,9 +234,14 @@ export default function Calibragem() {
                 >
                   <Trash2 className="size-3.5" />
                 </button>
-                <h3 className="mt-3 truncate text-[14px] font-semibold tracking-[-0.02em]" title={r.nome}>
-                  {r.nome}
-                </h3>
+                <NomeEditavel
+                  nome={r.nome}
+                  salvar={(nome) =>
+                    renomearReferencia(r.id, nome)
+                      .then(() => carregar())
+                      .catch((e) => setErro((e as Error).message))
+                  }
+                />
                 <p className="mt-0.5 text-[11px] text-fog">
                   {andamento(r) ?? `${new Date(r.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} · ${r.video.largura}×${r.video.altura}`}
                 </p>
@@ -248,6 +265,62 @@ export default function Calibragem() {
 
       </main>
       {aberto && <ModalVideo r={aberto} fechar={() => setAberto(null)} />}
+    </div>
+  )
+}
+
+/** O nome do vídeo: dois cliques (ou o lápis) para renomear; Enter salva, Esc cancela. */
+function NomeEditavel({ nome, salvar }: { nome: string; salvar: (nome: string) => Promise<unknown> }) {
+  const [editando, setEditando] = useState(false)
+  const [valor, setValor] = useState(nome)
+  const confirmar = () => {
+    const novo = valor.trim()
+    setEditando(false)
+    if (novo && novo !== nome) void salvar(novo)
+    else setValor(nome)
+  }
+  if (editando)
+    return (
+      <input
+        autoFocus
+        value={valor}
+        maxLength={120}
+        onChange={(e) => setValor(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        onBlur={confirmar}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Escape') {
+            setValor(nome)
+            setEditando(false)
+          }
+        }}
+        aria-label="Nome do vídeo"
+        className="mt-2.5 h-7 w-full rounded-[3px] border border-cream/40 bg-deeper px-2 text-[13px] font-semibold text-cream outline-none focus:border-yellow"
+      />
+    )
+  return (
+    <div className="mt-3 flex items-center gap-1.5">
+      <h3
+        onDoubleClick={() => {
+          setValor(nome)
+          setEditando(true)
+        }}
+        className="min-w-0 truncate text-[14px] font-semibold tracking-[-0.02em]"
+        title={`${nome} · dois cliques para renomear`}
+      >
+        {nome}
+      </h3>
+      <button
+        onClick={() => {
+          setValor(nome)
+          setEditando(true)
+        }}
+        aria-label="Renomear"
+        className="shrink-0 text-fog opacity-0 transition-opacity group-hover:opacity-100 hover:text-cream focus-visible:opacity-100"
+      >
+        <Pencil className="size-3" />
+      </button>
     </div>
   )
 }

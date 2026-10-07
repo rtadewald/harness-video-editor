@@ -455,8 +455,8 @@ def sincronizar(id: str) -> dict:
             velho = antigos.get(n['chave'])
             midias = (velho['midias'] if 'midias' in velho else _midias_antigas(velho)) if velho else []
             pedidos.append({'id': velho['id'] if velho else uuid.uuid4().hex[:8], **n, 'midias': midias,
-                            **{k: velho[k] for k in ('capturas', 'captura', 'enriquecimento') if velho and velho.get(k)}})
-        p['inserts'] = {'versao': d.get('ativa'), 'pedidos': pedidos}
+                            **{k: velho[k] for k in ('capturas', 'captura', 'enriquecimento', 'comentario') if velho and velho.get(k)}})
+        p['inserts'] = {**(p.get('inserts') or {}), 'versao': d.get('ativa'), 'pedidos': pedidos}
     return projeto.atualizar(id, aplicar)['inserts']
 
 
@@ -485,7 +485,7 @@ def definir_midias(id: str, pid: str, midias: list[dict]) -> dict:
 OPCOES_ENRIQUECIMENTO = {
     'layout': {'vertical': ('tela_cheia', 'card', 'janela_3d', 'inclinado', 'destaque'),
                'dividida': ('metade', 'card_metade', 'janela_3d_metade', 'mesclada')},
-    'entrada': ('sem', 'surgir', 'deslizar', 'subir', 'mola', 'girar', 'voo_3d', 'zoom_borrado'),
+    'entrada': ('sem', 'surgir', 'subir', 'voo_3d', 'zoom_borrado'),  # deslizar, mola e girar saíram (Rodrigo, out/2026)
     'entre': ('sequencia_corte', 'sequencia_transicao', 'lado_a_lado', 'grade', 'empilhadas'),
     'movimento': ('parado', 'zoom_lento', 'zoom_ponto', 'rolagem'),
     'saida': ('corte', 'sumir', 'deslizar'),
@@ -496,9 +496,28 @@ ESTILO = {
 }
 
 
+# ajustes finos da entrada (sem padrão fixo: valem os da entrada escolhida até o criador mudar)
+AJUSTES = ('curva', 'duracao')  # duração da entrada em segundos: 0,5 a 5 s, de 0,25 em 0,25 (decisão de Rodrigo, out/2026)
+
+
 def _validar_enriquecimento(formato: str, campos: dict) -> dict:
     limpo = {}
     for k, v in campos.items():
+        if k == 'curva' and v is not None:
+            # cubic-bezier: x entre 0 e 1 (é o tempo), y livre dentro de -1 a 2 (passar do ponto e voltar)
+            if not isinstance(v, list) or len(v) != 4 or not all(isinstance(n, (int, float)) and not isinstance(n, bool) for n in v):
+                raise ValueError('A curva são 4 números (cubic-bezier)')
+            limpo[k] = [round(max(0.0, min(1.0, v[0])), 3), round(max(-1.0, min(2.0, v[1])), 3),
+                        round(max(0.0, min(1.0, v[2])), 3), round(max(-1.0, min(2.0, v[3])), 3)]
+            continue
+        if k == 'duracao' and v is not None:
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                raise ValueError('A duração é em segundos')
+            limpo[k] = round(max(0.5, min(5.0, float(v))) * 4) / 4  # passos de 0,25 s
+            continue
+        if k in AJUSTES:
+            limpo[k] = None
+            continue
         if k not in OPCOES_ENRIQUECIMENTO:
             raise ValueError(f'Categoria desconhecida: {k}')
         opcoes = OPCOES_ENRIQUECIMENTO[k][formato] if k == 'layout' else OPCOES_ENRIQUECIMENTO[k]
@@ -515,7 +534,11 @@ def enriquecer(id: str, pid: str, campos: dict) -> dict:
             if x['id'] == pid:
                 novos = _validar_enriquecimento(x['formato'], campos)
                 atual = {**(x.get('enriquecimento') or {}), **novos}
-                x['enriquecimento'] = {k: v for k, v in atual.items() if v is not None and v != ESTILO[x['formato']][k]}
+                # categorias que não existem mais (ex.: o fundo, que virou do vídeo todo) saem
+                # categorias e opções que não existem mais (o fundo por insert, entradas que saíram) caem fora
+                validas = lambda k, v: v in (OPCOES_ENRIQUECIMENTO[k][x['formato']] if k == 'layout' else OPCOES_ENRIQUECIMENTO[k])  # noqa: E731
+                x['enriquecimento'] = {k: v for k, v in atual.items()
+                                       if v is not None and (k in AJUSTES or (k in ESTILO[x['formato']] and validas(k, v) and v != ESTILO[x['formato']][k]))}
                 return
         raise LookupError('Pedido não encontrado')
     return projeto.atualizar(id, aplicar)['inserts']
@@ -531,4 +554,84 @@ def enriquecer_tipo(id: str, pid: str) -> dict:
         for y in pedidos:
             if y['tipo'] == x['tipo']:
                 y['enriquecimento'] = dict(x.get('enriquecimento') or {})
+    return projeto.atualizar(id, aplicar)['inserts']
+
+
+# ---------------------------------------------------------------- card de comentário (Comentário + insert + ator)
+# Igual ao comentário do Instagram: foto, usuário e tempo borrados; o texto, "Responder" e (opcional) "Ver tradução".
+# O texto padrão é o da direção; o pedido guarda só o que o criador mudou.
+COMENTARIO_PADRAO = {'texto': None, 'avatar': 0, 'usuario': 'usuario.do.ig', 'tempo': '4 sem', 'traducao': True, 'x': 50.0, 'y': 50.0, 'escala': 1.0}
+
+
+def configurar_comentario(id: str, pid: str, campos: dict) -> dict:
+    """Muda o card de comentário de um insert. `None` num campo volta ao padrão."""
+    limpo = {}
+    for k, v in campos.items():
+        if k not in COMENTARIO_PADRAO:
+            raise ValueError(f'Campo desconhecido: {k}')
+        if v is None:
+            limpo[k] = None
+        elif k in ('texto', 'usuario', 'tempo'):
+            limpo[k] = str(v).strip()[:500 if k == 'texto' else 40]
+        elif k == 'avatar':
+            limpo[k] = max(0, min(4, int(v)))
+        elif k == 'traducao':
+            limpo[k] = bool(v)
+        elif k in ('x', 'y'):
+            limpo[k] = round(max(5.0, min(95.0, float(v))), 1)
+        else:
+            limpo[k] = round(max(0.6, min(1.6, float(v))), 2)
+
+    def aplicar(p):
+        for x in (p.get('inserts') or {}).get('pedidos', []):
+            if x['id'] == pid:
+                if x['tipo'] != 'comentario_insert_ator':
+                    raise ValueError('Este insert não tem comentário')
+                atual = {**(x.get('comentario') or {}), **limpo}
+                x['comentario'] = {k: v for k, v in atual.items() if v is not None and v != COMENTARIO_PADRAO[k]}
+                return
+        raise LookupError('Pedido não encontrado')
+    return projeto.atualizar(id, aplicar)['inserts']
+
+
+# ---------------------------------------------------------------- fundo (do projeto inteiro)
+FUNDOS = ('verde_claro', 'papel', 'nevoa', 'chuva', 'gradiente')
+FUNDO_PADRAO = 'gradiente'
+
+
+def definir_fundo(id: str, fundo: str) -> dict:
+    """O fundo atrás dos inserts com moldura vale para o vídeo todo (decisão de Rodrigo, out/2026)."""
+    if fundo not in FUNDOS:
+        raise ValueError(f'Fundo desconhecido: {fundo}')
+
+    def aplicar(p):
+        p.setdefault('inserts', {'versao': None, 'pedidos': []})['fundo'] = fundo
+    return projeto.atualizar(id, aplicar)['inserts']
+
+
+def definir_curva_padrao(id: str, curva: list | None, duracao: float | None) -> dict:
+    """A curva e a duração (s) da entrada que valem para o vídeo todo (inserts sem curva própria)."""
+    limpo = _validar_enriquecimento('vertical', {'curva': curva, 'duracao': duracao})
+
+    def aplicar(p):
+        ins = p.setdefault('inserts', {'versao': None, 'pedidos': []})
+        padrao = {k: v for k, v in limpo.items() if v is not None}
+        if padrao:
+            ins['curva_padrao'] = padrao
+        else:
+            ins.pop('curva_padrao', None)
+    return projeto.atualizar(id, aplicar)['inserts']
+
+
+# ---------------------------------------------------------------- transição entre os planos (do vídeo todo)
+TRANSICOES = ('seca', 'zoom', 'piscada')  # corte seco · zoom com desfoque (ref. "cursor free") · piscada suave
+
+
+def definir_transicao(id: str, transicao: str) -> dict:
+    """A transição em cada troca de plano, para o vídeo todo."""
+    if transicao not in TRANSICOES:
+        raise ValueError(f'Transição desconhecida: {transicao}')
+
+    def aplicar(p):
+        p.setdefault('inserts', {'versao': None, 'pedidos': []})['transicao'] = transicao
     return projeto.atualizar(id, aplicar)['inserts']

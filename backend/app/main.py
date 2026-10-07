@@ -354,6 +354,20 @@ def marcar_revisada(id: str, s: StatusRevisao):
     return referencias.atualizar(id, lambda x: x.update(status='revisado' if s.revisado else 'a_revisar'))
 
 
+class NomeReferencia(BaseModel):
+    nome: str = Field(min_length=1, max_length=120)
+
+
+@app.put('/api/referencias/{id}/nome')
+def renomear_referencia(id: str, n: NomeReferencia):
+    """Renomeia o vídeo da Calibragem (o nome aparece nos roteiros de exemplo e nas Referências)."""
+    _ler_referencia(id)
+    nome = n.nome.strip()
+    if not nome:
+        raise HTTPException(422, 'Nome vazio')
+    return referencias.atualizar(id, lambda r: r.update(nome=nome))
+
+
 @app.delete('/api/referencias/{id}')
 def apagar_referencia(id: str):
     _ler_referencia(id)
@@ -768,7 +782,7 @@ def opcoes_de_enriquecimento():
 
 
 class Enriquecimento(BaseModel):
-    campos: dict[str, str | None]
+    campos: dict[str, str | float | list[float] | None]
 
 
 @app.put('/api/projetos/{id}/inserts/{pid}/enriquecimento')
@@ -791,6 +805,65 @@ def enriquecer_tipo(id: str, pid: str):
         return inserts.enriquecer_tipo(id, pid)
     except LookupError as erro:
         raise HTTPException(404, str(erro))
+
+
+class FundoInserts(BaseModel):
+    fundo: str = Field(max_length=40)
+
+
+@app.put('/api/projetos/{id}/inserts/fundo')
+def definir_fundo(id: str, f: FundoInserts):
+    """O fundo atrás dos inserts com moldura, para o vídeo todo."""
+    _ler(id)
+    try:
+        return inserts.definir_fundo(id, f.fundo)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+class TransicaoInserts(BaseModel):
+    transicao: str = Field(max_length=40)
+
+
+@app.put('/api/projetos/{id}/inserts/transicao')
+def definir_transicao(id: str, t: TransicaoInserts):
+    """A transição em cada troca de plano (seca, zoom com desfoque, piscada), para o vídeo todo."""
+    _ler(id)
+    try:
+        return inserts.definir_transicao(id, t.transicao)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+class CurvaPadrao(BaseModel):
+    curva: list[float] | None = None
+    duracao: float | None = None  # s
+
+
+@app.put('/api/projetos/{id}/inserts/curva-padrao')
+def definir_curva_padrao(id: str, c: CurvaPadrao):
+    """A curva e a duração da entrada padrão do vídeo (para os inserts sem curva própria)."""
+    _ler(id)
+    try:
+        return inserts.definir_curva_padrao(id, c.curva, c.duracao)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+class ComentarioIG(BaseModel):
+    campos: dict[str, str | float | int | bool | None]
+
+
+@app.put('/api/projetos/{id}/inserts/{pid}/comentario')
+def configurar_comentario(id: str, pid: str, c: ComentarioIG):
+    """O card de comentário (texto, foto, usuário, tempo, "Ver tradução", posição e tamanho); None volta ao padrão."""
+    _ler(id)
+    try:
+        return inserts.configurar_comentario(id, pid, c.campos)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except (ValueError, TypeError) as e:
+        raise HTTPException(422, str(e))
 
 
 def _subir_no_banco(arquivos: list[UploadFile]) -> list[dict]:

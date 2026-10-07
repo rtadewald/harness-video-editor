@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Activity,
   ArrowDown,
   ArrowDownToLine,
   ArrowUp,
+  ChevronDown,
+  PanelRightClose,
+  PanelRightOpen,
   Ban,
   Blend,
   Box,
@@ -46,6 +48,9 @@ import {
   PROPORCOES_CAPTURA,
   capturarSite,
   definirMidias,
+  configurarComentario,
+  definirCurvaPadrao,
+  definirFundo,
   enriquecerInsert,
   enriquecerTipo,
   lerInserts,
@@ -71,9 +76,13 @@ import Modal from '@/components/Modal'
 import { cn } from '@/lib/utils'
 import { paraTempo, palavrasNaSaida } from './direcaoProjeto'
 import { CATEGORIAS } from './EtapaDirecao'
+import { CardComentario, PainelComentario, comentarioDe, type Comentario } from './ComentarioIG'
+import { SAIR, SUAVE, bezier } from './curvas'
+import EditorCurva from './EditorCurva'
 import EditorVideo from './EditorVideo'
+import Fundo, { FUNDOS } from './Fundo'
 import LinhaInserts from './LinhaInserts'
-import { CATEGORIAS_ENRIQUECIMENTO, ESTILO, NOMES, OPCOES, enriquecimentoDe, type Categoria, type Enriquecimento } from './enriquecimento'
+import { CATEGORIAS_ATIVAS, CATEGORIAS_ENRIQUECIMENTO, ESTILO, NOMES, OPCOES, curvaDe, duracaoDe, enriquecimentoDe, type Categoria, type Enriquecimento, type PadraoCurva } from './enriquecimento'
 import Preview from './Preview'
 import type { Sequencia } from './sequencia'
 import type { usePlayer } from './usePlayer'
@@ -203,11 +212,53 @@ export default function EtapaInserts(p: Props) {
     if (pl) player.buscar(Math.min(pl.inicio + 0.6, (pl.inicio + pl.fim) / 2))
   }
 
+  // card de comentário: muda na hora na tela e salva um pouco depois (arrastar e sliders não disparam um pedido por pixel)
+  const pendente = useRef<{ pid: string; campos: Record<string, unknown>; t?: number } | null>(null)
+  const mudarComentario = (pid: string, campos: Record<string, unknown>) => {
+    setIns((r) =>
+      r && {
+        ...r,
+        pedidos: r.pedidos.map((x) => {
+          if (x.id !== pid) return x
+          const novo: Record<string, unknown> = { ...(x.comentario ?? {}), ...campos }
+          for (const k of Object.keys(novo)) if (novo[k] == null) delete novo[k]
+          return { ...x, comentario: novo as Partial<Comentario> }
+        }),
+      },
+    )
+    const ant = pendente.current?.pid === pid ? pendente.current : null
+    if (ant?.t) window.clearTimeout(ant.t)
+    const juntos = { ...(ant?.campos ?? {}), ...campos }
+    pendente.current = {
+      pid,
+      campos: juntos,
+      t: window.setTimeout(() => {
+        pendente.current = null
+        void configurarComentario(projeto.id, pid, juntos).then(setIns).catch(falhar)
+      }, 350),
+    }
+  }
+
+  // R: toca de novo o trecho do plano atual, do começo ao fim (fora de campos de texto; o editor de vídeo segura as teclas dele)
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'r' || e.metaKey || e.ctrlKey || e.altKey) return
+      if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return
+      const pl = planos.find((x) => x.id === selPlano) ?? planoNoCursor
+      if (!pl) return
+      e.preventDefault()
+      player.tocarTrecho(seq.saidaParaFonte(pl.inicio), seq.saidaParaFonte(Math.max(pl.fim - 0.01, pl.inicio)), { pular: true, loop: false })
+    }
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  })
+
   const pedidosPorPlano = useMemo(() => new Map(pedidos.map((x) => [x.plano, x])), [pedidos])
   const planosLinha = useMemo(() => planos.map((pl, k) => ({ ...pl, n: k + 1 })), [planos])
   const elementos = useMemo(() => itens.filter((i) => i.camada === 'elemento'), [itens])
   const nomes = { ...CATEGORIAS.planos, ...CATEGORIAS.elementos }
   const [tam, arrastarBorda] = useTamanhos()
+  const [coluna, setColuna] = useLembrado('inserts.colunaAberta', true)
   // a janela pode não comportar as larguras escolhidas: os cards encolhem juntos, e o vídeo fica com 300 px no mínimo
   const area = useRef<HTMLDivElement>(null)
   const [largura, setLargura] = useState(0)
@@ -286,7 +337,8 @@ export default function EtapaInserts(p: Props) {
         </aside>
 
         {/* vídeo com o insert no lugar (o enriquecimento aproximado) */}
-        <section className="flex min-h-0 min-w-0 flex-col px-6 pt-5 pb-3">
+        <section className="flex min-h-0 min-w-0 gap-5 px-6 pt-5 pb-3">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <Preview
             videoRef={player.ref}
             src={p.src}
@@ -298,8 +350,72 @@ export default function EtapaInserts(p: Props) {
             velocidade={player.velocidade}
             setVelocidade={player.setVelocidade}
             buscar={player.buscar}
-            sobreposicao={noCursor && <InsertNoLugar pedido={noCursor} banco={banco} tempo={tempo} tocando={player.tocando} />}
+            sobreposicao={
+              noCursor && (
+                <>
+                  <InsertNoLugar pedido={noCursor} banco={banco} tempo={tempo} tocando={player.tocando} fundo={ins?.fundo ?? 'gradiente'} padrao={ins?.curva_padrao} />
+                  {noCursor.tipo === 'comentario_insert_ator' && (
+                    <CardComentario
+                      c={comentarioDe(noCursor)}
+                      texto={comentarioDe(noCursor).texto ?? noCursor.texto ?? ''}
+                      mudar={(campos) => mudarComentario(noCursor.id, campos)}
+                    />
+                  )}
+                </>
+              )
+            }
           />
+          </div>
+          {/* o espaço livre ao lado do vídeo: o fundo (do vídeo todo) e, nos comentários, o card do Instagram; a coluna
+              inteira recolhe para o lado, numa faixa encostada no Enriquecimento */}
+          {coluna ? (
+            <div className="-mx-1 flex min-h-0 w-[268px] shrink-0 flex-col gap-3 overflow-y-auto px-1 py-0.5">
+              <button
+                onClick={() => setColuna(false)}
+                className="flex items-center gap-1.5 self-end rounded-full px-2 py-1 text-[11px] text-fog hover:text-cream"
+                title="Recolher para o lado"
+              >
+                Recolher <PanelRightClose className="size-3.5" />
+              </button>
+              {sel && enriquecimentoDe(sel).entrada !== 'sem' && (
+                <Recolhivel chave="curva" titulo="Curva da entrada" fechado>
+                  <EditorCurva
+                    curva={curvaDe(enriquecimentoDe(sel), ins?.curva_padrao)}
+                    duracao={duracaoDe(enriquecimentoDe(sel), ins?.curva_padrao)}
+                    ajustada={!!(sel.enriquecimento?.curva || sel.enriquecimento?.duracao)}
+                    padrao={ins?.curva_padrao}
+                    mudar={(c) => void enriquecerInsert(projeto.id, sel.id, c as Record<string, number[] | number | null>).then(setIns).catch(falhar)}
+                    salvarPadrao={(c) => void definirCurvaPadrao(projeto.id, c).then(setIns).catch(falhar)}
+                  />
+                </Recolhivel>
+              )}
+              <Recolhivel chave="fundo" titulo="Fundo" resumo={<ResumoFundo id={ins?.fundo ?? 'gradiente'} />}>
+                <EscolhaFundo atual={ins?.fundo ?? 'gradiente'} escolher={(f) => void definirFundo(projeto.id, f).then(setIns).catch(falhar)} />
+              </Recolhivel>
+              {sel?.tipo === 'comentario_insert_ator' && (
+                <Recolhivel chave="comentario" titulo="Comentário" resumo={<span className="truncate text-[11.5px] text-fog">{comentarioDe(sel).texto ?? sel.texto}</span>}>
+                  <PainelComentario c={comentarioDe(sel)} textoDirecao={sel.texto ?? ''} mudar={(campos) => mudarComentario(sel.id, campos)} />
+                </Recolhivel>
+              )}
+            </div>
+          ) : (
+            <div className="-mr-6 -mt-5 -mb-3 flex w-9 shrink-0 flex-col items-center gap-1.5 border-l border-line-dark py-3">
+              <button onClick={() => setColuna(true)} className="mb-1 grid size-7 place-items-center rounded-full text-fog hover:bg-cream/8 hover:text-cream" title="Abrir">
+                <PanelRightOpen className="size-4" />
+              </button>
+              {/* recolhidos, os cards viram abas em pé (como os painéis recolhidos do Photoshop) */}
+              {[...(sel && enriquecimentoDe(sel).entrada !== 'sem' ? ['Curva'] : []), 'Fundo', ...(sel?.tipo === 'comentario_insert_ator' ? ['Comentário'] : [])].map((nome) => (
+                <button
+                  key={nome}
+                  onClick={() => setColuna(true)}
+                  className="rounded-[6px] px-1.5 py-3 text-[10px] font-semibold tracking-[0.14em] text-fog uppercase ring-1 ring-line-dark transition-colors hover:text-cream hover:ring-cream/40"
+                  style={{ writingMode: 'vertical-rl' }}
+                >
+                  {nome}
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* à direita: o enriquecimento do plano (inserts e motions) */}
@@ -423,6 +539,76 @@ function Alca({ lado, pos, arrastar }: { lado: keyof Tamanhos; pos: number | str
   )
 }
 
+/** Um booleano lembrado neste navegador. */
+function useLembrado(chave: string, padrao: boolean): [boolean, (v: boolean) => void] {
+  const [v, setV] = useState(() => {
+    try {
+      const x = localStorage.getItem(chave)
+      return x == null ? padrao : x === '1'
+    } catch {
+      return padrao
+    }
+  })
+  const mudar = (novo: boolean) => {
+    setV(novo)
+    try {
+      localStorage.setItem(chave, novo ? '1' : '0')
+    } catch {
+      /* sem armazenamento: vale só nesta sessão */
+    }
+  }
+  return [v, mudar]
+}
+
+/** Um card que abre e fecha (lembrado), com o título e um resumo no cabeçalho. */
+function Recolhivel(p: { chave: string; titulo: string; resumo?: ReactNode; children: ReactNode; fechado?: boolean }) {
+  const { chave, titulo, resumo, children } = p
+  const [aberto, setAberto] = useLembrado(`inserts.aberto.${chave}`, !p.fechado)
+  return (
+    <div className="shrink-0 rounded-[8px] bg-cream/[0.03] ring-1 ring-line-dark">
+      <button onClick={() => setAberto(!aberto)} className="flex w-full min-w-0 items-center gap-2 px-4 py-3 text-left">
+        <span className="eyebrow shrink-0 text-sage">{titulo}</span>
+        <span className="flex min-w-0 flex-1 items-center gap-1.5">{resumo}</span>
+        <ChevronDown className={cn('size-3.5 shrink-0 text-fog transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]', aberto && 'rotate-180')} />
+      </button>
+      {aberto && <div className="px-4 pb-4">{children}</div>}
+    </div>
+  )
+}
+
+function ResumoFundo({ id, so }: { id: string; so?: boolean }) {
+  const f = FUNDOS.find((x) => x.id === id) ?? FUNDOS[4]
+  return (
+    <>
+      <span className={cn('shrink-0 rounded-[3px] ring-1 ring-white/15', so ? 'h-4 w-4 rounded-full' : 'h-3.5 w-5')} style={{ background: f.amostra }} />
+      {!so && <span className="truncate text-[11.5px] text-fog">{f.nome}</span>}
+    </>
+  )
+}
+
+/** O fundo atrás dos inserts com moldura, para o vídeo todo. */
+function EscolhaFundo({ atual, escolher }: { atual: string; escolher: (f: string) => void }) {
+  return (
+    <div className="grid gap-2">
+      <p className="text-[11px] leading-[1.5] text-fog">Vale para o vídeo todo, atrás dos inserts com moldura.</p>
+      {[true, false].map((claro) => (
+        <div key={String(claro)} className="grid grid-cols-3 gap-1.5">
+          {FUNDOS.filter((x) => x.claro === claro).map((x) => (
+            <button
+              key={x.id}
+              onClick={() => escolher(x.id)}
+              className={cn('grid gap-1 rounded-[6px] p-1.5 text-[10px] ring-1 transition-colors', atual === x.id ? 'text-cream ring-2 ring-coral' : 'text-fog ring-line-dark hover:text-cream')}
+            >
+              <span className="h-9 w-full rounded-[4px] ring-1 ring-white/10" style={{ background: x.amostra }} />
+              {x.nome}
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function Cabecalho({ icone: Icone, titulo, extra }: { icone: typeof Images; titulo: string; extra?: ReactNode }) {
   return (
     <div className="flex items-center gap-2 border-b border-line-dark px-4 py-2.5 text-[11px]">
@@ -456,8 +642,6 @@ const ICONE: Record<string, typeof Square> = {
   surgir: Sparkles,
   deslizar: MoveRight,
   subir: MoveUp,
-  mola: Activity,
-  girar: RotateCw,
   voo_3d: Plane,
   zoom_borrado: ZoomIn,
   sequencia_corte: Scissors,
@@ -476,11 +660,14 @@ const ICONE: Record<string, typeof Square> = {
 /** Enriquecimento (mock): grades de opções por categoria; ★ marca o estilo do tipo. O pedido guarda só o que difere. */
 function PainelEnriquecimento(p: {
   pedido: Pedido
-  mudar: (c: Record<string, string | null>) => void
+  mudar: (c: Record<string, string | number | number[] | null>) => void
   aplicarAoTipo: () => void
   verEntrada: () => void
   /** Só para ver as opções (motions): o aviso aparece em cima e nada é salvo. */
   aviso?: string
+  /** O padrão de curva do vídeo e como salvá-lo. */
+  padrao?: PadraoCurva
+  salvarPadrao?: (c: { curva: [number, number, number, number]; duracao: number }) => void
 }) {
   const x = p.pedido
   const e = enriquecimentoDe(x)
@@ -500,10 +687,9 @@ function PainelEnriquecimento(p: {
         </button>
       </div>
       <p className="text-[11.5px] leading-[1.6] text-fog">
-        Como este {p.aviso ? 'motion' : 'insert'} aparece. ★ é o estilo de “{nomeTipo}”; mude só o que quiser. Por ora a prévia aproxima layout, entrada, saída e como as mídias se
-        combinam.
+        Como este {p.aviso ? 'motion' : 'insert'} aparece (por enquanto, com 1 mídia: layout e entrada). ★ é o estilo de “{nomeTipo}”; mude só o que quiser. As entradas usam curvas suaves (cubic-bezier), nunca lineares.
       </p>
-      {CATEGORIAS_ENRIQUECIMENTO.map((c) => (
+      {CATEGORIAS_ENRIQUECIMENTO.filter((c) => CATEGORIAS_ATIVAS.includes(c.id)).map((c) => (
         <div key={c.id} className="grid gap-2">
           <p className="eyebrow text-sage">
             {c.nome}
@@ -548,46 +734,35 @@ function PainelEnriquecimento(p: {
   )
 }
 
-const ease = (t: number) => 1 - Math.pow(1 - t, 3)
 const limite = (v: number) => Math.max(0, Math.min(1, v))
 
 /** Entrada e saída do insert (aproximadas): transform, opacidade e desfoque conforme o tempo dentro do plano. */
-function estiloDeEntradaESaida(e: Enriquecimento, rel: number, dur: number): React.CSSProperties {
-  const pe = ease(limite(rel / 0.5))
-  const ps = e.saida === 'corte' ? 1 : limite((dur - rel) / 0.35)
+function estiloDeEntradaESaida(e: Enriquecimento, rel: number, dur: number, padrao?: PadraoCurva): React.CSSProperties {
+  // a entrada anda na curva e na duração escolhidas (padrão: chega rápido e freia em 0,7 s; curvas que passam do ponto passam)
+  const curva = bezier(...curvaDe(e, padrao))
+  const ENTRADA_S = Math.min(duracaoDe(e, padrao), dur) // nunca mais longa que o próprio trecho
+  const bruto = curva(limite(rel / ENTRADA_S)) // pode passar de 1 (curvas que passam do ponto e voltam)
+  const pe = limite(bruto)
+  const ps = e.saida === 'corte' ? 1 : 1 - SAIR(limite(1 - (dur - rel) / 0.4))
   const t: string[] = []
   let opacidade = 1
   let filtro = ''
   switch (e.entrada) {
     case 'surgir':
       opacidade = pe
-      t.push(`scale(${0.94 + 0.06 * pe})`)
-      break
-    case 'deslizar':
-      opacidade = pe
-      t.push(`translateX(${(1 - pe) * 60}%)`)
+      t.push(`scale(${0.94 + 0.06 * bruto})`)
       break
     case 'subir':
       opacidade = pe
-      t.push(`translateY(${(1 - pe) * 40}%)`)
-      break
-    case 'mola': {
-      const v = limite(rel / 0.6) - 1
-      const back = 1 + 2.70158 * v ** 3 + 1.70158 * v ** 2
-      t.push(`scale(${0.6 + 0.4 * back})`)
-      break
-    }
-    case 'girar':
-      opacidade = pe
-      t.push(`rotate(${(1 - pe) * -25}deg) scale(${0.8 + 0.2 * pe})`)
+      t.push(`translateY(${(1 - bruto) * 40}%)`)
       break
     case 'voo_3d':
       opacidade = pe
-      t.push(`perspective(800px) rotateX(${(1 - pe) * 55}deg) translateY(${(1 - pe) * 30}%)`)
+      t.push(`perspective(800px) rotateX(${(1 - bruto) * 55}deg) translateY(${(1 - bruto) * 30}%)`)
       break
     case 'zoom_borrado':
       opacidade = pe
-      t.push(`scale(${1.25 - 0.25 * pe})`)
+      t.push(`scale(${1.25 - 0.25 * bruto})`)
       filtro = `blur(${(1 - pe) * 14}px)`
       break
   }
@@ -612,8 +787,10 @@ function VideoNoTempo({ item, rel, tocando, estilo }: { item: ItemBanco; rel: nu
 
 /** As mídias do insert do momento por cima do vídeo, com o enriquecimento aproximado: layout, entrada e saída, como as
  *  mídias se combinam e o movimento. */
-function InsertNoLugar({ pedido, banco, tempo, tocando }: { pedido: Pedido; banco: Map<string, ItemBanco>; tempo: number; tocando: boolean }) {
-  const e = enriquecimentoDe(pedido)
+function InsertNoLugar(p: { pedido: Pedido; banco: Map<string, ItemBanco>; tempo: number; tocando: boolean; fundo: string; padrao?: PadraoCurva }) {
+  const { pedido, banco, tempo, tocando } = p
+  // por enquanto (decisão de Rodrigo, out/2026) só layout e entrada valem; o resto fica parado, em corte seco
+  const e = { ...enriquecimentoDe(pedido), entre: 'sequencia_corte', movimento: 'parado', saida: 'corte' }
   const n = pedido.midias.length
   const dur = Math.max(pedido.t.fim - pedido.t.inicio, 0.01)
   const rel = Math.max(tempo - pedido.t.inicio, 0)
@@ -623,11 +800,11 @@ function InsertNoLugar({ pedido, banco, tempo, tocando }: { pedido: Pedido; banc
   // movimento da mídia (dentro do layout)
   const movimento = (item?: ItemBanco): React.CSSProperties =>
     e.movimento === 'zoom_lento'
-      ? { transform: `scale(${1 + 0.06 * (rel / dur)})` }
+      ? { transform: `scale(${1 + 0.06 * SUAVE(limite(rel / dur))})` }
       : e.movimento === 'zoom_ponto'
-        ? { transform: `scale(${1 + 0.25 * limite((rel / dur) * 2)})`, transformOrigin: '50% 35%' }
+        ? { transform: `scale(${1 + 0.25 * SUAVE(limite((rel / dur) * 2))})`, transformOrigin: '50% 35%' }
         : e.movimento === 'rolagem' && item?.tipo === 'imagem'
-          ? { objectPosition: `50% ${(rel / dur) * 100}%` }
+          ? { objectPosition: `50% ${SUAVE(limite(rel / dur)) * 100}%` }
           : {}
   const midia = (m: MidiaLigada, relM: number, extra?: React.CSSProperties) => {
     const item = banco.get(m.banco)
@@ -646,7 +823,7 @@ function InsertNoLugar({ pedido, banco, tempo, tocando }: { pedido: Pedido; banc
   if (n === 1 || e.entre === 'sequencia_corte') conteudo = midia(pedido.midias[k], rel - k * parte)
   else if (e.entre === 'sequencia_transicao') {
     const prox = Math.min(k + 1, n - 1)
-    const mistura = prox !== k ? limite((rel - (k + 1) * parte + 0.25) / 0.25) : 0
+    const mistura = prox !== k ? SUAVE(limite((rel - (k + 1) * parte + 0.3) / 0.3)) : 0
     conteudo = (
       <div className="relative size-full">
         <div className="absolute inset-0">{midia(pedido.midias[k], rel - k * parte)}</div>
@@ -665,8 +842,7 @@ function InsertNoLugar({ pedido, banco, tempo, tocando }: { pedido: Pedido; banc
     )
 
   // layout (moldura) + entrada e saída
-  const animacao = estiloDeEntradaESaida(e, rel, dur)
-  const fundo = 'bg-gradient-to-b from-[#24423b] via-[#13201d] to-[#0b1412]'
+  const animacao = estiloDeEntradaESaida(e, rel, dur, p.padrao)
   const emCard = ['card', 'card_metade', 'janela_3d', 'janela_3d_metade', 'inclinado', 'destaque'].includes(e.layout)
   const moldura: React.CSSProperties =
     e.layout === 'janela_3d' || e.layout === 'janela_3d_metade'
@@ -676,20 +852,30 @@ function InsertNoLugar({ pedido, banco, tempo, tocando }: { pedido: Pedido; banc
         : {}
   return (
     <div
-      className={cn('pointer-events-none absolute overflow-hidden', caixa, emCard ? fundo : 'bg-black')}
+      className={cn('pointer-events-none absolute overflow-hidden', caixa, !emCard && 'bg-black')}
       style={e.layout === 'mesclada' ? { WebkitMaskImage: 'linear-gradient(to bottom, black 62%, transparent)', maskImage: 'linear-gradient(to bottom, black 62%, transparent)' } : undefined}
     >
+      {emCard && <Fundo id={p.fundo} />}
       {e.layout === 'destaque' && (
         <div className="absolute inset-0 scale-125 opacity-60 blur-2xl">{midia(pedido.midias[k], rel - k * parte)}</div>
       )}
-      <div className={cn('absolute', emCard ? (e.layout === 'destaque' ? 'inset-[12%]' : 'inset-[8%]') : 'inset-0')} style={animacao}>
-        <div className={cn('size-full overflow-hidden', emCard && 'rounded-[14px] shadow-[0_18px_40px_#0009] ring-1 ring-white/10')} style={moldura}>
+      {/* os cards (card, card na metade): sem borda, cantos generosos e sombra larga e suave — como nos favoritos */}
+      <div
+        className={cn('absolute', !emCard ? 'inset-0' : e.layout === 'destaque' ? 'inset-[12%]' : e.layout === 'card_metade' ? 'inset-x-[6%] top-[9%] bottom-[7%]' : 'inset-[8%]')}
+        style={animacao}
+      >
+        <div
+          className={cn(
+            'size-full overflow-hidden',
+            emCard && (e.layout === 'card' || e.layout === 'card_metade'
+              ? 'rounded-[18px] shadow-[0_30px_70px_-12px_rgba(0,0,0,0.45),0_12px_24px_-8px_rgba(0,0,0,0.3)]'
+              : 'rounded-[14px] shadow-[0_18px_40px_#0009] ring-1 ring-white/10'),
+          )}
+          style={moldura}
+        >
           {conteudo}
         </div>
       </div>
-      {pedido.tipo === 'comentario_insert_ator' && pedido.texto && (
-        <div className="absolute inset-x-4 bottom-4 rounded-[10px] bg-[#2a2d33]/95 px-3 py-2 text-[12px] leading-snug text-cream shadow-lg">💬 {pedido.texto}</div>
-      )}
       {n > 1 && e.entre.startsWith('sequencia') && (
         <span className="absolute top-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-cream">
           {k + 1}/{n}
@@ -880,13 +1066,14 @@ function Detalhe(p: {
 function MidiaCard(p: { m: MidiaLigada; item: ItemBanco | undefined; editar: () => void; subir?: () => void; descer?: () => void; tirar: () => void }) {
   const { m, item } = p
   return (
-    <div className="grid gap-2 rounded-[6px] p-2.5 ring-1 ring-line-dark">
+    // a mídia encosta nas bordas do card; só o texto e os botões têm margem
+    <div className="grid gap-2 overflow-hidden rounded-[6px] pb-2.5 ring-1 ring-line-dark">
       {item?.tipo === 'video' ? (
         <PlayerTrecho key={`${m.banco}:${item.inicio ?? 0}:${item.fim ?? item.duracao}`} item={item} />
       ) : (
-        <img src={urlBancoMiniatura(m.banco)} alt="" className="max-h-[200px] w-full rounded-[3px] bg-black object-contain" />
+        <img src={urlBancoMiniatura(m.banco)} alt="" className="max-h-[200px] w-full bg-black object-contain" />
       )}
-      <div className="flex items-center gap-2 text-[11.5px]">
+      <div className="flex items-center gap-2 px-2.5 text-[11.5px]">
         <span className="min-w-0 flex-1 truncate font-semibold" title={item?.descricao}>
           {item?.nome ?? m.banco}
         </span>
@@ -896,7 +1083,7 @@ function MidiaCard(p: { m: MidiaLigada; item: ItemBanco | undefined; editar: () 
           </span>
         )}
       </div>
-      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-fog">
+      <div className="flex flex-wrap items-center gap-1.5 px-2.5 text-[11px] text-fog">
         {item?.tipo === 'video' && (
           <button onClick={p.editar} className="flex items-center gap-1 rounded-full border border-line-dark px-2.5 py-0.5 font-semibold hover:text-cream" title="Escolher trechos ou cortar as pontas">
             <Scissors className="size-3" /> Editar
@@ -964,7 +1151,7 @@ function PlayerTrecho({ item }: { item: ItemBanco }) {
     if (v) v.currentTime = ini + Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * dur
   }
   return (
-    <div className="group/p relative overflow-hidden rounded-[3px] bg-black">
+    <div className="group/p relative overflow-hidden bg-black">
       <video ref={ref} src={urlBancoArquivo(item.id) + versaoBanco(item)} muted playsInline preload="metadata" onClick={alternar} className="max-h-[200px] w-full cursor-pointer object-contain" />
       <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/80 to-transparent px-2 pt-4 pb-1.5 text-[11px] text-cream tabular-nums">
         <button onClick={alternar} className="grid size-6 shrink-0 place-items-center rounded-full bg-cream/15 hover:bg-cream/25" aria-label={tocando ? 'Pausar' : 'Tocar'}>
@@ -1085,7 +1272,7 @@ function CapturaDeSite(p: { projetoId: string; pedido: Pedido; fechar: () => voi
               setPrevia(null)
             }}
             className={cn('h-8 rounded-full px-3 text-[12px] font-semibold', proporcao === f ? 'bg-cream text-ink' : 'border border-line-dark text-fog hover:text-cream')}
-            title={f === '9:16' ? 'Versão de celular do site' : 'Versão de computador'}
+            title={f === '9:16' ? 'Versão de computador, em pé' : 'Versão de computador'}
           >
             {f}
           </button>

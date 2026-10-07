@@ -11,15 +11,14 @@ from urllib.parse import urlparse
 
 from . import inserts, midia, projeto
 
-# proporção → janela (largura e altura em px de CSS, celular?); densidade 2× na gravação
-JANELAS = {'16:9': (1440, 810, False), '4:3': (1200, 900, False), '1:1': (1080, 1080, False), '9:16': (390, 693, True)}
-DENSIDADE = 2
+# proporção → janela de computador (largura e altura em px de CSS) e densidade na gravação. A 9:16 é um computador em
+# pé (nunca a versão de celular, que mostra pouco): 1200 px de largura pega o layout desktop; 1,8× → 2160×3840
+JANELAS = {'16:9': (1440, 810), '4:3': (1200, 900), '1:1': (1080, 1080), '9:16': (1200, 2133)}
+DENSIDADE = {'9:16': 1.8}  # as outras: 2×
 FPS = 30
 MAX_DOBRAS = 3
 DURACAO_PADRAO = 5.0  # s por dobra (o criador escolhe de 1 a 30 s; animações de entrada às vezes levam mais de 3 s)
 ALTURA_MAXIMA_PREVIA = 16_000
-UA_CELULAR = ('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) '
-              'Version/17.5 Mobile/15E148 Safari/604.1')
 # botões de aceitar cookies mais comuns (texto exato, sem diferenciar maiúsculas)
 COOKIES = ('Accept all', 'Accept', 'Allow all', 'I agree', 'Got it', 'OK', 'Aceitar', 'Aceitar todos', 'Concordo', 'Entendi')
 
@@ -37,9 +36,8 @@ def normalizar_url(url: str) -> str:
 
 
 def _contexto(browser, proporcao: str, densidade: int):
-    w, h, celular = JANELAS[proporcao]
-    return browser.new_context(viewport={'width': w, 'height': h}, device_scale_factor=densidade, is_mobile=celular, has_touch=celular,
-                               user_agent=UA_CELULAR if celular else None, locale='pt-BR')
+    w, h = JANELAS[proporcao]
+    return browser.new_context(viewport={'width': w, 'height': h}, device_scale_factor=densidade, locale='pt-BR')
 
 
 def fechar_cookies(page) -> None:
@@ -217,8 +215,8 @@ def _rodar(id: str, pid: str, cid: str, url: str, proporcao: str, ys: list[int],
 
 
 def gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path, do_carregamento: bool) -> str:
-    """Grava uma dobra em tempo real (screencast do Chrome com GPU), a 30 quadros/s constantes e densidade 2× (3× no
-    celular). Antes, uma visita de aquecimento fecha o banner de cookies e deixa a rede quente; a gravação abre uma aba
+    """Grava uma dobra em tempo real (screencast do Chrome com GPU), a 30 quadros/s constantes e densidade 2× (1,8× na
+    9:16). Antes, uma visita de aquecimento fecha o banner de cookies e deixa a rede quente; a gravação abre uma aba
     nova (sem o estado da página, só com os cookies). Do carregamento: o vídeo começa no 1º quadro pintado. Dobra: a página
     carrega sem gravar, pula direto até `y` e grava parada."""
     import asyncio
@@ -232,8 +230,8 @@ async def _gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path,
 
     from playwright.async_api import async_playwright
 
-    w, h, celular = JANELAS[proporcao]
-    dpr = 3 if celular else DENSIDADE
+    w, h = JANELAS[proporcao]
+    dpr = DENSIDADE.get(proporcao, 2)
     quadros: list[tuple[float, bytes]] = []
     async with async_playwright() as pw:
         # channel 'chromium' = headless novo, com GPU (Metal); a densidade precisa ser real, senão o screencast sai em 1×
@@ -241,8 +239,7 @@ async def _gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path,
             '--force-color-profile=srgb', '--hide-scrollbars', '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
             '--disable-backgrounding-occluded-windows', '--enable-gpu-rasterization', '--ignore-gpu-blocklist', f'--force-device-scale-factor={dpr}'])
         try:
-            ctx = await browser.new_context(viewport={'width': w, 'height': h}, device_scale_factor=dpr, is_mobile=celular, has_touch=celular,
-                                            user_agent=UA_CELULAR if celular else None, locale='pt-BR')
+            ctx = await browser.new_context(viewport={'width': w, 'height': h}, device_scale_factor=dpr, locale='pt-BR')
             # aquecimento: cookies aceitos, rede e cache quentes; o estado da página (intro já vista etc.) é limpo
             aquece = await ctx.new_page()
             try:
@@ -257,7 +254,7 @@ async def _gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path,
 
             page = await ctx.new_page()
             cdp = await ctx.new_cdp_session(page)
-            await cdp.send('Emulation.setDeviceMetricsOverride', {'width': w, 'height': h, 'deviceScaleFactor': dpr, 'mobile': celular})
+            await cdp.send('Emulation.setDeviceMetricsOverride', {'width': w, 'height': h, 'deviceScaleFactor': dpr, 'mobile': False})
 
             async def confirmar(sid):
                 try:
@@ -271,7 +268,7 @@ async def _gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path,
             cdp.on('Page.screencastFrame', quadro)
 
             async def ligar():
-                await cdp.send('Page.startScreencast', {'format': 'jpeg', 'quality': 100, 'maxWidth': w * dpr, 'maxHeight': h * dpr, 'everyNthFrame': 1})
+                await cdp.send('Page.startScreencast', {'format': 'jpeg', 'quality': 100, 'maxWidth': round(w * dpr), 'maxHeight': round(h * dpr), 'everyNthFrame': 1})
 
             if do_carregamento:
                 await ligar()

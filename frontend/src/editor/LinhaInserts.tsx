@@ -8,15 +8,14 @@ export type PlanoLinha = ItemRef & { n: number; fala: string }
 type Aba = 'midias' | 'motion' | 'enriquecimento'
 
 const ROTULO = 88 // coluna dos nomes das trilhas
-const TRILHAS: { id: 'planos' | 'midias' | 'elementos' | 'fala'; nome: string; alt: number }[] = [
+const TRILHAS: { id: 'planos' | 'midias' | 'elementos'; nome: string; alt: number }[] = [
   { id: 'planos', nome: 'Planos', alt: 34 },
   { id: 'midias', nome: 'Mídias', alt: 42 },
   { id: 'elementos', nome: 'Elementos', alt: 24 },
-  { id: 'fala', nome: 'Fala', alt: 22 },
 ]
 const TEM_MOTION = ['motion_tela_cheia', 'tela_dividida_motion']
 
-/** Timeline horizontal da etapa Inserts (só leitura; estilo editor de vídeo): régua, planos, mídias, elementos e fala. */
+/** Timeline horizontal da etapa Inserts (só leitura; estilo editor de vídeo): régua, planos, mídias e elementos. */
 export default function LinhaInserts(p: {
   duracao: number
   planos: PlanoLinha[]
@@ -115,10 +114,7 @@ export default function LinhaInserts(p: {
               return (
                 <button
                   key={pl.id}
-                  onClick={() => {
-                    p.selecionar(pl.id)
-                    p.buscar(pl.inicio + 0.01)
-                  }}
+                  onClick={() => p.selecionar(pl.id)}
                   className={cn(
                     'absolute flex items-center gap-1 overflow-hidden rounded-[4px] px-1.5 text-left text-[10.5px] font-semibold whitespace-nowrap',
                     COR_PLANO[pl.tipo],
@@ -182,26 +178,6 @@ export default function LinhaInserts(p: {
                 {el.texto || p.nomes[el.tipo]}
               </div>
             ))}
-
-            {/* fala */}
-            {p.palavras.map((w) => (
-              <span
-                key={w.id}
-                className="absolute overflow-hidden text-[9.5px] leading-[22px] whitespace-nowrap text-fog/80"
-                style={{ left: x(w.inicio), width: Math.max(x(w.fim - w.inicio), 1), top: faixa(3), height: TRILHAS[3].alt }}
-                title={w.texto}
-              >
-                {px >= 30 ? w.texto : ''}
-              </span>
-            ))}
-            {px < 30 &&
-              p.palavras.map((w) => (
-                <i
-                  key={`b${w.id}`}
-                  className="pointer-events-none absolute rounded-[1px] bg-cream/25"
-                  style={{ left: x(w.inicio), width: Math.max(x(w.fim - w.inicio) - 0.5, 1), top: faixa(3) + 8, height: 6 }}
-                />
-              ))}
 
             {/* cabeça de reprodução */}
             <div className="pointer-events-none absolute top-0 z-20 w-0.5 bg-coral" style={{ left: x(p.tempo), height: faixa(TRILHAS.length) }} />

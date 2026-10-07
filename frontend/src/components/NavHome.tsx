@@ -42,6 +42,7 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
       <NavLink to="/banco" className={aba}>
         Banco
       </NavLink>
+      <span className="mx-1.5 h-5 w-px shrink-0 bg-line-dark" />
       <NavLink to="/referencias" className={aba}>
         Referências
       </NavLink>

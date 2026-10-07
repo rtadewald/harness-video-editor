@@ -4,7 +4,7 @@ export const ETAPAS: { id: Etapa; nome: string; trilha: 'V1' | 'V2' | 'V3' | 'LE
   { id: 'cortes', nome: 'Cortes', trilha: 'V1', titulo: 'O texto final.' },
   { id: 'direcao', nome: 'Direção visual', trilha: 'V2', titulo: 'O que aparece na tela.' },
   { id: 'inserts', nome: 'Inserts', trilha: 'V2', titulo: 'Os inserts: mídias, motions e enriquecimento.' },
-  { id: 'audio', nome: 'Áudio', trilha: 'V1', titulo: 'Os efeitos sonoros.' },
+  { id: 'audio', nome: 'Transições e Áudio', trilha: 'V1', titulo: 'As transições entre os planos e os efeitos sonoros.' },
   { id: 'legenda', nome: 'Legenda', trilha: 'LEG', titulo: 'As legendas.' },
 ]
 
