@@ -9,21 +9,21 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import urlparse
 
-from . import inserts, projeto
+from . import inserts, midia, projeto
 
 # proporção → janela (largura e altura em px de CSS, celular?); densidade 2× na gravação
 JANELAS = {'16:9': (1440, 810, False), '4:3': (1200, 900, False), '1:1': (1080, 1080, False), '9:16': (390, 693, True)}
 DENSIDADE = 2
 FPS = 30
 MAX_DOBRAS = 3
-FOLGA = 2.0  # s além da duração do insert (para cortar depois com o ponto de início)
+DURACAO_PADRAO = 5.0  # s por dobra (o criador escolhe de 1 a 30 s; animações de entrada às vezes levam mais de 3 s)
 ALTURA_MAXIMA_PREVIA = 16_000
 UA_CELULAR = ('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) '
               'Version/17.5 Mobile/15E148 Safari/604.1')
 # botões de aceitar cookies mais comuns (texto exato, sem diferenciar maiúsculas)
 COOKIES = ('Accept all', 'Accept', 'Allow all', 'I agree', 'Got it', 'OK', 'Aceitar', 'Aceitar todos', 'Concordo', 'Entendi')
 
-_fila = ThreadPoolExecutor(max_workers=1)  # uma captura por vez
+_fila = ThreadPoolExecutor(max_workers=3)  # até 3 capturas ao mesmo tempo (o resto espera na fila)
 
 
 def normalizar_url(url: str) -> str:
@@ -83,30 +83,59 @@ def previa(id: str, url: str, proporcao: str) -> dict:
     pasta = _pasta(id, cid)
     pasta.mkdir(parents=True)
     with sync_playwright() as pw:
-        browser = pw.chromium.launch()
+        # o Chrome com GPU (Metal): no headless antigo o WebGL é desenhado em software e cada foto leva meio segundo
+        browser = pw.chromium.launch(channel='chromium', args=['--hide-scrollbars', '--enable-gpu-rasterization', '--ignore-gpu-blocklist'])
         try:
             page = _contexto(browser, proporcao, 1).new_page()
             titulo_fora = ''
             page.goto(url, wait_until='load', timeout=45_000)
-            page.wait_for_timeout(1500)
+            page.wait_for_timeout(800)
             dentro = page.evaluate(IFRAME_DA_TELA)
             titulo_fora = page.title().strip()
             if dentro:  # abre o iframe direto: é ele que rola e é ele que vai ser gravado
                 url = dentro
                 page.goto(url, wait_until='load', timeout=45_000)
-                page.wait_for_timeout(1500)
+                page.wait_for_timeout(800)
             fechar_cookies(page)
-            # rola até o fim (imagens preguiçosas e animações de rolagem) e volta ao topo
-            altura = page.evaluate('() => document.documentElement.scrollHeight')
-            janela = JANELAS[proporcao][1]
-            for y in range(0, min(altura, ALTURA_MAXIMA_PREVIA), janela):
-                page.evaluate(f'window.scrollTo(0, {y})')
-                page.wait_for_timeout(150)
-            page.evaluate('window.scrollTo(0, 0)')
-            page.wait_for_timeout(600)
-            altura = min(page.evaluate('() => document.documentElement.scrollHeight'), ALTURA_MAXIMA_PREVIA)
-            page.screenshot(path=str(pasta / 'previa.jpg'), full_page=True, quality=80, type='jpeg',
-                            clip={'x': 0, 'y': 0, 'width': JANELAS[proporcao][0], 'height': altura})
+            # tela por tela: rola, espera as animações de entrada (as de rolagem só tocam com a seção na tela) e fotografa;
+            # a foto da página inteira de uma vez pega as seções ainda escondidas
+            w, janela = JANELAS[proporcao][0], JANELAS[proporcao][1]
+            page.evaluate("document.documentElement.style.scrollBehavior = 'auto'")
+            telas, y = [], 0
+            while len(telas) * janela < ALTURA_MAXIMA_PREVIA:
+                real = page.evaluate("""(y) => { if (window.lenis?.scrollTo) window.lenis.scrollTo(y, {immediate: true, force: true});
+                    window.scrollTo({top: y, behavior: 'instant'}); return Math.round(window.scrollY) }""", y)
+                page.wait_for_timeout(300)  # o bastante para o conteúdo aparecer (a prévia só serve para marcar as dobras)
+                arq = pasta / f'tela{len(telas):02d}.jpg'
+                page.screenshot(path=str(arq), type='jpeg', quality=85)
+                telas.append((real, arq))
+                if len(telas) == 1:  # cabeçalhos e botões fixos: só na 1ª tela (senão se repetem em todas)
+                    page.evaluate("""() => { for (const e of document.querySelectorAll('body *')) {
+                        const p = getComputedStyle(e).position; if (p === 'fixed' || p === 'sticky') e.style.visibility = 'hidden' } }""")
+                altura = page.evaluate('() => document.documentElement.scrollHeight')
+                if real + janela >= altura or (len(telas) > 1 and real == telas[-2][0]):
+                    break
+                y += janela
+            if len(telas) > 1 and telas[-1][0] == telas[-2][0]:
+                telas.pop()
+            # empilha: cada tela no seu lugar (a última pode ter parado antes, no fim da página: só a parte nova entra)
+            entradas, filtros, partes = [], [], []
+            altura = 0
+            for k, (yk, arq) in enumerate(telas):
+                topo = yk if k == 0 else max(yk, telas[k - 1][0] + janela)
+                corte = topo - yk + (topo - yk) % 2  # recortes pares (o JPEG em 4:2:0 não aceita meio pixel de cor)
+                if janela - corte < 16:  # a última tela só acrescentou uns pixels: fica de fora
+                    continue
+                entradas += ['-i', str(arq)]
+                filtros.append(f'[{len(partes)}:v]crop={w}:{janela - corte}:0:{corte}[t{len(partes)}]')
+                partes.append(f'[t{len(partes)}]')
+                altura += janela - corte
+            # as telas podem vir em formatos de cor diferentes: a saída é sempre a do JPEG (yuvj420p)
+            juntar = f"{''.join(partes)}vstack=inputs={len(partes)}" if len(partes) > 1 else '[t0]null'
+            grafo = ';'.join(filtros) + f';{juntar},format=yuvj420p[v]'
+            midia.ffmpeg(*entradas, '-filter_complex', grafo, '-map', '[v]', '-frames:v', '1', '-q:v', '4', '-strict', '-1', str(pasta / 'previa.jpg'))
+            for _, arq in telas:
+                arq.unlink(missing_ok=True)
             titulo = titulo_fora or page.title().strip()
         finally:
             browser.close()
@@ -120,68 +149,83 @@ def arquivo_previa(id: str, cid: str) -> Path:
 
 # ---------------------------------------------------------------- captura (em segundo plano)
 
-def _status(id: str, pid: str, **campos) -> None:
+def capturas_do(x: dict) -> list[dict]:
+    """As capturas de um insert (antes era uma só, em `captura`)."""
+    return x.get('capturas') or ([{'id': 'antiga', **x['captura']}] if x.get('captura') else [])
+
+
+def _status(id: str, pid: str, cid: str, **campos) -> None:
     def aplicar(p):
         for x in (p.get('inserts') or {}).get('pedidos', []):
             if x['id'] == pid:
-                x['captura'] = {**(x.get('captura') or {}), **campos}
+                x['capturas'] = [{**c, **campos} if c['id'] == cid else c for c in capturas_do(x)]
+                x.pop('captura', None)
     projeto.atualizar(id, aplicar)
 
 
-def capturar(id: str, pid: str, url: str, proporcao: str, dobras: list[float], titulo: str | None = None) -> dict:
-    """Põe a captura na fila. `dobras`: o topo de cada dobra em px de CSS (a 1ª é o topo da página)."""
+def capturar(id: str, pid: str, url: str, proporcao: str, dobras: list[float], titulo: str | None = None,
+             duracao: float = DURACAO_PADRAO) -> dict:
+    """Põe uma captura na fila (várias podem rodar ao mesmo tempo, no mesmo insert ou em outros). `dobras`: o topo de
+    cada dobra em px de CSS (a 1ª é o topo da página)."""
     url = normalizar_url(url)
     if proporcao not in JANELAS:
         raise ValueError('Proporção inválida')
     ys = sorted({max(0, round(float(y))) for y in dobras})[:MAX_DOBRAS] or [0]
-    pedido = next((x for x in (projeto.ler(id).get('inserts') or {}).get('pedidos', []) if x['id'] == pid), None)
-    if pedido is None:
+    duracao = round(max(1.0, min(float(duracao), 30.0)), 2)
+    cid = uuid.uuid4().hex[:8]
+    nova = {'id': cid, 'status': 'fila', 'url': url, 'proporcao': proporcao, 'dobras': ys, 'feitas': 0, 'erro': None, 'duracao': duracao}
+
+    def aplicar(p):
+        for x in (p.get('inserts') or {}).get('pedidos', []):
+            if x['id'] == pid:
+                # as que já terminaram bem saem da lista; ficam as em andamento e as com erro (até a próxima)
+                x['capturas'] = [*(c for c in capturas_do(x) if c['status'] in ('fila', 'rodando')), nova]
+                x.pop('captura', None)
+                return
         raise LookupError('Pedido não encontrado')
-    if (pedido.get('captura') or {}).get('status') in ('fila', 'rodando'):
-        raise ValueError('Já há uma captura em andamento neste insert')
-    duracao = round(pedido['duracao'] + FOLGA, 2)
-    _status(id, pid, status='fila', url=url, proporcao=proporcao, dobras=ys, feitas=0, erro=None, duracao=duracao)
-    _fila.submit(_rodar, id, pid, url, proporcao, ys, duracao, titulo or urlparse(url).netloc)
+    projeto.atualizar(id, aplicar)
+    _fila.submit(_rodar, id, pid, cid, url, proporcao, ys, duracao, titulo)
     return inserts.sincronizar(id)
 
 
-def _rodar(id: str, pid: str, url: str, proporcao: str, ys: list[int], duracao: float, titulo: str) -> None:
+def _rodar(id: str, pid: str, cid: str, url: str, proporcao: str, ys: list[int], duracao: float, titulo: str | None) -> None:
     tmp = Path(tempfile.mkdtemp())
     try:
-        _status(id, pid, status='rodando')
+        _status(id, pid, cid, status='rodando')
         for k, y in enumerate(ys):
             saida = tmp / f'dobra{k + 1}.mp4'
-            gravar(url, proporcao, y, duracao, saida, do_carregamento=(k == 0 and y == 0))
+            visto = gravar(url, proporcao, y, duracao, saida, do_carregamento=(k == 0 and y == 0))
+            titulo = titulo or visto or urlparse(url).netloc
             nome = f'{titulo} · dobra {k + 1}' if len(ys) > 1 else titulo
             item = inserts.subir(saida, f'{nome}.mp4', fonte={'tipo': 'captura de site', 'url': url, 'proporcao': proporcao, 'dobra': y})
 
-            def ligar(p, bid=item['id']):
+            def ligar(p, bid=item['id'], feitas=k + 1):
                 for x in (p.get('inserts') or {}).get('pedidos', []):
                     if x['id'] == pid:
                         x['midias'] = [*(x.get('midias') or []), {'id': uuid.uuid4().hex[:8], 'banco': bid}]
-                        x['captura'] = {**(x.get('captura') or {}), 'feitas': k + 1}
+                        x['capturas'] = [{**c, 'feitas': feitas} if c['id'] == cid else c for c in capturas_do(x)]
             projeto.atualizar(id, ligar)
-        _status(id, pid, status='pronto')
+        _status(id, pid, cid, status='pronto')
     except Exception as e:
         traceback.print_exc()
         try:
-            _status(id, pid, status='erro', erro=str(e)[:300])
+            _status(id, pid, cid, status='erro', erro=str(e)[:300])
         except Exception:
             pass
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path, do_carregamento: bool) -> None:
+def gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path, do_carregamento: bool) -> str:
     """Grava uma dobra em tempo real (screencast do Chrome com GPU), a 30 quadros/s constantes e densidade 2× (3× no
     celular). Antes, uma visita de aquecimento fecha o banner de cookies e deixa a rede quente; a gravação abre uma aba
     nova (sem o estado da página, só com os cookies). Do carregamento: o vídeo começa no 1º quadro pintado. Dobra: a página
     carrega sem gravar, pula direto até `y` e grava parada."""
     import asyncio
-    asyncio.run(_gravar(url, proporcao, y, duracao, saida, do_carregamento))
+    return asyncio.run(_gravar(url, proporcao, y, duracao, saida, do_carregamento))
 
 
-async def _gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path, do_carregamento: bool) -> None:
+async def _gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path, do_carregamento: bool) -> str:
     import asyncio
     import base64
     import time
@@ -215,9 +259,15 @@ async def _gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path,
             cdp = await ctx.new_cdp_session(page)
             await cdp.send('Emulation.setDeviceMetricsOverride', {'width': w, 'height': h, 'deviceScaleFactor': dpr, 'mobile': celular})
 
+            async def confirmar(sid):
+                try:
+                    await cdp.send('Page.screencastFrameAck', {'sessionId': sid})
+                except Exception:  # o navegador fechou com uma confirmação ainda a caminho
+                    pass
+
             def quadro(ev):
                 quadros.append((ev['metadata']['timestamp'], base64.b64decode(ev['data'])))
-                asyncio.ensure_future(cdp.send('Page.screencastFrameAck', {'sessionId': ev['sessionId']}))
+                asyncio.ensure_future(confirmar(ev['sessionId']))
             cdp.on('Page.screencastFrame', quadro)
 
             async def ligar():
@@ -252,6 +302,7 @@ async def _gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path,
                 await asyncio.sleep(duracao + 0.5)
                 t0 = min((t for t, _ in quadros if t >= depois), default=depois)
             await cdp.send('Page.stopScreencast')
+            titulo = (await page.title()).strip()
         finally:
             await browser.close()
 
@@ -277,6 +328,7 @@ async def _gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path,
     ff.stdin.close()
     if ff.wait() != 0:
         raise RuntimeError(f'ffmpeg falhou: {ff.stderr.read().decode()[-300:]}')
+    return titulo
 
 
 async def _fechar_cookies_async(page) -> None:
@@ -299,5 +351,6 @@ def retomar_interrompidas() -> None:
         except FileNotFoundError:
             continue
         for x in (p.get('inserts') or {}).get('pedidos', []):
-            if (x.get('captura') or {}).get('status') in ('fila', 'rodando'):
-                _status(p['id'], x['id'], status='erro', erro='Interrompida (o servidor reiniciou): capture de novo')
+            for c in capturas_do(x):
+                if c['status'] in ('fila', 'rodando'):
+                    _status(p['id'], x['id'], c['id'], status='erro', erro='Interrompida (o servidor reiniciou): capture de novo')

@@ -365,10 +365,11 @@ export type PedidoInsert = {
   inicio: number
   duracao: number
   midias: MidiaLigada[]
-  /** A última captura de site pedida para este insert (§8.3). */
-  captura?: CapturaInsert
+  /** As capturas de site deste insert: as em andamento (várias podem rodar ao mesmo tempo) e as que falharam (§8.3). */
+  capturas?: CapturaInsert[]
 }
 export type CapturaInsert = {
+  id: string
   status: 'fila' | 'rodando' | 'pronto' | 'erro'
   url: string
   proporcao: ProporcaoCaptura
@@ -407,7 +408,11 @@ export type ItemBanco = {
   trechos?: ItemBanco[]
   /** Corte das pontas do original, em segundo plano. */
   edicao?: { status: 'rodando' | 'pronto' | 'erro'; erro: string | null }
+  /** Cortes já feitos no original (cada um muda o arquivo no mesmo endereço). */
+  cortes?: { inicio: number; fim: number; em: string }[]
 }
+/** Muda a cada corte do original: vai no endereço do arquivo para o navegador não tocar o vídeo antigo do cache. */
+export const versaoBanco = (i?: ItemBanco) => (i?.cortes?.length ? `?v=${i.cortes.length}` : '')
 
 export const lerInserts = (id: string) => fetch(`/api/projetos/${id}/inserts`).then(json<InsertsProjeto>)
 export const definirMidias = (id: string, pid: string, midias: Omit<MidiaLigada, 'id'>[] | MidiaLigada[]) =>
@@ -430,7 +435,7 @@ export const descreverItemBanco = (bid: string) => enviar<ItemBanco>('POST', `/a
 export const previaSite = (id: string, url: string, proporcao: ProporcaoCaptura) =>
   enviar<PreviaSite>('POST', `/api/projetos/${id}/inserts/captura/previa`, { url, proporcao })
 export const urlPreviaSite = (id: string, cid: string) => `/api/projetos/${id}/inserts/captura/previa/${cid}`
-export const capturarSite = (id: string, pid: string, c: { url: string; proporcao: ProporcaoCaptura; dobras: number[]; titulo?: string }) =>
+export const capturarSite = (id: string, pid: string, c: { url: string; proporcao: ProporcaoCaptura; dobras: number[]; titulo?: string; duracao?: number }) =>
   enviar<InsertsProjeto>('POST', `/api/projetos/${id}/inserts/${pid}/captura`, c)
 export const urlBancoArquivo = (bid: string) => `/api/banco/${bid}/arquivo`
 export const urlBancoMiniatura = (bid: string) => `/api/banco/${bid}/miniatura`

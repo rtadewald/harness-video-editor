@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowDown, ArrowUp, Globe, Library, Scissors, Upload, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Globe, Image as IconeImagem, Library, Pause, Play, Scissors, Trash2, Upload, Video, X } from 'lucide-react'
 import {
   NOME_TIPO_MIDIA,
+  apagarItemBanco,
   PROPORCOES_CAPTURA,
   capturarSite,
   definirMidias,
@@ -14,6 +15,7 @@ import {
   urlBancoArquivo,
   urlBancoMiniatura,
   urlPreviaSite,
+  versaoBanco,
   type DadosEditor,
   type InsertsProjeto,
   type ItemBanco,
@@ -78,7 +80,7 @@ export default function EtapaInserts(p: Props) {
   }, [projeto.id, projeto.direcao?.ativa, projeto.direcao?.gerado_em]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // enquanto há captura de site em andamento, acompanha (as dobras prontas já entram como mídias)
-  const capturando = ins?.pedidos.some((x) => x.captura?.status === 'fila' || x.captura?.status === 'rodando')
+  const capturando = ins?.pedidos.some((x) => x.capturas?.some((c) => c.status === 'fila' || c.status === 'rodando'))
   useEffect(() => {
     if (!capturando) return
     const t = setInterval(() => {
@@ -248,7 +250,10 @@ export default function EtapaInserts(p: Props) {
             capturou={setIns}
             salvar={(midias) => salvar(sel.id, midias)}
             subir={(arquivos) => subirELigar(sel, arquivos)}
-            bancoMudou={() => void carregarBanco()}
+            bancoMudou={() => {
+              void carregarBanco()
+              void lerInserts(projeto.id).then(setIns)
+            }}
             ver={() => player.tocarTrecho(seq.saidaParaFonte(sel.t.inicio), seq.saidaParaFonte(Math.max(sel.t.fim - 0.01, sel.t.inicio)), { pular: true, loop: false })}
           />
         ) : (
@@ -324,6 +329,7 @@ function Detalhe(p: {
   const [escolhendo, setEscolhendo] = useState(false)
   // editor de vídeo: o que está aberto e os próximos (vídeos recém-subidos abrem um depois do outro)
   const [editando, setEditando] = useState<string[]>([])
+  const [doBanco, setDoBanco] = useState(false) // o editor aberto veio do "Escolher do banco" (dá para voltar)
   const subir = (arquivos: File[]) =>
     void p.subir(arquivos).then((novos) => setEditando((f) => [...f, ...novos.filter((n) => n.tipo === 'video').map((n) => n.id)]))
   /** O editor devolve os itens a ligar (trechos ou o original): eles entram no lugar das mídias do mesmo vídeo. */
@@ -335,10 +341,11 @@ function Detalhe(p: {
     const corte = pos < 0 ? resto.length : x.midias.slice(0, pos).filter((m) => !doVideo(m.banco)).length
     void p.salvar([...resto.slice(0, corte), ...novos, ...resto.slice(corte)])
     setEditando((f) => f.slice(1))
+    setDoBanco(false)
   }
   const [capturando, setCapturando] = useState(false)
-  const cap = x.captura
-  const andando = cap?.status === 'fila' || cap?.status === 'rodando'
+  const capturas = x.capturas ?? []
+  const semHttp = (u: string) => u.replace(/^https?:\/\//, '')
   const [arrastando, setArrastando] = useState(false)
   const entrada = useRef<HTMLInputElement>(null)
   const mover = (k: number, d: number) => {
@@ -413,16 +420,21 @@ function Detalhe(p: {
           <button onClick={() => setEscolhendo(true)} className={BOTAO}>
             <Library className="size-3" /> Escolher do banco
           </button>
-          <button onClick={() => setCapturando(true)} disabled={andando} className={cn(BOTAO, 'disabled:opacity-50')}>
+          <button onClick={() => setCapturando(true)} className={BOTAO}>
             <Globe className="size-3" /> Capturar site
           </button>
         </div>
-        {cap && andando && (
-          <p className="text-[11.5px] text-yellow">
-            {cap.status === 'fila' ? 'Captura na fila…' : `Capturando ${cap.url.replace(/^https?:\/\//, '')} · dobra ${Math.min(cap.feitas + 1, cap.dobras.length)} de ${cap.dobras.length}…`}
+        {capturas.map((c) => (
+          <p key={c.id} className={cn('text-[11.5px]', c.status === 'erro' ? 'text-coral' : c.status === 'pronto' ? 'text-mint' : 'text-yellow')}>
+            {c.status === 'fila'
+              ? `Na fila: ${semHttp(c.url)}`
+              : c.status === 'rodando'
+                ? `Capturando ${semHttp(c.url)} · dobra ${Math.min(c.feitas + 1, c.dobras.length)} de ${c.dobras.length}…`
+                : c.status === 'pronto'
+                  ? `Capturado: ${semHttp(c.url)}`
+                  : `A captura de ${semHttp(c.url)} falhou: ${c.erro}`}
           </p>
-        )}
-        {cap?.status === 'erro' && <p className="text-[11.5px] text-coral">A captura de {cap.url.replace(/^https?:\/\//, '')} falhou: {cap.erro}</p>}
+        ))}
       </div>
 
       {capturando && (
@@ -439,10 +451,14 @@ function Detalhe(p: {
 
       {escolhendo && (
         <SeletorBanco
+          mudou={p.bancoMudou}
           fechar={() => setEscolhendo(false)}
           escolher={(item) => {
             // um vídeo original abre no editor (para escolher os trechos); trecho ou imagem entram direto
-            if (item.tipo === 'video' && !item.pai) setEditando((f) => [item.id, ...f])
+            if (item.tipo === 'video' && !item.pai) {
+              setEditando((f) => [item.id, ...f])
+              setDoBanco(true)
+            }
             else void p.salvar([...x.midias, { banco: item.id }])
             setEscolhendo(false)
           }}
@@ -456,7 +472,19 @@ function Detalhe(p: {
           ligados={x.midias.map((m) => m.banco)}
           mudou={p.bancoMudou}
           aplicar={aplicarEdicao}
-          fechar={() => setEditando((f) => f.slice(1))}
+          fechar={() => {
+            setEditando((f) => f.slice(1))
+            setDoBanco(false)
+          }}
+          voltar={
+            doBanco
+              ? () => {
+                  setEditando((f) => f.slice(1))
+                  setDoBanco(false)
+                  setEscolhendo(true)
+                }
+              : undefined
+          }
         />
       )}
     </div>
@@ -466,19 +494,10 @@ function Detalhe(p: {
 /** Uma mídia ligada: o vídeo (um trecho toca só a parte dele) ou a imagem, ordem, editar (vídeo) e tirar. */
 function MidiaCard(p: { m: MidiaLigada; item: ItemBanco | undefined; editar: () => void; subir?: () => void; descer?: () => void; tirar: () => void }) {
   const { m, item } = p
-  const trecho = item?.pai ? `#t=${item.inicio},${item.fim}` : ''
   return (
     <div className="grid gap-2 rounded-[6px] p-2.5 ring-1 ring-line-dark">
       {item?.tipo === 'video' ? (
-        <video
-          key={`${m.banco}${trecho}`}
-          src={`${urlBancoArquivo(m.banco)}${trecho}`}
-          muted
-          controls
-          playsInline
-          preload="metadata"
-          className="max-h-[200px] w-full rounded-[3px] bg-black object-contain"
-        />
+        <PlayerTrecho key={`${m.banco}:${item.inicio ?? 0}:${item.fim ?? item.duracao}`} item={item} />
       ) : (
         <img src={urlBancoMiniatura(m.banco)} alt="" className="max-h-[200px] w-full rounded-[3px] bg-black object-contain" />
       )}
@@ -514,23 +533,94 @@ function MidiaCard(p: { m: MidiaLigada; item: ItemBanco | undefined; editar: () 
   )
 }
 
-/** Captura de site (SPEC §8.3): URL e proporção → a página inteira numa imagem → o criador clica onde começa cada dobra
- *  (a 1ª é o topo, até 3) → a captura roda em segundo plano e cada dobra vira uma mídia ligada ao insert. */
+/** Player pequeno de um vídeo do banco: num trecho, toca só ele e mostra o tempo dele (não o do original). */
+function PlayerTrecho({ item }: { item: ItemBanco }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  const ini = item.inicio ?? 0
+  const fim = item.fim ?? item.duracao
+  const dur = Math.max(fim - ini, 0.001)
+  const [t, setT] = useState(0)
+  const [tocando, setTocando] = useState(false)
+  useEffect(() => {
+    const v = ref.current
+    if (!v) return
+    const ir = () => (v.currentTime = ini)
+    const tique = () => {
+      if (v.currentTime >= fim - 0.02) {
+        v.pause()
+        v.currentTime = ini
+      }
+      setT(Math.max(0, Math.min(v.currentTime - ini, dur)))
+    }
+    const liga = () => setTocando(true)
+    const desliga = () => setTocando(false)
+    v.addEventListener('loadedmetadata', ir)
+    v.addEventListener('timeupdate', tique)
+    v.addEventListener('play', liga)
+    v.addEventListener('pause', desliga)
+    return () => {
+      v.removeEventListener('loadedmetadata', ir)
+      v.removeEventListener('timeupdate', tique)
+      v.removeEventListener('play', liga)
+      v.removeEventListener('pause', desliga)
+    }
+  }, [ini, fim, dur])
+  const alternar = () => {
+    const v = ref.current
+    if (!v) return
+    if (v.paused) {
+      if (v.currentTime < ini || v.currentTime >= fim - 0.02) v.currentTime = ini
+      void v.play()
+    } else v.pause()
+  }
+  const buscar = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    const v = ref.current
+    if (v) v.currentTime = ini + Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * dur
+  }
+  return (
+    <div className="group/p relative overflow-hidden rounded-[3px] bg-black">
+      <video ref={ref} src={urlBancoArquivo(item.id) + versaoBanco(item)} muted playsInline preload="metadata" onClick={alternar} className="max-h-[200px] w-full cursor-pointer object-contain" />
+      <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/80 to-transparent px-2 pt-4 pb-1.5 text-[11px] text-cream tabular-nums">
+        <button onClick={alternar} className="grid size-6 shrink-0 place-items-center rounded-full bg-cream/15 hover:bg-cream/25" aria-label={tocando ? 'Pausar' : 'Tocar'}>
+          {tocando ? <Pause className="size-3" /> : <Play className="size-3 fill-current" />}
+        </button>
+        <span className="shrink-0">
+          {s1(t)} / {s1(dur)} s
+        </span>
+        <div onPointerDown={buscar} className="relative h-1.5 flex-1 cursor-pointer rounded-full bg-cream/25">
+          <div className="absolute inset-y-0 left-0 rounded-full bg-coral" style={{ width: `${(t / dur) * 100}%` }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Captura de site (SPEC §8.3). Rápido por padrão: URL, proporção e "Capturar" grava a 1ª dobra (com o carregamento).
+ *  Com "Várias dobras", abre a página inteira numa imagem: clicar no vazio marca uma dobra (até 3), clicar numa dobra a
+ *  seleciona e arrastá-la a move; o × (ou Delete) apaga. */
 function CapturaDeSite(p: { projetoId: string; pedido: Pedido; fechar: () => void; pronto: (r: InsertsProjeto) => void }) {
-  const [url, setUrl] = useState(p.pedido.captura?.url ?? '')
-  const [proporcao, setProporcao] = useState<ProporcaoCaptura>(p.pedido.captura?.proporcao ?? (p.pedido.formato === 'vertical' ? '9:16' : '16:9'))
+  type Dobra = { id: number; y: number }
+  const [url, setUrl] = useState('')
+  const [proporcao, setProporcao] = useState<ProporcaoCaptura>(p.pedido.capturas?.at(-1)?.proporcao ?? (p.pedido.formato === 'vertical' ? '9:16' : '16:9'))
+  const [varias, setVarias] = useState(false)
   const [previa, setPrevia] = useState<PreviaSite | null>(null)
   const [abrindo, setAbrindo] = useState(false)
+  const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
-  const [dobras, setDobras] = useState<number[]>([0])
-  const imagem = useRef<HTMLImageElement>(null)
-  const duracao = p.pedido.t.fim - p.pedido.t.inicio + 2
+  const [dobras, setDobras] = useState<Dobra[]>([{ id: 0, y: 0 }])
+  const [sel, setSel] = useState<number | null>(null)
+  const imagem = useRef<HTMLDivElement>(null)
+  const prox = useRef(1)
+  const [duracao, setDuracao] = useState(5) // s por dobra
+  const ordenadas = [...dobras].sort((a, b) => a.y - b.y)
 
   const abrir = async () => {
     setAbrindo(true)
     setErro('')
     setPrevia(null)
-    setDobras([0])
+    setDobras([{ id: 0, y: 0 }])
+    setSel(null)
     try {
       setPrevia(await previaSite(p.projetoId, url, proporcao))
     } catch (e) {
@@ -539,30 +629,69 @@ function CapturaDeSite(p: { projetoId: string; pedido: Pedido; fechar: () => voi
       setAbrindo(false)
     }
   }
-  // clique na imagem: o topo da dobra fica onde clicou (em px de CSS da página), sem passar do fim da página
-  const marcar = (e: React.MouseEvent<HTMLImageElement>) => {
-    if (!previa || !imagem.current || dobras.length >= 3) return
-    const r = imagem.current.getBoundingClientRect()
-    const y = Math.round(((e.clientY - r.top) / r.height) * previa.altura_pagina)
-    const topo = Math.max(0, Math.min(y, previa.altura_pagina - previa.altura_janela))
-    setDobras((d) => [...d, topo].sort((a, b) => a - b))
+  const capturar = async () => {
+    setEnviando(true)
+    setErro('')
+    try {
+      const alvo = previa ? { url: previa.url, titulo: previa.titulo, dobras: ordenadas.map((d) => d.y) } : { url, dobras: [0] }
+      p.pronto(await capturarSite(p.projetoId, p.pedido.id, { ...alvo, proporcao, duracao }))
+    } catch (e) {
+      setErro((e as Error).message)
+      setEnviando(false)
+    }
   }
-  const capturar = () =>
-    capturarSite(p.projetoId, p.pedido.id, { url: previa!.url, proporcao, dobras, titulo: previa!.titulo })
-      .then(p.pronto)
-      .catch((e) => setErro((e as Error).message))
+
+  // y (px da página) a partir do mouse, com a dobra inteira dentro da página
+  const yDe = (clientY: number, deslocamento = 0) => {
+    const r = imagem.current!.getBoundingClientRect()
+    const y = ((clientY - r.top) / r.height) * previa!.altura_pagina - deslocamento
+    return Math.round(Math.max(0, Math.min(y, previa!.altura_pagina - previa!.altura_janela)))
+  }
+  const marcar = (e: React.PointerEvent) => {
+    if (!previa || dobras.length >= 3) return
+    const id = prox.current++
+    setDobras((d) => [...d, { id, y: yDe(e.clientY, previa.altura_janela / 2) }])
+    setSel(id)
+  }
+  const arrastar = (e: React.PointerEvent, d: Dobra) => {
+    e.stopPropagation()
+    setSel(d.id)
+    const r = imagem.current!.getBoundingClientRect()
+    const pega = ((e.clientY - r.top) / r.height) * previa!.altura_pagina - d.y // onde, dentro da dobra, o mouse pegou
+    const mover = (ev: PointerEvent) => setDobras((l) => l.map((x) => (x.id === d.id ? { ...x, y: yDe(ev.clientY, pega) } : x)))
+    const soltar = () => {
+      window.removeEventListener('pointermove', mover)
+      window.removeEventListener('pointerup', soltar)
+    }
+    window.addEventListener('pointermove', mover)
+    window.addEventListener('pointerup', soltar)
+  }
+  const tirar = (id: number) => {
+    setDobras((l) => (l.length > 1 ? l.filter((x) => x.id !== id) : l))
+    setSel(null)
+  }
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && sel != null && !(e.target as HTMLElement).closest('input')) tirar(sel)
+    }
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  })
 
   return (
-    <Modal titulo="Capturar site" fechar={p.fechar} tamanho="largo">
+    <Modal titulo="Capturar site" fechar={p.fechar} tamanho={previa ? 'largo' : 'pequeno'}>
+      <input
+        autoFocus
+        value={url}
+        onChange={(e) => {
+          setUrl(e.target.value)
+          setPrevia(null)
+        }}
+        onKeyDown={(e) => e.key === 'Enter' && url.trim() && void (varias ? abrir() : capturar())}
+        placeholder="Insira o endereço do site"
+        className="h-10 w-full rounded-full border border-line-dark bg-deeper px-4 text-[13px] text-cream outline-none focus:border-cream/40"
+      />
       <div className="flex flex-wrap items-center gap-2">
-        <input
-          autoFocus
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && url.trim() && void abrir()}
-          placeholder="Endereço do site (ex.: linear.app)"
-          className="h-9 min-w-[280px] flex-1 rounded-full border border-line-dark bg-deeper px-4 text-[12.5px] text-cream outline-none focus:border-cream/40"
-        />
         {PROPORCOES_CAPTURA.map((f) => (
           <button
             key={f}
@@ -570,79 +699,116 @@ function CapturaDeSite(p: { projetoId: string; pedido: Pedido; fechar: () => voi
               setProporcao(f)
               setPrevia(null)
             }}
-            className={cn('h-9 rounded-full px-3.5 text-[12px] font-semibold', proporcao === f ? 'bg-cream text-ink' : 'border border-line-dark text-fog hover:text-cream')}
+            className={cn('h-8 rounded-full px-3 text-[12px] font-semibold', proporcao === f ? 'bg-cream text-ink' : 'border border-line-dark text-fog hover:text-cream')}
             title={f === '9:16' ? 'Versão de celular do site' : 'Versão de computador'}
           >
             {f}
           </button>
         ))}
-        <button
-          onClick={() => void abrir()}
-          disabled={!url.trim() || abrindo}
-          className="h-9 rounded-full bg-coral px-4 text-[12px] font-semibold text-cream hover:bg-coral/90 disabled:opacity-50"
-        >
-          {abrindo ? 'Abrindo…' : 'Abrir página'}
-        </button>
+        <label className="ml-auto flex items-center gap-1.5 text-[12px] text-fog" title="Quanto tempo gravar cada dobra (1 a 30 s)">
+          Gravar
+          <input
+            type="number"
+            min={1}
+            max={30}
+            step={0.5}
+            value={duracao}
+            onChange={(e) => setDuracao(Math.max(1, Math.min(30, Number(e.target.value) || 5)))}
+            className="h-8 w-14 rounded-full border border-line-dark bg-deeper px-2 text-center text-[12px] text-cream tabular-nums outline-none focus:border-cream/40"
+          />
+          s
+        </label>
+        <label className="flex cursor-pointer items-center gap-1.5 text-[12px] text-fog">
+          <input
+            type="checkbox"
+            checked={varias}
+            onChange={(e) => {
+              setVarias(e.target.checked)
+              setPrevia(null)
+            }}
+            className="accent-coral"
+          />
+          Várias dobras
+        </label>
       </div>
       {erro && <p className="text-[12px] text-coral">{erro}</p>}
 
-      {!previa ? (
-        <div className="grid flex-1 place-items-center rounded-[6px] border border-dashed border-line-dark text-center text-[12.5px] leading-[1.7] text-fog">
-          {abrindo ? (
-            <p>Abrindo a página e rolando até o fim para carregar tudo…</p>
-          ) : (
-            <p>
-              Ponha o endereço, escolha a proporção e abra a página.
-              <br />
-              Depois clique na página onde começa cada dobra a gravar: a 1ª é o topo, com o carregamento; até 3.
-            </p>
-          )}
-        </div>
+      {!varias ? (
+        <button
+          onClick={() => void capturar()}
+          disabled={!url.trim() || enviando}
+          className="h-10 rounded-full bg-coral text-[13px] font-semibold text-cream hover:bg-coral/90 disabled:opacity-50"
+        >
+          {enviando ? 'Enviando…' : `Capturar · ${s1(duracao)} s do topo, com o carregamento`}
+        </button>
+      ) : !previa ? (
+        <button
+          onClick={() => void abrir()}
+          disabled={!url.trim() || abrindo}
+          className="h-10 rounded-full bg-coral text-[13px] font-semibold text-cream hover:bg-coral/90 disabled:opacity-50"
+        >
+          {abrindo ? 'Lendo a página inteira…' : 'Ler a página para marcar as dobras'}
+        </button>
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_260px] gap-5">
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_240px] gap-5">
           <div className="min-h-0 overflow-y-auto rounded-[6px] bg-black">
-            <div className="relative mx-auto" style={{ maxWidth: proporcao === '9:16' ? 360 : undefined }}>
-              <img
-                ref={imagem}
-                src={urlPreviaSite(p.projetoId, previa.id)}
-                alt=""
-                onClick={marcar}
-                className={cn('block w-full', dobras.length < 3 ? 'cursor-crosshair' : 'cursor-not-allowed')}
-              />
-              {dobras.map((y, k) => (
+            <div
+              ref={imagem}
+              onPointerDown={marcar}
+              className={cn('relative mx-auto select-none', dobras.length < 3 ? 'cursor-crosshair' : 'cursor-default')}
+              style={{ maxWidth: proporcao === '9:16' ? 360 : undefined }}
+            >
+              <img src={urlPreviaSite(p.projetoId, previa.id)} alt="" draggable={false} className="pointer-events-none block w-full" />
+              {ordenadas.map((d, k) => (
                 <div
-                  key={y}
-                  className="pointer-events-none absolute inset-x-0 border-2 border-coral bg-coral/10"
-                  style={{ top: `${(y / previa.altura_pagina) * 100}%`, height: `${(previa.altura_janela / previa.altura_pagina) * 100}%` }}
+                  key={d.id}
+                  onPointerDown={(e) => arrastar(e, d)}
+                  className={cn(
+                    'absolute inset-x-0 cursor-grab border-2 active:cursor-grabbing',
+                    sel === d.id ? 'z-10 border-yellow bg-yellow/15' : 'border-coral bg-coral/10',
+                  )}
+                  style={{ top: `${(d.y / previa.altura_pagina) * 100}%`, height: `${(previa.altura_janela / previa.altura_pagina) * 100}%` }}
                 >
-                  <span className="absolute top-1 left-1 rounded-full bg-coral px-2 py-0.5 text-[10px] font-semibold text-cream">Dobra {k + 1}</span>
+                  <span className={cn('absolute top-1 left-1 rounded-full px-2 py-0.5 text-[10px] font-semibold', sel === d.id ? 'bg-yellow text-ink' : 'bg-coral text-cream')}>
+                    Dobra {k + 1}
+                  </span>
+                  {dobras.length > 1 && (
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => tirar(d.id)}
+                      className="absolute top-1 right-1 grid size-6 place-items-center rounded-full bg-ink/90 text-fog ring-1 ring-line-dark hover:text-coral"
+                      aria-label="Tirar dobra"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
           </div>
-          <div className="flex min-h-0 flex-col gap-3 text-[12.5px]">
+          <div className="flex min-h-0 flex-col gap-3 text-[12px]">
             <p className="font-semibold">{previa.titulo}</p>
-            <p className="text-fog">
-              {proporcao} · {proporcao === '9:16' ? 'versão de celular' : 'versão de computador'} · {previa.largura_janela}×{previa.altura_janela} (gravado em 2×)
+            <p className="leading-[1.6] text-fog">
+              Clique na página para marcar uma dobra (até 3); arraste para mudar de lugar; × apaga. Cada dobra grava {s1(duracao)} s parada, com as animações de entrada.
             </p>
-            <p className="eyebrow mt-2 text-sage">Dobras ({dobras.length} de 3)</p>
-            {dobras.map((y, k) => (
-              <div key={y} className="flex items-center gap-2 rounded-[6px] px-3 py-2 ring-1 ring-line-dark">
-                <span className="font-semibold">Dobra {k + 1}</span>
-                <span className="text-fog">{y === 0 ? 'topo, com o carregamento' : `${Math.round((y / previa.altura_pagina) * 100)}% da página`}</span>
-                {k > 0 && (
-                  <button onClick={() => setDobras((d) => d.filter((_, j) => j !== k))} className="ml-auto text-fog hover:text-coral" aria-label="Tirar dobra">
-                    <X className="size-3.5" />
-                  </button>
-                )}
-              </div>
-            ))}
-            <p className="text-[11.5px] leading-[1.6] text-fog">
-              {dobras.length < 3 ? 'Clique na página para marcar outra dobra. ' : ''}Cada dobra grava {s1(duracao)} s parada (o insert tem {s1(duracao - 2)} s, mais 2 s de folga),
-              com as animações de entrada. Vira uma mídia no banco, ligada a este insert.
-            </p>
-            <button onClick={() => void capturar()} className="mt-auto h-10 rounded-full bg-coral px-4 text-[13px] font-semibold text-cream hover:bg-coral/90">
-              Capturar {dobras.length} dobra{dobras.length > 1 ? 's' : ''}
+            <div className="grid gap-1">
+              {ordenadas.map((d, k) => (
+                <button
+                  key={d.id}
+                  onClick={() => setSel(d.id)}
+                  className={cn('flex items-center gap-2 rounded-[4px] px-2 py-1.5 text-left', sel === d.id ? 'bg-cream/12' : 'hover:bg-cream/6')}
+                >
+                  <span className="font-semibold">Dobra {k + 1}</span>
+                  <span className="text-fog">{d.y === 0 ? 'topo, com o carregamento' : `${Math.round((d.y / previa.altura_pagina) * 100)}% da página`}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => void capturar()}
+              disabled={enviando}
+              className="mt-auto h-10 rounded-full bg-coral text-[13px] font-semibold text-cream hover:bg-coral/90 disabled:opacity-50"
+            >
+              {enviando ? 'Enviando…' : `Capturar ${dobras.length} dobra${dobras.length > 1 ? 's' : ''}`}
             </button>
           </div>
         </div>
@@ -652,14 +818,44 @@ function CapturaDeSite(p: { projetoId: string; pedido: Pedido; fechar: () => voi
 }
 
 /** Escolher uma mídia do banco: busca no nome, na descrição e nas palavras-chave, filtro vídeo/imagem. */
-function SeletorBanco({ tipo, fechar, escolher }: { tipo?: TipoMidia; fechar: () => void; escolher: (i: ItemBanco) => void }) {
+function SeletorBanco(p: { tipo?: TipoMidia; fechar: () => void; escolher: (i: ItemBanco) => void; mudou: () => void }) {
+  const { fechar, escolher } = p
   const [busca, setBusca] = useState('')
-  const [filtro, setFiltro] = useState<TipoMidia | ''>(tipo ?? '')
+  const [filtro, setFiltro] = useState<TipoMidia | ''>(p.tipo ?? '')
   const [itens, setItens] = useState<ItemBanco[] | null>(null)
+  const carregar = () => listarBanco(busca, filtro || undefined).then(setItens)
   useEffect(() => {
-    const t = setTimeout(() => void listarBanco(busca, filtro || undefined).then(setItens), 200)
+    const t = setTimeout(() => void carregar(), 200)
     return () => clearTimeout(t)
-  }, [busca, filtro])
+  }, [busca, filtro]) // eslint-disable-line react-hooks/exhaustive-deps
+  /** Apaga do banco (com confirmação; avisa quantos trechos vão junto) e tira dos inserts que usavam. */
+  const apagar = async (i: ItemBanco) => {
+    const n = i.trechos?.length ?? 0
+    const aviso = i.pai
+      ? `Apagar o trecho “${i.nome}” do banco? Ele sai dos inserts que o usam.`
+      : `Apagar “${i.nome}” do banco?${n === 1 ? ' O trecho dele vai junto.' : n ? ` Os ${n} trechos dele vão junto.` : ''} A mídia sai dos inserts que a usam.`
+    if (!window.confirm(aviso)) return
+    try {
+      await apagarItemBanco(i.id)
+      await carregar()
+      p.mudou()
+    } catch (e) {
+      window.alert((e as Error).message)
+    }
+  }
+  const lixeira = (i: ItemBanco, classe: string) => (
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        void apagar(i)
+      }}
+      aria-label={`Apagar ${i.nome}`}
+      title="Apagar do banco"
+      className={cn('grid size-6 place-items-center rounded-full bg-ink/85 text-fog opacity-0 transition-opacity group-hover:opacity-100 hover:text-coral', classe)}
+    >
+      <Trash2 className="size-3.5" />
+    </button>
+  )
   return (
     <Modal titulo="Escolher do banco" fechar={fechar} tamanho="largo">
       <div className="flex flex-wrap items-center gap-2">
@@ -680,35 +876,47 @@ function SeletorBanco({ tipo, fechar, escolher }: { tipo?: TipoMidia; fechar: ()
           </button>
         ))}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pt-1 pb-2">
         {itens === null ? (
           <p className="text-[12px] text-fog">Carregando…</p>
         ) : !itens.length ? (
           <p className="text-[12px] text-fog">Nada no banco com essa busca. Suba arquivos no insert ou na página do Banco.</p>
         ) : (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+          <ul className="grid grid-cols-5 gap-3">
             {itens.map((i) => (
-              <li key={i.id} className="grid content-start gap-1.5">
+              <li key={i.id} className="grid min-w-0 grid-cols-1 content-start gap-1.5">
+                <div className="group relative">
                 <button onClick={() => escolher(i)} className="grid w-full gap-1.5 rounded-[6px] p-2 text-left ring-1 ring-line-dark hover:ring-coral">
-                  <img src={urlBancoMiniatura(i.id)} alt="" className="aspect-video w-full rounded-[3px] bg-black object-cover" />
+                  {/* a altura sai da largura (56,25% = 16:9): o cartão mais alto da linha não estica a miniatura */}
+                  <div className="relative overflow-hidden rounded-[3px] bg-black pt-[56.25%]">
+                    <img src={urlBancoMiniatura(i.id)} alt="" loading="lazy" className="absolute inset-0 size-full object-cover" />
+                    <span className="absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-full bg-ink/85 text-cream" title={NOME_TIPO_MIDIA[i.tipo]}>
+                      {i.tipo === 'video' ? <Video className="size-3.5" /> : <IconeImagem className="size-3.5" />}
+                    </span>
+                    {i.tipo === 'video' && (
+                      <span className="absolute right-1.5 bottom-1.5 rounded-full bg-ink/85 px-1.5 py-0.5 text-[10px] font-semibold text-cream tabular-nums">{s1(i.duracao)} s</span>
+                    )}
+                  </div>
                   <span className="truncate text-[12px] font-semibold">{i.nome}</span>
                   <span className="text-[10.5px] text-fog">
-                    {NOME_TIPO_MIDIA[i.tipo]} · {i.formato}
-                    {i.tipo === 'video' && ` · ${s1(i.duracao)} s`}
-                    {i.tipo === 'video' && ' · abre no editor'}
+                    {entrouEm(i.criado_em)} · {i.formato}
                   </span>
                 </button>
+                {lixeira(i, 'absolute top-3.5 left-3.5')}
+                </div>
                 {(i.trechos ?? []).map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => escolher(t)}
-                    className="flex items-center gap-2 rounded-[6px] p-1.5 text-left text-[11px] ring-1 ring-line-dark hover:ring-coral"
-                    title="Usar este trecho"
-                  >
-                    <img src={urlBancoMiniatura(t.id)} alt="" className="h-8 w-12 shrink-0 rounded-[2px] bg-black object-cover" />
-                    <span className="min-w-0 flex-1 truncate">{t.nome}</span>
-                    <span className="shrink-0 text-fog tabular-nums">{s1(t.duracao)} s</span>
-                  </button>
+                  <div key={t.id} className="group relative">
+                    <button
+                      onClick={() => escolher(t)}
+                      className="flex w-full items-center gap-2 rounded-[6px] p-1.5 text-left text-[11px] ring-1 ring-line-dark hover:ring-coral"
+                      title="Usar este trecho"
+                    >
+                      <img src={urlBancoMiniatura(t.id)} alt="" className="h-8 w-12 shrink-0 rounded-[2px] bg-black object-cover" />
+                      <span className="min-w-0 flex-1 truncate">{t.nome}</span>
+                      <span className="shrink-0 text-fog tabular-nums group-hover:invisible">{s1(t.duracao)} s</span>
+                    </button>
+                    {lixeira(t, 'absolute top-1/2 right-1.5 -translate-y-1/2')}
+                  </div>
                 ))}
               </li>
             ))}
@@ -717,6 +925,13 @@ function SeletorBanco({ tipo, fechar, escolher }: { tipo?: TipoMidia; fechar: ()
       </div>
     </Modal>
   )
+}
+
+/** "06 out, 17:27": quando a mídia entrou no banco. */
+function entrouEm(quando?: string) {
+  if (!quando) return '—'
+  const d = new Date(quando)
+  return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace(' de ', ' ').replace('.', '')}, ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
 }
 
 function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {

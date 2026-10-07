@@ -11,6 +11,7 @@ import {
   subirNoBanco,
   urlBancoArquivo,
   urlBancoMiniatura,
+  versaoBanco,
   type ItemBanco,
   type TipoMidia,
 } from '@/api'
@@ -311,7 +312,7 @@ function Detalhe({ bid, fechar, mudou }: { bid: string; fechar: () => void; mudo
           <>
             <div className="grid min-h-0 place-items-center rounded-[6px] bg-black">
               {item.tipo === 'video' ? (
-                <video src={urlBancoArquivo(bid)} controls muted playsInline className="max-h-[min(72vh,760px)] max-w-full rounded-[6px]" />
+                <video src={urlBancoArquivo(bid) + versaoBanco(item)} controls muted playsInline className="max-h-[min(72vh,760px)] max-w-full rounded-[6px]" />
               ) : (
                 <img src={urlBancoArquivo(bid)} alt="" className="max-h-[min(72vh,760px)] max-w-full rounded-[6px] object-contain" />
               )}

@@ -29,6 +29,11 @@ Testes: `cd backend && uv run pytest`. Checagem do front: `cd frontend && npm ru
 - Mudou uma decisão? Atualize o SPEC no mesmo commit. Este arquivo fica com no máximo ~40 linhas.
 - Docs de bibliotecas: Context7.
 
+## Git
+
+- Cada funcionalidade numa branch saída da main; **uma branch de trabalho por vez** (não abra outra antes de a atual ir para a main). Commite à vontade nela.
+- No push (quando Rodrigo pedir): junte os commits da branch num só (`git reset --soft $(git merge-base main HEAD)` + commit; rebase sobre a main se ela andou), `git merge --no-ff` na main, `git push origin main` (nunca forçado) e apague a branch local.
+
 ## Segurança
 
 - As chaves (OpenRouter, ElevenLabs) ficam só em `backend/.env`. Nunca mostre, registre ou faça commit delas.
