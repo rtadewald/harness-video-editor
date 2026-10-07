@@ -1278,3 +1278,24 @@ def test_trechos_do_banco_e_corte_do_original(cliente, video, tmp_path, monkeypa
     # apagar o original apaga os trechos
     cliente.delete(f"/api/banco/{orig['id']}")
     assert cliente.get(f"/api/banco/{a['id']}").status_code == 404
+
+
+def test_enriquecimento_guarda_so_o_que_difere_do_estilo(cliente, video, monkeypatch):
+    id = _criar(cliente, video)['id']
+    monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
+    itens = [_plano_ins('p1', 'insert_tela_cheia', 0, 5), _plano_ins('p2', 'insert_tela_cheia', 6, 9)]
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': itens}))
+    p1, p2 = cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos']
+    url = f"/api/projetos/{id}/inserts/{p1['id']}/enriquecimento"
+    r = cliente.put(url, json={'campos': {'layout': 'inclinado', 'entrada': 'surgir'}}).json()  # surgir já é o estilo
+    assert r['pedidos'][0]['enriquecimento'] == {'layout': 'inclinado'}
+    assert cliente.put(url, json={'campos': {'layout': 'metade'}}).status_code == 422  # metade é de tela dividida
+    assert cliente.put(url, json={'campos': {'cor': 'azul'}}).status_code == 422
+    r = cliente.post(f'{url}/tipo').json()
+    assert r['pedidos'][1]['enriquecimento'] == {'layout': 'inclinado'}
+    r = cliente.put(url, json={'campos': {'layout': None}}).json()  # volta ao estilo
+    assert r['pedidos'][0]['enriquecimento'] == {}
+    # versão nova da direção: o insert que não mudou mantém o enriquecimento
+    projeto.atualizar(id, lambda p: p['direcao'].update(itens=[{**itens[0]}, {**itens[1]}]))
+    assert cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][1]['enriquecimento'] == {'layout': 'inclinado'}
+    assert cliente.get('/api/inserts/enriquecimento').json()['estilo']['vertical']['layout'] == 'card'

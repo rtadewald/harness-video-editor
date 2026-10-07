@@ -82,7 +82,7 @@ export default function Preview(p: Props) {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 text-cream">
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-cream">
         <button onClick={() => p.buscar(0)} className="grid size-9 place-items-center rounded-full text-fog hover:text-cream" aria-label="Voltar ao início">
           <SkipBack className="size-4" />
         </button>
@@ -97,7 +97,7 @@ export default function Preview(p: Props) {
           <b className="font-semibold text-cream">{formatarTempo(p.tempo)}</b> / {formatarTempo(p.duracao)}
           {p.bruto != null && <span className="ml-2 text-yellow">bruto {formatarTempo(p.bruto)}</span>}
         </span>
-        <div className="ml-2 flex rounded-full border border-line-dark p-0.5 text-[11px] font-semibold" title="Velocidade de reprodução">
+        <div className="flex rounded-full border border-line-dark p-0.5 text-[11px] font-semibold" title="Velocidade de reprodução">
           {[0.25, 0.5, 1, 2].map((v) => (
             <button
               key={v}

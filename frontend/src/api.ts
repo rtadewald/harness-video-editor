@@ -365,6 +365,8 @@ export type PedidoInsert = {
   inicio: number
   duracao: number
   midias: MidiaLigada[]
+  /** O que o criador mudou no enriquecimento (o resto vem do estilo do formato; SPEC §8.3). */
+  enriquecimento?: Partial<Record<'layout' | 'entrada' | 'entre' | 'movimento' | 'saida', string>>
   /** As capturas de site deste insert: as em andamento (várias podem rodar ao mesmo tempo) e as que falharam (§8.3). */
   capturas?: CapturaInsert[]
 }
@@ -437,5 +439,8 @@ export const previaSite = (id: string, url: string, proporcao: ProporcaoCaptura)
 export const urlPreviaSite = (id: string, cid: string) => `/api/projetos/${id}/inserts/captura/previa/${cid}`
 export const capturarSite = (id: string, pid: string, c: { url: string; proporcao: ProporcaoCaptura; dobras: number[]; titulo?: string; duracao?: number }) =>
   enviar<InsertsProjeto>('POST', `/api/projetos/${id}/inserts/${pid}/captura`, c)
+export const enriquecerInsert = (id: string, pid: string, campos: Record<string, string | null>) =>
+  enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/${pid}/enriquecimento`, { campos })
+export const enriquecerTipo = (id: string, pid: string) => enviar<InsertsProjeto>('POST', `/api/projetos/${id}/inserts/${pid}/enriquecimento/tipo`)
 export const urlBancoArquivo = (bid: string) => `/api/banco/${bid}/arquivo`
 export const urlBancoMiniatura = (bid: string) => `/api/banco/${bid}/miniatura`

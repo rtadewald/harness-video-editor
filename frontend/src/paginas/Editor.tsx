@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { History, Pencil, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
+import { History, PanelLeftClose, PanelLeftOpen, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
 import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, gerarDirecao, motoresRodando, recalcularCortes, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Mensagem, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
+import { abrirAba } from '@/components/abasProjetos'
 import { Logo } from '@/components/Marca'
+import NavHome from '@/components/NavHome'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import Chat from '@/editor/Chat'
@@ -24,7 +26,40 @@ export default function Editor() {
   const { id = '' } = useParams()
   const [dados, setDados] = useState<DadosEditor | null>(null)
   const [erro, setErro] = useState('')
-  const [etapa, setEtapa] = useState<Etapa>('cortes')
+  // a última etapa aberta em cada projeto (lembrada neste navegador)
+  const [etapa, setEtapaBruta] = useState<Etapa>(() => {
+    try {
+      const e = localStorage.getItem(`editor.etapa.${id}`) as Etapa | null
+      return e && ETAPAS.some((x) => x.id === e) ? e : 'cortes'
+    } catch {
+      return 'cortes'
+    }
+  })
+  const setEtapa = (e: Etapa) => {
+    setEtapaBruta(e)
+    try {
+      localStorage.setItem(`editor.etapa.${id}`, e)
+    } catch {
+      /* sem armazenamento: vale só nesta sessão */
+    }
+  }
+  // barra das etapas recolhida (só os números): lembrada neste navegador
+  const [recolhida, setRecolhida] = useState(() => {
+    try {
+      return localStorage.getItem('editor.barraRecolhida') === '1'
+    } catch {
+      return false
+    }
+  })
+  const alternarBarra = () =>
+    setRecolhida((r) => {
+      try {
+        localStorage.setItem('editor.barraRecolhida', r ? '0' : '1')
+      } catch {
+        /* sem armazenamento: vale só nesta sessão */
+      }
+      return !r
+    })
   const seq = useMemo(() => (dados ? montarSequencia(dados.timeline, dados.palavras) : null), [dados])
   const player = usePlayer(seq)
   const [picos, setPicos] = useState<Picos | null>(null)
@@ -50,6 +85,10 @@ export default function Editor() {
     setSelecao({ tipo: 'corte', n: c.n })
   }, [player, repetir])
   const recarregar = useCallback(async () => setDados(await abrirEditor(id)), [id])
+  // o projeto aberto vira uma aba na barra de cima (e o nome da aba acompanha o do projeto)
+  useEffect(() => {
+    if (dados) abrirAba({ id: dados.projeto.id, nome: dados.projeto.nome })
+  }, [dados?.projeto.id, dados?.projeto.nome]) // eslint-disable-line react-hooks/exhaustive-deps
   const ajustar = useCallback(
     async (cid: string, lado: 'inicio' | 'fim', t: number) => {
       try {
@@ -195,13 +234,13 @@ export default function Editor() {
   return (
     <div className="grid h-svh grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-deep text-cream">
       <header className="flex items-center gap-5 border-b border-line-dark bg-ink px-4">
-        <Link to="/" title="Projetos">
+        <Link to="/" title="Projetos" className="shrink-0">
           <Logo />
         </Link>
-        <span className="h-5 w-px bg-line-dark" />
-        <NomeDoProjeto nome={projeto.nome} salvar={(nome) => renomearProjeto(projeto.id, nome).then((p) => setDados({ ...dados, projeto: p }))} />
+        <span className="h-5 w-px shrink-0 bg-line-dark" />
+        <NavHome renomear={(id, nome) => renomearProjeto(id, nome).then((p) => setDados((d) => d && { ...d, projeto: p }))} />
 
-        <div className="ml-auto flex items-center gap-1 text-fog">
+        <div className="ml-auto flex shrink-0 items-center gap-1 text-fog">
           <BotaoFuturo rotulo="Desfazer (fase 3b)"><Undo2 /></BotaoFuturo>
           <BotaoFuturo rotulo="Refazer (fase 3b)"><Redo2 /></BotaoFuturo>
           <BotaoFuturo rotulo="Versões (fase 3b)"><History /></BotaoFuturo>
@@ -213,10 +252,10 @@ export default function Editor() {
               onClick={refazerComIA}
               disabled={rodando}
               title="Pede à IA uma nova seleção do texto final (não retranscreve). Mantém as palavras que você ligou ou desligou à mão."
-              className="ml-2 flex h-8 items-center gap-2 rounded-full border border-yellow/70 bg-yellow/10 px-3.5 text-[11px] font-semibold text-yellow transition-colors hover:bg-yellow hover:text-ink disabled:opacity-60"
+              className="ml-2 flex h-8 items-center gap-2 rounded-full border border-yellow/70 bg-yellow/10 px-3.5 text-[11px] font-semibold whitespace-nowrap text-yellow transition-colors hover:bg-yellow hover:text-ink disabled:opacity-60"
             >
               <RotateCcw className={cn('size-3.5', rodando && 'animate-[otto-spin_1s_linear_infinite] [animation-direction:reverse]')} />
-              {rodando ? 'Refazendo…' : 'Refazer cortes com IA'}
+              {rodando ? 'Refazendo…' : 'Refazer cortes'}
             </button>
           )}
           {direcaoReal && projeto.direcao?.itens && (
@@ -224,15 +263,20 @@ export default function Editor() {
               onClick={refazerDirecao}
               disabled={dirStatus === 'rodando'}
               title="Gera a direção do zero (nova v1), a partir dos exemplos da Calibragem. Apaga as versões e os comentários."
-              className="ml-2 flex h-8 items-center gap-2 rounded-full border border-yellow/70 bg-yellow/10 px-3.5 text-[11px] font-semibold text-yellow transition-colors hover:bg-yellow hover:text-ink disabled:opacity-60"
+              className="ml-2 flex h-8 items-center gap-2 rounded-full border border-yellow/70 bg-yellow/10 px-3.5 text-[11px] font-semibold whitespace-nowrap text-yellow transition-colors hover:bg-yellow hover:text-ink disabled:opacity-60"
             >
               <RotateCcw className={cn('size-3.5', dirStatus === 'rodando' && 'animate-[otto-spin_1s_linear_infinite] [animation-direction:reverse]')} />
-              {dirStatus === 'rodando' ? 'Gerando…' : 'Refazer direção do zero'}
+              {dirStatus === 'rodando' ? 'Gerando…' : 'Refazer direção'}
             </button>
           )}
         </div>
-        <span className="rounded-full bg-yellow px-3 py-1 text-[9px] font-semibold tracking-[0.12em] text-ink">ENRIQUECIMENTO · MOTION · ÁUDIO · LEGENDA SIMULADOS</span>
-        <Button variant="coral" size="sm" disabled title="Exportação chega na fase 4" className="h-9 gap-6 px-4">
+        <span
+          className="shrink-0 rounded-full bg-yellow px-3 py-1 text-[9px] font-semibold tracking-[0.12em] whitespace-nowrap text-ink"
+          title="Enriquecimento (só aproximado na prévia), motion, áudio e legenda ainda são simulados"
+        >
+          SIMULADOS
+        </span>
+        <Button variant="coral" size="sm" disabled title="Exportação chega na fase 4" className="h-9 shrink-0 gap-6 px-4">
           Exportar <span className="seta">↗</span>
         </Button>
       </header>
@@ -243,35 +287,49 @@ export default function Editor() {
       <div
         className="grid min-h-0"
         style={{
-          gridTemplateColumns: vertical
-            ? 'clamp(170px,13vw,200px) clamp(460px,46vw,820px) minmax(0,1fr)'
-            : direcaoReal
-              ? 'clamp(170px,13vw,200px) minmax(440px,560px) minmax(0,1fr) minmax(320px,380px)'
-              : insertsReal
-                ? 'clamp(170px,13vw,200px) minmax(360px,440px) minmax(0,1fr) minmax(340px,420px)'
-              : 'clamp(170px,14vw,210px) minmax(0,1fr) clamp(290px,25vw,380px)',
+          gridTemplateColumns: `${recolhida ? '58px' : 'clamp(170px,13vw,200px)'} ${
+            vertical
+              ? 'clamp(460px,46vw,820px) minmax(0,1fr)'
+              : direcaoReal
+                ? 'minmax(440px,560px) minmax(0,1fr) minmax(320px,380px)'
+                : insertsReal
+                  ? 'minmax(0,1fr)'
+                  : 'minmax(0,1fr) clamp(290px,25vw,380px)'
+          }`,
         }}
       >
-        <nav className="flex min-h-0 flex-col gap-1 border-r border-line-dark px-3 py-6">
-          <p className="eyebrow mb-3 ml-3 text-sage">Etapas</p>
+        <nav className={cn('flex min-h-0 flex-col gap-1 border-r border-line-dark py-6', recolhida ? 'items-center px-1.5' : 'px-3')}>
+          <div className={cn('mb-3 flex items-center', recolhida ? 'justify-center' : 'ml-3 justify-between')}>
+            {!recolhida && <p className="eyebrow text-sage">Etapas</p>}
+            <button
+              onClick={alternarBarra}
+              className="grid size-7 place-items-center rounded-full text-fog hover:bg-cream/8 hover:text-cream"
+              aria-label={recolhida ? 'Abrir a barra das etapas' : 'Recolher a barra das etapas'}
+              title={recolhida ? 'Abrir a barra' : 'Recolher a barra'}
+            >
+              {recolhida ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+            </button>
+          </div>
           {ETAPAS.map((e, i) => (
             <button
               key={e.id}
               onClick={() => setEtapa(e.id)}
+              title={recolhida ? e.nome : undefined}
               className={cn(
-                'flex items-baseline gap-3 rounded-full px-3 py-2.5 text-left text-[14px] font-semibold tracking-[-0.01em] transition-colors duration-300',
+                'flex items-baseline rounded-full text-left text-[14px] font-semibold tracking-[-0.01em] transition-colors duration-300',
+                recolhida ? 'size-10 items-center justify-center' : 'gap-3 px-3 py-2.5',
                 e.id === etapa ? 'bg-cream text-ink' : 'text-[#dfe7dc] hover:bg-cream/8 hover:text-cream',
               )}
             >
-              <b className={cn('text-[9px] tracking-[0.1em] tabular-nums', e.id === etapa ? 'text-[#c4502f]' : 'text-[#9fb3a6]')}>
+              <b className={cn('tabular-nums', recolhida ? 'text-[11px]' : 'text-[9px] tracking-[0.1em]', e.id === etapa ? 'text-[#c4502f]' : 'text-[#9fb3a6]')}>
                 {String(i + 1).padStart(2, '0')}
               </b>
-              {e.nome}
-              {e.id === etapa && <span className="seta ml-auto text-[16px]">↗</span>}
+              {!recolhida && e.nome}
+              {!recolhida && e.id === etapa && <span className="seta ml-auto text-[16px]">↗</span>}
             </button>
           ))}
 
-          <div className="mt-auto grid gap-3 border-t border-line-dark pt-5 text-[11px] text-fog">
+          <div className={cn('mt-auto grid gap-3 border-t border-line-dark pt-5 text-[11px] text-fog', recolhida && 'hidden')}>
             <p className="eyebrow text-sage">Projeto</p>
             <p>
               <span className="block text-cream">{bruto.nome_original}</span>
@@ -402,56 +460,3 @@ function BotaoFuturo({ rotulo, children }: { rotulo: string; children: React.Rea
 }
 
 /** Nome do projeto na barra: clique para renomear (Enter ou sair do campo salva, Esc cancela). */
-function NomeDoProjeto({ nome, salvar }: { nome: string; salvar: (nome: string) => Promise<unknown> }) {
-  const [editando, setEditando] = useState(false)
-  const [valor, setValor] = useState(nome)
-  const [erro, setErro] = useState('')
-
-  async function confirmar() {
-    const novo = valor.trim()
-    setEditando(false)
-    if (!novo || novo === nome) return
-    try {
-      await salvar(novo)
-      setErro('')
-    } catch (e) {
-      setErro((e as Error).message)
-    }
-  }
-
-  if (editando) {
-    return (
-      <input
-        autoFocus
-        data-alca
-        value={valor}
-        maxLength={120}
-        onChange={(e) => setValor(e.target.value)}
-        onFocus={(e) => e.target.select()}
-        onBlur={() => void confirmar()}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') e.currentTarget.blur()
-          if (e.key === 'Escape') {
-            setValor(nome)
-            setEditando(false)
-          }
-        }}
-        aria-label="Nome do projeto"
-        className="h-8 w-64 rounded-[3px] border border-cream/40 bg-deep px-2.5 text-[13px] font-semibold text-cream outline-none focus-visible:border-yellow"
-      />
-    )
-  }
-  return (
-    <button
-      onClick={() => {
-        setValor(nome)
-        setEditando(true)
-      }}
-      title={erro || 'Clique para renomear o projeto'}
-      className={cn('flex h-8 max-w-[320px] items-center gap-2 truncate rounded-[3px] px-2 text-[13px] font-semibold hover:bg-cream/10', erro && 'text-coral')}
-    >
-      <span className="truncate">{nome}</span>
-      <Pencil className="size-3 shrink-0 text-fog" />
-    </button>
-  )
-}
