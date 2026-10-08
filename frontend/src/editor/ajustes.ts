@@ -138,6 +138,18 @@ export const AJUSTES: Ajuste[] = [
     },
   },
   {
+    id: 'som',
+    nome: 'Som',
+    opcoes: ['Sem', 'Baixo', 'Médio'],
+    fase: 'antes',
+    // os sons do preset (SPEC §8.6): neste insert, sem som, ou todos mais baixos ou mais altos
+    padrao: (r) => {
+      const ss = (r.sons ?? []).filter((s) => s.som)
+      return !ss.length ? 0 : ss.every((s) => s.intensidade === 'medio') ? 2 : 1
+    },
+    aplicar: (r, i) => ({ ...r, sons: (r.sons ?? []).map((s) => (i === 0 ? { ...s, som: null } : { ...s, intensidade: i === 1 ? ('baixo' as const) : ('medio' as const) })) }),
+  },
+  {
     id: 'proximo',
     nome: 'Quando o próximo entra',
     opcoes: ['Antes', 'Normal', 'Depois'],
@@ -150,7 +162,7 @@ export const AJUSTES: Ajuste[] = [
 ]
 
 /** O conjunto inicial de um preset, pelo que a receita tem (até 4): o que dá para sentir mexendo. */
-export function padraoRapidos(r: Receita): string[] {
+function padraoRapidos(r: Receita): string[] {
   const cs = r.cards
   // a forma (card ou tela toda) cabe em todo preset de um card (ou que repete)
   const ids = [
@@ -167,7 +179,11 @@ export function padraoRapidos(r: Receita): string[] {
   return ids.slice(0, 4)
 }
 
-export const rapidosDe = (p: Preset) => p.rapidos ?? padraoRapidos(p.receita)
+/** Os ajustes rápidos do preset (os marcados, ou os deduzidos) e, se ele tem som, o Som (sempre, no fim). */
+export const rapidosDe = (p: Preset) => {
+  const ids = (p.rapidos ?? padraoRapidos(p.receita)).filter((id) => id !== 'som')
+  return p.receita.sons?.some((s) => s.som) ? [...ids, 'som'] : ids
+}
 
 /** Os ajustes que valem de fato: os escolhidos e, sem forma escolhida, "Tela toda" quando o preset pede isso para
  *  mídias em pé e todas são 9:16. */

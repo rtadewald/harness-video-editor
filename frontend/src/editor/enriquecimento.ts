@@ -1,6 +1,6 @@
 /** Enriquecimento dos inserts (mock; SPEC §8.3): como cada insert aparece. Espelha `inserts.OPCOES_ENRIQUECIMENTO` e
  *  `inserts.ESTILO` do backend; os nomes ficam aqui. */
-export type Categoria = 'layout' | 'entrada' | 'entrada_2' | 'saida' | 'saida_2' | 'entre' | 'movimento'
+type Categoria = 'layout' | 'entrada' | 'entrada_2' | 'saida' | 'saida_2' | 'entre' | 'movimento'
 export type Curva = [number, number, number, number]
 /** As categorias e, com 2 mídias, onde a 2ª começa (`corte`, fração do insert). A curva, a duração e os detalhes de cada
  *  entrada e saída são globais, por tipo (`transicoes.ts`). */
@@ -28,12 +28,10 @@ export const saidaDe = (e: Enriquecimento, qual: Qual = 1) => (qual === 2 ? e.sa
 export const corteDe = (e: Enriquecimento, dur = Infinity) =>
   // na sequência a 1ª fica pelo menos 0,5 s (o corte 0, "junto com a 1ª", só vale nos layouts em que as duas aparecem juntas)
   e.entre === 'sequencia' ? Math.max(e.corte ?? 0.5, Math.min(0.5 / dur, 0.5)) : (e.corte ?? 0.5)
-/** A categoria de entrada ou saída de uma mídia (a 2ª tem o sufixo `_2`). */
-export const campo = (k: 'entrada' | 'saida', qual: Qual) => (qual === 2 ? `${k}_2` : k) as Categoria
 export type Formato = 'vertical' | 'dividida'
 
 
-export const OPCOES: Record<Categoria, Record<Formato, string[]>> = {
+const OPCOES: Record<Categoria, Record<Formato, string[]>> = {
   layout: { vertical: ['tela_cheia', 'card', 'janela_3d', 'inclinado', 'destaque'], dividida: ['metade', 'card_metade', 'janela_3d_metade', 'mesclada'] },
   entrada: dobro(['sem', 'surgir', 'subir', 'voo_3d', 'zoom_borrado', 'seco_zoom']),
   entrada_2: dobro(['sem', 'surgir', 'subir', 'voo_3d', 'zoom_borrado', 'seco_zoom']),
@@ -47,40 +45,7 @@ function dobro(l: string[]) {
   return { vertical: l, dividida: l }
 }
 
-export const NOMES: Record<string, string> = {
-  tela_cheia: 'Tela cheia',
-  card: 'Card',
-  janela_3d: 'Janela 3D',
-  inclinado: 'Inclinado',
-  destaque: 'Destaque',
-  metade: 'Metade inteira',
-  card_metade: 'Card na metade',
-  janela_3d_metade: 'Janela 3D',
-  mesclada: 'Tela mesclada',
-  sem: 'Sem animação',
-  surgir: 'Surgir',
-  subir: 'Deslizar',
-  deslizar: 'Deslizar',
-  voo_3d: 'Voo 3D',
-  zoom_borrado: 'Zoom borrado',
-  seco_zoom: 'Seca + zoom leve',
-  sequencia: 'Sequência',
-  empilhadas: 'Empilhadas',
-  lado_a_lado: 'Lado a lado',
-  parado: 'Parado',
-  zoom_lento: 'Zoom lento',
-  zoom_ponto: 'Zoom num ponto',
-  rolagem: 'Rolagem',
-  corte: 'Corte seco',
-  sumir: 'Sumir',
-  verde_claro: 'Verde claro',
-  papel: 'Papel',
-  nevoa: 'Névoa azul',
-  chuva: 'Chuva',
-  gradiente: 'Gradiente escuro',
-}
-
-export const ESTILO: Record<Formato, Enriquecimento> = {
+const ESTILO: Record<Formato, Enriquecimento> = {
   vertical: { layout: 'card', entrada: 'surgir', entrada_2: 'surgir', entre: 'sequencia', movimento: 'zoom_lento', saida: 'corte', saida_2: 'corte' },
   dividida: { layout: 'metade', entrada: 'surgir', entrada_2: 'surgir', entre: 'sequencia', movimento: 'zoom_lento', saida: 'corte', saida_2: 'corte' },
 }
@@ -93,6 +58,3 @@ export const enriquecimentoDe = (x: { formato: Formato; enriquecimento?: Partial
   return e
 }
 
-/** O selinho da timeline: "Card · Surgir" (+ como combina, se há mais de uma mídia). */
-export const resumo = (e: Enriquecimento, nMidias: number) =>
-  [NOMES[e.layout], NOMES[e.entrada], nMidias > 1 ? NOMES[e.entre] : null].filter(Boolean).join(' · ')

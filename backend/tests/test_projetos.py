@@ -7,7 +7,7 @@ import wave
 import numpy as np
 import pytest
 
-from app import calibragem, comum, cortes, direcao, direcao_projeto, inserts, midia, motores, pipeline, projeto, referencias, transcricao
+from app import banco, calibragem, comum, cortes, direcao, direcao_projeto, inserts, midia, motores, pipeline, projeto, referencias, transcricao
 from apoio import criar_projeto as _criar
 
 
@@ -1131,7 +1131,7 @@ def _imagem_teste(destino, w=320, h=180):
 
 def test_banco_sobe_descreve_busca_edita_e_apaga(cliente, tmp_path, monkeypatch):
     chamadas = []
-    monkeypatch.setattr(inserts, '_descricoes', types.SimpleNamespace(submit=lambda f, bid: chamadas.append(bid)))
+    monkeypatch.setattr(banco, '_descricoes', types.SimpleNamespace(submit=lambda f, bid: chamadas.append(bid)))
     img = _imagem_teste(tmp_path / 'print do github.png')
     with img.open('rb') as f:
         r = cliente.post('/api/banco', files=[('arquivos', ('print do github.png', f, 'image/png'))])
@@ -1149,10 +1149,10 @@ def test_banco_sobe_descreve_busca_edita_e_apaga(cliente, tmp_path, monkeypatch)
     class Falso:
         def __init__(self, **k): pass
         def with_structured_output(self, *a, **k): return self
-        def invoke(self, msgs): return inserts.DescricaoMidia(descricao='Página do GitHub do Graphify.', palavras=['Graphify', 'repo'])
+        def invoke(self, msgs): return banco.DescricaoMidia(descricao='Página do GitHub do Graphify.', palavras=['Graphify', 'repo'])
     import langchain_openrouter
     monkeypatch.setattr(langchain_openrouter, 'ChatOpenRouter', Falso)
-    inserts.descrever(item['id'])
+    banco.descrever(item['id'])
     i = cliente.get(f"/api/banco/{item['id']}").json()
     assert (i['descricao'], i['palavras'], i['ia']['status'], i['usos']) == ('Página do GitHub do Graphify.', ['github', 'repo', 'graphify'], 'pronto', [])
     assert [x['id'] for x in cliente.get('/api/banco?busca=graphify').json()] == [item['id']]
@@ -1170,13 +1170,13 @@ def test_inserts_ligam_midias_do_banco_e_sobrevivem_a_versoes(cliente, video, mo
     ins = cliente.get(f'/api/projetos/{id}/inserts').json()
     p1, p2 = ins['pedidos']
     assert p1['midias'] == [] and p2['midias'] == [] and p1['formato'] == 'dividida'
-    inserts.salvar_item({'id': 'b1', 'nome': 'site A', 'tipo': 'video', 'arquivo': 'original.mp4', 'proxy': 'proxy.mp4', 'largura': 1600, 'altura': 900})
-    inserts.salvar_item({'id': 'b2', 'nome': 'print', 'tipo': 'imagem', 'arquivo': 'original.png', 'largura': 900, 'altura': 900})
+    banco.salvar_item({'id': 'b1', 'nome': 'site A', 'tipo': 'video', 'arquivo': 'original.mp4', 'proxy': 'proxy.mp4', 'largura': 1600, 'altura': 900})
+    banco.salvar_item({'id': 'b2', 'nome': 'print', 'tipo': 'imagem', 'arquivo': 'original.png', 'largura': 900, 'altura': 900})
     r = cliente.put(f"/api/projetos/{id}/inserts/{p1['id']}/midias", json={'midias': [{'banco': 'b1', 'inicio': 3.5}, {'banco': 'b2'}]}).json()
     assert [(m['banco'], 'inicio' in m) for m in r['pedidos'][0]['midias']] == [('b1', False), ('b2', False)]
     assert cliente.put(f"/api/projetos/{id}/inserts/{p1['id']}/midias", json={'midias': [{'banco': 'zz'}]}).status_code == 404
     assert [u['pedido'] for u in cliente.get('/api/banco/b1').json()['usos']] == [p1['id']]
-    assert inserts.ler_item('b2')['formato'] == '1:1'
+    assert banco.ler_item('b2')['formato'] == '1:1'
     # versão nova da direção: o insert que não mudou mantém as mídias
     projeto.atualizar(id, lambda p: p['direcao'].update(itens=[{**itens[0]}, {**itens[1], 'descricao': 'outra'}]))
     ins = cliente.get(f'/api/projetos/{id}/inserts').json()
@@ -1191,7 +1191,7 @@ def test_pedido_do_agente_antigo_vira_midias(cliente, video, monkeypatch):
     monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
     projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': [_plano_ins('p1', 'insert_tela_cheia', 0, 9)]}))
     pid = cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]['id']
-    inserts.salvar_item({'id': 'cap1', 'midia': 'video', 'arquivo': 'captura.mp4', 'resumo': 'site', 'origem': {'titulo': 'Site A'}, 'largura': 2880, 'altura': 1800})
+    banco.salvar_item({'id': 'cap1', 'midia': 'video', 'arquivo': 'captura.mp4', 'resumo': 'site', 'origem': {'titulo': 'Site A'}, 'largura': 2880, 'altura': 1800})
 
     def antigo(p):
         x = p['inserts']['pedidos'][0]
@@ -1201,17 +1201,17 @@ def test_pedido_do_agente_antigo_vira_midias(cliente, video, monkeypatch):
     projeto.atualizar(id, antigo)
     x = cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]
     assert x['id'] == pid and [m['banco'] for m in x['midias']] == ['cap1']
-    item = inserts.ler_item('cap1')  # captura antiga vira item comum do banco
+    item = banco.ler_item('cap1')  # captura antiga vira item comum do banco
     assert (item['tipo'], item['nome'], item['formato'], item['origem']['tipo']) == ('video', 'Site A', '16:10', 'captura automática')
 
 
 
 def test_trechos_do_banco_e_corte_do_original(cliente, video, tmp_path, monkeypatch):
-    monkeypatch.setattr(inserts, '_descricoes', types.SimpleNamespace(submit=lambda f, bid: None))
-    monkeypatch.setattr(inserts, '_cortes', types.SimpleNamespace(submit=lambda f, *a: f(*a)))  # corta na hora
+    monkeypatch.setattr(banco, '_descricoes', types.SimpleNamespace(submit=lambda f, bid: None))
+    monkeypatch.setattr(banco, '_cortes', types.SimpleNamespace(submit=lambda f, *a: f(*a)))  # corta na hora
     with video.open('rb') as f:
         orig = cliente.post('/api/banco', files=[('arquivos', ('gravacao.mp4', f, 'video/mp4'))]).json()[0]
-    inserts.atualizar_item(orig['id'], {'descricao': 'tela do app', 'palavras': ['app']})
+    banco.atualizar_item(orig['id'], {'descricao': 'tela do app', 'palavras': ['app']})
     a = cliente.post(f"/api/banco/{orig['id']}/trechos", json={'inicio': 0.5, 'fim': 1.5}).json()
     b = cliente.post(f"/api/banco/{orig['id']}/trechos", json={'inicio': 2.0, 'fim': 2.9, 'nome': 'final'}).json()
     assert (a['pai'], a['duracao'], a['nome'], a['descricao'], a['palavras']) == (orig['id'], 1.0, 'gravacao · trecho 1', 'tela do app', ['app'])

@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from . import comum, referencias
+from . import comum, referencias, sons
 
 RAIZ = Path(__file__).resolve().parents[2] / 'presets'
 EXTERNAS = RAIZ / 'externas'  # vídeos de referência de fora das Referências (um post do Instagram): `externa:<nome>`
@@ -137,7 +137,7 @@ def validar_receita(r: dict) -> dict:
         cards.append(novo)
     return {'formato': r['formato'], 'fundo': r.get('fundo') if r.get('fundo') in ('proprio', 'nenhum') else 'proprio',
             'duracao_ref': _numero(r.get('duracao_ref', 2.5), 0.2, 30), 'cards': cards, **({'repete': True} if r.get('repete') else {}),
-            **({'sai_ultimo': True} if r.get('sai_ultimo') else {})}
+            **({'sai_ultimo': True} if r.get('sai_ultimo') else {}), **({'sons': sons.validar(r['sons'])} if r.get('sons') else {})}
 
 
 def editar(pid: str, campos: dict) -> dict:

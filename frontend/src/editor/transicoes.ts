@@ -1,12 +1,12 @@
-import { enviar, json } from '@/api'
+import { json } from '@/api'
 import { bezier, limite01 } from './curvas'
 import { criarLoja } from './loja'
 import type { Curva } from './enriquecimento'
 
 /** Entradas e saídas dos inserts (SPEC §8.4): a configuração de cada tipo é global (`transicoes.py` no backend) — curva,
  *  duração e os detalhes do movimento. Configurou uma vez, vale para todos os inserts que usam aquele tipo. */
-export type Direcao = 'cima' | 'baixo' | 'esquerda' | 'direita'
-export type ConfigTransicao = {
+type Direcao = 'cima' | 'baixo' | 'esquerda' | 'direita'
+type ConfigTransicao = {
   curva: Curva
   duracao?: number
   escala?: number
@@ -25,16 +25,6 @@ export type Transicoes = Record<Lado, Record<string, ConfigTransicao>>
 // a configuração vem do servidor uma vez e é compartilhada; mudar avisa quem está usando
 const loja = criarLoja(() => fetch('/api/transicoes').then(json<Transicoes>))
 export const useTransicoes = loja.use
-
-/** Muda a configuração global de um tipo (`null` num campo volta ao padrão de fábrica). */
-export const definirTransicao = (lado: Lado, tipo: string, campos: Partial<Record<keyof ConfigTransicao, unknown>>) =>
-  enviar<Transicoes>('PUT', `/api/transicoes/${lado}/${tipo}`, { campos }).then(loja.definir)
-
-/** Muda na tela na hora (arrastando um slider), sem salvar: o servidor recebe ao soltar. */
-export function previaTransicao(lado: Lado, tipo: string, campos: Partial<ConfigTransicao>) {
-  const t = loja.get()
-  if (t) loja.definir({ ...t, [lado]: { ...t[lado], [tipo]: { ...t[lado][tipo], ...campos } } })
-}
 
 const limite = limite01
 /** Quanto a entrada dura (s), dentro de uma mídia de `dur` s ("seca + zoom" dura a mídia toda). */

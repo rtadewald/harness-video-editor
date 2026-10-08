@@ -1,4 +1,4 @@
-<script type="application/json" id="preset">{"nome": "Barra de busca", "descricao": "Uma lupa surge e vira barra de busca enquanto o link é digitado; a cena se aproxima devagar o tempo todo.", "fundo": "nevoa", "duracao": 2.6, "miniatura": 0.9}</script>
+<script type="application/json" id="preset">{"nome": "Barra de busca", "descricao": "Uma lupa surge e vira barra de busca enquanto o link é digitado; a cena se aproxima devagar o tempo todo.", "fundo": "nevoa", "duracao": 2.6, "miniatura": 0.9, "sons": {"entrada": {"rotulo": "A lupa surge", "som": "ui-pop-02", "intensidade": "baixo"}, "digitacao": {"rotulo": "Digitação", "som": "typing-keyboard-01", "intensidade": "baixo"}}}</script>
 <script type="application/json" id="campos">{"url": {"tipo": "texto", "rotulo": "Link", "padrao": "https://openrouter.ai/"}}</script>
 <style>
   #cena { position: absolute; inset: 0; will-change: transform; }
@@ -51,6 +51,8 @@
 
       // a digitação em rajadas (~0,045 s por letra, pausas na pontuação); um link longo demais anda para a esquerda
       const tempos = motion.digitar(url, tBarra + 0.1, D - 0.3, 0.045)
+      motion.som('entrada', 0)
+      if (tempos.length) motion.som('digitacao', tempos[0], tempos[tempos.length - 1] - tempos[0] + 0.1)
       motion.aCada(function (t) {
         let n = 0
         while (n < tempos.length && tempos[n] <= t) n++

@@ -1,52 +1,36 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  ChevronDown,
-  PanelRightClose,
-  PanelRightOpen,
-  Clapperboard,
-  Copy,
-  Globe,
-  Images,
-  Library,
-  RotateCcw,
-  Scissors,
-  Search,
-  Settings2,
-  Upload,
-  Wand2,
-} from 'lucide-react'
-import { s1, definirMidias, configurarComentario, definirFundo, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, tempoBR, urlArquivo, salvarDirecaoProjeto, type DadosEditor, type Projeto, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
+import { PanelRightClose, PanelRightOpen, Clapperboard, Images, Scissors, Search, Wand2 } from 'lucide-react'
+import { json, definirMidias, configurarComentario, definirFundo, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, urlArquivo, salvarDirecaoProjeto, type DadosEditor, type Projeto, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
 import { falaDoPlano, fundoDoMotion, urlPaginaMotionPlano } from '@/motions/api'
-import { cn } from '@/lib/utils'
 import { useLembrado } from '@/lib/useLembrado'
 import { paraAncora, paraTempo, palavrasNaSaida } from './direcaoProjeto'
 import { dividirPlano, editar } from '@/referencias/edicao'
 import { CATEGORIAS } from './EtapaDirecao'
 import { CardComentario, PainelComentario, comentarioDe, type Comentario } from './ComentarioIG'
 import BuscarReferencias from './BuscarReferencias'
-import CapturaDeSite from './CapturaDeSite'
-import MidiaCard from './MidiaCard'
-import SeletorBanco from './SeletorBanco'
-import EditorPreset from './EditorPreset'
-import MiniPreset from './MiniPreset'
-import { comRecomendados, ordemDoInsert, presetsPara, useOrdem, usePresets } from './presets'
+import { FatorSom } from './sons'
+import { usePresets } from './presets'
 import CardAjustes from './CardAjustes'
-import { aspectosDe, divisaoDe, receitaParaInsert, telaTodaPermitida, estiloDaPessoa, estiloDoAtor, posicaoDoComentario, type Divisao } from './divisao'
+import { aspectosDe, divisaoDe, telaTodaPermitida, estiloDaPessoa, estiloDoAtor, posicaoDoComentario, type Divisao } from './divisao'
 import AtorRecortado from './AtorRecortado'
 import MotionNoLugar from '@/motions/MotionNoLugar'
 import PainelMotion from '@/motions/PainelMotion'
-import { EdicaoPreset } from '@/motions/PresetMotion'
+import { EdicaoPreset, usePresets as usePresetsMotion } from '@/motions/PresetMotion'
+import { escolhasDeSom, preCarregarMarcas } from '@/motions/sons'
 import { useMotionsDoProjeto } from '@/motions/useMotionsDoProjeto'
-import EditorVideo from './EditorVideo'
-import { FUNDOS } from './Fundo'
-import InsertNoLugar, { pedidosNoTempo, presetDe, type PedidoNoTempo } from './InsertNoLugar'
+import InsertNoLugar, { pedidosNoTempo, presetDe } from './InsertNoLugar'
 import LinhaInserts from './LinhaInserts'
 import { corteDe, enriquecimentoDe, entradaDe, saidaDe, type Qual } from './enriquecimento'
-import { duracaoEntrada, duracaoSaida, useTransicoes, type Lado, type Transicoes } from './transicoes'
+import { duracaoEntrada, duracaoSaida, useTransicoes, type Lado } from './transicoes'
 import Preview from './Preview'
 import type { Sequencia } from './sequencia'
 import type { usePlayer } from './usePlayer'
+import { TEM_MOTION, type NovaMidia, type Pedido } from './inserts/comum'
+import DetalheInsert from './inserts/DetalheInsert'
+import { Alca, Cabecalho, Campo, Recolhivel, useTamanhos } from './inserts/layout'
+import PainelEnriquecimento from './inserts/PainelEnriquecimento'
+import { Categoria, EditorPresetAberto, EscolhaFundo, ResumoFundo, SemInsert } from './inserts/pecas'
 
 type Props = {
   dados: DadosEditor
@@ -56,17 +40,6 @@ type Props = {
   enquadramentoX: number
   aoMudarProjeto: (p: Projeto) => void
 }
-type Pedido = PedidoNoTempo
-type NovaMidia = Omit<MidiaLigada, 'id'> & { id?: string }
-
-const NOME_TIPO: Record<string, string> = {
-  insert_tela_cheia: 'Tela cheia',
-  tela_dividida_insert: 'Tela dividida',
-  comentario_insert_ator: 'Comentário + insert',
-}
-const TEM_MOTION = ['motion_tela_cheia', 'tela_dividida_motion']
-const ACEITA = 'video/mp4,video/quicktime,video/webm,image/png,image/jpeg,image/webp'
-const BOTAO = 'flex items-center gap-1 rounded-full border border-line-dark px-3 py-1 font-semibold text-fog hover:text-cream'
 
 /** Etapa 03 (SPEC §8.3): a pós-produção dos planos da direção, em três trabalhos — as MÍDIAS de cada insert (subir,
  *  escolher do banco, capturar site), os MOTIONS (em construção) e o ENRIQUECIMENTO (como cada insert aparece, mock).
@@ -82,6 +55,15 @@ export default function EtapaInserts(p: Props) {
   const [buscandoRefs, setBuscandoRefs] = useState(false)
   // motions (SPEC §8.5): o de cada plano (um preset ou um vídeo do banco)
   const { motions, recarregar: recarregarMotions } = useMotionsDoProjeto(projeto.id)
+  const presetsMotion = usePresetsMotion()
+  // os sons da prévia na mesma relação com a voz deste vídeo que na exportação (SPEC §8.6)
+  const [fatorSom, setFatorSom] = useState(1)
+  useEffect(() => {
+    void fetch(`/api/projetos/${projeto.id}/sons/fator`)
+      .then(json<{ fator: number }>)
+      .then((r) => setFatorSom(r.fator))
+      .catch(() => {})
+  }, [projeto.id])
   const falhar = (e: unknown) => window.alert((e as Error).message)
 
   // o mapa tem os originais e os trechos (um trecho toca o arquivo do original, do início ao fim dele)
@@ -146,6 +128,16 @@ export default function EtapaInserts(p: Props) {
 
   // tela dividida com mídia: o ator desce para a metade de baixo (o centro do quadro no meio da metade de baixo)
   const motionNoCursor = planoNoCursor && motions[planoNoCursor.id] ? planoNoCursor : null
+  // as marcas de som dos motions, lidas de antemão (uma página por vez): o som da digitação começa junto com as letras
+  useEffect(() => {
+    let fila = Promise.resolve()
+    for (const pl of planos) {
+      const m = motions[pl.id]
+      if (m?.tipo !== 'preset') continue
+      const src = urlPaginaMotionPlano(projeto.id, pl.id, m, pl.fim - pl.inicio, falaDoPlano(saida, pl.inicio, pl.fim))
+      fila = fila.then(() => preCarregarMarcas(src, m.formato).then(() => {}))
+    }
+  }, [planos, motions, saida, projeto.id])
   const presetsTodos = usePresets()
   // a divisão do insert sob o cursor: onde o ator fica (desce, ou encolhe numa janela) e se a pessoa recortada sai por cima
   const divisao: Divisao | null =
@@ -322,6 +314,7 @@ export default function EtapaInserts(p: Props) {
   const dir = Math.round(tam.dir * cabe)
 
   return (
+    <FatorSom.Provider value={fatorSom}>
     <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)]" style={{ gridTemplateRows: `minmax(0,1fr) ${tam.linha}px` }}>
       <div ref={area} className="relative grid min-h-0 min-w-0" style={{ gridTemplateColumns: `${esq}px minmax(0, 1fr) ${dir}px` }}>
         <Alca lado="esq" pos={esq} arrastar={arrastarBorda} />
@@ -364,7 +357,7 @@ export default function EtapaInserts(p: Props) {
                 , capturar site); num motion, a criação do motion. À direita, o enriquecimento: como aparece, entra, combina e sai.
               </p>
             ) : sel ? (
-              <Detalhe
+              <DetalheInsert
                 key={sel.id}
                 pedido={sel}
                 banco={banco}
@@ -413,6 +406,7 @@ export default function EtapaInserts(p: Props) {
                   formato={motions[motionNoCursor.id].formato}
                   fundo={fundoDoMotion(motions[motionNoCursor.id])}
                   rel={tempo - motionNoCursor.inicio}
+                  sons={{ ativo: player.tocando, escolhas: escolhasDeSom(presetsMotion, motions[motionNoCursor.id]) }}
                 />
               ) : noCursor && (
                 <>
@@ -562,484 +556,6 @@ export default function EtapaInserts(p: Props) {
         />
       </div>
     </div>
+    </FatorSom.Provider>
   )
 }
-
-type Tamanhos = { esq: number; dir: number; linha: number }
-const TAMANHOS_PADRAO: Tamanhos = { esq: 440, dir: 400, linha: 200 }
-const LIMITES: Record<keyof Tamanhos, [number, number]> = { esq: [300, 760], dir: [300, 680], linha: [150, 420] }
-
-/** Larguras dos cards e altura da linha do tempo, arrastáveis e lembradas neste navegador. */
-function useTamanhos(): [Tamanhos, (lado: keyof Tamanhos, e: React.PointerEvent) => void] {
-  const [tam, setTam] = useState<Tamanhos>(() => {
-    try {
-      return { ...TAMANHOS_PADRAO, ...JSON.parse(localStorage.getItem('inserts.tamanhos') ?? '{}') }
-    } catch {
-      return TAMANHOS_PADRAO
-    }
-  })
-  const arrastar = (lado: keyof Tamanhos, e: React.PointerEvent) => {
-    e.preventDefault()
-    const inicio = lado === 'linha' ? e.clientY : e.clientX
-    const base = tam[lado]
-    let atual = tam
-    const mover = (ev: PointerEvent) => {
-      const d = (lado === 'linha' ? ev.clientY : ev.clientX) - inicio
-      const v = base + (lado === 'esq' ? d : -d) // o card da direita e a linha do tempo crescem para o outro lado
-      const [min, max] = LIMITES[lado]
-      atual = { ...atual, [lado]: Math.round(Math.max(min, Math.min(max, v))) }
-      setTam(atual)
-    }
-    const soltar = () => {
-      window.removeEventListener('pointermove', mover)
-      window.removeEventListener('pointerup', soltar)
-      document.body.style.cursor = ''
-      try {
-        localStorage.setItem('inserts.tamanhos', JSON.stringify(atual))
-      } catch {
-        /* sem armazenamento: vale só nesta sessão */
-      }
-    }
-    document.body.style.cursor = lado === 'linha' ? 'ns-resize' : 'ew-resize'
-    window.addEventListener('pointermove', mover)
-    window.addEventListener('pointerup', soltar)
-  }
-  return [tam, arrastar]
-}
-
-/** A alça de uma borda arrastável (realça ao passar o mouse). */
-function Alca({ lado, pos, arrastar }: { lado: keyof Tamanhos; pos: number | string; arrastar: (lado: keyof Tamanhos, e: React.PointerEvent) => void }) {
-  const borda = typeof pos === 'number' ? `${pos}px` : pos
-  const estilo: React.CSSProperties =
-    lado === 'esq'
-      ? { left: `calc(${borda} - 3px)`, top: 0, bottom: 0, width: 6 }
-      : lado === 'dir'
-        ? { right: `calc(${borda} - 3px)`, top: 0, bottom: 0, width: 6 }
-        : { left: 0, right: 0, top: -3, height: 6 }
-  return (
-    <div
-      onPointerDown={(e) => arrastar(lado, e)}
-      className={cn('group absolute z-40', lado === 'linha' ? 'cursor-ns-resize' : 'cursor-ew-resize')}
-      style={estilo}
-      title="Arraste para ajustar"
-    >
-      <span className={cn('absolute bg-coral opacity-0 transition-opacity group-hover:opacity-100', lado === 'linha' ? 'inset-x-0 top-[2px] h-[2px]' : 'inset-y-0 left-[2px] w-[2px]')} />
-    </div>
-  )
-}
-
-/** O editor do preset com a engrenagem aberta, na coluna ao lado do vídeo. Assina os presets sozinho: mexer num slider
- *  redesenha só ele (e quem mostra o preset), não a etapa inteira. */
-function EditorPresetAberto({ id, ver }: { id: string; ver?: () => void }) {
-  const preset = usePresets()?.find((x) => x.id === id)
-  if (!preset) return null
-  return (
-    <Recolhivel chave="preset" titulo="Preset">
-      <EditorPreset preset={preset} ver={ver} />
-    </Recolhivel>
-  )
-}
-
-/** Um card que abre e fecha (lembrado), com o título e um resumo no cabeçalho. */
-function Recolhivel(p: { chave: string; titulo: string; resumo?: ReactNode; children: ReactNode; fechado?: boolean }) {
-  const { chave, titulo, resumo, children } = p
-  const [aberto, setAberto] = useLembrado(`inserts.aberto.${chave}`, !p.fechado)
-  return (
-    <div className="shrink-0 rounded-[8px] bg-cream/[0.03] ring-1 ring-line-dark">
-      <button onClick={() => setAberto(!aberto)} className="flex w-full min-w-0 items-center gap-2 px-4 py-3 text-left">
-        <span className="eyebrow shrink-0 text-sage">{titulo}</span>
-        <span className="flex min-w-0 flex-1 items-center gap-1.5">{resumo}</span>
-        <ChevronDown className={cn('size-3.5 shrink-0 text-fog transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]', aberto && 'rotate-180')} />
-      </button>
-      {aberto && <div className="px-4 pb-4">{children}</div>}
-    </div>
-  )
-}
-
-function ResumoFundo({ id, so }: { id: string; so?: boolean }) {
-  const f = FUNDOS.find((x) => x.id === id) ?? FUNDOS[4]
-  return (
-    <>
-      <span className={cn('shrink-0 rounded-[3px] ring-1 ring-white/15', so ? 'h-4 w-4 rounded-full' : 'h-3.5 w-5')} style={{ background: f.amostra }} />
-      {!so && <span className="truncate text-[11.5px] text-fog">{f.nome}</span>}
-    </>
-  )
-}
-
-/** O fundo atrás dos inserts com moldura, para o vídeo todo. */
-function EscolhaFundo({ atual, escolher }: { atual: string; escolher: (f: string) => void }) {
-  return (
-    <div className="grid gap-2">
-      <p className="text-[11px] leading-[1.5] text-fog">Vale para o vídeo todo, atrás dos inserts com moldura.</p>
-      {[true, false].map((claro) => (
-        <div key={String(claro)} className="grid grid-cols-3 gap-1.5">
-          {FUNDOS.filter((x) => x.claro === claro).map((x) => (
-            <button
-              key={x.id}
-              onClick={() => escolher(x.id)}
-              className={cn('grid gap-1 rounded-[6px] p-1.5 text-[10px] ring-1 transition-colors', atual === x.id ? 'text-cream ring-2 ring-coral' : 'text-fog ring-line-dark hover:text-cream')}
-            >
-              <span className="h-9 w-full rounded-[4px] ring-1 ring-white/10" style={{ background: x.amostra }} />
-              {x.nome}
-            </button>
-          ))}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function Cabecalho({ icone: Icone, titulo, extra }: { icone: typeof Images; titulo: string; extra?: ReactNode }) {
-  return (
-    <div className="flex items-center gap-2 border-b border-line-dark px-4 py-2.5 text-[11px]">
-      <Icone className="size-3.5 text-sage" />
-      <span className="eyebrow text-sage">{titulo}</span>
-      {extra}
-    </div>
-  )
-}
-
-function SemInsert({ plano }: { plano: ItemRef & { fala: string } }) {
-  return (
-    <div className="grid gap-3 text-[12.5px] leading-[1.7] text-fog">
-      <span className="w-fit rounded-full bg-cream/10 px-2.5 py-1 text-[11px] font-semibold text-cream">{CATEGORIAS.planos[plano.tipo]}</span>
-      <p>Este plano não tem insert{TEM_MOTION.includes(plano.tipo) ? ' (é um motion: veja a aba Motion)' : ''}.</p>
-    </div>
-  )
-}
-function PainelEnriquecimento(p: {
-  pedido: Pedido
-  banco?: Map<string, ItemBanco>
-  mudar: (c: Record<string, string | number | number[] | null>) => void
-  aplicarAoTipo: () => void
-  /** Toca a entrada ou a saída de uma mídia (o "▶ Ver" da engrenagem). */
-  ver: (lado: Lado, qual: Qual) => void
-  trans: Transicoes | null
-  /** O preset com a engrenagem aberta (o editor fica na coluna ao lado do vídeo) e como abrir/fechar. */
-  presetAberto?: string | null
-  abrirPreset?: (id: string | null) => void
-  fundo?: string
-  /** Só para ver as opções (motions): o aviso aparece em cima e nada é salvo. */
-  aviso?: string
-}) {
-  const x = p.pedido
-  const presets = usePresets()
-  const [verTodos, setVerTodos] = useState(false)
-  // as proporções só filtram quando o banco já deu as medidas (sem elas, aspectosDe supõe 16:9)
-  const opcoesPreset = presetsPara(presets, x.formato, x.midias.length, !verTodos, x.enriquecimento?.divisao === 'atras', p.banco?.size ? aspectosDe(x.midias, p.banco) : undefined)
-  // a ordem da situação (página Presets → Ordem e recomendados): os 3 primeiros que servem ficam em cima
-  const ordem = useOrdem()
-  const tela = x.enriquecimento?.divisao === 'atras' ? 'atras' : x.formato === 'vertical' ? 'vertical' : 'dividida'
-  const grupos = comRecomendados(opcoesPreset, ordemDoInsert(ordem, tela, aspectosDe(x.midias, p.banco)))
-  const idsMidias = useMemo(() => x.midias.map((m) => m.banco), [x.midias])
-  const presetAtual = presetDe(x, presets)
-  const [sobre, setSobre] = useState<string | null>(null)
-  const mudado = Object.keys(x.enriquecimento ?? {}).length > 0
-  const nomeTipo = NOME_TIPO[x.tipo] ?? CATEGORIAS.planos[x.tipo] ?? x.tipo
-  return (
-    <div className="grid gap-5">
-      {p.aviso && <p className="rounded-[6px] border border-dashed border-yellow/40 px-3 py-2 text-[11.5px] leading-[1.6] text-yellow/90">{p.aviso}</p>}
-      {!p.aviso && x.formato === 'dividida' && x.midias.length > 0 && (
-        <label className="flex cursor-pointer items-center gap-2 text-[12px]" title="O insert na tela toda e o ator encolhido numa janela embaixo, com a cabeça saindo por cima">
-          <input type="checkbox" checked={x.enriquecimento?.divisao === 'atras'} onChange={(ev) => p.mudar({ divisao: ev.target.checked ? 'atras' : null })} />
-          Ator embaixo, cropado numa janela
-        </label>
-      )}
-      {!p.aviso && x.enriquecimento?.preset && !presetAtual && (
-        <p className="rounded-[6px] border border-dashed border-yellow/40 px-3 py-2 text-[11.5px] leading-[1.6] text-yellow/90">
-          O preset escolhido ({presets?.find((y) => y.id === x.enriquecimento?.preset)?.nome ?? 'apagado'}) não serve a {x.midias.length} mídia{x.midias.length > 1 ? 's' : ''}: escolha outro.
-        </p>
-      )}
-      {!p.aviso && x.midias.length > 0 && (
-        <div className="grid gap-2">
-          <div className="eyebrow flex items-center text-sage">
-            Presets {x.midias.length > 1 && `· ${x.midias.length} mídias`}
-            <label className="ml-auto flex cursor-pointer items-center gap-1.5 tracking-normal normal-case text-fog">
-              <input type="checkbox" checked={verTodos} onChange={(ev) => setVerTodos(ev.target.checked)} /> ver os não aprovados
-            </label>
-          </div>
-          {opcoesPreset.length ? (
-            <div className="grid gap-3">
-              {[
-                { titulo: 'Recomendados', l: grupos.recomendados, pequeno: false },
-                { titulo: 'Outros presets', l: grupos.outros, pequeno: grupos.recomendados.length > 0 },
-              ]
-                .filter((g) => g.l.length)
-                .map((g) => (
-                  <div key={g.titulo} className="grid gap-1.5">
-                    {grupos.recomendados.length > 0 && <p className="text-[10.5px] font-semibold text-fog">{g.titulo}</p>}
-                    <div className={cn('grid gap-2', g.pequeno ? 'grid-cols-4' : 'grid-cols-3')}>
-                      {g.l.map((pr) => {
-                      const ativo = presetAtual?.id === pr.id
-                      return (
-                        <div key={pr.id} className="relative" onMouseEnter={() => setSobre(pr.id)} onMouseLeave={() => setSobre(null)}>
-                          <button
-                            onClick={() => p.mudar({ preset: ativo ? null : pr.id })}
-                            className="group/p grid w-full gap-1.5 text-left"
-                            title={pr.nome}
-                          >
-                            <MiniPreset
-                              receita={receitaParaInsert(pr.receita, divisaoDe({ ...x, enriquecimento: { ...x.enriquecimento, preset: pr.id } }, p.banco, presets), aspectosDe(x.midias, p.banco), x.formato)}
-                              midias={idsMidias}
-                              fundo={p.fundo ?? 'gradiente'}
-                              tocar={sobre === pr.id || ativo}
-                              className={cn('overflow-hidden rounded-[6px] ring-1 transition-shadow', ativo ? 'ring-2 ring-coral' : 'ring-line-dark group-hover/p:ring-cream/40')}
-                            />
-                            <span className={cn('line-clamp-2 text-[10.5px] leading-tight', ativo ? 'text-cream' : 'text-fog')}>
-                              {!pr.aprovado && <span className="text-yellow">● </span>}
-                              {pr.nome}
-                              {pr.adaptado && <span className="text-fog/60" title={`Feito para ${pr.formato === 'vertical' ? 'tela cheia' : 'tela dividida'}, adaptado a este formato`}> · adaptado</span>}
-                            </span>
-                          </button>
-                          <button
-                            onClick={() => p.abrirPreset?.(p.presetAberto === pr.id ? null : pr.id)}
-                            className={cn('absolute top-2 left-2 grid size-6 place-items-center rounded-full transition-colors', p.presetAberto === pr.id ? 'bg-coral text-cream' : 'bg-ink/70 text-fog hover:text-cream')}
-                            title="Configurar este preset (vale para todos os inserts)"
-                            aria-label="Configurar"
-                          >
-                            <Settings2 className="size-3.5" />
-                          </button>
-                        </div>
-                      )
-                      })}
-                    </div>
-                  </div>
-                ))}
-            </div>
-          ) : (
-            <p className="text-[11.5px] leading-[1.6] text-fog">
-              Nenhum preset aprovado para {x.midias.length} mídia{x.midias.length > 1 ? 's' : ''} neste formato. Peça um ao Claude (mande o trecho de referência) e aprove na página{' '}
-              <Link to="/presets" className="text-yellow hover:underline">
-                Presets
-              </Link>
-              .
-            </p>
-          )}
-        </div>
-      )}
-      <div className={cn('flex flex-wrap gap-2 border-t border-line-dark pt-4 text-[11px]', p.aviso && 'hidden')}>
-        <button onClick={() => p.mudar({ layout: null, entrada: null, entrada_2: null, saida: null, saida_2: null, entre: null, corte: null, preset: null })} disabled={!mudado} className={cn(BOTAO, 'disabled:opacity-40')}>
-          <RotateCcw className="size-3" /> Tirar o preset
-        </button>
-        <button onClick={p.aplicarAoTipo} className={BOTAO} title={`Copia este enriquecimento para todos os planos “${nomeTipo}”`}>
-          <Copy className="size-3" /> Aplicar a todos “{nomeTipo}”
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function Detalhe(p: {
-  pedido: Pedido
-  banco: Map<string, ItemBanco>
-  subindo: boolean
-  projetoId: string
-  capturou: (r: InsertsProjeto) => void
-  salvar: (midias: NovaMidia[]) => Promise<unknown>
-  subir: (arquivos: File[]) => Promise<ItemBanco[]>
-  bancoMudou: () => void
-  ver: () => void
-}) {
-  const x = p.pedido
-  const [escolhendo, setEscolhendo] = useState(false)
-  // editor de vídeo: o que está aberto e os próximos (vídeos recém-subidos abrem um depois do outro)
-  const [editando, setEditando] = useState<string[]>([])
-  const [doBanco, setDoBanco] = useState(false) // o editor aberto veio do "Escolher do banco" (dá para voltar)
-  const subir = (arquivos: File[]) =>
-    void p.subir(arquivos).then((novos) => setEditando((f) => [...f, ...novos.filter((n) => n.tipo === 'video').map((n) => n.id)]))
-  /** O editor devolve os itens a ligar (trechos ou o original): eles entram no lugar das mídias do mesmo vídeo. */
-  const aplicarEdicao = (original: string, ids: string[], apagados: string[]) => {
-    const doVideo = (b: string) => b === original || p.banco.get(b)?.pai === original || apagados.includes(b)
-    const pos = x.midias.findIndex((m) => doVideo(m.banco))
-    const resto = x.midias.filter((m) => !doVideo(m.banco))
-    const novos = ids.map((id) => x.midias.find((m) => m.banco === id) ?? { banco: id })
-    const corte = pos < 0 ? resto.length : x.midias.slice(0, pos).filter((m) => !doVideo(m.banco)).length
-    void p.salvar([...resto.slice(0, corte), ...novos, ...resto.slice(corte)])
-    setEditando((f) => f.slice(1))
-    setDoBanco(false)
-  }
-  const [capturando, setCapturando] = useState(false)
-  const capturas = x.capturas ?? []
-  const semHttp = (u: string) => u.replace(/^https?:\/\//, '')
-  const [arrastando, setArrastando] = useState(false)
-  const entrada = useRef<HTMLInputElement>(null)
-  const mover = (k: number, d: number) => {
-    const l = [...x.midias]
-    const [m] = l.splice(k, 1)
-    l.splice(k + d, 0, m)
-    void p.salvar(l)
-  }
-  return (
-    <div
-      className={cn('grid gap-4 rounded-[6px]', arrastando && 'ring-2 ring-coral ring-offset-4 ring-offset-transparent')}
-      onDragOver={(e) => {
-        e.preventDefault()
-        setArrastando(true)
-      }}
-      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setArrastando(false)}
-      onDrop={(e) => {
-        e.preventDefault()
-        setArrastando(false)
-        subir([...e.dataTransfer.files])
-      }}
-    >
-      <input
-        ref={entrada}
-        type="file"
-        multiple
-        hidden
-        accept={ACEITA}
-        onChange={(e) => {
-          subir([...(e.target.files ?? [])])
-          e.target.value = ''
-        }}
-      />
-      <div className="flex flex-wrap items-center gap-2">
-        <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-semibold', x.formato === 'vertical' ? 'bg-blue text-cream' : 'bg-mint text-ink')}>
-          {NOME_TIPO[x.tipo] ?? x.tipo}
-        </span>
-        <span className="text-[12px] text-fog tabular-nums">
-          {tempoBR(x.t.inicio)} → {tempoBR(x.t.fim)} · {s1(x.t.fim - x.t.inicio)} s
-        </span>
-        <button onClick={p.ver} className="ml-auto rounded-full border border-line-dark px-2.5 py-1 text-[11px] text-fog hover:text-cream">
-          ▶ Ver trecho
-        </button>
-      </div>
-      <p className="border-l-2 border-line-dark pl-3 text-[12.5px] leading-[1.6] text-cream/90">“{x.fala}”</p>
-      {x.descricao ? (
-        <Campo rotulo="O que acontece no insert">{x.descricao}</Campo>
-      ) : (
-        <p className="text-[11.5px] text-fog">A direção não descreveu este insert.</p>
-      )}
-
-      <div className="grid gap-2">
-        <p className="eyebrow text-fog">
-          Mídias deste insert ({x.midias.length}){p.subindo && <span className="text-yellow"> · subindo…</span>}
-        </p>
-        {x.midias.map((m, k) => (
-          <MidiaCard
-            key={m.id}
-            m={m}
-            item={p.banco.get(m.banco)}
-            editar={() => setEditando((f) => [m.banco, ...f])}
-            subir={k > 0 ? () => mover(k, -1) : undefined}
-            descer={k < x.midias.length - 1 ? () => mover(k, 1) : undefined}
-            tirar={() => void p.salvar(x.midias.filter((_, j) => j !== k))}
-          />
-        ))}
-        {!x.midias.length && <p className="text-[11.5px] text-fog">Nenhuma ainda. Arraste arquivos para este painel, ou use os botões.</p>}
-        <div className="flex gap-2 text-[11px]">
-          <button onClick={() => entrada.current?.click()} disabled={p.subindo} className="flex items-center gap-1 rounded-full bg-coral px-3 py-1 font-semibold text-cream hover:bg-coral/90 disabled:opacity-50">
-            <Upload className="size-3" /> {x.midias.length ? '+ outra mídia' : 'Subir mídia'}
-          </button>
-          <button onClick={() => setEscolhendo(true)} className={BOTAO}>
-            <Library className="size-3" /> Escolher do banco
-          </button>
-          <button onClick={() => setCapturando(true)} className={BOTAO}>
-            <Globe className="size-3" /> Capturar site
-          </button>
-        </div>
-        {capturas.map((c) => (
-          <p key={c.id} className={cn('text-[11.5px]', c.status === 'erro' ? 'text-coral' : c.status === 'pronto' ? 'text-mint' : 'text-yellow')}>
-            {c.status === 'fila'
-              ? `Na fila: ${semHttp(c.url)}`
-              : c.status === 'rodando'
-                ? `Capturando ${semHttp(c.url)} · dobra ${Math.min(c.feitas + 1, c.dobras.length)} de ${c.dobras.length}…`
-                : c.status === 'pronto'
-                  ? `Capturado: ${semHttp(c.url)}`
-                  : `A captura de ${semHttp(c.url)} falhou: ${c.erro}`}
-          </p>
-        ))}
-      </div>
-
-      {capturando && (
-        <CapturaDeSite
-          projetoId={p.projetoId}
-          pedido={x}
-          fechar={() => setCapturando(false)}
-          pronto={(r) => {
-            p.capturou(r)
-            setCapturando(false)
-          }}
-        />
-      )}
-
-      {escolhendo && (
-        <SeletorBanco
-          mudou={p.bancoMudou}
-          fechar={() => setEscolhendo(false)}
-          escolher={(item) => {
-            // um vídeo original abre no editor (para escolher os trechos); trecho ou imagem entram direto
-            if (item.tipo === 'video' && !item.pai) {
-              setEditando((f) => [item.id, ...f])
-              setDoBanco(true)
-            }
-            else void p.salvar([...x.midias, { banco: item.id }])
-            setEscolhendo(false)
-          }}
-        />
-      )}
-
-      {editando.length > 0 && (
-        <EditorVideo
-          key={editando[0]}
-          bid={editando[0]}
-          ligados={x.midias.map((m) => m.banco)}
-          mudou={p.bancoMudou}
-          aplicar={aplicarEdicao}
-          fechar={() => {
-            setEditando((f) => f.slice(1))
-            setDoBanco(false)
-          }}
-          voltar={
-            doBanco
-              ? () => {
-                  setEditando((f) => f.slice(1))
-                  setDoBanco(false)
-                  setEscolhendo(true)
-                }
-              : undefined
-          }
-        />
-      )}
-    </div>
-  )
-}
-
-function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-1">
-      <p className="eyebrow text-fog">{rotulo}</p>
-      <p className="text-[12.5px] leading-[1.6] text-cream/85">{children}</p>
-    </div>
-  )
-}
-
-/** A categoria do plano, trocável aqui mesmo (a direção muda; a sugestão da IA fica marcada). */
-function Categoria(p: { atual: string; sugestao: string | null; mudar: (tipo: string) => void }) {
-  return (
-    <div className="mb-4 grid gap-1.5 border-b border-line-dark pb-4">
-      <div className="flex items-center gap-2 text-[11px]">
-        <span className="eyebrow text-sage">Categoria</span>
-        {p.sugestao && p.sugestao !== p.atual && (
-          <button onClick={() => p.mudar(p.sugestao!)} className="ml-auto text-fog hover:text-cream" title="Voltar ao que a direção sugeriu">
-            Sugestão: <span className="text-cream">{CATEGORIAS.planos[p.sugestao] ?? p.sugestao}</span> ↺
-          </button>
-        )}
-      </div>
-      <select
-        value={p.atual}
-        onChange={(e) => p.mudar(e.target.value)}
-        className="h-8 rounded-[6px] border border-line-dark bg-deeper px-2 text-[12.5px] text-cream outline-none focus:border-cream/50"
-      >
-        {Object.entries(CATEGORIAS.planos).map(([id, nome]) => (
-          <option key={id} value={id}>
-            {nome}
-            {id === p.sugestao ? ' · sugestão' : ''}
-          </option>
-        ))}
-      </select>
-    </div>
-  )
-}
-

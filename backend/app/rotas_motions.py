@@ -60,13 +60,14 @@ def usar_motion(id: str, plano: str, u: motions.UsoMotion):
 class AjusteMotion(BaseModel):
     valores: dict[str, str] | None = None
     fundo: str | None = None
+    sons: dict[str, dict] | None = None
 
 
 @rotas.patch('/api/projetos/{id}/motions/{plano}')
 def ajustar_motion(id: str, plano: str, a: AjusteMotion):
     ler_projeto(id)
     try:
-        return motions.ajustar(id, plano, a.valores, a.fundo)
+        return motions.ajustar(id, plano, a.valores, a.fundo, a.sons)
     except LookupError as e:
         raise HTTPException(404, str(e))
 

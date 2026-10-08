@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { corteDe, enriquecimentoDe, entradaDe, saidaDe, type Qual } from './enriquecimento'
 import Fundo, { RelogioRender } from './Fundo'
 import CenaPreset from './CenaPreset'
-import { mexendo, noFormato, serve, usePresets, type Preset } from './presets'
+import { mexendo, noFormato, serve, usePresets, type Preset, type Receita } from './presets'
 import { areaDoInsert, aspectosDe, divisaoDe, receitaParaInsert } from './divisao'
 import { ajustesEfetivos, comAjustes } from './ajustes'
 import { duracaoEntrada, duracaoSaida, estiloTransicao, type Transicoes } from './transicoes'
@@ -54,7 +54,7 @@ const naProporcao = (ar: number): React.CSSProperties => ({ width: `min(100cqw, 
 const SOMBRA_CARD = 'rounded-[18px] shadow-[0_30px_70px_-12px_rgba(0,0,0,0.45),0_12px_24px_-8px_rgba(0,0,0,0.3)]'
 
 /** Um vídeo do banco sincronizado com o tempo do plano (um trecho toca o original do início ao fim dele). */
-export function VideoNoTempo({ item, rel, tocando, topo }: { item: ItemBanco; rel: number; tocando: boolean; topo?: boolean }) {
+function VideoNoTempo({ item, rel, tocando, topo }: { item: ItemBanco; rel: number; tocando: boolean; topo?: boolean }) {
   const ref = useRef<HTMLVideoElement>(null)
   const exato = useContext(RelogioRender) != null // na exportação, sempre o quadro exato
   const alvo = Math.min((item.inicio ?? 0) + rel, item.fim ?? Infinity)
@@ -79,8 +79,7 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
   const area = areaDoInsert(divisao)
   const exportando = useContext(RelogioRender) != null // o contador "1/3" é só da prévia
   const e = enriquecimentoDe(pedido)
-  const preset = presetDe(pedido, presets)
-  const ajEf = ajustesEfetivos(preset, pedido.enriquecimento?.ajustes, aspectosDe(pedido.midias, banco))
+  const receita = receitaDoInsert(pedido, banco, presets)
   // entrada e saída de uma mídia (sem a configuração carregada ainda, parada)
   const anim = (qual: Qual, relM: number, durM: number): React.CSSProperties =>
     p.trans ? estiloTransicao(entradaDe(e, qual), saidaDe(e, qual), p.trans, relM, durM) : {}
@@ -137,7 +136,7 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
   }
 
   // um preset manda em tudo: layout, entrada e saída de cada mídia, com as curvas medidas nas referências
-  if (preset)
+  if (receita)
     return (
       <>
       {/* no "ator embaixo" o insert vai na tela toda: o fundo cobre também o espaço em volta da janela do ator */}
@@ -148,8 +147,9 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
       )}
       <div className="pointer-events-none absolute" style={area}>
         <CenaPreset
-          receita={comAjustes(receitaParaInsert(comAjustes(preset.receita, ajEf, 'antes'), divisao, aspectosDe(pedido.midias, banco), pedido.formato), ajEf, 'depois')}
+          receita={receita}
           rel={rel}
+          sons={tocando && !exportando}
           dur={dur}
           fundo={p.fundo}
           className="inset-0"
@@ -239,6 +239,16 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
     </div>
     </>
   )
+}
+
+/** A receita que o insert toca: a do preset, levada às mídias e ao formato dele, à divisão da tela e às proporções das
+ *  mídias, com os ajustes rápidos do insert (null sem preset). A mesma para a prévia, a exportação e os sons. */
+export function receitaDoInsert(x: PedidoNoTempo, banco: Map<string, ItemBanco>, presets: Preset[] | null): Receita | null {
+  const preset = presetDe(x, presets)
+  if (!preset) return null
+  const aspectos = aspectosDe(x.midias, banco)
+  const aj = ajustesEfetivos(preset, x.enriquecimento?.ajustes, aspectos)
+  return comAjustes(receitaParaInsert(comAjustes(preset.receita, aj, 'antes'), divisaoDe(x, banco, presets), aspectos, x.formato), aj, 'depois')
 }
 
 /** O preset do insert, se ele tem um e o preset serve (mesmo formato e número de mídias). */

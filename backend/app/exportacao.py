@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
-from . import comum, inserts, midia, projeto, render_quadros
+from . import banco, comum, midia, projeto, render_quadros, sons
 
 RESOLUCOES = {'720p': (720, 1280), '1080p': (1080, 1920), '4k': (2160, 3840)}
 FPS = (24, 30, 60)
@@ -166,10 +166,11 @@ def _ator(clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, 
 
 def comando_final(bruto: Path, clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, h: int, fps: int,
                   divisoes: list[tuple[float, float, dict]], camadas: list[tuple[Path, float]], codec: str, duracao: float,
-                  saida: Path, mascara: Path | None = None) -> list[str]:
+                  saida: Path, mascara: Path | None = None, eventos_som: list[dict] | None = None) -> list[str]:
     """Uma passada só: o ator e o áudio do bruto (decodificado pelo chip de vídeo) e, por cima, cada clipe da camada dos
     inserts (ProRes 4444 com transparência) no seu instante; por cima de tudo, o ator na janela do "insert atrás" e a
-    pessoa recortada (máscara); codifica no chip de vídeo (HEVC ou H.264)."""
+    pessoa recortada (máscara); os sons de apoio dos presets (`eventos_som`) somados à voz; codifica no chip de vídeo
+    (HEVC ou H.264)."""
     partes, topo = _ator(clipes, horizontal, enquadramento_x, w, h, fps, divisoes, duracao, mascara is not None)
     usa_mascara = any('[1:v]' in x for x in partes)
     base_idx = 2 if usa_mascara else 1
@@ -181,11 +182,14 @@ def comando_final(bruto: Path, clipes: list[dict], horizontal: bool, enquadramen
         partes.append(f'[{atual}][c{k}]overlay=format=auto:eof_action=pass[o{k}]')
         atual = f'o{k}'
     partes.append(f'[{atual}]null[topo_in]')
+    entradas_som, mistura = sons.filtro_mistura(eventos_som or [], base_idx + len(camadas), 'ac', 'am')
+    entradas += entradas_som
+    partes += mistura
     partes += topo
     partes.append('[topo]format=yuv420p[v]')
     cv = ['-c:v', 'hevc_videotoolbox', '-q:v', '65', '-tag:v', 'hvc1'] if codec == 'hevc' else ['-c:v', 'h264_videotoolbox', '-q:v', '65']
     return ['ffmpeg', '-y', '-loglevel', 'error', '-progress', 'pipe:1', '-nostats', '-hwaccel', 'videotoolbox', '-i', str(bruto),
-            *entradas, '-filter_complex', ';'.join(partes), '-map', '[v]', '-map', '[ac]', *cv, '-pix_fmt', 'yuv420p',
+            *entradas, '-filter_complex', ';'.join(partes), '-map', '[v]', '-map', '[am]', *cv, '-pix_fmt', 'yuv420p',
             '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv',
             '-c:a', 'aac', '-b:a', '320k', '-ar', '48000', '-t', f'{duracao:.4f}', '-movflags', '+faststart', str(saida)]
 
@@ -225,13 +229,14 @@ def _rodar(id: str, e: dict) -> None:
         _andamento.pop(id, None)
 
 
-def _trechos(url: str) -> list[dict]:
-    """Os inserts com mídia, no tempo do vídeo final, lidos da página de render."""
+def _trechos(url: str) -> tuple[list[dict], list[dict]]:
+    """Os inserts com mídia e os sons de apoio (SPEC §8.6), no tempo do vídeo final, lidos da página de render."""
     from playwright.sync_api import sync_playwright
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel='chromium')
         try:
-            return render_quadros.abrir_render(browser, url).evaluate('() => window.__render.trechos')
+            pg = render_quadros.abrir_render(browser, url)
+            return pg.evaluate('() => window.__render.trechos'), pg.evaluate('async () => window.__render.sons ? await window.__render.sons() : []')
         finally:
             browser.close()
 
@@ -255,10 +260,12 @@ def _gravar(id: str, e: dict, saida: Path, vivo: dict) -> bool:
         # os vídeos dos inserts em resolução original, prontos para a busca quadro a quadro (feitos uma vez, guardados no banco)
         for bid in {m['banco'] for x in (p.get('inserts') or {}).get('pedidos', []) for m in x.get('midias', [])}:
             try:
-                inserts.arquivo_para_exportar(inserts.ler_item(bid))
+                banco.arquivo_para_exportar(banco.ler_item(bid))
             except (FileNotFoundError, ValueError):
                 pass  # mídia apagada do banco: a página de render mostra o que houver
-        trechos = _trechos(url)
+        trechos, eventos_som = _trechos(url)
+        fator = sons.fator_do_projeto(id)  # os sons na mesma relação com a voz deste vídeo que nas referências
+        eventos_som = [{**ev, 'ganho': float(ev.get('ganho', sons.INTENSIDADES['baixo'])) * fator} for ev in eventos_som]
         grupos = pedacos(trechos, fps, navegadores)
         n_ins = sum(len(x) for g in grupos for x in g)
         # pesos do progresso: ~18 quadros/s fotografados (6 navegadores, 4K) e a passada final ~0,45 s por s de vídeo
@@ -291,7 +298,8 @@ def _gravar(id: str, e: dict, saida: Path, vivo: dict) -> bool:
         from . import recorte_ator
         mascara = recorte_ator.arquivos(id, fonte['id'])[0] if (p.get('recorte') or {}).get('estado') == 'pronto' else None
         cmd = comando_final(projeto.pasta(id) / fonte['arquivo'], clipes, horizontal, p.get('enquadramento', {}).get('x', 0.5),
-                            w, h, fps, divisoes, camadas, e['codec'], duracao, saida, mascara if mascara and mascara.exists() else None)
+                            w, h, fps, divisoes, camadas, e['codec'], duracao, saida, mascara if mascara and mascara.exists() else None,
+                            eventos_som)
         with open(log, 'wb') as erros:
             ff = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=erros, text=True)
             for linha in ff.stdout:

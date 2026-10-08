@@ -1,7 +1,7 @@
 import type { Ancora, Clipe, Palavra, Timeline } from '@/api'
 
 /** Clipe da V1 posicionado na saída (o vídeo final é a V1 tocada em sequência). */
-export type ClipeNaSaida = Clipe & { saida_ini: number; saida_fim: number }
+type ClipeNaSaida = Clipe & { saida_ini: number; saida_fim: number }
 
 export type Sequencia = {
   clipes: ClipeNaSaida[]

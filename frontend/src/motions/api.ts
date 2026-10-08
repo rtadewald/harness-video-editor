@@ -1,8 +1,9 @@
 /** A API dos motions (SPEC §8.5; docs/motions.md): os presets e o motion de cada plano de um projeto. */
 import { enviar, json } from "@/api";
+import type { Intensidade } from "@/editor/sons";
 
 export type Formato = "vertical" | "dividida";
-export type CampoMotion = {
+type CampoMotion = {
   tipo: "texto" | "cor" | "imagem";
   rotulo: string;
   padrao: string;
@@ -16,10 +17,12 @@ export type Preset = {
   /** o instante da miniatura parada, em fração da duração */
   miniatura: number;
   campos: Record<string, CampoMotion>;
+  /** Os momentos de som (SPEC §8.6): rótulo e som padrão de cada um. */
+  sons?: Record<string, { rotulo: string; som: string | null; intensidade: Intensidade }>;
 };
 /** O motion de um plano: um preset (com os valores e o fundo) ou um vídeo do banco. */
 export type MotionPlano = { nome: string; formato: Formato; usado_em: string } & (
-  | { tipo: "preset"; preset: string; valores: Record<string, string>; fundo: string }
+  | { tipo: "preset"; preset: string; valores: Record<string, string>; fundo: string; sons?: Record<string, { som: string | null; intensidade: Intensidade }> }
   | { tipo: "video"; banco: string }
 );
 /** As palavras ditas no plano, em segundos desde o começo dele (a digitação dos presets acompanha a fala). */
@@ -53,7 +56,7 @@ export const usarVideo = (id: string, plano: string, formato: Formato, banco: st
 export const ajustarMotion = (
   id: string,
   plano: string,
-  a: { valores?: Record<string, string>; fundo?: string },
+  a: { valores?: Record<string, string>; fundo?: string; sons?: Record<string, { som: string | null; intensidade: Intensidade }> },
 ) => enviar<MotionPlano>("PATCH", `/api/projetos/${id}/motions/${plano}`, a);
 export const tirarMotionDoPlano = (id: string, plano: string) =>
   enviar<{ ok: boolean }>("DELETE", `/api/projetos/${id}/motions/${plano}`);

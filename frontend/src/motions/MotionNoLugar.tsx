@@ -1,9 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCatalogoSons, useSonsNoTempo } from "@/editor/sons";
+import { eventosDoMotion, guardarMarcas, marcasDe, marcasGuardadas, type EscolhaSom, type Marca } from "./sons";
 import Fundo from "@/editor/Fundo";
 import { cn } from "@/lib/utils";
 
 type Janela = Window & { __ir?: (t: number) => Promise<void> };
 
+const NENHUMA: Marca[] = [];
 const PALCO = { vertical: { w: 1080, h: 1920 }, dividida: { w: 1080, h: 960 } };
 
 /** Um motion tocando (SPEC §8.5): a página dele num iframe do tamanho do palco, escalada para caber na área do plano (a
@@ -16,6 +19,8 @@ export default function MotionNoLugar(p: {
   fundo?: string;
   className?: string;
   noLugar?: boolean;
+  /** Os sons (SPEC §8.6): o som de cada momento e se a prévia está tocando de verdade. */
+  sons?: { ativo: boolean; escolhas: Record<string, EscolhaSom> };
 }) {
   const caixa = useRef<HTMLDivElement>(null);
   const quadro = useRef<HTMLIFrameElement>(null);
@@ -33,6 +38,26 @@ export default function MotionNoLugar(p: {
     return () => obs.disconnect();
   }, [palco.w]);
   useEffect(() => setPronto(false), [p.src]);
+  // as marcas de som da página (lidas quando ela carrega) e os eventos com o som escolhido de cada momento
+  // (guardadas com a página de onde vieram: trocar de motion não toca as marcas do anterior)
+  const [lidas, setLidas] = useState<{ src: string; marcas: Marca[] } | null>(null);
+  const comSons = !!p.sons;
+  useEffect(() => {
+    if (!pronto || !comSons) return;
+    let vivo = true;
+    const src = p.src;
+    void marcasDe(quadro.current?.contentWindow).then((marcas) => {
+      guardarMarcas(src, marcas);
+      if (vivo) setLidas({ src, marcas });
+    });
+    return () => void (vivo = false);
+  }, [pronto, comSons, p.src]);
+  // (as já lidas antes, pré-carregadas pela etapa, valem desde o primeiro quadro)
+  const marcas = !comSons ? NENHUMA : lidas?.src === p.src ? lidas.marcas : (marcasGuardadas(p.src) ?? NENHUMA);
+  const catalogo = useCatalogoSons();
+  const escolhas = JSON.stringify(p.sons?.escolhas ?? {});
+  const eventos = useMemo(() => eventosDoMotion(marcas, JSON.parse(escolhas), catalogo), [marcas, escolhas, catalogo]);
+  useSonsNoTempo(eventos, p.rel, !!p.sons?.ativo, true);
 
   useEffect(() => {
     if (!pronto) return;

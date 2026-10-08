@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { abrirEditor, lerInserts, listarBanco, mapaBanco, type DadosEditor, type InsertsProjeto, type ItemBanco } from '@/api'
-import { falaDoPlano, fundoDoMotion, motionsDoProjeto, urlPaginaMotionPlano, type MotionPlano } from '@/motions/api'
+import { falaDoPlano, fundoDoMotion, listarPresets as listarPresetsMotion, motionsDoProjeto, urlPaginaMotionPlano, type MotionPlano } from '@/motions/api'
+import { escolhasDeSom, eventosDoMotion, marcasDaPagina } from '@/motions/sons'
 import { CardComentario, comentarioDe } from '@/editor/ComentarioIG'
 import { paraTempo, palavrasNaSaida } from '@/editor/direcaoProjeto'
 import { ChuvaAoVivo, RelogioRender } from '@/editor/Fundo'
-import InsertNoLugar, { chaveParada, pedidosNoTempo } from '@/editor/InsertNoLugar'
+import InsertNoLugar, { chaveParada, pedidosNoTempo, receitaDoInsert } from '@/editor/InsertNoLugar'
+import { carregarCatalogoSons, eventosDaReceita, type EventoSom } from '@/editor/sons'
 import { divisaoDe, posicaoDoComentario, type Divisao } from '@/editor/divisao'
 import MotionNoLugar from '@/motions/MotionNoLugar'
 import { usePresets } from '@/editor/presets'
@@ -28,7 +30,8 @@ type Trecho = { ini: number; fim: number; dividida: boolean; divisao: Divisao | 
 declare global {
   interface Window {
     /** `ir(t)` responde com a chave do quadro quando ele fica igual aos seguintes (insert parado: o backend reaproveita a foto). */
-    __render?: { duracao: number; trechos: Trecho[]; ir: (t: number) => Promise<string | null> }
+    /** `sons()`: os sons de apoio dos presets (SPEC §8.6), no tempo do vídeo final, para o ffmpeg misturar com a voz. */
+    __render?: { duracao: number; trechos: Trecho[]; ir: (t: number) => Promise<string | null>; sons: () => Promise<EventoSom[]> }
   }
 }
 
@@ -94,13 +97,33 @@ export function RenderProjeto() {
         ...pedidos.lista.map((x) => ({ ini: x.t.inicio, fim: x.t.fim, dividida: x.formato === 'dividida', divisao: divisaoDe(x, banco, presets) })),
         ...pedidos.motions.map((m) => ({ ini: m.ini, fim: m.fim, dividida: m.dividida, divisao: m.dividida ? ({ modo: 'metade', tipo: 'area', f: 0.5 } as Divisao) : null })),
       ],
+      sons: async () => {
+        const cat = await carregarCatalogoSons()
+        const dosInserts = pedidos.lista.flatMap((x) => {
+          const r = receitaDoInsert(x, banco, presets)
+          return r ? eventosDaReceita(r, x.t.fim - x.t.inicio, cat).map((e) => ({ ...e, t: e.t + x.t.inicio })) : []
+        })
+        // os motions: as marcas de cada página (aberta escondida) com o som escolhido de cada momento
+        const presetsMotion = await listarPresetsMotion()
+        const dosMotions = await Promise.all(
+          pedidos.motions.map(async (m) => {
+            const mp = motions[m.plano]
+            if (mp.tipo !== 'preset') return []
+            const marcas = await marcasDaPagina(urlPaginaMotionPlano(id, m.plano, mp, m.fim - m.ini, m.fala, true), mp.formato)
+            return eventosDoMotion(marcas, escolhasDeSom(presetsMotion, mp), cat)
+              .filter((e) => e.t < m.fim - m.ini)
+              .map((e) => ({ ...e, t: e.t + m.ini }))
+          }),
+        )
+        return [...dosInserts, ...dosMotions.flat()]
+      },
       ir: (t) =>
         new Promise<string | null>((ok) => {
           chegou.current = ok
           setPedido((x) => ({ t, n: x.n + 1 }))
         }),
     }
-  }, [pedidos, banco, trans, motions, presets])
+  }, [id, pedidos, banco, trans, motions, presets])
   useEffect(() => {
     if (!chegou.current) return
     const ok = chegou.current

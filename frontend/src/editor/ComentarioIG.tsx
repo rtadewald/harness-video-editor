@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 /** O card de comentário do Instagram (plano Comentário + insert + ator; SPEC §8.3): foto, usuário e tempo borrados,
  *  o texto, "Responder" e "Ver tradução". Fonte do sistema da Apple (a que o Instagram usa no iPhone). */
 export type Comentario = { texto: string | null; avatar: number; usuario: string; tempo: string; traducao: boolean; x: number; y: number; escala: number }
-export const COMENTARIO_PADRAO: Comentario = { texto: null, avatar: 0, usuario: 'usuario.do.ig', tempo: '4 sem', traducao: true, x: 50, y: 50, escala: 1 }
+const COMENTARIO_PADRAO: Comentario = { texto: null, avatar: 0, usuario: 'usuario.do.ig', tempo: '4 sem', traducao: true, x: 50, y: 50, escala: 1 }
 /** O comentário do insert; sem posição salva (nunca arrastado), fica no lugar automático da divisão (`auto`). */
 export const comentarioDe = (x: { comentario?: Partial<Comentario> }, auto?: { x: number; y: number }): Comentario => ({
   ...COMENTARIO_PADRAO,
@@ -16,7 +16,7 @@ export const comentarioDe = (x: { comentario?: Partial<Comentario> }, auto?: { x
 const FONTE_IG = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", "Helvetica Neue", system-ui, sans-serif'
 
 // 5 fotos de perfil de pessoas que não existem (rostos gerados por IA, thispersondoesnotexist.com), em `public/avatares/`
-export function Avatar({ n, borrado = true, className, tamanho }: { n: number; borrado?: boolean; className?: string; tamanho?: string }) {
+function Avatar({ n, borrado = true, className, tamanho }: { n: number; borrado?: boolean; className?: string; tamanho?: string }) {
   return (
     <img
       src={`/avatares/${(n % 5) + 1}.jpg`}

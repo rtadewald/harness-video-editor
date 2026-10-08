@@ -1,4 +1,4 @@
-<script type="application/json" id="preset">{"nome": "Lettering com destaque", "descricao": "Uma frase curta no centro, uma palavra por vez; a última, de destaque, numa fonte redonda.", "fundo": "chuva", "duracao": 1.2}</script>
+<script type="application/json" id="preset">{"nome": "Lettering com destaque", "descricao": "Uma frase curta no centro, uma palavra por vez; a última, de destaque, numa fonte redonda.", "fundo": "chuva", "duracao": 1.2, "sons": {"palavra": {"rotulo": "Cada palavra", "som": "click-small-03", "intensidade": "baixo"}, "destaque": {"rotulo": "A palavra de destaque", "som": "ui-pop-02", "intensidade": "baixo"}}}</script>
 <script type="application/json" id="campos">{"texto": {"tipo": "texto", "rotulo": "Texto", "padrao": "Image to"}, "destaque": {"tipo": "texto", "rotulo": "Palavra de destaque", "padrao": "Code"}}</script>
 <style>
   #frase { position: absolute; left: 0; right: 0; top: 50%; display: flex; justify-content: center; align-items: baseline; flex-wrap: wrap;
@@ -35,6 +35,7 @@
     els.forEach((e, k) => {
       const ultima = k === els.length - 1 && !!destaque
       const t = 0.05 + k * passo
+      motion.som(ultima ? 'destaque' : 'palavra', t)
       tl.fromTo(e, { y: parseFloat(getComputedStyle(e).fontSize) * 0.5 }, { y: 0, duration: Math.min(0.7, D * 0.6), ease: sobe }, t)
       tl.fromTo(e, { opacity: 0 }, { opacity: 1, duration: Math.min(0.35, D * 0.3), ease: aparece }, t)
       tl.fromTo(e, { filter: 'blur(10px)' }, { filter: 'blur(0px)', duration: Math.min(ultima ? 0.45 : 0.35, D * 0.35), ease: aparece }, t)

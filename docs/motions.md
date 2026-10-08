@@ -18,7 +18,7 @@ resumo e o link). Mesmas regras da SPEC: atualizar junto com o código, decisõe
 | Página Motions (galeria dos presets, `/motions`) | `frontend/src/motions/PaginaMotions.tsx` |
 
 Pontos de ligação com o resto (mexer só no necessário e avisar no commit): `editor/EtapaInserts.tsx` (o card e a prévia
-no plano), `editor/LinhaInserts.tsx` (a trilha Mídias), `paginas/Render.tsx` (a exportação) e `main.py` (o router).
+no plano), `editor/LinhaInserts.tsx` (a trilha Mídias), `paginas/Render.tsx` (a exportação) e `main.py` (inclui o router).
 
 ## Especificação
 
@@ -43,6 +43,11 @@ Os dados chegam em `MOTION.campos`, `MOTION.fala`, `MOTION.largura/altura/duraca
 **Digitação** (`motion.digitar(texto, ini, fim)` no runtime; decisão de Rodrigo: "só se for a mesma palavra"): se as
 palavras do texto são ditas em sequência na fala do plano (sem diferença de maiúsculas, acentos e pontuação), cada uma é
 digitada enquanto é falada; senão, ritmo constante entre `ini` e `fim`. A fala do plano vai na URL da página (`fala`).
+
+**Sons** (SPEC §8.6): o JSON do preset declara os momentos de som (`"sons": {"digitacao": {"rotulo": "Digitação",
+"som": "typing-keyboard-01", "intensidade": "baixo"}}`) e a página marca quando cada um acontece com
+`motion.som(momento, t, dur)` (`dur`, opcional: o som dura isso, como a digitação). O app lê as marcas (`window.__sons()`,
+no tempo do plano) e toca o som escolhido para o plano (ou o padrão) na prévia e na exportação.
 
 **Fontes:** Inter e Instrument Serif locais (OFL). As da Apple (SF Pro, SF Pro Rounded e SF Mono), as mais parecidas com
 as das referências (pedido de Rodrigo), são lidas do próprio Mac pelo backend (`/api/motions/fonte/{pro|rounded|mono}`,

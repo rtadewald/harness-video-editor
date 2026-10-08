@@ -16,7 +16,7 @@ export const SO_ATOR = ['full_ator', 'full_ator_lettering']
 /** Os chips de filtro, agrupados (pedido de Rodrigo, out/2026): tela dividida e tela cheia valem para insert e motion; o
  *  comentário vai no fim. Uma categoria nova que não esteja aqui vira um chip próprio antes do comentário. */
 type Grupo = { id: string; nome: string; tipos: string[]; icone?: string }
-export const GRUPOS: Grupo[] = [
+const GRUPOS: Grupo[] = [
   { id: 'tela_dividida', nome: 'Tela dividida', tipos: ['tela_dividida_insert', 'tela_dividida_motion'] },
   { id: 'tela_cheia', nome: 'Tela cheia', tipos: ['insert_tela_cheia', 'motion_tela_cheia'] },
   { id: 'full_ator_lettering', nome: 'Full ator com lettering', tipos: ['full_ator_lettering'] },
