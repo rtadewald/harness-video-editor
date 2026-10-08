@@ -3,6 +3,8 @@ import { urlBancoArquivo, urlBancoExportacao, versaoBanco, type ItemBanco, type 
 import { cn } from '@/lib/utils'
 import { corteDe, enriquecimentoDe, entradaDe, saidaDe, type Qual } from './enriquecimento'
 import Fundo, { RelogioRender } from './Fundo'
+import CenaPreset from './CenaPreset'
+import { mexendo, serve, usePresets, type Preset } from './presets'
 import { duracaoEntrada, duracaoSaida, estiloTransicao, type Transicoes } from './transicoes'
 
 /** O insert desenhado por cima do ator, igual na prévia da etapa Inserts e na exportação (a página de render). */
@@ -24,9 +26,11 @@ function tempos(x: PedidoNoTempo): { ini: number; dur: number; qual: Qual }[] {
 /** A chave do quadro quando o insert está parado no instante `rel` (s desde o começo): sem entrada nem saída andando (e
  *  sem o zoom contínuo). Quadros com a mesma chave são iguais — a exportação reaproveita a foto. Inclui quais mídias estão
  *  na tela (com 2, o insert fica parado antes e depois de a 2ª entrar). `null` = está mexendo. */
-export function chaveParada(x: PedidoNoTempo, rel: number, t: Transicoes | null): string | null {
+export function chaveParada(x: PedidoNoTempo, rel: number, t: Transicoes | null, presets: Preset[] | null): string | null {
   if (!t) return null
   const e = enriquecimentoDe(x)
+  const pr = presetDe(x, presets)
+  if (pr) return mexendo(pr.receita, rel, Math.max(x.t.fim - x.t.inicio, 0.01)) ? null : `${x.id}:p${pr.receita.cards.map((c) => (rel >= c.inicio_frac * (x.t.fim - x.t.inicio) ? 1 : 0)).join('')}`
   const naTela = tempos(x).filter(({ ini, dur }) => rel >= ini && rel - ini <= dur)
   const quieto = naTela.every(({ ini, dur, qual }) => {
     const r = rel - ini
@@ -48,7 +52,7 @@ const naProporcao = (ar: number): React.CSSProperties => ({ width: `min(100cqw, 
 const SOMBRA_CARD = 'rounded-[18px] shadow-[0_30px_70px_-12px_rgba(0,0,0,0.45),0_12px_24px_-8px_rgba(0,0,0,0.3)]'
 
 /** Um vídeo do banco sincronizado com o tempo do plano (um trecho toca o original do início ao fim dele). */
-function VideoNoTempo({ item, rel, tocando, topo }: { item: ItemBanco; rel: number; tocando: boolean; topo?: boolean }) {
+export function VideoNoTempo({ item, rel, tocando, topo }: { item: ItemBanco; rel: number; tocando: boolean; topo?: boolean }) {
   const ref = useRef<HTMLVideoElement>(null)
   const exato = useContext(RelogioRender) != null // na exportação, sempre o quadro exato
   const alvo = Math.min((item.inicio ?? 0) + rel, item.fim ?? Infinity)
@@ -68,6 +72,8 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
   const { pedido, banco, tempo, tocando } = p
   const exportando = useContext(RelogioRender) != null // o contador "1/3" é só da prévia
   const e = enriquecimentoDe(pedido)
+  const presets = usePresets()
+  const preset = presetDe(pedido, presets)
   // entrada e saída de uma mídia (sem a configuração carregada ainda, parada)
   const anim = (qual: Qual, relM: number, durM: number): React.CSSProperties =>
     p.trans ? estiloTransicao(entradaDe(e, qual), saidaDe(e, qual), p.trans, relM, durM) : {}
@@ -123,6 +129,19 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
       </div>
     )
   }
+
+  // um preset manda em tudo: layout, entrada e saída de cada mídia, com as curvas medidas nas referências
+  if (preset)
+    return (
+      <CenaPreset
+        receita={preset.receita}
+        rel={rel}
+        dur={dur}
+        fundo={p.fundo}
+        className={caixa}
+        midia={(k, relM, topo) => pedido.midias[k] && midia(pedido.midias[k], relM, topo)}
+      />
+    )
 
   let camadas: ReactNode
   let atras: ReactNode = null // o fundo desfocado do "destaque": a mídia que está na frente
@@ -195,6 +214,13 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
       )}
     </div>
   )
+}
+
+/** O preset do insert, se ele tem um e o preset serve (mesmo formato e número de mídias). */
+export function presetDe(x: { formato: string; midias: unknown[]; enriquecimento?: { preset?: string } }, presets: Preset[] | null): Preset | null {
+  const id = x.enriquecimento?.preset
+  const p = id ? presets?.find((y) => y.id === id) : null
+  return p && serve(p, x.formato, x.midias.length) ? p : null
 }
 
 /** Os pedidos de insert no tempo do vídeo final (o do plano da direção; sem ele, o guardado no pedido), em ordem. */

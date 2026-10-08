@@ -46,6 +46,9 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
       <NavLink to="/referencias" className={aba}>
         Referências
       </NavLink>
+      <NavLink to="/presets" className={aba}>
+        Presets
+      </NavLink>
       <NavLink to="/calibragem" end className={aba}>
         Calibragem
       </NavLink>

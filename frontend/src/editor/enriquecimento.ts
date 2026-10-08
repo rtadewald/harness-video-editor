@@ -16,6 +16,8 @@ export const PRESETS_CURVA: { nome: string; curva: Curva }[] = [
   { nome: 'Chega rápido e assenta', curva: [0.16, 1, 0.3, 1] }, // expo out
   { nome: 'Easy Ease', curva: [0.33, 0, 0.67, 1] }, // o do After Effects
 ]
+/** Duas curvas são a mesma (a menos do arredondamento). */
+export const iguais = (a: Curva, b: Curva) => a.every((v, i) => Math.abs(v - b[i]) < 0.005)
 /** A entrada e a saída de uma mídia. */
 export const entradaDe = (e: Enriquecimento, qual: Qual = 1) => (qual === 2 ? e.entrada_2 : e.entrada)
 export const saidaDe = (e: Enriquecimento, qual: Qual = 1) => (qual === 2 ? e.saida_2 : e.saida)

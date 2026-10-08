@@ -10,6 +10,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 ENV = Path(__file__).resolve().parents[1] / '.env'
+# o front (Vite), que serve as páginas de render da exportação e dos motions
+FRONT = os.environ.get('HARNESS_FRONT', 'http://localhost:5173')
 FIM_DE_FRASE = ('.', '?', '!', '…')
 
 
@@ -58,3 +60,17 @@ def salvar_json(arq: Path, dados, indent: int | None = 1) -> None:
 
 def ler_json(arq: Path):
     return json.loads(Path(arq).read_text(encoding='utf-8'))
+
+
+def numero(v, lo: float, hi: float, casas: int = 4) -> float:
+    """Um número (não booleano) preso entre `lo` e `hi`; levanta ValueError se não for número."""
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        raise ValueError('Valor numérico esperado')
+    return round(max(lo, min(hi, float(v))), casas)
+
+
+def curva(v, casas: int = 4) -> list[float]:
+    """Uma cubic-bezier válida: 4 números, x (tempo) entre 0 e 1 e y entre -1 e 2 (passar do ponto e voltar)."""
+    if not isinstance(v, list) or len(v) != 4:
+        raise ValueError('A curva são 4 números (cubic-bezier)')
+    return [numero(v[0], 0, 1, casas), numero(v[1], -1, 2, casas), numero(v[2], 0, 1, casas), numero(v[3], -1, 2, casas)]

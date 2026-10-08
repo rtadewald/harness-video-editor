@@ -1,5 +1,4 @@
 import json
-import re
 import subprocess
 import sys
 import types
@@ -7,54 +6,9 @@ import wave
 
 import numpy as np
 import pytest
-from fastapi.testclient import TestClient
 
-from app import calibragem, comum, cortes, direcao, direcao_projeto, inserts, main, midia, motores, pipeline, projeto, referencias, transcricao
-
-
-@pytest.fixture(autouse=True)
-def _nada_real(tmp_path, monkeypatch):
-    """Todo teste usa pastas temporárias: nenhum teste lê ou grava projetos, referências ou configurações de verdade."""
-    monkeypatch.setattr(projeto, 'RAIZ', tmp_path / 'projetos')
-    monkeypatch.setattr(referencias, 'RAIZ', tmp_path / 'referencias')
-    monkeypatch.setattr(inserts, 'RAIZ_BANCO', tmp_path / 'banco')
-    monkeypatch.setattr(comum, 'carregar_env', lambda: None)  # nenhum teste lê o .env de verdade (chaves de API)
-
-
-@pytest.fixture
-def enfileirados(tmp_path, monkeypatch):
-    monkeypatch.setattr(projeto, 'RAIZ', tmp_path / 'projetos')
-    monkeypatch.setattr(referencias, 'RAIZ', tmp_path / 'referencias')
-    monkeypatch.setattr(direcao, 'enfileirar', lambda id: chamadas.append(('referencia', id)))
-    # isolamento total: nenhum teste lê o .env de verdade nem chama serviço pago (ElevenLabs, OpenRouter)
-    for chave in ('ELEVENLABS_API_KEY', 'OPENROUTER_API_KEY'):
-        monkeypatch.delenv(chave, raising=False)
-    projeto.salvar_config({'motor_padrao': 'whisper-stable'})  # o padrão de fábrica é o ElevenLabs; os testes partem do Whisper
-    chamadas = []
-    monkeypatch.setattr(pipeline, 'enfileirar', lambda id, passos=pipeline.PASSOS: chamadas.append((id, passos)))
-    # motores extras: nos testes nunca rodam de verdade (são modelos pesados); só registramos que foram pedidos
-    monkeypatch.setattr(pipeline, '_fila_motores', types.SimpleNamespace(submit=lambda f, *a: chamadas.append(('motores', *a))))
-    return chamadas
-
-
-@pytest.fixture
-def cliente(enfileirados):
-    return TestClient(main.app)
-
-
-@pytest.fixture(scope='session')
-def video(tmp_path_factory):
-    """Vídeo vertical de 3 s: 1 s de tom, 1 s de silêncio, 1 s de tom."""
-    arq = tmp_path_factory.mktemp('midia') / 'teste.mp4'
-    subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=360x640:rate=30:duration=3',
-                    '-f', 'lavfi', '-i', "aevalsrc='if(between(t,1,2),0,sin(2*PI*440*t))':d=3",
-                    '-shortest', '-pix_fmt', 'yuv420p', str(arq)], check=True)
-    return arq
-
-
-def _criar(cliente, video, nome='E'):
-    with video.open('rb') as b:
-        return cliente.post('/api/projetos', data={'nome': nome}, files={'bruto': ('x.mp4', b, 'video/mp4')}).json()
+from app import calibragem, comum, cortes, direcao, direcao_projeto, inserts, midia, motores, pipeline, projeto, referencias, transcricao
+from apoio import criar_projeto as _criar
 
 
 def test_criar_listar_abrir_e_enfileirar(cliente, video, enfileirados):
@@ -1468,48 +1422,44 @@ def test_exportacao_interrompida_vira_erro_e_pedacos_saem(cliente, video):
     assert [f.name for f in pasta.iterdir()] == ['pronto.mp4']
 
 
-# --- motions (SPEC §8.5) ---
+# --- presets de enriquecimento (SPEC §8.4) ---
 
-FRAG = '''<script type="application/json" id="campos">{"titulo": {"tipo": "texto", "rotulo": "Título", "padrao": "Image to Code"}, "cor": {"tipo": "cor", "rotulo": "Cor", "padrao": "#14b8a6"}, "ruim": "x"}</script>
-<div id="t"></div><script>const tl = gsap.timeline({paused: true}); motion.pronto(tl)</script>'''
-
-
-def test_motion_campos_e_documento():
-    from app import motions
-    campos = motions.campos_de(FRAG)
-    assert campos == {'titulo': {'tipo': 'texto', 'rotulo': 'Título', 'padrao': 'Image to Code'}, 'cor': {'tipo': 'cor', 'rotulo': 'Cor', 'padrao': '#14b8a6'}}
-    doc = motions.documento(FRAG, 'dividida', 2.0, {'titulo': 'Outro </script> texto'}, [])
-    assert 'width:1080px;height:960px' in doc and '/motion/gsap.min.js' in doc and '/motion/runtime.js' in doc
-    dados = json.loads(re.search(r'window.MOTION=(.*?)</script>', doc).group(1).replace('<\\/', '</'))
-    assert dados['campos'] == {'titulo': 'Outro </script> texto', 'cor': '#14b8a6'} and dados['duracao'] == 2.0
-    assert doc.index('/motion/runtime.js') < doc.index('motion.pronto')  # o runtime existe antes do motion rodar
-    assert motions._fragmento('blá\n```html\n<p>x</p>\n```') == '<p>x</p>'
+def _receita(dy=38, rot=0.0, n=1, curva=(0.16, 1, 0.3, 1)):
+    card = lambda k: {'inicio_frac': 0.5 * k, 'sai_antes_do_fim': 0, 'ajuste': 'cover',
+                      'repouso': {'cx': 50, 'cy': 46 + 30 * k, 'w': 84, 'h': 40, 'rot': rot, 'rx': 0, 'ry': 0, 'raio': 3, 'sombra': True, 'z': 1 + k},
+                      'entrada': {'duracao': 0.6, 'de': {'dx': 0, 'dy': dy, 'escala': 1, 'rot': 0, 'rx': 0, 'ry': 0, 'opacidade': 0, 'desfoque': 0},
+                                  'curvas': {'pos': list(curva), 'opacidade': [0.33, 0, 0.67, 1]}},
+                      'saida': {'duracao': 0.4, 'para': {'dx': 0, 'dy': -60, 'escala': 1, 'rot': 0, 'rx': 0, 'ry': 0, 'opacidade': 1, 'desfoque': 0},
+                                'curvas': {'pos': [0.7, 0, 0.84, 0]}}}
+    return {'formato': 'vertical', 'fundo': 'proprio', 'duracao_ref': 2.5, 'cards': [card(k) for k in range(n)]}
 
 
-def test_motion_biblioteca_e_uso_no_plano(cliente, video, monkeypatch, tmp_path):
-    from app import motions
-    monkeypatch.setattr(motions, 'RAIZ', tmp_path / 'motions')
-    rodou = []
-    monkeypatch.setattr(motions, '_fila', types.SimpleNamespace(submit=lambda f, *a: rodou.append(a)))
-    r = cliente.post('/api/motions', json={'nome': 'Lettering', 'formato': 'vertical', 'duracao': 2.5, 'prompt': 'Image to Code'})
-    assert r.status_code == 200 and r.json()['status']['estado'] == 'fila' and rodou
-    mid = r.json()['id']
-    assert cliente.post('/api/motions', json={'formato': 'quadrado', 'prompt': 'x'}).status_code == 422
-    # uma versão pronta (como a IA gravaria)
-    (motions.pasta(mid) / 'v1.html').write_text(FRAG, encoding='utf-8')
-    (motions.pasta(mid) / 'v1.jpg').write_bytes(b'jpg')
-    motions.atualizar(mid, lambda m: m.update(versoes=[{'n': 1, 'de': None, 'comentario': None, 'campos': motions.campos_de(FRAG)}], ativa=1,
-                                              status={'estado': 'pronto', 'erro': None, 'etapa': None}))
-    assert cliente.patch(f'/api/motions/{mid}', json={'campos': {'valores': {'titulo': 'Novo'}, 'favorito': True}}).json()['favorito'] is True
-    assert '"Novo"' in cliente.get(f'/api/motions/{mid}/pagina').text
-    # usar num plano copia; mudar o original depois não muda o plano
+def test_preset_feito_a_mao_e_marcado_na_referencia(tmp_path, monkeypatch):
+    from app import presets
+    monkeypatch.setattr(presets, 'RAIZ', tmp_path / 'presets')
+    p = presets.criar('Card · entra de baixo', _receita(), [{'ref': 'ref1', 'inicio': 1, 'fim': 3.5}])
+    assert presets.ler(p['id'])['receita']['cards'][0]['entrada']['de']['dy'] == 38 and not p['aprovado']
+    assert presets.fontes() == [{'ref': 'ref1', 'inicio': 1.0, 'fim': 3.5, 'preset': p['id'], 'nome': 'Card · entra de baixo', 'aprovado': False}]
+    # aprovado e ajustado pelo criador
+    c = p['receita']['cards'][0]
+    presets.editar(p['id'], {'aprovado': True, 'receita': {**p['receita'], 'cards': [{**c, 'repouso': {**c['repouso'], 'w': 70}}]}})
+    assert presets.ler(p['id'])['receita']['cards'][0]['repouso']['w'] == 70 and presets.fontes()[0]['aprovado']
+    with pytest.raises(ValueError):
+        presets.validar_receita({'formato': 'quadrado', 'cards': []})
+    assert presets.validar_receita(_receita(dy=999))['cards'][0]['entrada']['de']['dy'] == 200  # nos limites
+
+
+def test_insert_com_preset(cliente, video, monkeypatch, tmp_path):
+    from app import presets
+    monkeypatch.setattr(presets, 'RAIZ', tmp_path / 'presets')
+    presets.salvar({'id': 'abcdef0123', 'nome': 'x', 'formato': 'vertical', 'receita': presets.validar_receita(_receita()), 'fontes': [], 'aprovado': True})
     id = _criar(cliente, video)['id']
-    u = cliente.put(f'/api/projetos/{id}/motions/p4', json={'motion': mid}).json()
-    assert (u['origem'], u['versao'], u['valores']) == (mid, 1, {'titulo': 'Novo'})
-    cliente.patch(f'/api/motions/{mid}', json={'campos': {'valores': {'titulo': 'Mudou no original'}}})
-    pagina = cliente.get(f'/api/projetos/{id}/motions/p4/pagina?duracao=3').text
-    assert '"Novo"' in pagina and '"duracao": 3.0' in pagina
-    assert cliente.patch(f'/api/projetos/{id}/motions/p4', json={'valores': {'titulo': 'Só aqui'}}).json()['valores'] == {'titulo': 'Só aqui'}
-    assert cliente.post(f'/api/motions/{mid}/versoes', json={'de': 9, 'comentario': 'x'}).status_code == 409
-    cliente.delete(f'/api/projetos/{id}/motions/p4')
-    assert cliente.get(f'/api/projetos/{id}/motions').json() == {}
+    monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': [_plano_ins('p1', 'insert_tela_cheia', 0, 5)]}))
+    pid = cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]['id']
+    url = f'/api/projetos/{id}/inserts/{pid}/enriquecimento'
+    assert cliente.put(url, json={'campos': {'preset': 'abcdef0123'}}).json()['pedidos'][0]['enriquecimento'] == {'preset': 'abcdef0123'}
+    assert cliente.put(url, json={'campos': {'preset': '0000000000'}}).status_code == 422
+    assert cliente.put(url, json={'campos': {'preset': None}}).json()['pedidos'][0]['enriquecimento'] == {}
+    assert cliente.patch('/api/presets/abcdef0123', json={'campos': {'nome': 'Card que sobe'}}).json()['nome'] == 'Card que sobe'
+    assert cliente.patch('/api/presets/abcdef0123', json={'campos': {'receita': {'formato': 'x'}}}).status_code == 422

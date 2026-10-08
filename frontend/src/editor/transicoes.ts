@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { bezier } from './curvas'
+import { enviar, json } from '@/api'
+import { bezier, limite01 } from './curvas'
+import { criarLoja } from './loja'
 import type { Curva } from './enriquecimento'
 
 /** Entradas e saídas dos inserts (SPEC §8.4): a configuração de cada tipo é global (`transicoes.py` no backend) — curva,
@@ -22,41 +23,20 @@ export type Lado = 'entrada' | 'saida'
 export type Transicoes = Record<Lado, Record<string, ConfigTransicao>>
 
 // a configuração vem do servidor uma vez e é compartilhada; mudar avisa quem está usando
-let cache: Transicoes | null = null
-let pedido: Promise<Transicoes> | null = null
-const ouvintes = new Set<(t: Transicoes) => void>()
-const carregar = () =>
-  (pedido ??= fetch('/api/transicoes')
-    .then((r) => r.json() as Promise<Transicoes>)
-    .then((t) => (cache = t)))
-
-export function useTransicoes(): Transicoes | null {
-  const [t, setT] = useState(cache)
-  useEffect(() => {
-    ouvintes.add(setT)
-    if (!cache) void carregar().then(setT)
-    return () => void ouvintes.delete(setT)
-  }, [])
-  return t
-}
+const loja = criarLoja(() => fetch('/api/transicoes').then(json<Transicoes>))
+export const useTransicoes = loja.use
 
 /** Muda a configuração global de um tipo (`null` num campo volta ao padrão de fábrica). */
-export async function definirTransicao(lado: Lado, tipo: string, campos: Partial<Record<keyof ConfigTransicao, unknown>>) {
-  const r = await fetch(`/api/transicoes/${lado}/${tipo}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ campos }) })
-  if (!r.ok) throw new Error((await r.json().catch(() => null))?.detail ?? `Erro ${r.status}`)
-  cache = (await r.json()) as Transicoes
-  ouvintes.forEach((f) => f(cache!))
-  return cache
-}
+export const definirTransicao = (lado: Lado, tipo: string, campos: Partial<Record<keyof ConfigTransicao, unknown>>) =>
+  enviar<Transicoes>('PUT', `/api/transicoes/${lado}/${tipo}`, { campos }).then(loja.definir)
 
 /** Muda na tela na hora (arrastando um slider), sem salvar: o servidor recebe ao soltar. */
 export function previaTransicao(lado: Lado, tipo: string, campos: Partial<ConfigTransicao>) {
-  if (!cache) return
-  cache = { ...cache, [lado]: { ...cache[lado], [tipo]: { ...cache[lado][tipo], ...campos } } }
-  ouvintes.forEach((f) => f(cache!))
+  const t = loja.get()
+  if (t) loja.definir({ ...t, [lado]: { ...t[lado], [tipo]: { ...t[lado][tipo], ...campos } } })
 }
 
-const limite = (v: number) => Math.max(0, Math.min(1, v))
+const limite = limite01
 /** Quanto a entrada dura (s), dentro de uma mídia de `dur` s ("seca + zoom" dura a mídia toda). */
 export const duracaoEntrada = (tipo: string, t: Transicoes, dur: number) =>
   tipo === 'sem' ? 0 : tipo === 'seco_zoom' ? dur : Math.min(t.entrada[tipo]?.duracao ?? 0.75, dur)
