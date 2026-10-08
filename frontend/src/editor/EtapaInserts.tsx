@@ -1,46 +1,21 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  
-  ArrowDownToLine,
-  
   ChevronDown,
   PanelRightClose,
   PanelRightOpen,
-  Ban,
-  Blend,
-  Box,
   Clapperboard,
   Copy,
-  Crosshair,
-  EyeOff,
-  Expand,
-  Focus,
   Globe,
-  Image as 
   Images,
   Library,
-  Maximize2,
-  MoveRight,
-  MoveUp,
-  PanelTop,
-  Pause,
-  Plane,
-  Play,
   RotateCcw,
-  RotateCw,
-  Scissors,
   Search,
   Settings2,
-  Sparkles,
-  Square,
   Upload,
-  
   Wand2,
-  
-  ZoomIn,
 } from 'lucide-react'
-import { s1, definirMidias, configurarComentario, definirFundo, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, tempoBR, urlBancoMiniatura, type DadosEditor, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
+import { s1, definirMidias, configurarComentario, definirFundo, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, tempoBR, type DadosEditor, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
 import { falaDoPlano, fundoDoMotion, urlPaginaMotionPlano } from '@/motions/api'
 import { cn } from '@/lib/utils'
 import { useLembrado } from '@/lib/useLembrado'
@@ -49,7 +24,6 @@ import { CATEGORIAS } from './EtapaDirecao'
 import { CardComentario, PainelComentario, comentarioDe, type Comentario } from './ComentarioIG'
 import BuscarReferencias from './BuscarReferencias'
 import CapturaDeSite from './CapturaDeSite'
-import ConfigTransicao from './ConfigTransicao'
 import MidiaCard from './MidiaCard'
 import SeletorBanco from './SeletorBanco'
 import EditorPreset from './EditorPreset'
@@ -63,7 +37,7 @@ import EditorVideo from './EditorVideo'
 import { FUNDOS } from './Fundo'
 import InsertNoLugar, { pedidosNoTempo, presetDe, type PedidoNoTempo } from './InsertNoLugar'
 import LinhaInserts from './LinhaInserts'
-import { ESTILO, NOMES, OPCOES, campo, corteDe, enriquecimentoDe, entradaDe, saidaDe, type Categoria, type Qual } from './enriquecimento'
+import { corteDe, enriquecimentoDe, entradaDe, saidaDe, type Qual } from './enriquecimento'
 import { duracaoEntrada, duracaoSaida, useTransicoes, type Lado, type Transicoes } from './transicoes'
 import Preview from './Preview'
 import type { Sequencia } from './sequencia'
@@ -449,9 +423,6 @@ export default function EtapaInserts(p: Props) {
                 banco={banco}
                 mudar={(campos) => void enriquecerInsert(projeto.id, sel.id, campos).then(setIns).catch(falhar)}
                 aplicarAoTipo={() => void enriquecerTipo(projeto.id, sel.id).then(setIns).catch(falhar)}
-                verEntrada={() =>
-                  player.tocarTrecho(seq.saidaParaFonte(sel.t.inicio), seq.saidaParaFonte(Math.min(sel.t.inicio + 1.6, sel.t.fim - 0.01)), { pular: true, loop: false })
-                }
                 ver={(lado, q) => trans && verTransicao(sel, lado, q)}
                 trans={trans}
                 presetAberto={presetAberto}
@@ -476,7 +447,6 @@ export default function EtapaInserts(p: Props) {
                 aviso="O enriquecimento dos motions passa a valer junto com os motions (em construção). Por ora, só para ver as opções."
                 mudar={() => {}}
                 aplicarAoTipo={() => {}}
-                verEntrada={() => player.tocarTrecho(seq.saidaParaFonte(planoSel.inicio), seq.saidaParaFonte(Math.min(planoSel.inicio + 1.6, planoSel.fim - 0.01)), { pular: true, loop: false })}
                 ver={() => {}}
                 trans={trans}
               />
@@ -653,180 +623,11 @@ function SemInsert({ plano }: { plano: ItemRef & { fala: string } }) {
     </div>
   )
 }
-
-const ICONE: Record<string, typeof Square> = {
-  tela_cheia: Maximize2,
-  card: Square,
-  janela_3d: Box,
-  inclinado: RotateCw,
-  destaque: Focus,
-  metade: PanelTop,
-  card_metade: Square,
-  janela_3d_metade: Box,
-  mesclada: Blend,
-  sem: Ban,
-  surgir: Sparkles,
-  deslizar: MoveRight,
-  subir: MoveUp,
-  voo_3d: Plane,
-  zoom_borrado: ZoomIn,
-  seco_zoom: Expand,
-  parado: Pause,
-  zoom_lento: ZoomIn,
-  zoom_ponto: Crosshair,
-  rolagem: ArrowDownToLine,
-  corte: Scissors,
-  sumir: EyeOff,
-}
-
-/** O desenho de como 2 mídias convivem: a 1ª (clara) e a 2ª (coral) num quadro 9:16. */
-function IconeDupla({ tipo }: { tipo: string }) {
-  const a = 'fill-cream/35'
-  const b = 'fill-coral'
-  return (
-    <svg viewBox="0 0 18 32" className="h-7 w-auto" aria-hidden>
-      <rect x="0.5" y="0.5" width="17" height="31" rx="2" className="fill-none stroke-current opacity-40" />
-      {tipo === 'sequencia' && (
-        <>
-          <rect x="3" y="6" width="9" height="16" rx="1.5" className={a} />
-          <rect x="6" y="10" width="9" height="16" rx="1.5" className={b} />
-        </>
-      )}
-      {tipo === 'empilhadas' && (
-        <>
-          <rect x="3" y="3" width="12" height="12" rx="1.5" className={a} />
-          <rect x="3" y="17" width="12" height="12" rx="1.5" className={b} />
-        </>
-      )}
-      {tipo === 'lado_a_lado' && (
-        <>
-          <rect x="2" y="7" width="6.5" height="18" rx="1.5" className={a} />
-          <rect x="9.5" y="7" width="6.5" height="18" rx="1.5" className={b} />
-        </>
-      )}
-    </svg>
-  )
-}
-
-/** Uma grade de opções de uma categoria; ★ marca o estilo do tipo. */
-function Grade(p: {
-  titulo: ReactNode
-  opcoes: string[]
-  valor: string
-  estilo: string
-  escolher: (o: string) => void
-  travado?: boolean
-  dupla?: boolean
-  /** A engrenagem na opção escolhida (as que têm o que configurar): aberta ou não, e alternar. */
-  engrenagem?: { tem: (o: string) => boolean; aberta: boolean; alternar: () => void }
-}) {
-  return (
-    <div className="grid gap-2">
-      <div className="eyebrow text-sage">{p.titulo}</div>
-      <div className="grid grid-cols-3 gap-1.5">
-        {p.opcoes.map((o) => {
-          const Icone = ICONE[o] ?? Sparkles
-          const ativo = p.valor === o
-          return (
-            <button
-              key={o}
-              onClick={() => p.escolher(o)}
-              disabled={p.travado}
-              className={cn(
-                'relative grid place-items-center gap-1.5 rounded-[6px] px-1.5 py-2.5 text-center text-[10.5px] leading-tight ring-1 transition-colors',
-                ativo ? 'bg-cream/10 text-cream ring-2 ring-coral' : 'text-fog ring-line-dark hover:text-cream hover:ring-cream/40',
-              )}
-            >
-              {o === p.estilo && <span className="absolute top-1 right-1.5 text-[9px] text-yellow">★</span>}
-              {ativo && p.engrenagem?.tem(o) && (
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={(ev) => {
-                    ev.stopPropagation()
-                    p.engrenagem!.alternar()
-                  }}
-                  className={cn('absolute top-1 left-1 grid size-5 place-items-center rounded-full transition-colors', p.engrenagem.aberta ? 'bg-coral text-cream' : 'text-fog hover:bg-cream/10 hover:text-cream')}
-                  title="Configurar esta transição (vale para todos os inserts)"
-                  aria-label="Configurar"
-                >
-                  <Settings2 className="size-3.5" />
-                </span>
-              )}
-              {p.dupla ? <IconeDupla tipo={o} /> : <Icone className="size-4" />}
-              {NOMES[o]}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-/** A "entrada e saída" de uma mídia: o toggle Entrada | Saída, a grade e a engrenagem da opção escolhida. */
-function EntradaESaida(p: {
-  pedido: Pedido
-  qual: Qual
-  dupla: boolean
-  banco?: Map<string, ItemBanco>
-  trans: Transicoes | null
-  escolher: (k: Categoria) => (o: string) => void
-  ver: (lado: Lado) => void
-  travado: boolean
-}) {
-  const [lado, setLado] = useState<Lado>('entrada')
-  const [aberta, setAberta] = useState(false)
-  const e = enriquecimentoDe(p.pedido)
-  const k = campo(lado, p.qual)
-  const valor = lado === 'entrada' ? entradaDe(e, p.qual) : saidaDe(e, p.qual)
-  const m = p.pedido.midias[p.qual - 1]
-  const cfg = p.trans?.[lado][valor]
-  return (
-    <div className="grid gap-2">
-      <Grade
-        titulo={
-          <div className="flex items-center gap-2">
-            Entrada e saída{p.dupla && ` · ${p.qual}ª mídia`}
-            {p.dupla && m && <img src={urlBancoMiniatura(m.banco)} alt="" title={p.banco?.get(m.banco)?.nome} className="h-5 w-8 rounded-full object-cover" />}
-            <div className="ml-auto flex rounded-full p-0.5 tracking-normal normal-case ring-1 ring-line-dark" role="tablist">
-              {(['entrada', 'saida'] as Lado[]).map((l) => (
-                <button
-                  key={l}
-                  role="tab"
-                  aria-selected={lado === l}
-                  onClick={() => {
-                    setLado(l)
-                    setAberta(false)
-                  }}
-                  className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-semibold', lado === l ? 'bg-cream text-ink' : 'text-fog hover:text-cream')}
-                >
-                  {l === 'entrada' ? 'Entrada' : 'Saída'}
-                </button>
-              ))}
-            </div>
-          </div>
-        }
-        opcoes={OPCOES[k][p.pedido.formato]}
-        valor={valor}
-        estilo={ESTILO[p.pedido.formato][k]}
-        escolher={p.escolher(k)}
-        travado={p.travado}
-        engrenagem={{ tem: (o) => !!p.trans?.[lado][o], aberta, alternar: () => setAberta((v) => !v) }}
-      />
-      {aberta && cfg && <ConfigTransicao lado={lado} tipo={valor} cfg={cfg} ver={() => p.ver(lado)} />}
-    </div>
-  )
-}
-
-/** Enriquecimento: com 1 mídia, layout e "entrada e saída"; com 2, como as duas convivem (e a moldura, na sequência) e a
- *  entrada e a saída de cada uma. ★ marca o estilo do tipo; o pedido guarda só o que difere. A engrenagem da transição
- *  escolhida configura aquele tipo para todos os inserts (curva, duração, direção…). */
 function PainelEnriquecimento(p: {
   pedido: Pedido
   banco?: Map<string, ItemBanco>
   mudar: (c: Record<string, string | number | number[] | null>) => void
   aplicarAoTipo: () => void
-  verEntrada: () => void
   /** Toca a entrada ou a saída de uma mídia (o "▶ Ver" da engrenagem). */
   ver: (lado: Lado, qual: Qual) => void
   trans: Transicoes | null
@@ -844,31 +645,11 @@ function PainelEnriquecimento(p: {
   const idsMidias = useMemo(() => x.midias.map((m) => m.banco), [x.midias])
   const presetAtual = presetDe(x, presets)
   const [sobre, setSobre] = useState<string | null>(null)
-  const e = enriquecimentoDe(x)
-  const estilo = ESTILO[x.formato]
   const mudado = Object.keys(x.enriquecimento ?? {}).length > 0
   const nomeTipo = NOME_TIPO[x.tipo] ?? CATEGORIAS.planos[x.tipo] ?? x.tipo
-  const dupla = x.midias.length === 2
-  // escolher uma opção manual tira o preset (ele mandava em tudo)
-  const escolher = (k: Categoria) => (o: string) => p.mudar({ [k]: o === estilo[k] ? null : o, ...(presetAtual ? { preset: null } : {}) })
   return (
     <div className="grid gap-5">
       {p.aviso && <p className="rounded-[6px] border border-dashed border-yellow/40 px-3 py-2 text-[11.5px] leading-[1.6] text-yellow/90">{p.aviso}</p>}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-semibold', x.formato === 'vertical' ? 'bg-blue text-cream' : 'bg-mint text-ink')}>{nomeTipo}</span>
-        <span className="text-[12px] text-fog tabular-nums">
-          {tempoBR(x.t.inicio)} · {s1(x.t.fim - x.t.inicio)} s
-        </span>
-        <button onClick={p.verEntrada} className="ml-auto flex items-center gap-1 rounded-full border border-line-dark px-2.5 py-1 text-[11px] text-fog hover:text-cream">
-          <Play className="size-3 fill-current" /> Ver a entrada
-        </button>
-      </div>
-      <p className="text-[11.5px] leading-[1.6] text-fog">
-        {dupla
-          ? 'Com 2 mídias: como as duas convivem e a entrada e a saída de cada uma. Onde a 2ª começa se ajusta arrastando na trilha Mídias, lá embaixo.'
-          : `Como este ${p.aviso ? 'motion' : 'insert'} aparece: layout, entrada e saída.`}{' '}
-        ★ é o estilo de “{nomeTipo}”. A engrenagem configura a transição escolhida para todos os inserts.
-      </p>
       {!p.aviso && x.midias.length > 0 && (
         <div className="grid gap-2">
           <div className="eyebrow flex items-center text-sage">
@@ -885,13 +666,20 @@ function PainelEnriquecimento(p: {
                   <div key={pr.id} className="relative" onMouseEnter={() => setSobre(pr.id)} onMouseLeave={() => setSobre(null)}>
                     <button
                       onClick={() => p.mudar({ preset: ativo ? null : pr.id })}
-                      className={cn('grid w-full gap-1 rounded-[6px] p-1 text-left ring-1 transition-colors', ativo ? 'bg-cream/10 ring-2 ring-coral' : 'ring-line-dark hover:ring-cream/40')}
+                      className="group/p grid w-full gap-1.5 text-left"
                       title={pr.nome}
                     >
-                      <MiniPreset receita={pr.receita} midias={idsMidias} fundo={p.fundo ?? 'gradiente'} tocar={sobre === pr.id || ativo} className="rounded-[4px]" />
-                      <span className="line-clamp-2 px-0.5 text-[10px] leading-tight text-fog">
+                      <MiniPreset
+                        receita={pr.receita}
+                        midias={idsMidias}
+                        fundo={p.fundo ?? 'gradiente'}
+                        tocar={sobre === pr.id || ativo}
+                        className={cn('overflow-hidden rounded-[6px] ring-1 transition-shadow', ativo ? 'ring-2 ring-coral' : 'ring-line-dark group-hover/p:ring-cream/40')}
+                      />
+                      <span className={cn('line-clamp-2 text-[10.5px] leading-tight', ativo ? 'text-cream' : 'text-fog')}>
                         {!pr.aprovado && <span className="text-yellow">● </span>}
                         {pr.nome}
+                        {pr.adaptado && <span className="text-fog/60" title={`Feito para ${pr.formato === 'vertical' ? 'tela cheia' : 'tela dividida'}, adaptado a este formato`}> · adaptado</span>}
                       </span>
                     </button>
                     <button
@@ -908,7 +696,7 @@ function PainelEnriquecimento(p: {
             </div>
           ) : (
             <p className="text-[11.5px] leading-[1.6] text-fog">
-              Nenhum preset aprovado para {x.midias.length} mídia{x.midias.length > 1 ? 's' : ''} neste formato. Os presets saem das referências favoritas, na página{' '}
+              Nenhum preset aprovado para {x.midias.length} mídia{x.midias.length > 1 ? 's' : ''} neste formato. Peça um ao Claude (mande o trecho de referência) e aprove na página{' '}
               <Link to="/presets" className="text-yellow hover:underline">
                 Presets
               </Link>
@@ -917,31 +705,9 @@ function PainelEnriquecimento(p: {
           )}
         </div>
       )}
-      <details open={!presetAtual} className="group grid gap-5">
-        <summary className="eyebrow cursor-pointer list-none text-sage">{presetAtual ? '▸ Personalizar (tira o preset)' : 'Personalizar'}</summary>
-        <div className="mt-3 grid gap-5">
-          {dupla && <Grade titulo="Layout das duas" opcoes={OPCOES.entre[x.formato]} valor={e.entre} estilo={estilo.entre} escolher={escolher('entre')} travado={!!p.aviso} dupla />}
-          {(!dupla || e.entre === 'sequencia') && (
-            <Grade titulo={dupla ? 'Moldura' : 'Layout'} opcoes={OPCOES.layout[x.formato]} valor={e.layout} estilo={estilo.layout} escolher={escolher('layout')} travado={!!p.aviso} />
-          )}
-          {(dupla ? ([1, 2] as Qual[]) : ([1] as Qual[])).map((q) => (
-            <EntradaESaida
-              key={q}
-              pedido={x}
-              qual={q}
-              dupla={dupla}
-              banco={p.banco}
-              trans={p.trans}
-              escolher={escolher}
-              ver={(lado) => p.ver(lado, q)}
-              travado={!!p.aviso}
-            />
-          ))}
-        </div>
-      </details>
       <div className={cn('flex flex-wrap gap-2 border-t border-line-dark pt-4 text-[11px]', p.aviso && 'hidden')}>
         <button onClick={() => p.mudar({ layout: null, entrada: null, entrada_2: null, saida: null, saida_2: null, entre: null, corte: null, preset: null })} disabled={!mudado} className={cn(BOTAO, 'disabled:opacity-40')}>
-          <RotateCcw className="size-3" /> Voltar ao estilo
+          <RotateCcw className="size-3" /> Tirar o preset
         </button>
         <button onClick={p.aplicarAoTipo} className={BOTAO} title={`Copia este enriquecimento para todos os planos “${nomeTipo}”`}>
           <Copy className="size-3" /> Aplicar a todos “{nomeTipo}”

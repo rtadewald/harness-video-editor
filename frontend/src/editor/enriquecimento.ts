@@ -15,6 +15,9 @@ export const PRESETS_CURVA: { nome: string; curva: Curva }[] = [
   { nome: 'Freia bem devagar', curva: [0, 0.7, 0.3, 0.9] }, // chega rápido e vai freando até o último instante
   { nome: 'Chega rápido e assenta', curva: [0.16, 1, 0.3, 1] }, // expo out
   { nome: 'Easy Ease', curva: [0.33, 0, 0.67, 1] }, // o do After Effects
+  { nome: 'Assenta bem suave', curva: [0.22, 1, 0.36, 1] }, // quint out: chega e vai pousando
+  { nome: 'Sai e chega suave', curva: [0.65, 0, 0.35, 1] }, // ease-in-out cúbico
+  { nome: 'Sedoso', curva: [0.83, 0, 0.17, 1] }, // ease-in-out forte: quase parado nas pontas
 ]
 /** Duas curvas são a mesma (a menos do arredondamento). */
 export const iguais = (a: Curva, b: Curva) => a.every((v, i) => Math.abs(v - b[i]) < 0.005)

@@ -69,7 +69,7 @@ export function CardComentario({ c, texto, mudar }: { c: Comentario; texto: stri
   }
   const u = (v: number) => `${v * c.escala}cqw` // medidas proporcionais à largura do vídeo
   return (
-    <div ref={caixa} className="pointer-events-none absolute inset-0" style={{ containerType: 'size' }}>
+    <div ref={caixa} className="pointer-events-none absolute inset-0 z-10" style={{ containerType: 'size' }}>
       <div
         ref={card}
         onPointerDown={mover}

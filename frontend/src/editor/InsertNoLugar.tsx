@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { corteDe, enriquecimentoDe, entradaDe, saidaDe, type Qual } from './enriquecimento'
 import Fundo, { RelogioRender } from './Fundo'
 import CenaPreset from './CenaPreset'
-import { mexendo, serve, usePresets, type Preset } from './presets'
+import { mexendo, noFormato, serve, usePresets, type Preset } from './presets'
 import { duracaoEntrada, duracaoSaida, estiloTransicao, type Transicoes } from './transicoes'
 
 /** O insert desenhado por cima do ator, igual na prévia da etapa Inserts e na exportação (a página de render). */
@@ -220,7 +220,7 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
 export function presetDe(x: { formato: string; midias: unknown[]; enriquecimento?: { preset?: string } }, presets: Preset[] | null): Preset | null {
   const id = x.enriquecimento?.preset
   const p = id ? presets?.find((y) => y.id === id) : null
-  return p && serve(p, x.formato, x.midias.length) ? p : null
+  return p && serve(p, x.formato, x.midias.length) ? noFormato(p, x.formato, x.midias.length) : null
 }
 
 /** Os pedidos de insert no tempo do vídeo final (o do plano da direção; sem ele, o guardado no pedido), em ordem. */
