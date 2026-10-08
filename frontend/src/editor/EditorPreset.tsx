@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Play } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import IconeCurva from './IconeCurva'
-import { PRESETS_CURVA, iguais } from './enriquecimento'
+import EditorCurva from './EditorCurva'
 import { NOME_PROP, editarPreset, previaPreset, type CardReceita, type Estado, type Preset, type Propriedade, type Receita } from './presets'
 
 type Faixa = { rotulo: string; min: number; max: number; passo: number; un: string }
@@ -19,7 +18,8 @@ const REPOUSO: Partial<Record<keyof CardReceita['repouso'], Faixa>> = {
 const ESTADO: Record<keyof Estado, Faixa> = {
   dx: { rotulo: 'Deslocamento horizontal', min: -150, max: 150, passo: 1, un: '%' },
   dy: { rotulo: 'Deslocamento vertical', min: -150, max: 150, passo: 1, un: '%' },
-  escala: { rotulo: 'Escala', min: 0.3, max: 2, passo: 0.01, un: '×' },
+  escala: { rotulo: 'Escala', min: 0.3, max: 3, passo: 0.01, un: '×' },
+  altura: { rotulo: 'Altura (abre na vertical)', min: 0.2, max: 2, passo: 0.01, un: '×' },
   rot: { rotulo: 'Giro', min: -45, max: 45, passo: 0.5, un: '°' },
   rx: { rotulo: 'Giro 3D (vertical)', min: -80, max: 80, passo: 1, un: '°' },
   ry: { rotulo: 'Giro 3D (horizontal)', min: -80, max: 80, passo: 1, un: '°' },
@@ -30,8 +30,22 @@ const fmt = (v: number, f: Faixa) => `${f.passo < 0.1 ? v.toFixed(2) : f.passo <
 
 /** A engrenagem de um preset: muda a receita (vale para todos os inserts que usam o preset). Os sliders mudam a prévia
  *  na hora e salvam ao soltar. */
-export default function EditorPreset(p: { preset: Preset; ver?: () => void }) {
-  const [k, setK] = useState(0)
+/** `parte`: só o geral (nome, onde aparece) ou só os ajustes (tempo, movimento contínuo, zoom na mídia, onde fica,
+ *  entrada, saída), para o modal dividir o editor em volta da prévia; sem ela, tudo. `card`/`escolherCard`: a mídia
+ *  em edição vinda de fora, quando as duas partes estão na tela ao mesmo tempo. */
+export default function EditorPreset(p: {
+  preset: Preset
+  ver?: () => void
+  colunas?: boolean
+  parte?: 'geral' | 'lugar'
+  card?: number
+  escolherCard?: (k: number) => void
+}) {
+  const [kLocal, setKLocal] = useState(0)
+  const k = p.card ?? kLocal
+  const setK = p.escolherCard ?? setKLocal
+  const geral = p.parte !== 'lugar'
+  const lugar = p.parte !== 'geral'
   const [erro, setErro] = useState<string | null>(null)
   const r = p.preset.receita
   const c = r.cards[Math.min(k, r.cards.length - 1)]
@@ -45,7 +59,9 @@ export default function EditorPreset(p: { preset: Preset; ver?: () => void }) {
   const mudarCard = (f: (c: CardReceita) => CardReceita, salvar = true) => mudar({ ...r, cards: r.cards.map((x, j) => (j === k ? f(x) : x)) }, salvar)
 
   return (
-    <div className="grid gap-5 text-[12px]">
+    <div className={cn('text-[12px]', p.colunas ? 'columns-2 gap-6 [&>*]:mb-4 [&>*]:break-inside-avoid' : 'grid gap-5')}>
+      {geral && (
+        <>
       <div className="flex items-center gap-2">
         <input
           key={p.preset.nome}
@@ -60,7 +76,36 @@ export default function EditorPreset(p: { preset: Preset; ver?: () => void }) {
         )}
       </div>
       <p className="-mt-2 text-[10.5px] leading-[1.5] text-fog">Vale para todos os inserts com este preset.</p>
-      {r.cards.length > 1 && (
+      <div className="grid gap-1.5 text-[11px]">
+        <span className="text-fog">Aparece em</span>
+        <div className="flex w-fit rounded-full p-0.5 whitespace-nowrap ring-1 ring-line-dark">
+          {(
+            [
+              ['vertical', 'Tela cheia'],
+              ['dividida', 'Tela dividida'],
+              ['ambos', 'Ambos'],
+            ] as const
+          ).map(([f, rotulo]) => {
+            const atual = !p.preset.formatos || p.preset.formatos.length === 2 ? 'ambos' : p.preset.formatos[0]
+            return (
+              <button
+                key={f}
+                onClick={() =>
+                  f !== atual &&
+                  void editarPreset(p.preset.id, { formatos: f === 'ambos' ? ['vertical', 'dividida'] : [f] }).catch((x) => setErro((x as Error).message))
+                }
+                className={cn('rounded-full px-2.5 py-0.5 font-semibold', atual === f ? 'bg-cream text-ink' : 'text-fog hover:text-cream')}
+              >
+                {rotulo}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      {(!p.preset.formatos || p.preset.formatos.length === 2) && (
+        <p className="-mt-2 text-[10.5px] leading-[1.5] text-fog">Desenhado para {p.preset.formato === 'vertical' ? 'tela cheia' : 'tela dividida'}; no outro formato aparece adaptado.</p>
+      )}
+      {r.cards.length > 1 && p.parte !== 'geral' && p.parte !== 'lugar' && (
         <div className="flex gap-1">
           {r.cards.map((_, j) => (
             <button key={j} onClick={() => setK(j)} className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1', j === k ? 'bg-cream text-ink ring-cream' : 'text-fog ring-line-dark hover:text-cream')}>
@@ -70,9 +115,44 @@ export default function EditorPreset(p: { preset: Preset; ver?: () => void }) {
         </div>
       )}
 
+        </>
+      )}
+      {r.cards.length > 1 && p.parte === 'lugar' && (
+        <div className="flex gap-1">
+          {r.cards.map((_, j) => (
+            <button key={j} onClick={() => setK(j)} className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1', j === k ? 'bg-cream text-ink ring-cream' : 'text-fog ring-line-dark hover:text-cream')}>
+              {j + 1}ª mídia
+            </button>
+          ))}
+        </div>
+      )}
+      {lugar && (
+        <>
       <Secao titulo="Tempo">
         <Slider f={{ rotulo: 'Começa em (fração do insert)', min: 0, max: 0.9, passo: 0.01, un: '' }} v={c.inicio_frac} mudar={(v, s) => mudarCard((x) => ({ ...x, inicio_frac: v }), s)} />
         <Slider f={{ rotulo: 'Sai antes do fim', min: 0, max: 5, passo: 0.05, un: 's' }} v={c.sai_antes_do_fim} mudar={(v, s) => mudarCard((x) => ({ ...x, sai_antes_do_fim: v }), s)} />
+      </Secao>
+
+      <Secao titulo="Movimento contínuo">
+        <Slider f={{ rotulo: 'Zoom por segundo', min: -20, max: 20, passo: 0.25, un: '%' }} v={(c.continuo?.escala ?? 0) * 100} mudar={(v, s) => mudarCard((x) => ({ ...x, continuo: { dx: 0, dy: 0, ...x.continuo, escala: v / 100 } }), s)} />
+        <Slider f={{ rotulo: 'Deslocamento horizontal por segundo', min: -30, max: 30, passo: 0.25, un: '%' }} v={c.continuo?.dx ?? 0} mudar={(v, s) => mudarCard((x) => ({ ...x, continuo: { escala: 0, dy: 0, ...x.continuo, dx: v } }), s)} />
+        <Slider f={{ rotulo: 'Deslocamento vertical por segundo', min: -30, max: 30, passo: 0.25, un: '%' }} v={c.continuo?.dy ?? 0} mudar={(v, s) => mudarCard((x) => ({ ...x, continuo: { escala: 0, dx: 0, ...x.continuo, dy: v } }), s)} />
+        <Slider f={{ rotulo: 'Giro por segundo', min: -20, max: 20, passo: 0.25, un: '°' }} v={c.continuo?.rot ?? 0} mudar={(v, s) => mudarCard((x) => ({ ...x, continuo: { escala: 0, dx: 0, dy: 0, ...x.continuo, rot: v } }), s)} />
+      </Secao>
+
+      <Secao titulo="Zoom na mídia">
+        <label className="flex cursor-pointer items-center gap-2 text-[11.5px]">
+          <input type="checkbox" checked={!!c.zoom} onChange={(e) => mudarCard((x) => ({ ...x, zoom: e.target.checked ? { inicio: 0.8, duracao: 0.8, escala: 1.5, ox: 50, oy: 50, curva: [0.65, 0, 0.35, 1] } : null }))} /> O conteúdo dá zoom dentro do card
+        </label>
+        {c.zoom && (
+          <>
+            <Slider f={{ rotulo: 'Começa (s depois de aparecer)', min: 0, max: 5, passo: 0.05, un: 's' }} v={c.zoom.inicio} mudar={(v, s) => mudarCard((x) => ({ ...x, zoom: { ...x.zoom!, inicio: v } }), s)} />
+            <Slider f={{ rotulo: 'Duração', min: 0.1, max: 4, passo: 0.05, un: 's' }} v={c.zoom.duracao} mudar={(v, s) => mudarCard((x) => ({ ...x, zoom: { ...x.zoom!, duracao: v } }), s)} />
+            <Slider f={{ rotulo: 'Quanto', min: 0.5, max: 4, passo: 0.05, un: '×' }} v={c.zoom.escala} mudar={(v, s) => mudarCard((x) => ({ ...x, zoom: { ...x.zoom!, escala: v } }), s)} />
+            <Slider f={{ rotulo: 'Para onde (horizontal)', min: 0, max: 100, passo: 1, un: '%' }} v={c.zoom.ox} mudar={(v, s) => mudarCard((x) => ({ ...x, zoom: { ...x.zoom!, ox: v } }), s)} />
+            <Slider f={{ rotulo: 'Para onde (vertical)', min: 0, max: 100, passo: 1, un: '%' }} v={c.zoom.oy} mudar={(v, s) => mudarCard((x) => ({ ...x, zoom: { ...x.zoom!, oy: v } }), s)} />
+          </>
+        )}
       </Secao>
 
       <Secao titulo="Onde fica">
@@ -119,30 +199,18 @@ export default function EditorPreset(p: { preset: Preset; ver?: () => void }) {
                   <Slider
                     key={key}
                     f={ESTADO[key]}
-                    v={(m as unknown as Record<string, Estado>)[chave][key]}
+                    v={(m as unknown as Record<string, Estado>)[chave][key] ?? 1}
                     mudar={(v, s) => mudarCard((x) => ({ ...x, [lado]: { ...x[lado]!, [chave]: { ...(x[lado] as unknown as Record<string, Estado>)[chave], [key]: v } } }), s)}
                   />
                 ))}
-                <p className="eyebrow mt-1 text-sage">Curvas (medidas na referência)</p>
+                <p className="eyebrow mt-1 text-sage">Curvas</p>
                 {(Object.keys(m.curvas) as Propriedade[]).map((prop) => (
                   <div key={prop} className="grid gap-1">
                     <span className="text-[11px] text-fog">{NOME_PROP[prop]}</span>
-                    <div className="flex flex-wrap gap-1">
-                      <span className="grid place-items-center rounded-[6px] px-1 py-0.5 text-[9.5px] text-cream ring-2 ring-coral" title={`Atual: ${m.curvas[prop]!.join(', ')}`}>
-                        <IconeCurva curva={m.curvas[prop]!} />
-                        {PRESETS_CURVA.find((x) => iguais(x.curva, m.curvas[prop]!))?.nome ?? 'medida'}
-                      </span>
-                      {PRESETS_CURVA.filter((x) => !iguais(x.curva, m.curvas[prop]!)).map((x) => (
-                        <button
-                          key={x.nome}
-                          onClick={() => mudarCard((y) => ({ ...y, [lado]: { ...y[lado]!, curvas: { ...y[lado]!.curvas, [prop]: x.curva } } }))}
-                          className="grid place-items-center rounded-[6px] px-1 py-0.5 text-[9.5px] text-fog ring-1 ring-line-dark hover:text-cream"
-                        >
-                          <IconeCurva curva={x.curva} />
-                          {x.nome}
-                        </button>
-                      ))}
-                    </div>
+                    <EditorCurva
+                      curva={m.curvas[prop]!}
+                      mudar={(curva, s) => mudarCard((y) => ({ ...y, [lado]: { ...y[lado]!, curvas: { ...y[lado]!.curvas, [prop]: curva } } }), s)}
+                    />
                   </div>
                 ))}
               </>
@@ -150,6 +218,8 @@ export default function EditorPreset(p: { preset: Preset; ver?: () => void }) {
           </Secao>
         )
       })}
+        </>
+      )}
       {erro && <p className="text-[11px] text-coral">{erro}</p>}
     </div>
   )
@@ -157,7 +227,7 @@ export default function EditorPreset(p: { preset: Preset; ver?: () => void }) {
 
 function Secao(p: { titulo: string; children: React.ReactNode }) {
   return (
-    <details open className="group grid gap-2 pt-1">
+    <details open className="group grid gap-2 pt-1 break-inside-avoid">
       <summary className="eyebrow cursor-pointer list-none text-sage">{p.titulo}</summary>
       <div className="mt-2 grid gap-2.5">{p.children}</div>
     </details>

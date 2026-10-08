@@ -65,9 +65,31 @@ def apagar_preset(pid: str):
 def amostra_preset(pid: str, k: int):
     """O card `k` parado na referência de onde o preset veio (para a revisão lado a lado)."""
     p = _preset(pid)
-    if not p.get('fontes') or not 0 <= k < len(p['receita']['cards']):
+    if not p.get('fontes') or not 0 <= k < max(len(p['receita']['cards']), len(p.get('recortes') or [])):
         raise HTTPException(404, 'Sem amostra')
     try:
         return FileResponse(presets.amostra(pid, k))
     except Exception as erro:
         raise HTTPException(404, str(erro)[:200])
+
+
+@rotas.get('/api/presets/externa/{nome}')
+def video_externo(nome: str):
+    """Um vídeo de referência de fora das Referências (presets/externas)."""
+    try:
+        arq = presets.video_da_fonte(f'externa:{nome}')
+    except FileNotFoundError:
+        raise HTTPException(404, 'Sem vídeo')
+    if not arq.exists():
+        raise HTTPException(404, 'Sem vídeo')
+    return FileResponse(arq)
+
+
+@rotas.get('/api/presets/quadro/{ref}')
+def quadro_referencia(ref: str, t: float):
+    """Um quadro parado da referência (a foto da revisão enquanto o vídeo não toca)."""
+    try:
+        return FileResponse(presets.quadro(ref, t), headers={'Cache-Control': 'max-age=86400'})
+    except (FileNotFoundError, ValueError):
+        raise HTTPException(404, 'Sem quadro')
+

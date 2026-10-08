@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Loader2, Pause, Play, Settings2, Trash2, X } from 'lucide-react'
+import { Check, Loader2, Pause, Play, Settings2, Trash2 } from 'lucide-react'
 import { urlAmostraPreset, urlArquivoReferencia } from '@/api'
 import { Logo } from '@/components/Marca'
+import Modal from '@/components/Modal'
 import NavHome from '@/components/NavHome'
 import { cn } from '@/lib/utils'
 import EditorPreset from '@/editor/EditorPreset'
 import CenaPreset from '@/editor/CenaPreset'
-import { apagarPreset, editarPreset, usePresets, type Preset } from '@/editor/presets'
+import { apagarPreset, editarPreset, nMidias, paraMidias, usePresets, type Preset } from '@/editor/presets'
 
 /** A revisão dos presets (SPEC §8.4): cada um numa miniatura com o trecho de referência de onde veio e a recriação lado
  *  a lado (a recriação segue o relógio do próprio vídeo de referência, então os dois andam juntos), o editor e
@@ -24,11 +25,15 @@ const versao = (p: Preset, j: number) => {
 export default function Presets() {
   const presets = usePresets()
   const [filtro, setFiltro] = useState<'pendentes' | 'aprovados' | 'todos'>('todos')
+  const [qtd, setQtd] = useState<'todas' | '1' | '2' | '3+'>('todas') // quantas mídias o preset pede
   const [aberto, setAberto] = useState<string | null>(null)
   const [tocando, setTocando] = useState<string | null>(null) // um por vez
 
   const passa = (f: typeof filtro, p: Preset) => (f === 'todos' ? true : f === 'aprovados' ? p.aprovado : !p.aprovado)
-  const lista = (presets ?? []).filter((p) => passa(filtro, p))
+  // os que faltam revisar primeiro (a ordem fica a mesma dentro de cada grupo)
+  const temQtd = (q: typeof qtd, p: Preset) =>
+    q === 'todas' || (p.receita.repete ? q !== '1' : q === '3+' ? nMidias(p.receita) >= 3 : nMidias(p.receita) === Number(q))
+  const lista = (presets ?? []).filter((p) => passa(filtro, p) && temQtd(qtd, p)).sort((a, b) => Number(a.aprovado) - Number(b.aprovado))
 
   return (
     <div className="grid h-svh grid-rows-[56px_auto_minmax(0,1fr)] bg-deep text-cream">
@@ -41,7 +46,14 @@ export default function Presets() {
         {(['todos', 'pendentes', 'aprovados'] as const).map((f) => (
           <button key={f} onClick={() => setFiltro(f)} className={cn('h-8 rounded-full border px-3.5 font-semibold', filtro === f ? 'border-cream bg-cream text-ink' : 'border-line-dark text-fog hover:text-cream')}>
             {f === 'todos' ? 'Todos' : f === 'pendentes' ? 'A revisar' : 'Aprovados'}{' '}
-            <span className="opacity-60">{(presets ?? []).filter((p) => passa(f, p)).length}</span>
+            <span className="opacity-60">{(presets ?? []).filter((p) => passa(f, p) && temQtd(qtd, p)).length}</span>
+          </button>
+        ))}
+        <span className="mx-2 h-5 w-px bg-line-dark" />
+        {(['todas', '1', '2', '3+'] as const).map((q) => (
+          <button key={q} onClick={() => setQtd(q)} className={cn('h-8 rounded-full border px-3.5 font-semibold', qtd === q ? 'border-cream bg-cream text-ink' : 'border-line-dark text-fog hover:text-cream')}>
+            {q === 'todas' ? 'Qualquer nº de mídias' : q === '1' ? '1 mídia' : q === '2' ? '2 mídias' : '3 ou mais'}{' '}
+            <span className="opacity-60">{(presets ?? []).filter((p) => passa(filtro, p) && temQtd(q, p)).length}</span>
           </button>
         ))}
       </nav>
@@ -87,17 +99,11 @@ function Linha({ p, aberto, abrir, tocando, tocar }: { p: Preset; aberto: boolea
   const dur = fonte ? fonte.fim - fonte.inicio : p.receita.duracao_ref
   // o instante de repouso: depois da última entrada (é o quadro que aparece parado)
   const repouso = Math.min(Math.max(...p.receita.cards.map((c) => c.inicio_frac * dur + (c.entrada?.duracao ?? 0))) + 0.1, dur - 0.05)
-  const url = fonte ? urlArquivoReferencia(fonte.ref, 'proxy.mp4') : null
+  const url = fonte ? (fonte.ref.startsWith('externa:') ? `/api/presets/externa/${fonte.ref.slice(8)}` : urlArquivoReferencia(fonte.ref, 'proxy.mp4')) : null
   useEffect(() => {
     const v = video.current
-    if (!v || !url) return
-    if (visivel) {
-      if (v.getAttribute('src') !== url) v.src = url
-    } else if (v.getAttribute('src')) {
-      v.removeAttribute('src')
-      v.load() // corta o download
-    }
-  }, [visivel, url])
+    if (v && url && v.getAttribute('src') !== url) v.src = url
+  }, [tocando, url])
   useEffect(() => {
     const v = video.current
     if (!v || !tocando) return setCarregando(false)
@@ -113,15 +119,9 @@ function Linha({ p, aberto, abrir, tocando, tocar }: { p: Preset; aberto: boolea
   }, [tocando])
   useEffect(() => {
     const v = video.current
-    if (!v || !fonte || !visivel) return
-    const parar = () => {
-      v.pause()
-      v.currentTime = fonte.inicio + repouso
-      setT(repouso)
-    }
-    if (!tocando) {
-      if (v.readyState >= 1) parar()
-      else v.addEventListener('loadedmetadata', parar, { once: true })
+    if (!tocando || !visivel || !v || !fonte) {
+      setT(repouso) // parado: a recriação no repouso, junto da foto da referência
+      if (tocando && !visivel) tocar(false)
       return
     }
     let id = 0
@@ -139,11 +139,8 @@ function Linha({ p, aberto, abrir, tocando, tocar }: { p: Preset; aberto: boolea
     }
   }, [fonte?.ref, fonte?.inicio, fonte?.fim, tocando, visivel, repouso]) // eslint-disable-line react-hooks/exhaustive-deps
   const area = p.formato === 'vertical' ? 'aspect-[9/16]' : 'aspect-[9/8]'
-  const icone = 'grid size-8 shrink-0 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream'
-  return (
-    <section ref={linha} className={cn('grid min-w-0 grid-cols-1 content-start', aberto && 'col-span-full grid-cols-[minmax(0,460px)_minmax(0,380px)] gap-8')}>
-      <div className="grid min-w-0 grid-cols-1 content-start">
-        {/* referência | recriação numa miniatura só; clicar toca as duas em loop */}
+  // referência | recriação; no grid, ou no modal da engrenagem (só um lugar por vez: o vídeo é um só)
+  const miniatura = (
         <div
           role="button"
           tabIndex={0}
@@ -153,18 +150,25 @@ function Linha({ p, aberto, abrir, tocando, tocar }: { p: Preset; aberto: boolea
           title={tocando ? 'Parar' : 'Tocar em loop (referência e recriação juntas)'}
         >
           <div className="relative aspect-[9/16] w-full self-start overflow-hidden bg-black [contain:paint]">
-            {fonte && <video ref={video} muted playsInline preload="auto" className="absolute inset-0 size-full object-cover" />}
+            {fonte && <img src={`/api/presets/quadro/${encodeURIComponent(fonte.ref)}?t=${(fonte.inicio + repouso).toFixed(2)}`} alt="" loading="lazy" className="absolute inset-0 size-full object-cover" />}
+            {/* o vídeo só existe tocando: 15 vídeos abertos ao mesmo tempo esgotavam as conexões do navegador */}
+            {fonte && tocando && <video ref={video} muted playsInline preload="auto" className="absolute inset-0 size-full object-cover" />}
           </div>
           <div className="relative aspect-[9/16] w-full self-start overflow-hidden bg-black [contain:paint]">
             {/* a recriação na mesma área da referência (tela dividida: a metade de cima) */}
             <div className={cn('absolute inset-x-0 top-0', area)}>
               <CenaPreset
-                receita={p.receita}
+                receita={paraMidias(p.receita, Math.max(p.recortes?.length ?? 0, 2))}
                 rel={t}
                 dur={dur}
                 fundo="gradiente"
                 className="inset-0"
-                midia={(j, _rel, topo) => <img src={urlAmostraPreset(p.id, j, versao(p, j))} alt="" className={cn('size-full object-cover', topo && 'object-top')} />}
+                midia={(j, _rel, topo) => {
+                  const rc = p.recortes?.[j]
+                  // tocando: a mídia é o próprio vídeo da referência, recortado onde o card está (o conteúdo anda como lá)
+                  if (tocando && fonte && url && rc?.quad) return <MidiaDaReferencia src={url} quad={rc.quad} t0={fonte.inicio + rc.t} agora={fonte.inicio + t} />
+                  return <img src={urlAmostraPreset(p.id, j, versao(p, j))} alt="" className={cn('size-full object-cover', topo && 'object-top')} />
+                }}
               />
             </div>
           </div>
@@ -178,16 +182,27 @@ function Linha({ p, aberto, abrir, tocando, tocar }: { p: Preset; aberto: boolea
             {carregando ? <Loader2 className="size-4 animate-spin" /> : tocando ? <Pause className="size-4" /> : <Play className="size-4 translate-x-px fill-current" />}
           </span>
         </div>
+  )
+  const [cardAberto, setCardAberto] = useState(0) // a mídia em edição no modal (as duas partes do editor)
+  const icone = 'grid size-8 shrink-0 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream'
+  return (
+    <section ref={linha} className="grid min-w-0 grid-cols-1 content-start">
+      <div className="grid min-w-0 grid-cols-1 content-start">
+        {aberto ? (
+          <div className="grid aspect-[9/8] place-items-center rounded-[6px] text-[12px] text-fog ring-1 ring-line-dark">editando…</div>
+        ) : (
+          miniatura
+        )}
         <div className="mt-3 flex items-start gap-2">
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-[15px] font-semibold tracking-[-0.02em]" title={p.nome}>
               {p.nome}
             </h3>
             <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-fog">
-              {p.formato === 'vertical' ? 'Tela cheia' : 'Tela dividida'} · {p.receita.cards.length} mídia{p.receita.cards.length > 1 ? 's' : ''}
+              {!p.formatos || p.formatos.length === 2 ? 'Tela cheia e dividida' : p.formato === 'vertical' ? 'Tela cheia' : 'Tela dividida'} · {p.receita.repete ? '2 ou mais mídias' : `${nMidias(p.receita)} mídia${nMidias(p.receita) > 1 ? 's' : ''}`}
               {fonte && (
                 <span title="De onde veio">
-                  · {fonte.ref} {minSeg(fonte.inicio)}
+                  · {fonte.ref.replace('externa:', 'externa · ')} {minSeg(fonte.inicio)}
                 </span>
               )}
               {p.fontes.length > 1 &&
@@ -200,30 +215,77 @@ function Linha({ p, aberto, abrir, tocando, tocar }: { p: Preset; aberto: boolea
           </div>
           <button
             onClick={() => void editarPreset(p.id, { aprovado: !p.aprovado })}
-            className={cn(icone, p.aprovado && 'text-mint hover:text-mint')}
-            title={p.aprovado ? 'Tirar a aprovação' : 'Aprovar'}
+            className={cn(icone, p.aprovado ? 'bg-mint text-ink hover:bg-mint/80 hover:text-ink' : 'text-mint hover:bg-mint/15 hover:text-mint')}
+            title={p.aprovado ? 'Aprovado (clique para tirar a aprovação)' : 'Aprovar'}
             aria-label={p.aprovado ? 'Tirar a aprovação' : 'Aprovar'}
           >
-            {p.aprovado ? <X className="size-4" /> : <Check className="size-4" />}
-          </button>
-          <button onClick={abrir} className={cn(icone, aberto && 'bg-coral text-cream hover:bg-coral')} title="Ajustar" aria-label="Ajustar">
-            <Settings2 className="size-4" />
+            <Check className="size-4" />
           </button>
           <button
             onClick={() => window.confirm(`Descartar o preset “${p.nome}”? (os inserts que o usam voltam ao manual)`) && void apagarPreset(p.id)}
-            className={cn(icone, 'hover:text-coral')}
+            className={cn(icone, 'text-coral hover:bg-coral/15 hover:text-coral')}
             title="Descartar"
             aria-label="Descartar"
           >
             <Trash2 className="size-4" />
           </button>
+          <button onClick={abrir} className={cn(icone, aberto && 'bg-coral text-cream hover:bg-coral')} title="Ajustar" aria-label="Ajustar">
+            <Settings2 className="size-4" />
+          </button>
         </div>
       </div>
       {aberto && (
-        <div className="max-h-[720px] overflow-y-auto pr-1">
-          <EditorPreset preset={p} ver={() => tocar(true)} />
-        </div>
+        <Modal titulo={p.nome} fechar={abrir} tamanho="tela">
+          {/* à esquerda a prévia e, embaixo, o nome e onde aparece; à direita todos os ajustes, em duas colunas */}
+          <div className="flex min-h-0 flex-1 gap-8">
+            <div className="w-[500px] shrink-0 space-y-5 overflow-y-auto pr-1">
+              <div>{miniatura}</div>
+              <EditorPreset preset={p} ver={() => tocar(true)} parte="geral" card={cardAberto} escolherCard={setCardAberto} />
+            </div>
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-1">
+              <EditorPreset preset={p} parte="lugar" colunas card={cardAberto} escolherCard={setCardAberto} />
+            </div>
+          </div>
+        </Modal>
       )}
     </section>
   )
 }
+
+/** A mídia de um card na recriação, tocando: o vídeo da referência recortado no retângulo do card (`quad`, px de um quadro
+ *  9:16 de 720×1280), no relógio da referência (`agora`); antes de `t0` (o instante em que o card foi recortado, já
+ *  parado) fica nesse quadro, para a entrada não mostrar o fundo. */
+function MidiaDaReferencia({ src, quad, t0, agora }: { src: string; quad: [number, number][]; t0: number; agora: number }) {
+  const v = useRef<HTMLVideoElement>(null)
+  const xs = quad.map((q) => q[0])
+  const ys = quad.map((q) => q[1])
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
+  useEffect(() => {
+    const el = v.current
+    if (!el || el.readyState < 1) return
+    const alvo = Math.max(agora, t0)
+    if (Math.abs(el.currentTime - alvo) > 0.25) el.currentTime = alvo
+    if (agora >= t0 && el.paused) void el.play().catch(() => {})
+    if (agora < t0 && !el.paused) el.pause()
+  }, [agora, t0])
+  return (
+    <div className="relative size-full overflow-hidden">
+      <video
+        ref={v}
+        src={src}
+        muted
+        playsInline
+        preload="auto"
+        onLoadedMetadata={(e) => (e.currentTarget.currentTime = Math.max(agora, t0))}
+        className="absolute max-w-none object-cover"
+        style={{
+          width: `${(720 / (x1 - x0)) * 100}%`,
+          height: `${(1280 / (y1 - y0)) * 100}%`,
+          left: `${(-x0 / (x1 - x0)) * 100}%`,
+          top: `${(-y0 / (y1 - y0)) * 100}%`,
+        }}
+      />
+    </div>
+  )
+}
+

@@ -12,6 +12,7 @@ import RevisaoReferencia from './paginas/RevisaoReferencia'
 import { RenderChuva, RenderProjeto } from './paginas/Render'
 import Presets from './paginas/Presets'
 import PaginaMotions from './motions/PaginaMotions'
+import RenderPreset from './paginas/RenderPreset'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -28,6 +29,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/motions" element={<PaginaMotions />} />
         <Route path="/render/chuva" element={<RenderChuva />} />
         <Route path="/render/p/:id" element={<RenderProjeto />} />
+        <Route path="/render/preset" element={<RenderPreset />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,
