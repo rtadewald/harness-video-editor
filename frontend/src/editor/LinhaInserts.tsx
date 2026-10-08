@@ -3,7 +3,7 @@ import { Maximize2, Minus, Plus } from 'lucide-react'
 import { urlBancoMiniatura, type ItemRef, type MidiaLigada, type PedidoInsert } from '@/api'
 import { cn } from '@/lib/utils'
 import { COR_ELEMENTO, COR_PLANO } from '@/referencias/LinhaDirecao'
-import { corteDe, enriquecimentoDe, type Formato, type Qual } from './enriquecimento'
+import { corteDe, enriquecimentoDe, type Qual } from './enriquecimento'
 import { useAtalhoZoom } from './useAtalhoZoom'
 
 export type PlanoLinha = ItemRef & { n: number; fala: string }
@@ -233,7 +233,7 @@ function TrilhaDupla(p: {
   escolher: () => void
   ajustar: (v: number | null, salvar: boolean) => void
 }) {
-  const e = enriquecimentoDe(p.ped as PedidoInsert & { formato: Formato })
+  const e = enriquecimentoDe(p.ped)
   const dur = Math.max(p.pl.fim - p.pl.inicio, 0.01)
   const tc = p.pl.inicio + corteDe(e, dur) * dur
   const juntas = e.entre !== 'sequencia'

@@ -318,7 +318,7 @@ def arquivo_para_tocar(item: dict) -> Path:
     return pasta_item(item.get('pai') or item['id']) / (item.get('proxy') or item['arquivo'])
 
 
-_trava_exportacao = threading.Lock()
+_travas_exportacao: dict[str, threading.Lock] = {}
 
 
 def arquivo_para_exportar(item: dict) -> Path:
@@ -330,8 +330,11 @@ def arquivo_para_exportar(item: dict) -> Path:
     if item['tipo'] != 'video':
         return original
     pronto = base / 'exportacao.mp4'
-    with _trava_exportacao:
-        if not pronto.exists() or pronto.stat().st_mtime < original.stat().st_mtime:
+    em_dia = lambda: pronto.exists() and pronto.stat().st_mtime >= original.stat().st_mtime  # noqa: E731
+    if em_dia():  # o caminho comum (os navegadores pedem o arquivo muitas vezes): sem trava
+        return pronto
+    with _travas_exportacao.setdefault(base.name, threading.Lock()):  # por item: um transcode não segura os outros
+        if not em_dia():
             tmp = base / 'exportacao.tmp.mp4'
             midia.ffmpeg('-i', str(original), '-map', '0:v:0', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-c:v', 'libx264',
                          '-preset', 'veryfast', '-crf', '14', '-g', '6', '-keyint_min', '6', '-pix_fmt', 'yuv420p', '-an',
@@ -523,15 +526,20 @@ ESTILO = {
 }
 
 
-# ajustes finos da entrada (sem padrão fixo: valem os da entrada escolhida até o criador mudar)
 # onde a 2ª mídia começa, em fração do insert (0 a 0,95; padrão: no meio; 0 = junto com a 1ª, nos layouts juntos). A curva,
 # a duração e os detalhes de cada entrada e saída não são mais por insert: são globais, por tipo (transicoes.py)
-AJUSTES = ('corte',)
+AJUSTES = ('corte', 'preset')  # preset: o id de um preset da biblioteca (presets.py), que manda em layout, entrada e saída
 
 
 def _validar_enriquecimento(formato: str, campos: dict) -> dict:
     limpo = {}
     for k, v in campos.items():
+        if k == 'preset' and v is not None:
+            from . import presets
+            if not isinstance(v, str) or not presets.existe(v):
+                raise ValueError('Preset não encontrado')
+            limpo[k] = v
+            continue
         if k == 'corte' and v is not None:
             if not isinstance(v, (int, float)) or isinstance(v, bool):
                 raise ValueError('O corte é uma fração do insert')
@@ -556,7 +564,6 @@ def enriquecer(id: str, pid: str, campos: dict) -> dict:
             if x['id'] == pid:
                 novos = _validar_enriquecimento(x['formato'], campos)
                 atual = {**(x.get('enriquecimento') or {}), **novos}
-                # categorias que não existem mais (ex.: o fundo, que virou do vídeo todo) saem
                 # categorias e opções que não existem mais (o fundo por insert, entradas que saíram) caem fora
                 validas = lambda k, v: v in (OPCOES_ENRIQUECIMENTO[k][x['formato']] if k == 'layout' else OPCOES_ENRIQUECIMENTO[k])  # noqa: E731
                 x['enriquecimento'] = {k: v for k, v in atual.items()

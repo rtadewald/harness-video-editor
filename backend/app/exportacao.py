@@ -5,7 +5,6 @@ quadros perdidos da reprodução em tempo real. Vários navegadores fotografam e
 Mac, para ficar perto do tempo real. Roda em segundo plano, uma por projeto; o MP4 vai para `exports/`."""
 import math
 import multiprocessing
-import os
 import re
 import shutil
 import subprocess
@@ -15,14 +14,13 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
-from . import inserts, projeto, render_quadros
+from . import comum, inserts, midia, projeto, render_quadros
 
 RESOLUCOES = {'720p': (720, 1280), '1080p': (1080, 1920), '4k': (2160, 3840)}
 FPS = (24, 30, 60)
 CODECS = ('hevc', 'h264')
 NAVEGADORES = 6  # navegadores fotografando em paralelo (padrão; o criador escolhe de 1 a 8 no modal)
 FADE = 0.015  # s de fade do áudio em cada emenda, contra estalos
-FRONT = os.environ.get('HARNESS_FRONT', 'http://localhost:5173')
 
 _fila = ThreadPoolExecutor(max_workers=2)
 _andamento: dict[str, dict] = {}  # id do projeto → {progresso, cancelar}
@@ -182,11 +180,7 @@ def _trechos(url: str) -> list[dict]:
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel='chromium')
         try:
-            page = browser.new_page()
-            page.route_web_socket(re.compile('.*'), lambda ws: None)
-            page.goto(url, wait_until='load', timeout=60_000)
-            page.wait_for_function('() => !!window.__render', timeout=60_000)
-            return page.evaluate('() => window.__render.trechos')
+            return render_quadros.abrir_render(browser, url).evaluate('() => window.__render.trechos')
         finally:
             browser.close()
 
@@ -201,7 +195,7 @@ def _gravar(id: str, e: dict, saida: Path, vivo: dict) -> bool:
     w, h = RESOLUCOES[e['resolucao']]
     fps, navegadores = e['fps'], e.get('navegadores', NAVEGADORES)
     horizontal = (fonte.get('largura') or 0) > (fonte.get('altura') or 0)
-    url = f'{FRONT}/render/p/{id}'
+    url = f'{comum.FRONT}/render/p/{id}'
     tmp = saida.with_suffix('.camadas')
     tmp.mkdir(exist_ok=True)
     log = saida.with_suffix('.log')
@@ -238,8 +232,7 @@ def _gravar(id: str, e: dict, saida: Path, vivo: dict) -> bool:
                 lista = tmp / f'{i:03d}.txt'
                 lista.write_text(''.join(f"file '{i:03d}_{j:03d}.mov'\n" for j in range(len(g))))
                 clipe = tmp / f'{i:03d}.mov'
-                subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', str(lista), '-c', 'copy', str(clipe)],
-                               check=True, capture_output=True)
+                midia.ffmpeg('-f', 'concat', '-safe', '0', '-i', str(lista), '-c', 'copy', str(clipe))
                 camadas.append((clipe, g[0][0] / fps))
 
         divididas = [(t['ini'], t['fim']) for t in trechos if t['dividida']]

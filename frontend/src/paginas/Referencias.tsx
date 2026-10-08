@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Star, X } from 'lucide-react'
-import { listarClipes, marcarFavorito, urlArquivoReferencia, type ClipeReferencia, type OrigemClipe } from '@/api'
+import { Layers, Search, Star, X } from 'lucide-react'
+import { listarClipes, listarFontesPresets, marcarFavorito, urlArquivoReferencia, type ClipeReferencia, type FontePreset, type OrigemClipe } from '@/api'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
 import { cn } from '@/lib/utils'
+import { useLembrado } from '@/lib/useLembrado'
 import IconeGrupo from '@/referencias/IconeGrupo'
 import { COR_PLANO } from '@/referencias/LinhaDirecao'
 
@@ -21,6 +22,8 @@ export const GRUPOS: { id: string; nome: string; tipos: string[] }[] = [
   { id: 'full_ator', nome: 'Full ator', tipos: ['full_ator'] },
   { id: 'comentario_insert_ator', nome: 'Comentário + insert + ator', tipos: ['comentario_insert_ator'] },
 ]
+/** Os presets feitos a partir deste trecho (o trecho do preset cai dentro do clipe, com folga de meio segundo). */
+const presetsDoClipe = (fs: FontePreset[], c: ClipeReferencia) => fs.filter((f) => f.ref === c.ref && f.inicio >= c.inicio - 0.5 && f.fim <= c.fim + 0.5)
 const seg = (t: number) => `${t.toFixed(1).replace('.', ',')} s`
 const chave = (c: ClipeReferencia) => `${c.ref}/${c.id}`
 
@@ -30,6 +33,7 @@ export default function Referencias() {
   const [categorias, setCategorias] = useState<Record<string, string>>({})
   const [nomesElementos, setNomesElementos] = useState<Record<string, string>>({})
   const [origens, setOrigens] = useState<Record<string, OrigemClipe>>({})
+  const [fontes, setFontes] = useState<FontePreset[]>([])
   const [erro, setErro] = useState('')
   const [categoria, setCategoria] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
@@ -37,21 +41,10 @@ export default function Referencias() {
   const [soRevisadas, setSoRevisadas] = useState(false)
   const [soFavoritos, setSoFavoritos] = useState(false)
   // os "Full ator" (só o ator falando, com ou sem lettering) quase nunca servem de referência: ficam de fora por padrão (lembrado neste navegador)
-  const [semFullAtor, setSemFullAtorEstado] = useState(() => {
-    try {
-      return localStorage.getItem('referencias.semFullAtor') !== '0'
-    } catch {
-      return true
-    }
-  })
+  const [semFullAtor, lembrarSemFullAtor] = useLembrado('referencias.semFullAtor', true)
   const setSemFullAtor = (v: boolean) => {
-    setSemFullAtorEstado(v)
+    lembrarSemFullAtor(v)
     if (v && categoria && SO_ATOR.includes(categoria)) setCategoria(null)
-    try {
-      localStorage.setItem('referencias.semFullAtor', v ? '1' : '0')
-    } catch {
-      /* sem armazenamento: só não lembra */
-    }
   }
   const [aberto, setAberto] = useState<string | null>(null)
 
@@ -64,6 +57,7 @@ export default function Referencias() {
         setOrigens(d.origens)
       })
       .catch((e) => setErro(e.message))
+    listarFontesPresets().then(setFontes).catch(() => {})
   }, [])
 
   /** Liga/desliga o favorito na hora e grava no servidor; se falhar, volta. */
@@ -184,7 +178,7 @@ export default function Referencias() {
         {clipes && clipes.length > 0 && visiveis.length === 0 && <p className="text-[13px] text-fog">Nenhum clipe com esses filtros.</p>}
         <ul className="grid gap-x-5 gap-y-8" style={{ gridTemplateColumns: 'repeat(8, minmax(0, 1fr))' }}>
           {visiveis.map((c) => (
-            <Cartao key={chave(c)} clipe={c} nome={categorias[c.tipo]} abrir={() => setAberto(chave(c))} favoritar={() => favoritar(c)} />
+            <Cartao key={chave(c)} clipe={c} nome={categorias[c.tipo]} presets={presetsDoClipe(fontes, c)} abrir={() => setAberto(chave(c))} favoritar={() => favoritar(c)} />
           ))}
         </ul>
       </main>
@@ -193,6 +187,7 @@ export default function Referencias() {
         <Player
           clipe={visiveis[indiceAberto]}
           origem={origens[visiveis[indiceAberto].ref]}
+          presets={presetsDoClipe(fontes, visiveis[indiceAberto])}
           categorias={categorias}
           nomesElementos={nomesElementos}
           posicao={`${indiceAberto + 1} de ${visiveis.length}`}
@@ -265,7 +260,7 @@ function Estrela({ ligada, onClick, className }: { ligada: boolean; onClick: () 
   )
 }
 
-export function Cartao({ clipe: c, nome, abrir, favoritar }: { clipe: ClipeReferencia; nome: string; abrir: () => void; favoritar: () => void }) {
+export function Cartao({ clipe: c, nome, presets = [], abrir, favoritar }: { clipe: ClipeReferencia; nome: string; presets?: FontePreset[]; abrir: () => void; favoritar: () => void }) {
   const [tocando, setTocando] = useState(false)
   const video = useRef<HTMLVideoElement>(null)
   useTrecho(video, c, tocando)
@@ -287,6 +282,11 @@ export function Cartao({ clipe: c, nome, abrir, favoritar }: { clipe: ClipeRefer
           <span className={cn('absolute top-2.5 left-2.5 rounded-full px-2 py-0.5 text-[9px] font-semibold', COR_PLANO[c.tipo])}>
             {nome}
           </span>
+          {presets.length > 0 && (
+            <span className="absolute top-8 left-2.5 flex items-center gap-1 rounded-full bg-ink/85 px-2 py-0.5 text-[9px] font-semibold text-yellow" title={`Já virou preset: ${presets.map((f) => f.nome).join(', ')}`}>
+              <Layers className="size-2.5" /> preset
+            </span>
+          )}
           <span className="absolute right-2.5 bottom-2.5 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">{seg(dur(c))}</span>
           {c.revisado && <span className="absolute bottom-2.5 left-2.5 rounded-full bg-mint px-2 py-0.5 text-[9px] font-semibold text-ink">✓ revisado</span>}
         </div>
@@ -310,6 +310,7 @@ const ONDE: Record<string, string> = {
 function Player(p: {
   clipe: ClipeReferencia
   origem: OrigemClipe
+  presets: FontePreset[]
   categorias: Record<string, string>
   nomesElementos: Record<string, string>
   posicao: string
@@ -403,6 +404,11 @@ function Player(p: {
             </span>
             {c.revisado && <span className="rounded-full bg-mint px-2 py-0.5 text-[10px] font-semibold text-ink">✓ revisado</span>}
             <span className="text-[11px] text-fog tabular-nums">{p.posicao}</span>
+            {p.presets.length > 0 && (
+              <Link to="/presets" className="flex items-center gap-1 rounded-full bg-ink px-2 py-0.5 text-[10px] font-semibold text-yellow ring-1 ring-yellow/40 hover:bg-yellow hover:text-ink" title={p.presets.map((f) => f.nome).join(', ')}>
+                <Layers className="size-3" /> {p.presets.length > 1 ? `${p.presets.length} presets` : 'Virou preset'}
+              </Link>
+            )}
             <button
               onClick={p.favoritar}
               className={cn(

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { abrirEditor, lerInserts, listarBanco, motionsDoProjeto, urlPaginaMotionPlano, type DadosEditor, type InsertsProjeto, type ItemBanco, type MotionPlano } from '@/api'
+import { abrirEditor, lerInserts, listarBanco, mapaBanco, type DadosEditor, type InsertsProjeto, type ItemBanco } from '@/api'
+import { motionsDoProjeto, urlPaginaMotionPlano, type MotionPlano } from '@/motions/api'
 import { CardComentario, comentarioDe } from '@/editor/ComentarioIG'
 import { paraTempo, palavrasNaSaida } from '@/editor/direcaoProjeto'
 import { ChuvaAoVivo, RelogioRender } from '@/editor/Fundo'
 import InsertNoLugar, { chaveParada, pedidosNoTempo } from '@/editor/InsertNoLugar'
-import MotionNoLugar from '@/editor/MotionNoLugar'
+import MotionNoLugar from '@/motions/MotionNoLugar'
+import { usePresets } from '@/editor/presets'
 import { useTransicoes } from '@/editor/transicoes'
 import { montarSequencia } from '@/editor/sequencia'
 
@@ -38,10 +40,9 @@ async function pronto() {
   while (!ok() && Date.now() < limite) await esperar(5)
   await Promise.all([...document.images].map((i) => (i.complete ? null : i.decode().catch(() => {}))))
   // motions: o iframe carregado e a cena já no instante pedido
-  const iframes = () => [...document.querySelectorAll('iframe')].every((f) => f.dataset.pronto === '1')
-  while (!iframes() && Date.now() < limite) await esperar(10)
+  const motions = () => !document.querySelector('iframe[data-pronto="0"], iframe[data-pintando]')
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
-  while (window.__motionsPintando?.size && Date.now() < limite) await Promise.all([...window.__motionsPintando])
+  while (!motions() && Date.now() < limite) await esperar(10)
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
 }
 
@@ -54,6 +55,7 @@ export function RenderProjeto() {
   const [banco, setBanco] = useState<Map<string, ItemBanco> | null>(null)
   const [motions, setMotions] = useState<Record<string, MotionPlano> | null>(null)
   const trans = useTransicoes()
+  const presets = usePresets()
   const [pedido, setPedido] = useState({ t: -1, n: 0 }) // n: cada pedido responde, mesmo repetindo o instante
   const tempo = pedido.t
   const chegou = useRef<((chave: string | null) => void) | null>(null)
@@ -68,7 +70,7 @@ export function RenderProjeto() {
     void abrirEditor(id).then(setDados)
     void lerInserts(id).then(setIns)
     void motionsDoProjeto(id).then(setMotions)
-    void listarBanco().then((l) => setBanco(new Map(l.flatMap((i) => [i, ...(i.trechos ?? [])]).map((i) => [i.id, i]))))
+    void listarBanco().then((l) => setBanco(mapaBanco(l)))
   }, [id])
 
   const pedidos = useMemo(() => {
@@ -83,7 +85,7 @@ export function RenderProjeto() {
 
   // a página avisa o backend que está pronta e responde a cada instante pedido depois de tudo pintado
   useEffect(() => {
-    if (!pedidos || !banco || !trans || !motions) return
+    if (!pedidos || !banco || !trans || !motions || !presets) return
     window.__render = {
       duracao: pedidos.duracao,
       trechos: [
@@ -96,7 +98,7 @@ export function RenderProjeto() {
           setPedido((x) => ({ t, n: x.n + 1 }))
         }),
     }
-  }, [pedidos, banco, trans, motions])
+  }, [pedidos, banco, trans, motions, presets])
   useEffect(() => {
     if (!chegou.current) return
     const ok = chegou.current
@@ -107,7 +109,7 @@ export function RenderProjeto() {
   const atual = pedidos?.lista.find((x) => tempo >= x.t.inicio && tempo < x.t.fim)
   const motion = pedidos?.motions.find((m) => tempo >= m.ini && tempo < m.fim)
   // parado: sem vídeo na tela (checado depois de pintar) e sem entrada nem saída andando (motion nunca é parado)
-  chave.current = atual && !motion ? chaveParada(atual, tempo - atual.t.inicio, trans) : null
+  chave.current = atual && !motion ? chaveParada(atual, tempo - atual.t.inicio, trans, presets) : null
   if (motion && motions?.[motion.plano])
     return (
       <RelogioRender.Provider value={tempo}>

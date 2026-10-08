@@ -10,6 +10,20 @@ _pagina = None
 _cdp = None
 
 
+def abrir_render(browser, url: str, w: int = 540, h: int = 960):
+    """Abre a página de render do front e espera ela ficar pronta (`window.__render`). O websocket do Vite fica mudo: um
+    aviso do servidor de desenvolvimento recarregava a página no meio."""
+    page = browser.new_page(viewport={'width': w, 'height': h}, device_scale_factor=1)
+    page.route_web_socket(re.compile('.*'), lambda ws: None)
+    page.goto(url, wait_until='load', timeout=60_000)
+    esperar_render(page)
+    return page
+
+
+def esperar_render(page) -> None:
+    page.wait_for_function('() => !!window.__render', timeout=60_000)
+
+
 def iniciar(url: str, w: int, h: int) -> None:
     """Abre o navegador deste processo (uma vez; fica aberto para todos os pedaços que ele pegar)."""
     global _pagina, _cdp
@@ -19,11 +33,7 @@ def iniciar(url: str, w: int, h: int) -> None:
     browser = pw.chromium.launch(channel='chromium', args=[
         '--force-color-profile=srgb', '--hide-scrollbars', '--enable-gpu-rasterization', '--ignore-gpu-blocklist'])
     # a janela tem o tamanho do vídeo; a página amplia o desenho da prévia (540 px de largura) com zoom
-    _pagina = browser.new_page(viewport={'width': w, 'height': h}, device_scale_factor=1)
-    # o websocket do Vite fica mudo: um aviso do servidor de desenvolvimento recarregava a página no meio
-    _pagina.route_web_socket(re.compile('.*'), lambda ws: None)
-    _pagina.goto(url, wait_until='load', timeout=60_000)
-    _pagina.wait_for_function('() => !!window.__render', timeout=60_000)
+    _pagina = abrir_render(browser, url, w, h)
     _cdp = _pagina.context.new_cdp_session(_pagina)
     _cdp.send('Emulation.setDefaultBackgroundColorOverride', {'color': {'r': 0, 'g': 0, 'b': 0, 'a': 0}})
 
@@ -36,13 +46,14 @@ def _ir(t: float) -> str | None:
         except Exception:  # a página recarregou: espera ela voltar
             if tentativa == 2:
                 raise
-            _pagina.wait_for_function('() => !!window.__render', timeout=60_000)
+            esperar_render(_pagina)
 
 
 def _rgba(png: bytes, w: int, h: int) -> bytes:
     """O PNG em RGBA cru (o Chrome tira o alfa dos quadros todo opacos; o ffmpeg precisa do mesmo formato sempre)."""
     from PIL import Image
-    img = Image.open(BytesIO(png)).convert('RGBA')
+    img = Image.open(BytesIO(png))
+    img = img if img.mode == 'RGBA' else img.convert('RGBA')
     return (img if img.size == (w, h) else img.resize((w, h), Image.LANCZOS)).tobytes()
 
 

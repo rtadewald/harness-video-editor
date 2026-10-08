@@ -1,26 +1,9 @@
 import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Play, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { bezier } from './curvas'
-import { NOMES, PRESETS_CURVA, type Curva } from './enriquecimento'
+import IconeCurva from './IconeCurva'
+import { NOMES, PRESETS_CURVA, iguais } from './enriquecimento'
 import { definirTransicao, previaTransicao, type ConfigTransicao as Config, type Direcao, type Lado } from './transicoes'
-
-const iguais = (a: Curva, b: Curva) => a.every((v, i) => Math.abs(v - b[i]) < 0.005)
-
-/** O desenho da curva (o progresso ao longo do tempo), como ícone do preset. */
-export function IconeCurva({ curva }: { curva: Curva }) {
-  const f = bezier(...curva)
-  const pontos = Array.from({ length: 25 }, (_, i) => {
-    const t = i / 24
-    return `${2 + t * 32},${22 - f(t) * 18}`
-  }).join(' ')
-  return (
-    <svg viewBox="0 0 36 26" className="h-6 w-9">
-      <line x1="2" y1="22" x2="34" y2="22" className="stroke-current opacity-25" strokeWidth={1} />
-      <polyline points={pontos} className="fill-none stroke-current" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
 
 // os sliders de cada campo: rótulo (na entrada e na saída), limites, passo e unidade
 const CAMPOS: Record<string, { entrada: string; saida: string; min: number; max: number; passo: number; un: string }> = {

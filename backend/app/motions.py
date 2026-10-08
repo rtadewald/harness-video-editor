@@ -2,7 +2,6 @@
 e fotografadas quadro a quadro na exportação, como os inserts. Ficam numa biblioteca global (`motions/<id>/`), com versões
 (v1, v2 ← v1…, como a Direção) e **campos** editáveis declarados pelo próprio motion (textos, cores): reaproveitar um
 motion é copiá-lo e trocar os campos, sem IA. Usar num plano **copia** a versão e os valores para o projeto."""
-import html as html_mod
 import json
 import re
 import shutil
@@ -15,7 +14,6 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import quote
 
 from pydantic import BaseModel, Field
 
@@ -24,7 +22,6 @@ from . import comum, inserts, projeto, referencias
 RAIZ = Path(__file__).resolve().parents[2] / 'motions'
 FORMATOS = {'vertical': (1080, 1920), 'dividida': (1080, 960)}  # tela cheia 9:16; tela dividida: a metade de cima
 QUADROS_REF = 6  # quadros de cada referência mandados à IA (ela vê imagens, não vídeo)
-FRONT = 'http://localhost:5173'
 
 _fila = ThreadPoolExecutor(max_workers=2)
 _trava = threading.Lock()
@@ -285,7 +282,7 @@ def fotografar(doc: str, formato: str, instantes: list[float], destino: Path) ->
             page = browser.new_page(viewport={'width': w // 2, 'height': h // 2}, device_scale_factor=1)
             # a página precisa das fontes, do GSAP e do runtime do front: vai pela rota de rascunho, servida pelo backend
             page.route('**/__rascunho__', lambda rota: rota.fulfill(status=200, content_type='text/html', body=doc))
-            page.goto(f'{FRONT}/__rascunho__', wait_until='load', timeout=30_000)
+            page.goto(f'{comum.FRONT}/__rascunho__', wait_until='load', timeout=30_000)
             page.evaluate(f'() => {{ document.documentElement.style.zoom = "0.5" }}')
             for k, t in enumerate(instantes):
                 page.evaluate('(t) => window.__ir(t)', t)
@@ -367,7 +364,7 @@ def _gerar(mid: str, de: int | None, comentario: str | None) -> None:
 
 # ---------------------------------------------------------------- o motion de um plano (cópia no projeto)
 
-def _pasta_plano(pid: str) -> Path:
+def pasta_plano(pid: str) -> Path:
     return projeto.pasta(pid) / 'motions'
 
 
@@ -378,7 +375,7 @@ def usar(pid: str, plano: str, mid: str, n: int | None, valores: dict | None) ->
     if not n:
         raise ValueError('Motion ainda sem versão')
     frag = html_da_versao(mid, n)
-    destino = _pasta_plano(pid)
+    destino = pasta_plano(pid)
     destino.mkdir(exist_ok=True)
     (destino / f'{plano}.html').write_text(frag, encoding='utf-8')
     shutil.copy(pasta(mid) / f'v{n}.jpg', destino / f'{plano}.jpg')
@@ -401,7 +398,7 @@ def valores_no_plano(pid: str, plano: str, valores: dict) -> dict:
 def tirar_do_plano(pid: str, plano: str) -> None:
     projeto.atualizar(pid, lambda p: (p.get('motions') or {}).pop(plano, None))
     for ext in ('html', 'jpg'):
-        (_pasta_plano(pid) / f'{plano}.{ext}').unlink(missing_ok=True)
+        (pasta_plano(pid) / f'{plano}.{ext}').unlink(missing_ok=True)
 
 
 def pagina_do_plano(pid: str, plano: str, duracao: float | None, exportacao: bool = False) -> str:
@@ -409,13 +406,5 @@ def pagina_do_plano(pid: str, plano: str, duracao: float | None, exportacao: boo
     x = (projeto.ler(pid).get('motions') or {}).get(plano)
     if not x:
         raise LookupError('Este plano não tem motion')
-    frag = (_pasta_plano(pid) / f'{plano}.html').read_text(encoding='utf-8')
+    frag = (pasta_plano(pid) / f'{plano}.html').read_text(encoding='utf-8')
     return documento(frag, x['formato'], duracao or x['duracao'], x.get('valores') or {}, x.get('midias') or [], exportacao)
-
-
-def escapar(texto: str) -> str:
-    return html_mod.escape(texto)
-
-
-def url_pagina(mid: str) -> str:
-    return f'/api/motions/{quote(mid)}/pagina'

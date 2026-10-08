@@ -31,7 +31,8 @@ Testes: `cd backend && uv run pytest`. Checagem do front: `cd frontend && npm ru
 
 ## Git
 
-- Cada funcionalidade numa branch saída da main; **uma branch de trabalho por vez** (não abra outra antes de a atual ir para a main). Commite à vontade nela.
+- Cada funcionalidade numa branch saída da main; **uma branch de trabalho por pasta** (não abra outra antes de a atual ir para a main). Commite à vontade nela.
+- **Duas sessões em paralelo:** os motions andam numa segunda pasta (`git worktree`, `../18-harness-video-editor-motions`, portas no `.dev.env`, dados como links para os da pasta principal). Lá, mexa só nos arquivos de motions listados em [docs/motions.md](docs/motions.md); fora deles, mudança mínima. Na pasta principal, não mexa nesses arquivos. Antes de ir para a main, rebase sobre ela.
 - No push (quando Rodrigo pedir): junte os commits da branch num só (`git reset --soft $(git merge-base main HEAD)` + commit; rebase sobre a main se ela andou), `git merge --no-ff` na main, `git push origin main` (nunca forçado) e apague a branch local.
 
 ## Segurança

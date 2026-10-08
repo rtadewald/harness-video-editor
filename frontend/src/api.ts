@@ -121,7 +121,7 @@ export type Picos = { por_segundo: number; picos: number[] }
 
 export type ResumoProjeto = Pick<Projeto, 'id' | 'nome' | 'criado_em' | 'etapas'> & { duracao: number | null; apoios: number }
 
-async function json<T>(r: Response): Promise<T> {
+export async function json<T>(r: Response): Promise<T> {
   if (!r.ok) throw new Error((await r.json().catch(() => null))?.detail ?? `Erro ${r.status}`)
   return r.json()
 }
@@ -135,7 +135,7 @@ export const enviarMensagem = (id: string, etapa: Etapa, texto: string) =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ texto }),
   }).then(json<Mensagem[]>)
-const post = <T,>(url: string) => fetch(url, { method: 'POST' }).then(json<T>)
+export const post = <T,>(url: string) => fetch(url, { method: 'POST' }).then(json<T>)
 export const processar = (id: string) => post<Projeto>(`/api/projetos/${id}/processar`)
 export const renomearProjeto = (id: string, nome: string) =>
   fetch(`/api/projetos/${id}/nome`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome }) }).then(json<Projeto>)
@@ -144,7 +144,7 @@ export const gerarDirecao = (id: string) => post<Projeto>(`/api/projetos/${id}/d
 export type RegistroDirecao = { gerado_em: string; etapa?: 'diretora' | 'corretora'; versao?: number; de?: number; modelo: string; raciocinio?: string; modelo_formatadora?: string; tokens: number | null; sistema: string; usuario: string; roteiro?: string; resposta: unknown; arquivo: string; total: number }
 export const lerRegistroDirecao = (id: string, versao?: number) =>
   fetch(`/api/projetos/${id}/direcao/registro${versao != null ? `?versao=${versao}` : ''}`).then(json<RegistroDirecao>)
-const enviar = <T,>(metodo: string, url: string, corpo?: unknown) =>
+export const enviar = <T,>(metodo: string, url: string, corpo?: unknown) =>
   fetch(url, { method: metodo, headers: { 'Content-Type': 'application/json' }, body: corpo === undefined ? undefined : JSON.stringify(corpo) }).then(json<T>)
 export const corrigirDirecao = (id: string, geral: string | null) => enviar<Projeto>('POST', `/api/projetos/${id}/direcao/corrigir`, { geral })
 export const abrirVersaoDirecao = (id: string, n: number) => enviar<DirecaoProjeto>('PUT', `/api/projetos/${id}/direcao/versao`, { n })
@@ -370,7 +370,7 @@ export type PedidoInsert = {
   duracao: number
   midias: MidiaLigada[]
   /** O que o criador mudou no enriquecimento (o resto vem do estilo do formato; SPEC §8.3). */
-  enriquecimento?: Partial<Record<'layout' | 'entrada' | 'entrada_2' | 'saida' | 'saida_2' | 'entre' | 'movimento', string> & { corte: number }>
+  enriquecimento?: Partial<Record<'layout' | 'entrada' | 'entrada_2' | 'saida' | 'saida_2' | 'entre' | 'movimento', string> & { corte: number; preset: string }>
   /** O card de comentário (só em Comentário + insert + ator): o que difere do padrão. */
   comentario?: Partial<{ texto: string | null; avatar: number; usuario: string; tempo: string; traducao: boolean; x: number; y: number; escala: number }>
   /** As capturas de site deste insert: as em andamento (várias podem rodar ao mesmo tempo) e as que falharam (§8.3). */
@@ -455,7 +455,6 @@ export const capturarSite = (id: string, pid: string, c: { url: string; proporca
   enviar<InsertsProjeto>('POST', `/api/projetos/${id}/inserts/${pid}/captura`, c)
 export const enriquecerInsert = (id: string, pid: string, campos: Record<string, string | number | number[] | null>) =>
   enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/${pid}/enriquecimento`, { campos })
-export const definirTransicao = (id: string, transicao: string) => enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/transicao`, { transicao })
 export const definirFundo = (id: string, fundo: string) => enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/fundo`, { fundo })
 export const configurarComentario = (id: string, pid: string, campos: Record<string, unknown>) =>
   enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/${pid}/comentario`, { campos })
@@ -477,58 +476,21 @@ export type Exportacao = OpcoesExportacao & {
   fim: string | null
 }
 export const verExportacao = (id: string) => fetch(`/api/projetos/${id}/exportacao`).then(json<{ atual: Exportacao | null }>)
-export const exportarProjeto = (id: string, o: OpcoesExportacao & { nome: string }) =>
-  fetch(`/api/projetos/${id}/exportacao`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) }).then(json<Exportacao>)
-export const cancelarExportacao = (id: string) => fetch(`/api/projetos/${id}/exportacao/cancelar`, { method: 'POST' }).then(json<{ ok: boolean }>)
-export const mostrarExportacao = (id: string) => fetch(`/api/projetos/${id}/exportacao/finder`, { method: 'POST' }).then(json<{ ok: boolean }>)
+export const exportarProjeto = (id: string, o: OpcoesExportacao & { nome: string }) => enviar<Exportacao>('POST', `/api/projetos/${id}/exportacao`, o)
+export const cancelarExportacao = (id: string) => post<{ ok: boolean }>(`/api/projetos/${id}/exportacao/cancelar`)
+export const mostrarExportacao = (id: string) => post<{ ok: boolean }>(`/api/projetos/${id}/exportacao/finder`)
 export const urlExportacao = (id: string) => `/api/projetos/${id}/exportacao/arquivo`
 
-// motions (SPEC §8.5)
-export type CampoMotion = { tipo: 'texto' | 'cor'; rotulo: string; padrao: string }
-export type ReferenciaMotion = { ref: string; inicio: number; fim: number; tipo: string; descricao: string; texto?: string | null }
-export type VersaoMotion = { n: number; de: number | null; comentario: string | null; campos: Record<string, CampoMotion>; criado_em: string; modelo: string; segundos: number }
-export type Motion = {
-  id: string
-  nome: string
-  formato: 'vertical' | 'dividida'
-  duracao: number
-  criado_em: string
-  favorito: boolean
-  pedido: { nome: string; formato: string; duracao: number; prompt: string; referencias: ReferenciaMotion[]; midias: string[] }
-  versoes: VersaoMotion[]
-  ativa: number | null
-  valores: Record<string, string>
-  status: { estado: 'fila' | 'gerando' | 'pronto' | 'erro'; erro: string | null; etapa: 'escrevendo' | 'conferindo' | 'finalizando' | null }
-}
-/** O motion de um plano: a cópia guardada no projeto. */
-export type MotionPlano = {
-  origem: string
-  versao: number
-  nome: string
-  formato: 'vertical' | 'dividida'
-  duracao: number
-  campos: Record<string, CampoMotion>
-  valores: Record<string, string>
-  midias: string[]
-  usado_em: string
-}
-export const listarMotions = () => fetch('/api/motions').then(json<Motion[]>)
-export const lerMotion = (mid: string) => fetch(`/api/motions/${mid}`).then(json<Motion>)
-export const criarMotion = (p: { nome: string; formato: string; duracao: number; prompt: string; referencias: ReferenciaMotion[]; midias: string[] }) =>
-  enviar<Motion>('POST', '/api/motions', p)
-export const editarMotion = (mid: string, campos: Partial<{ nome: string; favorito: boolean; ativa: number; valores: Record<string, string> }>) =>
-  enviar<Motion>('PATCH', `/api/motions/${mid}`, { campos })
-export const novaVersaoMotion = (mid: string, de: number, comentario: string) => enviar<Motion>('POST', `/api/motions/${mid}/versoes`, { de, comentario })
-export const apagarMotion = (mid: string) => enviar<{ ok: boolean }>('DELETE', `/api/motions/${mid}`)
-export const urlPaginaMotion = (m: Motion, n?: number | null) => `/api/motions/${m.id}/pagina?n=${n ?? m.ativa ?? ''}&v=${encodeURIComponent(JSON.stringify(m.valores))}`
-export const urlMiniaturaMotion = (m: Motion, n?: number | null) => `/api/motions/${m.id}/miniatura?n=${n ?? m.ativa ?? ''}`
-export const motionsDoProjeto = (id: string) => fetch(`/api/projetos/${id}/motions`).then(json<Record<string, MotionPlano>>)
-export const usarMotion = (id: string, plano: string, motion: string, versao?: number | null, valores?: Record<string, string>) =>
-  enviar<MotionPlano>('PUT', `/api/projetos/${id}/motions/${plano}`, { motion, versao, valores })
-export const valoresMotionPlano = (id: string, plano: string, valores: Record<string, string>) =>
-  enviar<MotionPlano>('PATCH', `/api/projetos/${id}/motions/${plano}`, { valores })
-export const tirarMotionDoPlano = (id: string, plano: string) => enviar<{ ok: boolean }>('DELETE', `/api/projetos/${id}/motions/${plano}`)
-/** A página do motion de um plano: `duracao` = a do plano agora (a animação estica ou encolhe se mudou). */
-export const urlPaginaMotionPlano = (id: string, plano: string, m: MotionPlano, duracao: number, exportacao = false) =>
-  `/api/projetos/${id}/motions/${plano}/pagina?duracao=${duracao.toFixed(3)}${exportacao ? '&exportacao=true' : ''}&v=${encodeURIComponent(m.usado_em + JSON.stringify(m.valores))}`
-export const urlMiniaturaMotionPlano = (id: string, plano: string, m: MotionPlano) => `/api/projetos/${id}/motions/${plano}/miniatura?v=${encodeURIComponent(m.usado_em)}`
+/** O banco por id, com os trechos de cada vídeo (um trecho toca o arquivo do original). */
+export const mapaBanco = (l: ItemBanco[]) => new Map(l.flatMap((i) => [i, ...(i.trechos ?? [])]).map((i) => [i.id, i]))
+
+/** O card `k` do preset recortado da referência de onde veio (revisão lado a lado). */
+/** O recorte do card `k` parado na referência; `v` muda quando a posição muda (o navegador não reaproveita o antigo). */
+export const urlAmostraPreset = (pid: string, k: number, v = '') => `/api/presets/${pid}/amostra/${k}${v && `?v=${v}`}`
+
+/** Um trecho de referência que virou preset. */
+export type FontePreset = { ref: string; inicio: number; fim: number; preset: string; nome: string; aprovado: boolean }
+export const listarFontesPresets = () => fetch('/api/presets/fontes').then(json<FontePreset[]>)
+
+/** Segundos com uma casa, em PT-BR ("3,5"). */
+export const s1 = (t: number) => t.toFixed(1).replace('.', ',')

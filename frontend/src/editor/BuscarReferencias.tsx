@@ -3,6 +3,7 @@ import { Search, Star, X } from 'lucide-react'
 import { listarClipes, marcarFavorito, urlArquivoReferencia, type ClipeReferencia } from '@/api'
 import Modal from '@/components/Modal'
 import { cn } from '@/lib/utils'
+import { useLembrado } from '@/lib/useLembrado'
 import { Cartao, Chip, GRUPOS, SO_ATOR, useTrecho } from '@/paginas/Referencias'
 
 const chave = (c: ClipeReferencia) => `${c.ref}/${c.id}`
@@ -18,21 +19,10 @@ export default function BuscarReferencias({ tipo, fechar, usar }: { tipo: string
   const [soFavoritos, setSoFavoritos] = useState(false)
   const [busca, setBusca] = useState('')
   // a mesma caixa da página Referências (marcada por padrão, lembrada no navegador)
-  const [semFullAtor, setSemFullAtorEstado] = useState(() => {
-    try {
-      return localStorage.getItem('referencias.semFullAtor') !== '0'
-    } catch {
-      return true
-    }
-  })
+  const [semFullAtor, lembrarSemFullAtor] = useLembrado('referencias.semFullAtor', true)
   const setSemFullAtor = (v: boolean) => {
-    setSemFullAtorEstado(v)
+    lembrarSemFullAtor(v)
     if (v && grupo && SO_ATOR.includes(grupo)) setGrupo(null)
-    try {
-      localStorage.setItem('referencias.semFullAtor', v ? '1' : '0')
-    } catch {
-      /* sem armazenamento: só não lembra */
-    }
   }
   const [aberto, setAberto] = useState<string | null>(null)
 
