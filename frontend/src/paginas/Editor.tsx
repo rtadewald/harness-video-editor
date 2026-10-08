@@ -371,7 +371,7 @@ export default function Editor() {
         )}
 
         {insertsReal ? (
-          <EtapaInserts dados={dados} seq={seq} player={player} src={urlArquivo(projeto.id, bruto.proxy ?? bruto.arquivo)} enquadramentoX={projeto.enquadramento.x} />
+          <EtapaInserts dados={dados} seq={seq} player={player} src={urlArquivo(projeto.id, bruto.proxy ?? bruto.arquivo)} enquadramentoX={projeto.enquadramento.x} aoMudarProjeto={(p) => setDados((d) => d && { ...d, projeto: p })} />
         ) : direcaoReal ? (
           <EtapaDirecao
             dados={dados}

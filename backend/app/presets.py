@@ -69,6 +69,8 @@ def listar() -> list[dict]:
         return []
     out = []
     for arq in RAIZ.glob('*.json'):
+        if not re.fullmatch(r'[0-9a-f]{10}', arq.stem):  # a ordem (ordem.json) mora na mesma pasta
+            continue
         try:
             out.append(comum.ler_json(arq))
         except ValueError:
@@ -109,6 +111,8 @@ def validar_receita(r: dict) -> dict:
         if isinstance(c.get('quadros'), list) and c['quadros']:  # o card pelos 4 cantos ao longo da vida (medidos)
             novo['quadros'] = [{'f': _numero(x['f'], 0, 1), 'q': [[_numero(a, -2000, 2000), _numero(b, -2000, 2000)] for a, b in x['q'][:4]]}
                                for x in c['quadros'] if len(x.get('q') or []) >= 4]
+        if c.get('fim_mais'):  # segundos além de fim_frac
+            novo['fim_mais'] = _numero(c['fim_mais'], 0, 5)
         if c.get('fim_frac') is not None:  # termina numa fração do insert (uma tomada que acaba no corte)
             novo['fim_frac'] = _numero(c['fim_frac'], 0.01, 1)
         if isinstance(c.get('midia'), int) and 0 <= c['midia'] < 9:  # o card mostra outra mídia (mosaico com repetição)
@@ -132,7 +136,8 @@ def validar_receita(r: dict) -> dict:
                           'dur': {k: _numero(v, 0.04, 5) for k, v in (t.get('dur') or {}).items() if k in PROPRIEDADES}}
         cards.append(novo)
     return {'formato': r['formato'], 'fundo': r.get('fundo') if r.get('fundo') in ('proprio', 'nenhum') else 'proprio',
-            'duracao_ref': _numero(r.get('duracao_ref', 2.5), 0.2, 30), 'cards': cards, **({'repete': True} if r.get('repete') else {})}
+            'duracao_ref': _numero(r.get('duracao_ref', 2.5), 0.2, 30), 'cards': cards, **({'repete': True} if r.get('repete') else {}),
+            **({'sai_ultimo': True} if r.get('sai_ultimo') else {})}
 
 
 def editar(pid: str, campos: dict) -> dict:
@@ -148,6 +153,22 @@ def editar(pid: str, campos: dict) -> dict:
             p['formato'] = p['receita']['formato']
         if campos.get('formato') in ('vertical', 'dividida'):  # o formato para o qual a receita foi desenhada
             p['formato'] = p['receita']['formato'] = campos['formato']
+        if campos.get('divisao_tipo') in ('area', 'card', 'atras'):  # na tela dividida: ocupa a área, card ou ator embaixo
+            p['divisao_tipo'] = campos['divisao_tipo']
+        u = campos.get('usos')
+        if isinstance(u, dict):  # onde o preset vale: modos de tela e números de mídias
+            telas = [t for t in u.get('telas') or [] if t in ('dividida', 'vertical', 'atras')]
+            midias = [m for m in u.get('midias') or [] if m in ('1', '2', '2+')]
+            if not telas or not midias:
+                raise ValueError('Marque ao menos uma tela e um número de mídias')
+            p['usos'] = {'telas': telas, 'midias': midias}
+            props = [x for x in u.get('proporcoes') or [] if x in ('pe', 'quadrada', 'deitada')]
+            if u.get('proporcoes') is not None:  # as proporções das mídias (sem a marca, todas)
+                if not props:
+                    raise ValueError('Marque ao menos uma proporção')
+                p['usos']['proporcoes'] = props
+        if isinstance(campos.get('rapidos'), list):  # os ajustes rápidos que aparecem na edição do insert
+            p['rapidos'] = [str(x)[:20] for x in campos['rapidos']][:8]
         if 'formatos' in campos:  # onde o preset aparece: um formato só, ou os dois (no outro, adaptado)
             fs = sorted({f for f in campos['formatos'] or [] if f in ('vertical', 'dividida')})
             if not fs:
@@ -160,6 +181,52 @@ def editar(pid: str, campos: dict) -> dict:
 
 def apagar(pid: str) -> None:
     _arq(pid).unlink(missing_ok=True)
+    o = ordem()
+    if any(pid in v['ids'] for v in o.values()):
+        for v in o.values():
+            if pid in v['ids']:
+                v['favoritos'] -= v['ids'].index(pid) < v['favoritos']
+                v['ids'].remove(pid)
+        comum.salvar_json(_arq_ordem(), {k: v for k, v in o.items() if v['ids']})
+
+
+# ---------------------------------------------------------------- ordem e recomendados por situação
+
+# a situação de um insert: o modo de tela e o número de mídias ("vertical:2"; com 1 mídia, também a proporção:
+# "vertical:1:pe" ou "vertical:1:deitada", a quadrada junto com a horizontal); os 3 primeiros da ordem são os recomendados
+SITUACAO = re.compile(r'(dividida|vertical|atras):(1:pe|1:deitada|2|2\+)')
+
+
+def _arq_ordem() -> Path:
+    return RAIZ / 'ordem.json'
+
+
+def ordem() -> dict[str, dict]:
+    """A ordem dos presets em cada situação definida, `{ids, favoritos}`: os `favoritos` primeiros da ordem são os
+    recomendados (as situações não definidas ficam de fora: a lista sem separação)."""
+    arq = _arq_ordem()
+    o = comum.ler_json(arq) if arq.exists() else {}
+    # a primeira versão guardava só a lista (todos favoritos, até 3)
+    return {k: v if isinstance(v, dict) else {'ids': v, 'favoritos': min(len(v), 3)} for k, v in o.items()}
+
+
+def definir_ordem(situacao: str, ids: list, favoritos: int = 0) -> dict[str, dict]:
+    """A ordem de uma situação (ids de presets que existem, sem repetir) e quantos dos primeiros são favoritos (até 3);
+    vazia, a situação volta a não ter ordem."""
+    if not SITUACAO.fullmatch(situacao or ''):
+        raise ValueError('Situação inválida')
+    if not isinstance(ids, list):
+        raise ValueError('A ordem é uma lista de presets')
+    limpos = list(dict.fromkeys(x for x in ids if isinstance(x, str) and existe(x)))
+    fav = int(comum.numero(favoritos or 0, 0, 3, 0))
+    with _trava:
+        o = ordem()
+        if limpos:
+            o[situacao] = {'ids': limpos, 'favoritos': min(fav, len(limpos))}
+        else:
+            o.pop(situacao, None)
+        comum.salvar_json(_arq_ordem(), o)
+    return o
 
 
 # ---------------------------------------------------------------- criação

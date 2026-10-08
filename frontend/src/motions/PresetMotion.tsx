@@ -52,10 +52,12 @@ export function GradePresets(p: { formato: Formato; atual?: string; escolher: (p
           key={pr.id}
           onClick={() => p.atual !== pr.id && p.escolher(pr)}
           title={pr.descricao}
-          className={cn("grid gap-1.5 rounded-[8px] p-1.5 text-left ring-1 transition-colors", p.atual === pr.id ? "ring-2 ring-coral" : "ring-line-dark hover:ring-yellow")}
+          className="group/m grid gap-1.5 text-left"
         >
-          <MiniaturaPreset preset={pr} formato={p.formato} />
-          <span className="px-0.5 text-[11.5px] font-semibold leading-tight">{pr.nome}</span>
+          <div className={cn("rounded-[6px] ring-1 transition-shadow", p.atual === pr.id ? "ring-2 ring-coral" : "ring-line-dark group-hover/m:ring-cream/40")}>
+            <MiniaturaPreset preset={pr} formato={p.formato} />
+          </div>
+          <span className={cn("text-[11.5px] font-semibold leading-tight", p.atual === pr.id ? "text-cream" : "text-fog group-hover/m:text-cream")}>{pr.nome}</span>
         </button>
       ))}
     </div>

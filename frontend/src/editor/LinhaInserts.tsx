@@ -35,6 +35,8 @@ export default function LinhaInserts(p: {
   /** O motion escolhido em cada plano de motion (nome). */
   motions: Record<string, { nome: string }>
   ajustarCorte: (pid: string, v: number | null, salvar: boolean) => void
+  /** As ferramentas da linha do tempo, antes do zoom (ex.: cortar o plano sob o cursor). */
+  ferramentas?: React.ReactNode
 }) {
   const rolagem = useRef<HTMLDivElement>(null)
   const [px, setPx] = useState(14)
@@ -82,6 +84,7 @@ export default function LinhaInserts(p: {
     <div className="flex min-h-0 flex-col border-t border-line-dark">
       <div className="flex items-center gap-2 border-b border-line-dark px-3 py-1.5 text-[11px] text-fog">
         <span className="eyebrow text-sage">Linha do tempo</span>
+        {p.ferramentas}
         <span className="ml-auto" />
         <button onClick={() => setPx((v) => Math.max(v / 1.4, 2))} className="grid size-7 place-items-center rounded-full hover:text-cream" aria-label="Afastar">
           <Minus className="size-3.5" />

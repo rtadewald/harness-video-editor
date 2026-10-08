@@ -10,16 +10,18 @@ import {
   Images,
   Library,
   RotateCcw,
+  Scissors,
   Search,
   Settings2,
   Upload,
   Wand2,
 } from 'lucide-react'
-import { s1, definirMidias, configurarComentario, definirFundo, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, tempoBR, type DadosEditor, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
+import { s1, definirMidias, configurarComentario, definirFundo, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, tempoBR, urlArquivo, salvarDirecaoProjeto, type DadosEditor, type Projeto, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
 import { falaDoPlano, fundoDoMotion, urlPaginaMotionPlano } from '@/motions/api'
 import { cn } from '@/lib/utils'
 import { useLembrado } from '@/lib/useLembrado'
-import { paraTempo, palavrasNaSaida } from './direcaoProjeto'
+import { paraAncora, paraTempo, palavrasNaSaida } from './direcaoProjeto'
+import { dividirPlano, editar } from '@/referencias/edicao'
 import { CATEGORIAS } from './EtapaDirecao'
 import { CardComentario, PainelComentario, comentarioDe, type Comentario } from './ComentarioIG'
 import BuscarReferencias from './BuscarReferencias'
@@ -28,7 +30,10 @@ import MidiaCard from './MidiaCard'
 import SeletorBanco from './SeletorBanco'
 import EditorPreset from './EditorPreset'
 import MiniPreset from './MiniPreset'
-import { presetsPara, usePresets } from './presets'
+import { comRecomendados, ordemDoInsert, presetsPara, useOrdem, usePresets } from './presets'
+import CardAjustes from './CardAjustes'
+import { aspectosDe, divisaoDe, receitaParaInsert, telaTodaPermitida, estiloDaPessoa, estiloDoAtor, posicaoDoComentario, type Divisao } from './divisao'
+import AtorRecortado from './AtorRecortado'
 import MotionNoLugar from '@/motions/MotionNoLugar'
 import PainelMotion from '@/motions/PainelMotion'
 import { EdicaoPreset } from '@/motions/PresetMotion'
@@ -49,6 +54,7 @@ type Props = {
   player: ReturnType<typeof usePlayer>
   src: string
   enquadramentoX: number
+  aoMudarProjeto: (p: Projeto) => void
 }
 type Pedido = PedidoNoTempo
 type NovaMidia = Omit<MidiaLigada, 'id'> & { id?: string }
@@ -112,6 +118,21 @@ export default function EtapaInserts(p: Props) {
         .map((i) => ({ ...i, fala: saida.filter((w) => w.saida_ini >= i.inicio - 0.01 && w.saida_ini < i.fim).map((w) => w.texto).join(' ') })),
     [itens, saida],
   )
+  // mudar a direção daqui (a categoria de um plano, cortar um plano em dois): a versão aberta muda, a sugestão da IA
+  // (`itens_ia`) fica; os inserts acompanham (as mídias seguem o plano)
+  const editarDirecao = async (f: (itens: ItemRef[]) => ItemRef[]) => {
+    const { visiveis, orfaos } = paraTempo(projeto.direcao?.itens ?? [], dados.palavras, saida, seq.duracao)
+    const novos = f(visiveis)
+    if (novos === visiveis) return
+    try {
+      const r = await salvarDirecaoProjeto(projeto.id, [...paraAncora(novos, saida), ...orfaos])
+      p.aoMudarProjeto({ ...projeto, direcao: r })
+      setIns(await lerInserts(projeto.id))
+    } catch (e) {
+      falhar(e)
+    }
+  }
+  const sugestaoIA = (id: string) => projeto.direcao?.itens_ia?.find((i) => i.id === id)?.tipo ?? null
   const palavrasTimeline = useMemo(() => saida.map((w) => ({ ...w, inicio: w.saida_ini, fim: w.saida_fim })), [saida])
   const pedidos: Pedido[] = useMemo(() => pedidosNoTempo(ins?.pedidos ?? [], planos), [ins, planos])
   const tempo = player.tempo
@@ -125,15 +146,26 @@ export default function EtapaInserts(p: Props) {
 
   // tela dividida com mídia: o ator desce para a metade de baixo (o centro do quadro no meio da metade de baixo)
   const motionNoCursor = planoNoCursor && motions[planoNoCursor.id] ? planoNoCursor : null
-  const dividida = (!!noCursor && noCursor.formato === 'dividida' && noCursor.midias.length > 0) || motionNoCursor?.tipo === 'tela_dividida_motion'
+  const presetsTodos = usePresets()
+  // a divisão do insert sob o cursor: onde o ator fica (desce, ou encolhe numa janela) e se a pessoa recortada sai por cima
+  const divisao: Divisao | null =
+    noCursor && noCursor.midias.length > 0 ? divisaoDe(noCursor, banco, presetsTodos) : motionNoCursor?.tipo === 'tela_dividida_motion' ? { modo: 'metade', tipo: 'area', f: 0.5 } : null
+  // no "insert atrás" o ator vai por cima do insert (uma cópia sincronizada, abaixo); o vídeo principal fica como está
+  const estiloAtor = JSON.stringify(divisao?.modo === 'atras' ? {} : estiloDoAtor(divisao))
   useEffect(() => {
     const v = player.ref.current
     if (!v) return
-    v.style.transform = dividida ? 'translateY(25%)' : ''
+    const e = JSON.parse(estiloAtor) as React.CSSProperties
+    v.style.transform = (e.transform as string) ?? ''
+    v.style.transformOrigin = (e.transformOrigin as string) ?? ''
+    v.style.clipPath = (e.clipPath as string) ?? ''
     return () => {
-      v.style.transform = ''
+      v.style.transform = v.style.transformOrigin = v.style.clipPath = ''
     }
-  }, [dividida, player.ref])
+  }, [estiloAtor, player.ref])
+  const estiloPessoa = estiloDaPessoa(divisao)
+  const bruto = projeto.fontes.find((f) => f.papel === 'bruto')
+  const urlPessoa = projeto.recorte?.estado === 'pronto' && bruto ? urlArquivo(projeto.id, `midia/recorte/${bruto.id}_pessoa.webm`) : null
 
   const salvar = (pid: string, midias: NovaMidia[]) => definirMidias(projeto.id, pid, midias as MidiaLigada[]).then(setIns).catch(falhar)
   /** Sobe arquivos para o banco e liga ao insert, no fim da lista. Devolve os itens novos (os vídeos abrem no editor). */
@@ -155,6 +187,16 @@ export default function EtapaInserts(p: Props) {
 
   const planoSel = planos.find((pl) => pl.id === selPlano) ?? null
   const sel = pedidos.find((x) => x.plano === selPlano) ?? null
+  const presetDoSel = sel ? presetDe(sel, presetsTodos) : null
+  // selecionar um insert com preset abre a coluna dos cards (o do preset e o fundo)
+  useEffect(() => {
+    if (presetDoSel) setColuna(true)
+  }, [sel?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  // os ajustes rápidos do preset mudam na hora (sem esperar o servidor) e são salvos no insert
+  const mudarEnriquecimento = (pid: string, campos: Record<string, unknown>) => {
+    setIns((i) => i && { ...i, pedidos: i.pedidos.map((x) => (x.id === pid ? { ...x, enriquecimento: { ...x.enriquecimento, ...(campos as object) } } : x)) })
+    void enriquecerInsert(projeto.id, pid, campos as Parameters<typeof enriquecerInsert>[2]).then(setIns).catch(falhar)
+  }
   /** Onde a 2ª mídia começa (fração do insert): muda na tela na hora (arrastando) e salva ao soltar. */
   const ajustarCorte = (pid: string, v: number | null, salvarAgora: boolean) => {
     setIns((r) =>
@@ -210,18 +252,37 @@ export default function EtapaInserts(p: Props) {
   // R: toca de novo o trecho do plano atual, do começo ao fim (fora de campos de texto; o editor de vídeo segura as teclas dele).
   // Para um quadro antes do fim (o cursor fica dentro do plano) e lembra o plano tocado: R de novo logo depois do fim
   // repete o mesmo, mesmo que o cursor tenha passado para o seguinte (pedido de Rodrigo, out/2026)
+  const cortarNoCursor = () =>
+    void editarDirecao((it) => {
+      const r = dividirPlano(it, tempo)
+      if (r.novo) setSelPlano(r.novo)
+      return r.novo ? r.itens : it
+    })
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'd' || e.metaKey || e.ctrlKey || e.altKey) return
+      if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return
+      e.preventDefault()
+      cortarNoCursor()
+    }
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  })
   const ultimoR = useRef<{ id: string; fim: number } | null>(null)
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== 'r' || e.metaKey || e.ctrlKey || e.altKey) return
       if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return
-      const anterior = ultimoR.current && tempo >= ultimoR.current.fim - 0.1 && tempo <= ultimoR.current.fim + 1.5 ? planos.find((x) => x.id === ultimoR.current!.id) : null
-      const pl = anterior ?? planos.find((x) => x.id === selPlano) ?? planoNoCursor
+      // o plano sob o cursor (o trecho tocado para um quadro antes do fim, então o cursor fica nele); se o cursor parou
+      // exatamente no fim do último tocado, ele de novo
+      const naBorda = ultimoR.current && Math.abs(tempo - ultimoR.current.fim) < 0.2 ? planos.find((x) => x.id === ultimoR.current!.id) : null
+      const pl = naBorda ?? planoNoCursor ?? planos.find((x) => x.id === selPlano)
       if (!pl) return
       e.preventDefault()
       ultimoR.current = { id: pl.id, fim: pl.fim }
       if (selPlano !== pl.id) setSelPlano(pl.id)
-      player.tocarTrecho(seq.saidaParaFonte(pl.inicio), seq.saidaParaFonte(Math.max(pl.fim - 1 / 24, pl.inicio)), { pular: true, loop: false })
+      // para dois quadros antes do fim: o cursor fica dentro do plano (o player às vezes passa um quadro)
+      player.tocarTrecho(seq.saidaParaFonte(pl.inicio), seq.saidaParaFonte(Math.max(pl.fim - 2 / 24, pl.inicio)), { pular: true, loop: false })
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
@@ -287,6 +348,13 @@ export default function EtapaInserts(p: Props) {
           />
           {erro && <p className="border-b border-line-dark px-4 py-2 text-[12px] text-coral">{erro}</p>}
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            {planoSel && (
+              <Categoria
+                atual={planoSel.tipo}
+                sugestao={sugestaoIA(planoSel.id)}
+                mudar={(tipo) => void editarDirecao((it) => editar(it, planoSel.id, { tipo }))}
+              />
+            )}
             {!planoSel ? (
               <p className="text-[12.5px] leading-[1.7] text-fog">
                 Escolha um plano na linha do tempo. Num insert, aqui ficam as mídias (subir, escolher do{' '}
@@ -349,9 +417,11 @@ export default function EtapaInserts(p: Props) {
               ) : noCursor && (
                 <>
                   <InsertNoLugar pedido={noCursor} banco={banco} tempo={tempo} tocando={player.tocando} fundo={ins?.fundo ?? 'gradiente'} trans={trans} />
+                  {divisao?.modo === 'atras' && <AtorRecortado fonte={player.ref} src={p.src} estilo={estiloDoAtor(divisao)} enquadramentoX={p.enquadramentoX} />}
+                  {estiloPessoa && urlPessoa && <AtorRecortado fonte={player.ref} src={urlPessoa} estilo={estiloPessoa} enquadramentoX={p.enquadramentoX} />}
                   {noCursor.tipo === 'comentario_insert_ator' && (
                     <CardComentario
-                      c={comentarioDe(noCursor)}
+                      c={comentarioDe(noCursor, posicaoDoComentario(divisao))}
                       texto={comentarioDe(noCursor).texto ?? noCursor.texto ?? ''}
                       mudar={(campos) => mudarComentario(noCursor.id, campos)}
                     />
@@ -372,11 +442,16 @@ export default function EtapaInserts(p: Props) {
               >
                 Recolher <PanelRightClose className="size-3.5" />
               </button>
-              {presetAberto && (
+              {presetAberto && presetAberto !== presetDoSel?.id && (
                 <EditorPresetAberto
                   id={presetAberto}
                   ver={sel ? () => player.tocarTrecho(seq.saidaParaFonte(sel.t.inicio), seq.saidaParaFonte(Math.max(sel.t.fim - 0.01, sel.t.inicio)), { pular: true, loop: false }) : undefined}
                 />
+              )}
+              {sel && presetDoSel && (
+                <Recolhivel chave="ajustes" titulo="Preset" resumo={<span className="truncate text-[11.5px] text-fog">{presetDoSel.nome}</span>}>
+                  <CardAjustes preset={presetDoSel} ajustes={sel.enriquecimento?.ajustes} aspectos={aspectosDe(sel.midias, banco)} telaToda={telaTodaPermitida(sel.formato, sel.enriquecimento?.divisao === 'atras', aspectosDe(sel.midias, banco))} mudar={(a) => mudarEnriquecimento(sel.id, { ajustes: a })} />
+                </Recolhivel>
               )}
               {motionPreset && planoSel && (
                 <Recolhivel chave="motion" titulo="Motion" resumo={<span className="truncate text-[11.5px] text-fog">{motionPreset.nome}</span>}>
@@ -387,7 +462,7 @@ export default function EtapaInserts(p: Props) {
                 <EscolhaFundo atual={ins?.fundo ?? 'gradiente'} escolher={(f) => void definirFundo(projeto.id, f).then(setIns).catch(falhar)} />
               </Recolhivel>
               {sel?.tipo === 'comentario_insert_ator' && (
-                <Recolhivel chave="comentario" titulo="Comentário" resumo={<span className="truncate text-[11.5px] text-fog">{comentarioDe(sel).texto ?? sel.texto}</span>}>
+                <Recolhivel chave="comentario" fechado titulo="Comentário" resumo={<span className="truncate text-[11.5px] text-fog">{comentarioDe(sel).texto ?? sel.texto}</span>}>
                   <PainelComentario c={comentarioDe(sel)} textoDirecao={sel.texto ?? ''} mudar={(campos) => mudarComentario(sel.id, campos)} />
                 </Recolhivel>
               )}
@@ -398,7 +473,7 @@ export default function EtapaInserts(p: Props) {
                 <PanelRightOpen className="size-4" />
               </button>
               {/* recolhidos, os cards viram abas em pé (como os painéis recolhidos do Photoshop) */}
-              {[...(presetAberto ? ['Preset'] : []), ...(motionPreset ? ['Motion'] : []), 'Fundo', ...(sel?.tipo === 'comentario_insert_ator' ? ['Comentário'] : [])].map((nome) => (
+              {[...(presetAberto || presetDoSel ? ['Preset'] : []), ...(motionPreset ? ['Motion'] : []), 'Fundo', ...(sel?.tipo === 'comentario_insert_ator' ? ['Comentário'] : [])].map((nome) => (
                 <button
                   key={nome}
                   onClick={() => setColuna(true)}
@@ -475,6 +550,15 @@ export default function EtapaInserts(p: Props) {
           escolherMidia={(id) => selPlano !== id && escolher(id)}
           ajustarCorte={ajustarCorte}
           motions={motions}
+          ferramentas={
+            <button
+              onClick={cortarNoCursor}
+              className="ml-3 flex items-center gap-1 rounded-full px-2 py-1 font-semibold hover:bg-cream/8 hover:text-cream"
+              title="Cortar: divide o plano sob o cursor em dois (D)"
+            >
+              <Scissors className="size-3.5" /> Cortar <kbd className="rounded-[3px] bg-cream/10 px-1 text-[10px]">D</kbd>
+            </button>
+          }
         />
       </div>
     </div>
@@ -641,7 +725,12 @@ function PainelEnriquecimento(p: {
   const x = p.pedido
   const presets = usePresets()
   const [verTodos, setVerTodos] = useState(false)
-  const opcoesPreset = presetsPara(presets, x.formato, x.midias.length, !verTodos)
+  // as proporções só filtram quando o banco já deu as medidas (sem elas, aspectosDe supõe 16:9)
+  const opcoesPreset = presetsPara(presets, x.formato, x.midias.length, !verTodos, x.enriquecimento?.divisao === 'atras', p.banco?.size ? aspectosDe(x.midias, p.banco) : undefined)
+  // a ordem da situação (página Presets → Ordem e recomendados): os 3 primeiros que servem ficam em cima
+  const ordem = useOrdem()
+  const tela = x.enriquecimento?.divisao === 'atras' ? 'atras' : x.formato === 'vertical' ? 'vertical' : 'dividida'
+  const grupos = comRecomendados(opcoesPreset, ordemDoInsert(ordem, tela, aspectosDe(x.midias, p.banco)))
   const idsMidias = useMemo(() => x.midias.map((m) => m.banco), [x.midias])
   const presetAtual = presetDe(x, presets)
   const [sobre, setSobre] = useState<string | null>(null)
@@ -650,6 +739,17 @@ function PainelEnriquecimento(p: {
   return (
     <div className="grid gap-5">
       {p.aviso && <p className="rounded-[6px] border border-dashed border-yellow/40 px-3 py-2 text-[11.5px] leading-[1.6] text-yellow/90">{p.aviso}</p>}
+      {!p.aviso && x.formato === 'dividida' && x.midias.length > 0 && (
+        <label className="flex cursor-pointer items-center gap-2 text-[12px]" title="O insert na tela toda e o ator encolhido numa janela embaixo, com a cabeça saindo por cima">
+          <input type="checkbox" checked={x.enriquecimento?.divisao === 'atras'} onChange={(ev) => p.mudar({ divisao: ev.target.checked ? 'atras' : null })} />
+          Ator embaixo, cropado numa janela
+        </label>
+      )}
+      {!p.aviso && x.enriquecimento?.preset && !presetAtual && (
+        <p className="rounded-[6px] border border-dashed border-yellow/40 px-3 py-2 text-[11.5px] leading-[1.6] text-yellow/90">
+          O preset escolhido ({presets?.find((y) => y.id === x.enriquecimento?.preset)?.nome ?? 'apagado'}) não serve a {x.midias.length} mídia{x.midias.length > 1 ? 's' : ''}: escolha outro.
+        </p>
+      )}
       {!p.aviso && x.midias.length > 0 && (
         <div className="grid gap-2">
           <div className="eyebrow flex items-center text-sage">
@@ -659,40 +759,52 @@ function PainelEnriquecimento(p: {
             </label>
           </div>
           {opcoesPreset.length ? (
-            <div className="grid grid-cols-3 gap-2">
-              {opcoesPreset.map((pr) => {
-                const ativo = presetAtual?.id === pr.id
-                return (
-                  <div key={pr.id} className="relative" onMouseEnter={() => setSobre(pr.id)} onMouseLeave={() => setSobre(null)}>
-                    <button
-                      onClick={() => p.mudar({ preset: ativo ? null : pr.id })}
-                      className="group/p grid w-full gap-1.5 text-left"
-                      title={pr.nome}
-                    >
-                      <MiniPreset
-                        receita={pr.receita}
-                        midias={idsMidias}
-                        fundo={p.fundo ?? 'gradiente'}
-                        tocar={sobre === pr.id || ativo}
-                        className={cn('overflow-hidden rounded-[6px] ring-1 transition-shadow', ativo ? 'ring-2 ring-coral' : 'ring-line-dark group-hover/p:ring-cream/40')}
-                      />
-                      <span className={cn('line-clamp-2 text-[10.5px] leading-tight', ativo ? 'text-cream' : 'text-fog')}>
-                        {!pr.aprovado && <span className="text-yellow">● </span>}
-                        {pr.nome}
-                        {pr.adaptado && <span className="text-fog/60" title={`Feito para ${pr.formato === 'vertical' ? 'tela cheia' : 'tela dividida'}, adaptado a este formato`}> · adaptado</span>}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => p.abrirPreset?.(p.presetAberto === pr.id ? null : pr.id)}
-                      className={cn('absolute top-2 left-2 grid size-6 place-items-center rounded-full transition-colors', p.presetAberto === pr.id ? 'bg-coral text-cream' : 'bg-ink/70 text-fog hover:text-cream')}
-                      title="Configurar este preset (vale para todos os inserts)"
-                      aria-label="Configurar"
-                    >
-                      <Settings2 className="size-3.5" />
-                    </button>
+            <div className="grid gap-3">
+              {[
+                { titulo: 'Recomendados', l: grupos.recomendados, pequeno: false },
+                { titulo: 'Outros presets', l: grupos.outros, pequeno: grupos.recomendados.length > 0 },
+              ]
+                .filter((g) => g.l.length)
+                .map((g) => (
+                  <div key={g.titulo} className="grid gap-1.5">
+                    {grupos.recomendados.length > 0 && <p className="text-[10.5px] font-semibold text-fog">{g.titulo}</p>}
+                    <div className={cn('grid gap-2', g.pequeno ? 'grid-cols-4' : 'grid-cols-3')}>
+                      {g.l.map((pr) => {
+                      const ativo = presetAtual?.id === pr.id
+                      return (
+                        <div key={pr.id} className="relative" onMouseEnter={() => setSobre(pr.id)} onMouseLeave={() => setSobre(null)}>
+                          <button
+                            onClick={() => p.mudar({ preset: ativo ? null : pr.id })}
+                            className="group/p grid w-full gap-1.5 text-left"
+                            title={pr.nome}
+                          >
+                            <MiniPreset
+                              receita={receitaParaInsert(pr.receita, divisaoDe({ ...x, enriquecimento: { ...x.enriquecimento, preset: pr.id } }, p.banco, presets), aspectosDe(x.midias, p.banco), x.formato)}
+                              midias={idsMidias}
+                              fundo={p.fundo ?? 'gradiente'}
+                              tocar={sobre === pr.id || ativo}
+                              className={cn('overflow-hidden rounded-[6px] ring-1 transition-shadow', ativo ? 'ring-2 ring-coral' : 'ring-line-dark group-hover/p:ring-cream/40')}
+                            />
+                            <span className={cn('line-clamp-2 text-[10.5px] leading-tight', ativo ? 'text-cream' : 'text-fog')}>
+                              {!pr.aprovado && <span className="text-yellow">● </span>}
+                              {pr.nome}
+                              {pr.adaptado && <span className="text-fog/60" title={`Feito para ${pr.formato === 'vertical' ? 'tela cheia' : 'tela dividida'}, adaptado a este formato`}> · adaptado</span>}
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => p.abrirPreset?.(p.presetAberto === pr.id ? null : pr.id)}
+                            className={cn('absolute top-2 left-2 grid size-6 place-items-center rounded-full transition-colors', p.presetAberto === pr.id ? 'bg-coral text-cream' : 'bg-ink/70 text-fog hover:text-cream')}
+                            title="Configurar este preset (vale para todos os inserts)"
+                            aria-label="Configurar"
+                          >
+                            <Settings2 className="size-3.5" />
+                          </button>
+                        </div>
+                      )
+                      })}
+                    </div>
                   </div>
-                )
-              })}
+                ))}
             </div>
           ) : (
             <p className="text-[11.5px] leading-[1.6] text-fog">
@@ -902,3 +1014,32 @@ function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode
     </div>
   )
 }
+
+/** A categoria do plano, trocável aqui mesmo (a direção muda; a sugestão da IA fica marcada). */
+function Categoria(p: { atual: string; sugestao: string | null; mudar: (tipo: string) => void }) {
+  return (
+    <div className="mb-4 grid gap-1.5 border-b border-line-dark pb-4">
+      <div className="flex items-center gap-2 text-[11px]">
+        <span className="eyebrow text-sage">Categoria</span>
+        {p.sugestao && p.sugestao !== p.atual && (
+          <button onClick={() => p.mudar(p.sugestao!)} className="ml-auto text-fog hover:text-cream" title="Voltar ao que a direção sugeriu">
+            Sugestão: <span className="text-cream">{CATEGORIAS.planos[p.sugestao] ?? p.sugestao}</span> ↺
+          </button>
+        )}
+      </div>
+      <select
+        value={p.atual}
+        onChange={(e) => p.mudar(e.target.value)}
+        className="h-8 rounded-[6px] border border-line-dark bg-deeper px-2 text-[12.5px] text-cream outline-none focus:border-cream/50"
+      >
+        {Object.entries(CATEGORIAS.planos).map(([id, nome]) => (
+          <option key={id} value={id}>
+            {nome}
+            {id === p.sugestao ? ' · sugestão' : ''}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+

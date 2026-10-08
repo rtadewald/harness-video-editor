@@ -33,6 +33,8 @@ export type CardReceita = {
   continuo?: Continuo | null
   /** Termina nesta fração do insert (uma tomada que acaba no corte), em vez de `sai_antes_do_fim`. */
   fim_frac?: number
+  /** Segundos além de `fim_frac` (numa sequência, o card sai enquanto o próximo entra: fica a duração da saída a mais). */
+  fim_mais?: number
   zoom?: ZoomMidia | null
   /** O card pelos 4 cantos ao longo da vida dele (medidos na referência): `f` = fração da vida do card (0 → 1), `q` =
    *  cantos sup-esq, sup-dir, inf-dir, inf-esq em % da área. Entre as chaves, uma curva suave (Catmull-Rom). Manda na
@@ -45,7 +47,8 @@ export type ZoomMidia = { inicio: number; duracao: number; escala: number; ox: n
 export type Continuo = { escala: number; dx: number; dy: number; rot?: number }
 /** `repete`: serve a qualquer número de mídias (2 ou mais): o último card é o molde da 2ª mídia em diante, cada uma
  *  numa parte igual do insert (ver `paraMidias`). */
-export type Receita = { formato: 'vertical' | 'dividida'; fundo: 'proprio' | 'nenhum'; duracao_ref: number; cards: CardReceita[]; repete?: boolean }
+/** `sai_ultimo`: numa sequência que repete, o último card também sai (senão fica até o corte). */
+export type Receita = { formato: 'vertical' | 'dividida'; fundo: 'proprio' | 'nenhum'; duracao_ref: number; cards: CardReceita[]; repete?: boolean; sai_ultimo?: boolean }
 export type Preset = {
   id: string
   nome: string
@@ -53,6 +56,14 @@ export type Preset = {
   descricao?: string
   /** O recorte da mídia de cada card na referência (a revisão mostra uma mídia por recorte). */
   recortes?: { t: number; quad?: [number, number][]; arquivo?: string }[]
+  /** Na tela dividida: a mídia ocupa a área, é um card, ou o insert vai atrás com o ator numa janela embaixo. */
+  divisao_tipo?: 'area' | 'card' | 'atras'
+  /** Os ajustes rápidos que aparecem na edição do insert (ids de `ajustes.ts`); sem a marca, os deduzidos da receita. */
+  rapidos?: string[]
+  /** Onde o preset vale: os modos de tela e os números de mídias (sem a marca, o que a receita suporta: `usosDe`). */
+  usos?: Usos
+  /** Com todas as mídias em pé (9:16), a forma padrão é "Tela toda" (sem escolha no insert). */
+  tela_toda_em_pe?: boolean
   /** Onde aparece: um formato só ou os dois (sem o campo, os dois; no outro formato, adaptado). */
   formatos?: ('vertical' | 'dividida')[]
   formato: 'vertical' | 'dividida'
@@ -64,8 +75,39 @@ export type Preset = {
 // a biblioteca vem do servidor uma vez e é compartilhada; mudar avisa quem está usando
 const loja = criarLoja(() => fetch('/api/presets').then(json<Preset[]>))
 export const usePresets = loja.use
+/** Lê a biblioteca de novo do servidor (o Claude pode ter mudado um preset fora da tela). */
+export const recarregarPresets = loja.recarregar
 
-export async function editarPreset(id: string, campos: Partial<{ nome: string; aprovado: boolean; receita: Receita; formato: 'vertical' | 'dividida'; formatos: ('vertical' | 'dividida')[] }>) {
+/** A ordem dos presets em cada situação ("vertical:2"; escolhida na página Presets): `ids` na ordem e quantos dos
+ *  primeiros são favoritos (até 3), que ficam em Recomendados, em cima, no insert. */
+export type OrdemSituacao = { ids: string[]; favoritos: number }
+export type Ordem = Record<string, OrdemSituacao>
+const lojaOrdem = criarLoja(() => fetch('/api/presets/ordem').then(json<Ordem>))
+export const useOrdem = lojaOrdem.use
+export const recarregarOrdem = lojaOrdem.recarregar
+export async function definirOrdem(situacao: string, o: OrdemSituacao) {
+  lojaOrdem.definir({ ...(lojaOrdem.get() ?? {}), [situacao]: o }) // na tela na hora; o servidor confirma
+  lojaOrdem.definir(await enviar<Ordem>('PUT', `/api/presets/ordem/${encodeURIComponent(situacao)}`, { campos: o }))
+}
+/** A situação de um insert: o modo de tela e o número de mídias; com 1 mídia, também se ela é em pé (9:16) ou
+ *  horizontal (a quadrada junto). */
+export type ProporcaoSituacao = 'pe' | 'deitada'
+export const situacao = (tela: Usos['telas'][number], n: number, prop?: ProporcaoSituacao) => `${tela}:${chaveMidias(n)}${n === 1 && prop ? `:${prop}` : ''}`
+/** A ordem que vale num insert: a da situação dele (com 1 mídia, pela proporção dela). */
+export const ordemDoInsert = (o: Ordem | null, tela: Usos['telas'][number], aspectos: number[]) =>
+  o?.[situacao(tela, aspectos.length, aspectos.length === 1 ? (chaveProporcao(aspectos[0]) === 'pe' ? 'pe' : 'deitada') : undefined)]
+export const N_RECOMENDADOS = 3
+/** A lista do insert na ordem da situação: os favoritos que servem ficam em Recomendados; os outros seguem a ordem e, no
+ *  fim, os que ficaram de fora dela (como vieram; os não aprovados por último). Sem ordem, uma lista só. */
+export function comRecomendados<P extends Preset>(l: P[], o: OrdemSituacao | undefined): { recomendados: P[]; outros: P[] } {
+  if (!o?.ids.length) return { recomendados: [], outros: l }
+  const pos = (p: P) => (o.ids.includes(p.id) ? o.ids.indexOf(p.id) : o.ids.length)
+  const todos = [...l].sort((a, b) => pos(a) - pos(b) || Number(!a.aprovado) - Number(!b.aprovado))
+  const fav = new Set(o.ids.slice(0, o.favoritos))
+  return { recomendados: todos.filter((p) => fav.has(p.id)), outros: todos.filter((p) => !fav.has(p.id)) }
+}
+
+export async function editarPreset(id: string, campos: Partial<{ nome: string; aprovado: boolean; receita: Receita; formato: 'vertical' | 'dividida'; formatos: ('vertical' | 'dividida')[]; divisao_tipo: 'area' | 'card' | 'atras'; rapidos: string[]; usos: Usos }>) {
   const p = await enviar<Preset>('PATCH', `/api/presets/${id}`, { campos })
   loja.definir((loja.get() ?? []).map((x) => (x.id === id ? p : x)))
   return p
@@ -88,10 +130,37 @@ export const NOME_PROP: Record<Propriedade, string> = { pos: 'Posição', escala
 const limite = limite01
 const NEUTRO: Estado = { dx: 0, dy: 0, escala: 1, altura: 1, rot: 0, rx: 0, ry: 0, opacidade: 1, desfoque: 0 }
 
+/** A receita num insert de `dur` s: num insert mais curto que a referência, quanto antes do fim cada card sai encolhe na
+ *  mesma proporção (nenhum card sai antes de entrar); as entradas e saídas mantêm a duração (a suavidade), e só
+ *  encolhem se não couberem na vida do card. Num insert mais longo, tudo fica como está (o repouso é que cresce). */
+export function noTempo(r: Receita, dur: number): Receita {
+  const k = Math.min(1, dur / Math.max(r.duracao_ref, 0.01))
+  if (k >= 0.999) return r
+  const mov = <M extends CardReceita['entrada'] | CardReceita['saida']>(m: M, f: number): M =>
+    m && f < 0.999
+      ? ({
+          ...m,
+          duracao: m.duracao * f,
+          atraso: Object.fromEntries(Object.entries(m.atraso ?? {}).map(([p, v]) => [p, (v as number) * f])),
+          dur: Object.fromEntries(Object.entries(m.dur ?? {}).map(([p, v]) => [p, (v as number) * f])),
+        } as M)
+      : m
+  return {
+    ...r,
+    cards: r.cards.map((c) => {
+      const sai = c.sai_antes_do_fim * k
+      const vida = Math.max(c.fim_frac != null ? c.fim_frac * dur : dur - sai, 0.05) - c.inicio_frac * dur
+      const soma = (c.entrada?.duracao ?? 0) + (c.saida?.duracao ?? 0)
+      const f = soma > vida ? vida / soma : 1
+      return { ...c, sai_antes_do_fim: sai, entrada: mov(c.entrada, f), saida: mov(c.saida, f) }
+    }),
+  }
+}
+
 /** O tempo de cada card num insert de `dur` s: começa em `inicio_frac` da duração e termina `sai_antes_do_fim` antes do fim. */
 export function janela(c: CardReceita, dur: number) {
   const ini = c.inicio_frac * dur
-  const fim = Math.max(c.fim_frac != null ? c.fim_frac * dur : dur - c.sai_antes_do_fim, ini + 0.05)
+  const fim = Math.max(c.fim_frac != null ? Math.min(c.fim_frac * dur + (c.fim_mais ?? 0), dur) : dur - c.sai_antes_do_fim, ini + 0.05)
   return { ini, fim }
 }
 
@@ -191,7 +260,8 @@ export function matrizDosCantos(w: number, h: number, q: [number, number][]): st
 }
 
 /** Algum card está se mexendo no instante `rel`? (a exportação reaproveita a foto dos quadros parados) */
-export function mexendo(r: Receita, rel: number, dur: number) {
+export function mexendo(r0: Receita, rel: number, dur: number) {
+  const r = noTempo(r0, dur)
   return r.cards.some((c) => {
     const { ini, fim } = janela(c, dur)
     const z = c.zoom
@@ -208,23 +278,57 @@ export function paraMidias(r: Receita, n: number): Receita {
   if (!r.repete || n < 1) return r
   const fixos = r.cards.slice(0, -1)
   const molde = r.cards[r.cards.length - 1]
-  const seq = molde.fim_frac != null && molde.fim_frac < 1
-  const cards = [...fixos]
+  // é sequência se algum card termina antes do fim (o molde pode ser o último, que vai até o fim)
+  const seq = r.cards.some((c) => c.fim_frac != null && c.fim_frac < 1)
+  // numa sequência com saída, cada card sai enquanto o próximo entra: fica na tela além da sua parte o tempo da saída
+  const fimDe = (_c: CardReceita, k: number) => (k === n - 1 ? 1 : (k + 1) / n)
+  // a saída começa quando o próximo entra: o card fica a duração dela além da sua parte
+  const mais = (c: CardReceita, k: number) => (k < n - 1 && c.saida ? c.saida.duracao : 0)
+  const ultimoSai = (k: number) => k < n - 1 || !!r.sai_ultimo
+  const cards: CardReceita[] = fixos.map((c, k) => (seq ? { ...c, fim_frac: fimDe(c, k), fim_mais: mais(c, k), saida: ultimoSai(k) ? c.saida : null } : c))
   for (let k = fixos.length; k < n; k++)
     cards.push({
       ...molde,
       midia: k,
       inicio_frac: k === 0 ? molde.inicio_frac : k / n,
-      fim_frac: seq ? (k + 1) / n : molde.fim_frac,
+      fim_frac: seq ? fimDe(molde, k) : molde.fim_frac,
+      fim_mais: seq ? mais(molde, k) : molde.fim_mais,
+      saida: seq && !ultimoSai(k) ? null : molde.saida,
       repouso: { ...molde.repouso, z: molde.repouso.z + k },
     })
-  if (seq && fixos.length) fixos.forEach((c, k) => (cards[k] = { ...c, fim_frac: (k + 1) / n }))
   return { ...r, cards: n < fixos.length ? cards.slice(0, n) : cards }
 }
 /** O preset serve a um insert: o mesmo número de mídias e um dos formatos marcados (no outro formato, a receita se
  *  adapta: ver `paraFormato`). */
-export const serve = (p: Preset, formato: string, n: number) =>
-  (p.receita.repete ? n >= 2 : nMidias(p.receita) === n) && (!p.formatos || (p.formatos as string[]).includes(formato))
+export type Usos = { telas: ('dividida' | 'vertical' | 'atras')[]; midias: ('1' | '2' | '2+')[]; proporcoes?: Proporcao[] }
+/** As proporções de mídia em que o preset vale (sem a marca, todas): em pé (9:16), quadrada (≈1:1) e horizontal. */
+export type Proporcao = 'pe' | 'quadrada' | 'deitada'
+export const PROPORCOES_USO: { id: Proporcao; nome: string }[] = [
+  { id: 'pe', nome: '9:16' },
+  { id: 'quadrada', nome: 'Quadrada' },
+  { id: 'deitada', nome: 'Horizontal' },
+]
+export const chaveProporcao = (a: number): Proporcao => (a < 0.8 ? 'pe' : a <= 1.2 ? 'quadrada' : 'deitada')
+/** A chave do número de mídias: 1, 2 ou 2+ (3 ou mais). */
+export const chaveMidias = (n: number) => (n <= 1 ? '1' : n === 2 ? '2' : '2+') as Usos['midias'][number]
+/** Onde o preset vale: o marcado, ou o que a receita suporta (as telas de `formatos`, e "ator embaixo" se vale na
+ *  dividida; as mídias pela receita: as que repetem servem a 2 e 2+). */
+export function usosDe(p: Preset): Usos {
+  if (p.usos) return p.usos
+  const telas = (p.formatos ?? ['dividida', 'vertical']) as Usos['telas']
+  return {
+    telas: telas.includes('dividida') ? [...telas, 'atras'] : telas,
+    midias: p.receita.repete ? ['2', '2+'] : [chaveMidias(nMidias(p.receita))],
+  }
+}
+/** O preset serve a um insert: o número de mídias marcado (e a receita dá conta dele), com `tela`, o modo de tela e,
+ *  com `aspectos`, as proporções das mídias (todas entre as marcadas). */
+export const serve = (p: Preset, _formato: string, n: number, tela?: Usos['telas'][number], aspectos?: number[]) => {
+  const u = usosDe(p)
+  const cabe = p.receita.repete ? n >= 1 : nMidias(p.receita) === n // os que repetem servem a quantas mídias forem (as marcadas)
+  const props = !aspectos || !u.proporcoes || aspectos.every((a) => u.proporcoes!.includes(chaveProporcao(a)))
+  return cabe && props && u.midias.includes(chaveMidias(n)) && (!tela || u.telas.includes(tela))
+}
 
 /** A receita levada para o outro formato. A metade de cima da tela dividida é a faixa central da tela cheia, na mesma
  *  largura: de tela cheia para dividida, o que está no meio da tela continua no meio e as alturas dobram (o que passa
@@ -258,8 +362,8 @@ export const noFormato = (p: Preset, formato: string, n?: number): Preset & { ad
   return q.formato === formato || (formato !== 'vertical' && formato !== 'dividida') ? q : { ...q, receita: paraFormato(q.receita, formato), adaptado: true }
 }
 /** Os presets que servem a um insert (por padrão, só os aprovados), já no formato dele: os do mesmo formato primeiro. */
-export const presetsPara = (l: Preset[] | null, formato: string, n: number, soAprovados = true) =>
+export const presetsPara = (l: Preset[] | null, formato: string, n: number, soAprovados = true, atras = false, aspectos?: number[]) =>
   (l ?? [])
-    .filter((p) => serve(p, formato, n) && (!soAprovados || p.aprovado))
+    .filter((p) => serve(p, formato, n, atras ? 'atras' : (formato as Usos['telas'][number]), aspectos) && (!soAprovados || p.aprovado))
     .sort((a, b) => Number(a.formato !== formato) - Number(b.formato !== formato))
     .map((p) => noFormato(p, formato, n))

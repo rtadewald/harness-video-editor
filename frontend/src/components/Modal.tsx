@@ -2,7 +2,8 @@ import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /** Modal escuro do app: título, fechar (clique fora ou ✕) e o conteúdo. `tamanho`: pequeno (formulários), alto
- *  (textos longos, 86% da altura), largo (alto e mais largo) ou tela (maior que o largo, para galerias de vídeo). */
+ *  (textos longos, 86% da altura), largo (alto e mais largo), tela (maior que o largo, para galerias de vídeo) ou cheia
+ *  (quase a tela toda). */
 export default function Modal({
   titulo,
   fechar,
@@ -11,15 +12,15 @@ export default function Modal({
 }: {
   titulo: React.ReactNode
   fechar: () => void
-  tamanho?: 'pequeno' | 'alto' | 'largo' | 'tela'
+  tamanho?: 'pequeno' | 'alto' | 'largo' | 'tela' | 'cheia'
   children: React.ReactNode
 }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-6" onClick={fechar}>
+    <div className={cn('fixed inset-0 z-50 grid place-items-center bg-black/75', tamanho === 'cheia' ? 'p-3' : 'p-6')} onClick={fechar}>
       <div
         className={cn(
           'w-full gap-3 rounded-[8px] bg-deep p-5 text-cream ring-1 ring-line-dark',
-          tamanho === 'pequeno' ? 'grid max-w-[520px]' : tamanho === 'tela' ? 'flex h-[90vh] max-w-[1320px] flex-col' : 'flex h-[86vh] flex-col',
+          tamanho === 'pequeno' ? 'grid max-w-[520px]' : tamanho === 'cheia' ? 'flex h-[95vh] max-w-[1720px] flex-col' : tamanho === 'tela' ? 'flex h-[90vh] max-w-[1320px] flex-col' : 'flex h-[86vh] flex-col',
           tamanho === 'alto' && 'max-w-[820px]',
           tamanho === 'largo' && 'max-w-[1100px]',
         )}

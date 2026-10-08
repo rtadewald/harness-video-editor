@@ -6,6 +6,7 @@ import { CardComentario, comentarioDe } from '@/editor/ComentarioIG'
 import { paraTempo, palavrasNaSaida } from '@/editor/direcaoProjeto'
 import { ChuvaAoVivo, RelogioRender } from '@/editor/Fundo'
 import InsertNoLugar, { chaveParada, pedidosNoTempo } from '@/editor/InsertNoLugar'
+import { divisaoDe, posicaoDoComentario, type Divisao } from '@/editor/divisao'
 import MotionNoLugar from '@/motions/MotionNoLugar'
 import { usePresets } from '@/editor/presets'
 import { useTransicoes } from '@/editor/transicoes'
@@ -22,7 +23,8 @@ export function RenderChuva() {
   )
 }
 
-type Trecho = { ini: number; fim: number; dividida: boolean }
+/** `divisao`: como a tela se divide no trecho (o ator: onde fica, e se a pessoa recortada sai por cima do insert). */
+type Trecho = { ini: number; fim: number; dividida: boolean; divisao: Divisao | null }
 declare global {
   interface Window {
     /** `ir(t)` responde com a chave do quadro quando ele fica igual aos seguintes (insert parado: o backend reaproveita a foto). */
@@ -89,8 +91,8 @@ export function RenderProjeto() {
     window.__render = {
       duracao: pedidos.duracao,
       trechos: [
-        ...pedidos.lista.map((x) => ({ ini: x.t.inicio, fim: x.t.fim, dividida: x.formato === 'dividida' })),
-        ...pedidos.motions.map((m) => ({ ini: m.ini, fim: m.fim, dividida: m.dividida })),
+        ...pedidos.lista.map((x) => ({ ini: x.t.inicio, fim: x.t.fim, dividida: x.formato === 'dividida', divisao: divisaoDe(x, banco, presets) })),
+        ...pedidos.motions.map((m) => ({ ini: m.ini, fim: m.fim, dividida: m.dividida, divisao: m.dividida ? ({ modo: 'metade', tipo: 'area', f: 0.5 } as Divisao) : null })),
       ],
       ir: (t) =>
         new Promise<string | null>((ok) => {
@@ -124,7 +126,7 @@ export function RenderProjeto() {
       </RelogioRender.Provider>
     )
   if (!atual || !banco) return null
-  const c = comentarioDe(atual)
+  const c = comentarioDe(atual, posicaoDoComentario(divisaoDe(atual, banco, presets)))
   return (
     <RelogioRender.Provider value={tempo}>
       <div className="fixed inset-0 overflow-hidden">

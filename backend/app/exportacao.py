@@ -93,14 +93,22 @@ def retomar_interrompidas() -> None:
             shutil.rmtree(parte, ignore_errors=True) if parte.is_dir() else parte.unlink(missing_ok=True)
 
 
+JANELA = {'y0': 0.72, 'escala': 0.55, 'raio': 0.07}  # o ator no "insert atrás" (igual a editor/divisao.ts; raio em fração da largura do ator encolhido)
+
+
 def _ator(clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, h: int, fps: int,
-          divididas: list[tuple[float, float]], duracao: float) -> list[str]:
-    """Os filtros do ator e do áudio (entrada 0 = bruto): cada clipe da V1 vira um par vídeo + áudio (o áudio com fade curto
-    nas pontas) e o concat mantém os dois juntos em cada emenda; depois, recorte 9:16, escala, fps de saída (o ator repete
-    quadros, sem interpolar) e o ator descendo para a metade de baixo nas telas divididas. Saídas: [base] e [ac]."""
+          divisoes: list[tuple[float, float, dict]], duracao: float, mascara: bool) -> tuple[list[str], list[str]]:
+    """Os filtros do ator e do áudio (entrada 0 = bruto; 1 = a máscara da pessoa, se houver): cada clipe da V1 vira um
+    par vídeo + áudio (o áudio com fade curto nas pontas) e o concat mantém os dois juntos em cada emenda; depois, recorte
+    9:16, escala, fps de saída (o ator repete quadros, sem interpolar) e o ator descendo para a parte de baixo nas telas
+    divididas (metade de `f` da altura). Devolve os filtros de baixo (saídas [base] e [ac]) e os de cima, aplicados depois
+    dos inserts sobre [topo_in] → [topo]: o ator na janela do "insert atrás" e a pessoa recortada saindo da área dele."""
     n = len(clipes)
+    usa_mascara = mascara and any(d['modo'] == 'atras' for _, _, d in divisoes)  # a cabeça sai por cima só no "ator embaixo"
     partes = [f'[0:v]split={n}' + ''.join(f'[v{k}]' for k in range(n)), f'[0:a]asplit={n}' + ''.join(f'[a{k}]' for k in range(n))]
-    pares = ''
+    if usa_mascara:
+        partes.append(f'[1:v]split={n}' + ''.join(f'[m{k}]' for k in range(n)))
+    pares, masc = '', ''
     for k, c in enumerate(clipes):
         ini, fim = c['inicio'], c['fim']
         dur = fim - ini
@@ -108,30 +116,73 @@ def _ator(clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, 
         partes.append(f'[a{k}]atrim=start={ini:.4f}:end={fim:.4f},asetpts=PTS-STARTPTS,'
                       f'afade=t=in:d={FADE},afade=t=out:st={max(dur - FADE, 0):.4f}:d={FADE}[ca{k}]')
         pares += f'[cv{k}][ca{k}]'
+        if usa_mascara:
+            partes.append(f'[m{k}]trim=start={ini:.4f}:end={fim:.4f},setpts=PTS-STARTPTS[cm{k}]')
+            masc += f'[cm{k}]'
     partes.append(f'{pares}concat=n={n}:v=1:a=1[vc][ac]')
     recorte = f"crop=w=trunc(ih*9/16/2)*2:h=ih:x=(iw-ow)*{enquadramento_x:.4f}," if horizontal else ''
     partes.append(f'[vc]{recorte}scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{h},setsar=1,fps={fps}[ator]')
-    # tela dividida: o ator desce um quarto da altura (o centro do quadro vai para o meio da metade de baixo)
-    desce = '+'.join(f'between(t,{a:.4f},{b - 0.5 / fps:.4f})' for a, b in divididas) or '0'
+    quando = lambda ts: '+'.join(f'between(t,{a:.4f},{b - 0.5 / fps:.4f})' for a, b in ts) or '0'  # noqa: E731
+    metades = [(a, b, d['f']) for a, b, d in divisoes if d['modo'] == 'metade']
+    atras = [(a, b) for a, b, d in divisoes if d['modo'] == 'atras']
+    # o ator desce metade da fração do insert (o centro do quadro vai para o meio da parte de baixo)
+    desce = '+'.join(f'between(t,{a:.4f},{b - 0.5 / fps:.4f})*{f / 2:.5f}*H' for a, b, f in metades) or '0'
+    usos = 1 + (1 if atras else 0) + (1 if usa_mascara else 0)
+    partes.append(f'[ator]split={usos}[ator0]' + ('[ator1]' if atras else '') + ('[ator2]' if usa_mascara else ''))
     partes.append(f'color=c=black:s={w}x{h}:r={fps}:d={duracao:.4f}[tela]')
-    partes.append(f"[tela][ator]overlay=x=0:y='if({desce},H/4,0)':eval=frame:shortest=1[base]")
-    return partes
+    partes.append(f"[tela][ator0]overlay=x=0:y='{desce}':eval=frame:shortest=1[base]")
+    topo: list[str] = []
+    atual = 'topo_in'
+    jw, jh = round(w * JANELA['escala'] / 2) * 2, round(h * JANELA['escala'] / 2) * 2
+    jx, jy_ator = (w - jw) // 2, h - jh  # o ator encolhido, apoiado embaixo e centrado
+    corte = round(h * JANELA['y0']) - jy_ator  # a janela começa aqui, dentro do ator encolhido
+    if atras:
+        r = round(jw * JANELA['raio'])
+        janela_h = jh - corte
+        topo.append(f'[ator1]scale={jw}:{jh},crop={jw}:{janela_h}:0:{corte},format=rgba[jan]')
+        topo.append(f"color=c=white:s={jw}x{janela_h}:r={fps},format=gray,geq=lum='255*lte(hypot(max(0,max({r}-X,X-{jw - r})),"
+                    f"max(0,max({r}-Y,Y-{janela_h - r}))),{r})'[cantos]")
+        topo.append('[jan][cantos]alphamerge[janr]')
+        topo.append(f"[{atual}][janr]overlay=x={jx}:y={jy_ator + corte}:enable='{quando([(a, b) for a, b in atras])}'[t1]")
+        atual = 't1'
+    if usa_mascara:
+        partes.append(f'{masc}concat=n={n}:v=1:a=0,scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},format=gray,fps={fps}[masc]')
+        partes.append('[ator2][masc]alphamerge[pessoa]')
+        fs: list[float] = []
+        saidas = len(fs) + (1 if atras else 0)
+        topo.append(f'[pessoa]split={saidas}' + ''.join(f'[p{i}]' for i in range(saidas)))
+        for i, f in enumerate(fs):
+            y = round(f / 2 * h)
+            topo.append(f'[p{i}]crop={w}:{y}:0:0[pc{i}]')
+            topo.append(f"[{atual}][pc{i}]overlay=x=0:y={y}:enable='{quando([(a, b) for a, b, g in metades if g == f])}'[tp{i}]")
+            atual = f'tp{i}'
+        if atras:
+            topo.append(f'[p{len(fs)}]scale={jw}:{jh},crop={jw}:{corte}:0:0[pj]')
+            topo.append(f"[{atual}][pj]overlay=x={jx}:y={jy_ator}:enable='{quando(atras)}'[tpj]")
+            atual = 'tpj'
+    topo.append(f'[{atual}]null[topo]')
+    return partes, topo
 
 
 def comando_final(bruto: Path, clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, h: int, fps: int,
-                  divididas: list[tuple[float, float]], camadas: list[tuple[Path, float]], codec: str, duracao: float,
-                  saida: Path) -> list[str]:
+                  divisoes: list[tuple[float, float, dict]], camadas: list[tuple[Path, float]], codec: str, duracao: float,
+                  saida: Path, mascara: Path | None = None) -> list[str]:
     """Uma passada só: o ator e o áudio do bruto (decodificado pelo chip de vídeo) e, por cima, cada clipe da camada dos
-    inserts (ProRes 4444 com transparência) no seu instante; codifica no chip de vídeo (HEVC ou H.264)."""
-    partes = _ator(clipes, horizontal, enquadramento_x, w, h, fps, divididas, duracao)
+    inserts (ProRes 4444 com transparência) no seu instante; por cima de tudo, o ator na janela do "insert atrás" e a
+    pessoa recortada (máscara); codifica no chip de vídeo (HEVC ou H.264)."""
+    partes, topo = _ator(clipes, horizontal, enquadramento_x, w, h, fps, divisoes, duracao, mascara is not None)
+    usa_mascara = any('[1:v]' in x for x in partes)
+    base_idx = 2 if usa_mascara else 1
     atual = 'base'
-    entradas: list[str] = []
+    entradas: list[str] = ['-i', str(mascara)] if usa_mascara else []
     for k, (clipe, inicio) in enumerate(camadas):
         entradas += ['-i', str(clipe)]
-        partes.append(f'[{k + 1}:v]setpts=PTS-STARTPTS+{inicio:.6f}/TB[c{k}]')
+        partes.append(f'[{k + base_idx}:v]setpts=PTS-STARTPTS+{inicio:.6f}/TB[c{k}]')
         partes.append(f'[{atual}][c{k}]overlay=format=auto:eof_action=pass[o{k}]')
         atual = f'o{k}'
-    partes.append(f'[{atual}]format=yuv420p[v]')
+    partes.append(f'[{atual}]null[topo_in]')
+    partes += topo
+    partes.append('[topo]format=yuv420p[v]')
     cv = ['-c:v', 'hevc_videotoolbox', '-q:v', '65', '-tag:v', 'hvc1'] if codec == 'hevc' else ['-c:v', 'h264_videotoolbox', '-q:v', '65']
     return ['ffmpeg', '-y', '-loglevel', 'error', '-progress', 'pipe:1', '-nostats', '-hwaccel', 'videotoolbox', '-i', str(bruto),
             *entradas, '-filter_complex', ';'.join(partes), '-map', '[v]', '-map', '[ac]', *cv, '-pix_fmt', 'yuv420p',
@@ -235,9 +286,12 @@ def _gravar(id: str, e: dict, saida: Path, vivo: dict) -> bool:
                 midia.ffmpeg('-f', 'concat', '-safe', '0', '-i', str(lista), '-c', 'copy', str(clipe))
                 camadas.append((clipe, g[0][0] / fps))
 
-        divididas = [(t['ini'], t['fim']) for t in trechos if t['dividida']]
+        # a divisão de cada trecho (sem ela, das páginas antigas: tela dividida meio a meio)
+        divisoes = [(t['ini'], t['fim'], t.get('divisao') or {'modo': 'metade', 'f': 0.5}) for t in trechos if t['dividida']]
+        from . import recorte_ator
+        mascara = recorte_ator.arquivos(id, fonte['id'])[0] if (p.get('recorte') or {}).get('estado') == 'pronto' else None
         cmd = comando_final(projeto.pasta(id) / fonte['arquivo'], clipes, horizontal, p.get('enquadramento', {}).get('x', 0.5),
-                            w, h, fps, divididas, camadas, e['codec'], duracao, saida)
+                            w, h, fps, divisoes, camadas, e['codec'], duracao, saida, mascara if mascara and mascara.exists() else None)
         with open(log, 'wb') as erros:
             ff = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=erros, text=True)
             for linha in ff.stdout:

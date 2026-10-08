@@ -6,7 +6,12 @@ import { cn } from '@/lib/utils'
  *  o texto, "Responder" e "Ver tradução". Fonte do sistema da Apple (a que o Instagram usa no iPhone). */
 export type Comentario = { texto: string | null; avatar: number; usuario: string; tempo: string; traducao: boolean; x: number; y: number; escala: number }
 export const COMENTARIO_PADRAO: Comentario = { texto: null, avatar: 0, usuario: 'usuario.do.ig', tempo: '4 sem', traducao: true, x: 50, y: 50, escala: 1 }
-export const comentarioDe = (x: { comentario?: Partial<Comentario> }): Comentario => ({ ...COMENTARIO_PADRAO, ...(x.comentario ?? {}) })
+/** O comentário do insert; sem posição salva (nunca arrastado), fica no lugar automático da divisão (`auto`). */
+export const comentarioDe = (x: { comentario?: Partial<Comentario> }, auto?: { x: number; y: number }): Comentario => ({
+  ...COMENTARIO_PADRAO,
+  ...(auto ?? {}),
+  ...(x.comentario ?? {}),
+})
 
 const FONTE_IG = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", "Helvetica Neue", system-ui, sans-serif'
 
@@ -133,6 +138,9 @@ export function PainelComentario(p: { c: Comentario; textoDirecao: string; mudar
         )}
       </label>
 
+      <button onClick={() => p.mudar({ x: null, y: null })} className="flex w-fit items-center gap-1 text-[11px] text-fog hover:text-cream" title="Volta para o lugar que a divisão da tela escolhe">
+        <RotateCcw className="size-3" /> Posição automática
+      </button>
       <div className="grid gap-1.5">
         <span className="eyebrow text-sage">Foto (vai borrada)</span>
         <div className="flex gap-2">

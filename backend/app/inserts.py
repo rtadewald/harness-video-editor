@@ -475,10 +475,20 @@ def sincronizar(id: str) -> dict:
     novos = pedidos_da_direcao(d['itens'], saida)
 
     def aplicar(p):
-        antigos = {x['chave']: x for x in (p.get('inserts') or {}).get('pedidos', [])}
+        lista = (p.get('inserts') or {}).get('pedidos', [])
+        antigos = {x['chave']: x for x in lista}
+        # sem a mesma chave (o plano mudou de categoria ou foi dividido), o do mesmo plano: as mídias continuam com ele
+        por_plano = {x.get('plano'): x for x in lista}
+        usados: set[str] = set()
         pedidos = []
         for n in novos:
             velho = antigos.get(n['chave'])
+            if velho is None or velho['id'] in usados:
+                velho = por_plano.get(n['plano'])
+                if velho is not None and velho['id'] in usados:
+                    velho = None
+            if velho is not None:
+                usados.add(velho['id'])
             midias = (velho['midias'] if 'midias' in velho else _midias_antigas(velho)) if velho else []
             pedidos.append({'id': velho['id'] if velho else uuid.uuid4().hex[:8], **n, 'midias': midias,
                             **{k: velho[k] for k in ('capturas', 'captura', 'enriquecimento', 'comentario') if velho and velho.get(k)}})
@@ -528,7 +538,10 @@ ESTILO = {
 
 # onde a 2ª mídia começa, em fração do insert (0 a 0,95; padrão: no meio; 0 = junto com a 1ª, nos layouts juntos). A curva,
 # a duração e os detalhes de cada entrada e saída não são mais por insert: são globais, por tipo (transicoes.py)
-AJUSTES = ('corte', 'preset')  # preset: o id de um preset da biblioteca (presets.py), que manda em layout, entrada e saída
+# divisão da tela (só tela dividida): automática pela mídia, fração do insert em cima (o ator embaixo) ou o insert atrás
+# com o ator numa janela embaixo
+DIVISOES = ('auto', '50', '56', '42', '32', 'atras')
+AJUSTES = ('corte', 'preset', 'divisao', 'ajustes')  # preset: o id de um preset da biblioteca (presets.py), que manda em layout, entrada e saída
 
 
 def _validar_enriquecimento(formato: str, campos: dict) -> dict:
@@ -544,6 +557,16 @@ def _validar_enriquecimento(formato: str, campos: dict) -> dict:
             if not isinstance(v, (int, float)) or isinstance(v, bool):
                 raise ValueError('O corte é uma fração do insert')
             limpo[k] = round(max(0.0, min(0.95, float(v))), 3)  # 0: a 2ª começa junto (layouts em que as duas aparecem juntas)
+            continue
+        if k == 'ajustes':  # os ajustes rápidos do preset neste insert: {id: opção}
+            if v is not None and not (isinstance(v, dict) and all(isinstance(a, str) and isinstance(b, str) and len(a) < 20 and len(b) < 20 for a, b in v.items())):
+                raise ValueError('Ajustes inválidos')
+            limpo[k] = v or None
+            continue
+        if k == 'divisao':
+            if v is not None and v not in DIVISOES:
+                raise ValueError('Divisão inválida')
+            limpo[k] = None if v == 'auto' else v
             continue
         if k in AJUSTES:
             limpo[k] = None
