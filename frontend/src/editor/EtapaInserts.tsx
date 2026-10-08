@@ -11,13 +11,12 @@ import {
   Blend,
   Box,
   Clapperboard,
-  Columns2,
   Copy,
   Crosshair,
   EyeOff,
+  Expand,
   Focus,
   Globe,
-  Grid2x2,
   Image as IconeImagem,
   Images,
   Library,
@@ -30,9 +29,8 @@ import {
   Play,
   RotateCcw,
   RotateCw,
-  Rows2,
   Scissors,
-  Shuffle,
+  Search,
   Sparkles,
   Square,
   Trash2,
@@ -76,12 +74,13 @@ import { cn } from '@/lib/utils'
 import { paraTempo, palavrasNaSaida } from './direcaoProjeto'
 import { CATEGORIAS } from './EtapaDirecao'
 import { CardComentario, PainelComentario, comentarioDe, type Comentario } from './ComentarioIG'
+import BuscarReferencias from './BuscarReferencias'
 import EditorCurva from './EditorCurva'
 import EditorVideo from './EditorVideo'
 import { FUNDOS } from './Fundo'
 import InsertNoLugar, { pedidosNoTempo, type PedidoNoTempo } from './InsertNoLugar'
 import LinhaInserts from './LinhaInserts'
-import { CATEGORIAS_ATIVAS, CATEGORIAS_ENRIQUECIMENTO, ESTILO, NOMES, OPCOES, curvaDe, duracaoDe, enriquecimentoDe, type Categoria, type PadraoCurva } from './enriquecimento'
+import { ESTILO, NOMES, OPCOES, SEM_CURVA, campo, curvaDe, duracaoDe, enriquecimentoDe, entradaDe, type Categoria, type Qual } from './enriquecimento'
 import Preview from './Preview'
 import type { Sequencia } from './sequencia'
 import type { usePlayer } from './usePlayer'
@@ -117,6 +116,7 @@ export default function EtapaInserts(p: Props) {
   const [erro, setErro] = useState<string | null>(null)
   const [selPlano, setSelPlano] = useState<string | null>(null)
   const [subindo, setSubindo] = useState(false)
+  const [buscandoRefs, setBuscandoRefs] = useState(false)
   const falhar = (e: unknown) => window.alert((e as Error).message)
 
   // o mapa tem os originais e os trechos (um trecho toca o arquivo do original, do início ao fim dele)
@@ -195,6 +195,22 @@ export default function EtapaInserts(p: Props) {
 
   const planoSel = planos.find((pl) => pl.id === selPlano) ?? null
   const sel = pedidos.find((x) => x.plano === selPlano) ?? null
+  // as mídias com curva própria (1 ou as 2): um card de curva para cada
+  const comCurva: Qual[] = sel ? ((sel.midias.length === 2 ? [1, 2] : [1]) as Qual[]).filter((q) => !SEM_CURVA.includes(entradaDe(enriquecimentoDe(sel), q))) : []
+  /** Onde a 2ª mídia começa (fração do insert): muda na tela na hora (arrastando) e salva ao soltar. */
+  const ajustarCorte = (pid: string, v: number | null, salvarAgora: boolean) => {
+    setIns((r) =>
+      r && {
+        ...r,
+        pedidos: r.pedidos.map((x) => {
+          if (x.id !== pid) return x
+          const { corte: _, ...resto } = x.enriquecimento ?? {}
+          return { ...x, enriquecimento: v == null ? resto : { ...resto, corte: v } }
+        }),
+      },
+    )
+    if (salvarAgora) void enriquecerInsert(projeto.id, pid, { corte: v }).then(setIns).catch(falhar)
+  }
   const ehMotion = !!planoSel && TEM_MOTION.includes(planoSel.tipo)
   const comMidia = pedidos.filter((x) => x.midias.length).length
   /** Seleciona o plano e leva a prévia até ele, já depois da entrada, para o insert aparecer inteiro. */
@@ -280,9 +296,13 @@ export default function EtapaInserts(p: Props) {
                 <span className="text-fog tabular-nums">
                   {comMidia}/{pedidos.length} com mídia
                 </span>
-                <Link to="/banco" className="ml-auto flex items-center gap-1 rounded-full border border-line-dark px-2.5 py-1 text-fog hover:text-cream">
-                  <Library className="size-3" /> Banco
-                </Link>
+                <button
+                  onClick={() => setBuscandoRefs(true)}
+                  className="ml-auto flex items-center gap-1.5 rounded-full bg-yellow px-3 py-1.5 font-semibold text-ink transition-colors hover:bg-cream"
+                  title="Ver os planos dos vídeos de referência, já filtrados pelo tipo deste plano"
+                >
+                  <Search className="size-3.5" /> Buscar por referências
+                </button>
               </>
             }
           />
@@ -369,18 +389,23 @@ export default function EtapaInserts(p: Props) {
               >
                 Recolher <PanelRightClose className="size-3.5" />
               </button>
-              {sel && enriquecimentoDe(sel).entrada !== 'sem' && (
-                <Recolhivel chave="curva" titulo="Curva da entrada" fechado>
-                  <EditorCurva
-                    curva={curvaDe(enriquecimentoDe(sel), ins?.curva_padrao)}
-                    duracao={duracaoDe(enriquecimentoDe(sel), ins?.curva_padrao)}
-                    ajustada={!!(sel.enriquecimento?.curva || sel.enriquecimento?.duracao)}
-                    padrao={ins?.curva_padrao}
-                    mudar={(c) => void enriquecerInsert(projeto.id, sel.id, c as Record<string, number[] | number | null>).then(setIns).catch(falhar)}
-                    salvarPadrao={(c) => void definirCurvaPadrao(projeto.id, c).then(setIns).catch(falhar)}
-                  />
-                </Recolhivel>
-              )}
+              {sel &&
+                comCurva.map((q) => (
+                  <Recolhivel key={q} chave={q === 1 ? 'curva' : 'curva2'} titulo={sel.midias.length === 2 ? `Curva da entrada · ${q}ª mídia` : 'Curva da entrada'} fechado>
+                    <EditorCurva
+                      curva={curvaDe(enriquecimentoDe(sel), ins?.curva_padrao, q)}
+                      duracao={duracaoDe(enriquecimentoDe(sel), ins?.curva_padrao, q)}
+                      ajustada={!!(sel.enriquecimento?.[campo('curva', q) as 'curva'] || sel.enriquecimento?.[campo('duracao', q) as 'duracao'])}
+                      padrao={ins?.curva_padrao}
+                      mudar={(c) =>
+                        void enriquecerInsert(projeto.id, sel.id, Object.fromEntries(Object.entries(c).map(([k, v]) => [campo(k as 'curva' | 'duracao', q), v])) as Record<string, number[] | number | null>)
+                          .then(setIns)
+                          .catch(falhar)
+                      }
+                      salvarPadrao={(c) => void definirCurvaPadrao(projeto.id, c).then(setIns).catch(falhar)}
+                    />
+                  </Recolhivel>
+                ))}
               <Recolhivel chave="fundo" titulo="Fundo" resumo={<ResumoFundo id={ins?.fundo ?? 'gradiente'} />}>
                 <EscolhaFundo atual={ins?.fundo ?? 'gradiente'} escolher={(f) => void definirFundo(projeto.id, f).then(setIns).catch(falhar)} />
               </Recolhivel>
@@ -396,7 +421,7 @@ export default function EtapaInserts(p: Props) {
                 <PanelRightOpen className="size-4" />
               </button>
               {/* recolhidos, os cards viram abas em pé (como os painéis recolhidos do Photoshop) */}
-              {[...(sel && enriquecimentoDe(sel).entrada !== 'sem' ? ['Curva'] : []), 'Fundo', ...(sel?.tipo === 'comentario_insert_ator' ? ['Comentário'] : [])].map((nome) => (
+              {[...comCurva.map((q) => (comCurva.length > 1 ? `Curva ${q}ª` : 'Curva')), 'Fundo', ...(sel?.tipo === 'comentario_insert_ator' ? ['Comentário'] : [])].map((nome) => (
                 <button
                   key={nome}
                   onClick={() => setColuna(true)}
@@ -418,6 +443,7 @@ export default function EtapaInserts(p: Props) {
               <PainelEnriquecimento
                 key={sel.id}
                 pedido={sel}
+                banco={banco}
                 mudar={(campos) => void enriquecerInsert(projeto.id, sel.id, campos).then(setIns).catch(falhar)}
                 aplicarAoTipo={() => void enriquecerTipo(projeto.id, sel.id).then(setIns).catch(falhar)}
                 verEntrada={() =>
@@ -450,6 +476,7 @@ export default function EtapaInserts(p: Props) {
 
       <div className="relative min-h-0">
         <Alca lado="linha" pos={tam.linha} arrastar={arrastarBorda} />
+        {buscandoRefs && <BuscarReferencias tipo={planoSel?.tipo ?? null} fechar={() => setBuscandoRefs(false)} />}
         <LinhaInserts
           duracao={seq.duracao}
           planos={planosLinha}
@@ -462,6 +489,8 @@ export default function EtapaInserts(p: Props) {
           selecionado={selPlano}
           buscar={player.buscar}
           selecionar={(id) => escolher(id)}
+          escolherMidia={(id) => selPlano !== id && escolher(id)}
+          ajustarCorte={ajustarCorte}
         />
       </div>
     </div>
@@ -636,11 +665,7 @@ const ICONE: Record<string, typeof Square> = {
   subir: MoveUp,
   voo_3d: Plane,
   zoom_borrado: ZoomIn,
-  sequencia_corte: Scissors,
-  sequencia_transicao: Shuffle,
-  lado_a_lado: Columns2,
-  grade: Grid2x2,
-  empilhadas: Rows2,
+  seco_zoom: Expand,
   parado: Pause,
   zoom_lento: ZoomIn,
   zoom_ponto: Crosshair,
@@ -649,23 +674,84 @@ const ICONE: Record<string, typeof Square> = {
   sumir: EyeOff,
 }
 
-/** Enriquecimento (mock): grades de opções por categoria; ★ marca o estilo do tipo. O pedido guarda só o que difere. */
+/** O desenho de como 2 mídias convivem: a 1ª (clara) e a 2ª (coral) num quadro 9:16. */
+function IconeDupla({ tipo }: { tipo: string }) {
+  const a = 'fill-cream/35'
+  const b = 'fill-coral'
+  return (
+    <svg viewBox="0 0 18 32" className="h-7 w-auto" aria-hidden>
+      <rect x="0.5" y="0.5" width="17" height="31" rx="2" className="fill-none stroke-current opacity-40" />
+      {tipo === 'sequencia' && (
+        <>
+          <rect x="3" y="6" width="9" height="16" rx="1.5" className={a} />
+          <rect x="6" y="10" width="9" height="16" rx="1.5" className={b} />
+        </>
+      )}
+      {tipo === 'empilhadas' && (
+        <>
+          <rect x="3" y="3" width="12" height="12" rx="1.5" className={a} />
+          <rect x="3" y="17" width="12" height="12" rx="1.5" className={b} />
+        </>
+      )}
+      {tipo === 'lado_a_lado' && (
+        <>
+          <rect x="2" y="7" width="6.5" height="18" rx="1.5" className={a} />
+          <rect x="9.5" y="7" width="6.5" height="18" rx="1.5" className={b} />
+        </>
+      )}
+    </svg>
+  )
+}
+
+/** Uma grade de opções de uma categoria; ★ marca o estilo do tipo. */
+function Grade(p: { titulo: ReactNode; opcoes: string[]; valor: string; estilo: string; escolher: (o: string) => void; travado?: boolean; dupla?: boolean }) {
+  return (
+    <div className="grid gap-2">
+      <div className="eyebrow text-sage">{p.titulo}</div>
+      <div className="grid grid-cols-3 gap-1.5">
+        {p.opcoes.map((o) => {
+          const Icone = ICONE[o] ?? Sparkles
+          const ativo = p.valor === o
+          return (
+            <button
+              key={o}
+              onClick={() => p.escolher(o)}
+              disabled={p.travado}
+              className={cn(
+                'relative grid place-items-center gap-1.5 rounded-[6px] px-1.5 py-2.5 text-center text-[10.5px] leading-tight ring-1 transition-colors',
+                ativo ? 'bg-cream/10 text-cream ring-2 ring-coral' : 'text-fog ring-line-dark hover:text-cream hover:ring-cream/40',
+              )}
+            >
+              {o === p.estilo && <span className="absolute top-1 right-1.5 text-[9px] text-yellow">★</span>}
+              {p.dupla ? <IconeDupla tipo={o} /> : <Icone className="size-4" />}
+              {NOMES[o]}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Enriquecimento: com 1 mídia, layout e entrada; com 2, como as duas convivem (e a moldura, na sequência) e a entrada de
+ *  cada uma, em seções separadas (a curva de cada uma fica num card próprio ao lado do vídeo). ★ marca o estilo do tipo;
+ *  o pedido guarda só o que difere. */
 function PainelEnriquecimento(p: {
   pedido: Pedido
+  banco?: Map<string, ItemBanco>
   mudar: (c: Record<string, string | number | number[] | null>) => void
   aplicarAoTipo: () => void
   verEntrada: () => void
   /** Só para ver as opções (motions): o aviso aparece em cima e nada é salvo. */
   aviso?: string
-  /** O padrão de curva do vídeo e como salvá-lo. */
-  padrao?: PadraoCurva
-  salvarPadrao?: (c: { curva: [number, number, number, number]; duracao: number }) => void
 }) {
   const x = p.pedido
   const e = enriquecimentoDe(x)
   const estilo = ESTILO[x.formato]
   const mudado = Object.keys(x.enriquecimento ?? {}).length > 0
   const nomeTipo = NOME_TIPO[x.tipo] ?? CATEGORIAS.planos[x.tipo] ?? x.tipo
+  const dupla = x.midias.length === 2
+  const escolher = (k: Categoria) => (o: string) => p.mudar({ [k]: o === estilo[k] ? null : o })
   return (
     <div className="grid gap-5">
       {p.aviso && <p className="rounded-[6px] border border-dashed border-yellow/40 px-3 py-2 text-[11.5px] leading-[1.6] text-yellow/90">{p.aviso}</p>}
@@ -679,43 +765,41 @@ function PainelEnriquecimento(p: {
         </button>
       </div>
       <p className="text-[11.5px] leading-[1.6] text-fog">
-        Como este {p.aviso ? 'motion' : 'insert'} aparece (por enquanto, com 1 mídia: layout e entrada). ★ é o estilo de “{nomeTipo}”; mude só o que quiser. As entradas usam curvas suaves (cubic-bezier), nunca lineares.
+        {dupla
+          ? 'Com 2 mídias: como as duas convivem e a entrada de cada uma. Onde a 2ª começa se ajusta arrastando na trilha Mídias, lá embaixo.'
+          : `Como este ${p.aviso ? 'motion' : 'insert'} aparece: layout e entrada.`}{' '}
+        ★ é o estilo de “{nomeTipo}”; mude só o que quiser. As entradas usam curvas suaves (cubic-bezier), nunca lineares.
       </p>
-      {CATEGORIAS_ENRIQUECIMENTO.filter((c) => CATEGORIAS_ATIVAS.includes(c.id)).map((c) => (
-        <div key={c.id} className="grid gap-2">
-          <p className="eyebrow text-sage">
-            {c.nome}
-            {c.dica && <span className="ml-2 tracking-normal normal-case text-fog/70">{c.dica}</span>}
-          </p>
-          <div className="grid grid-cols-3 gap-1.5">
-            {OPCOES[c.id as Categoria][x.formato].map((o) => {
-              const Icone = ICONE[o] ?? Sparkles
-              const ativo = e[c.id as Categoria] === o
-              return (
-                <button
-                  key={o}
-                  onClick={() => p.mudar({ [c.id]: o === estilo[c.id as Categoria] ? null : o })}
-                  disabled={!!p.aviso}
-                  className={cn(
-                    'relative grid place-items-center gap-1.5 rounded-[6px] px-1.5 py-2.5 text-center text-[10.5px] leading-tight ring-1 transition-colors',
-                    ativo ? 'bg-cream/10 text-cream ring-2 ring-coral' : 'text-fog ring-line-dark hover:text-cream hover:ring-cream/40',
-                  )}
-                >
-                  {o === estilo[c.id as Categoria] && <span className="absolute top-1 right-1.5 text-[9px] text-yellow">★</span>}
-                  <Icone className="size-4" />
-                  {NOMES[o]}
-                </button>
+      {dupla && <Grade titulo="Layout das duas" opcoes={OPCOES.entre[x.formato]} valor={e.entre} estilo={estilo.entre} escolher={escolher('entre')} travado={!!p.aviso} dupla />}
+      {(!dupla || e.entre === 'sequencia') && (
+        <Grade titulo={dupla ? 'Moldura' : 'Layout'} opcoes={OPCOES.layout[x.formato]} valor={e.layout} estilo={estilo.layout} escolher={escolher('layout')} travado={!!p.aviso} />
+      )}
+      {(dupla ? ([1, 2] as Qual[]) : ([1] as Qual[])).map((q) => {
+        const k = campo('entrada', q) as Categoria
+        const m = x.midias[q - 1]
+        return (
+          <Grade
+            key={q}
+            titulo={
+              dupla ? (
+                <div className="flex items-center gap-2">
+                  Entrada · {q}ª mídia
+                  {m && <img src={urlBancoMiniatura(m.banco)} alt="" title={p.banco?.get(m.banco)?.nome} className="h-5 w-8 rounded-full object-cover" />}
+                </div>
+              ) : (
+                'Entrada'
               )
-            })}
-          </div>
-        </div>
-      ))}
+            }
+            opcoes={OPCOES.entrada[x.formato]}
+            valor={entradaDe(e, q)}
+            estilo={estilo[k]}
+            escolher={escolher(k)}
+            travado={!!p.aviso}
+          />
+        )
+      })}
       <div className={cn('flex flex-wrap gap-2 border-t border-line-dark pt-4 text-[11px]', p.aviso && 'hidden')}>
-        <button
-          onClick={() => p.mudar(Object.fromEntries(CATEGORIAS_ENRIQUECIMENTO.map((c) => [c.id, null])))}
-          disabled={!mudado}
-          className={cn(BOTAO, 'disabled:opacity-40')}
-        >
+        <button onClick={() => p.mudar({ layout: null, entrada: null, entrada_2: null, entre: null, corte: null })} disabled={!mudado} className={cn(BOTAO, 'disabled:opacity-40')}>
           <RotateCcw className="size-3" /> Voltar ao estilo
         </button>
         <button onClick={p.aplicarAoTipo} className={BOTAO} title={`Copia este enriquecimento para todos os planos “${nomeTipo}”`}>

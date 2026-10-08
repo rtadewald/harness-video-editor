@@ -1345,6 +1345,23 @@ def test_enriquecimento_antigo_com_fundo_por_insert_nao_quebra(cliente, video, m
     assert r.status_code == 200 and r.json()['pedidos'][0]['enriquecimento'] == {'entrada': 'voo_3d', 'layout': 'card_metade'}
 
 
+def test_enriquecimento_de_2_midias(cliente, video, monkeypatch):
+    """Com 2 mídias: como convivem (`entre`), a entrada e a curva da 2ª (`_2`) e onde ela começa (`corte`, fração)."""
+    id = _criar(cliente, video)['id']
+    monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': [_plano_ins('p1', 'insert_tela_cheia', 0, 5)]}))
+    pid = cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]['id']
+    projeto.atualizar(id, lambda p: p['inserts']['pedidos'][0].update(enriquecimento={'entre': 'sequencia_transicao'}))  # opção antiga
+    url = f'/api/projetos/{id}/inserts/{pid}/enriquecimento'
+    r = cliente.put(url, json={'campos': {'entre': 'empilhadas', 'entrada_2': 'voo_3d', 'curva_2': [0.2, 1, 0.3, 1], 'duracao_2': 0.8, 'corte': 0.99}})
+    assert r.json()['pedidos'][0]['enriquecimento'] == {'entre': 'empilhadas', 'entrada_2': 'voo_3d', 'curva_2': [0.2, 1, 0.3, 1], 'duracao_2': 0.75, 'corte': 0.95}
+    r = cliente.put(url, json={'campos': {'entre': 'sequencia', 'entrada_2': 'surgir', 'corte': None}})  # o estilo: não guarda
+    assert r.json()['pedidos'][0]['enriquecimento'] == {'curva_2': [0.2, 1, 0.3, 1], 'duracao_2': 0.75}
+    assert cliente.put(url, json={'campos': {'entre': 'cascata'}}).status_code == 422
+    assert cliente.put(url, json={'campos': {'corte': 'meio'}}).status_code == 422
+    assert cliente.put(url, json={'campos': {'corte': -1}}).json()['pedidos'][0]['enriquecimento']['corte'] == 0.0  # junto com a 1ª
+
+
 def test_curva_e_duracao_da_entrada(cliente, video, monkeypatch):
     id = _criar(cliente, video)['id']
     monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())

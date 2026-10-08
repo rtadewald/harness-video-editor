@@ -33,3 +33,5 @@ export const MOLA = bezier(0.34, 1.56, 0.64, 1)
 export const SAIR = bezier(0.7, 0, 0.84, 0)
 /** Acelera e desacelera (in-out): movimentos longos (zoom, rolagem, misturas). */
 export const SUAVE = bezier(0.65, 0, 0.35, 1)
+/** Empurrão de câmera bem leve: já começa andando e vai assentando (a "seca + zoom leve", que dura a mídia toda). */
+export const ZOOM_LEVE = bezier(0.3, 0.2, 0.4, 1)

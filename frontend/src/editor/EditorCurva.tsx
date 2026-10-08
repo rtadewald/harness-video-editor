@@ -85,12 +85,6 @@ export default function EditorCurva(p: {
         >
           <Save className="size-3.5" /> Salvar como padrão do vídeo
         </button>
-        <p className="text-[10.5px] leading-[1.5] text-fog">
-          {p.padrao?.curva
-            ? `Padrão do vídeo: ${PRESETS_CURVA.find((x) => iguais(x.curva, p.padrao!.curva!))?.nome ?? 'personalizada'}, ${s(p.padrao.duracao ?? DURACAO.padrao)}.`
-            : 'Sem padrão do vídeo: chega rápido e freia, em 1,5 s.'}
-          {p.ajustada ? ' Este insert tem entrada própria.' : ''}
-        </p>
         {p.ajustada && (
           <button onClick={() => p.mudar({ curva: null, duracao: null })} className="flex w-fit items-center gap-1 text-[11px] text-fog hover:text-cream">
             <RotateCcw className="size-3" /> Usar o padrão neste insert

@@ -508,35 +508,45 @@ def definir_midias(id: str, pid: str, midias: list[dict]) -> dict:
 OPCOES_ENRIQUECIMENTO = {
     'layout': {'vertical': ('tela_cheia', 'card', 'janela_3d', 'inclinado', 'destaque'),
                'dividida': ('metade', 'card_metade', 'janela_3d_metade', 'mesclada')},
-    'entrada': ('sem', 'surgir', 'subir', 'voo_3d', 'zoom_borrado'),  # deslizar, mola e girar saíram (Rodrigo, out/2026)
-    'entre': ('sequencia_corte', 'sequencia_transicao', 'lado_a_lado', 'grade', 'empilhadas'),
+    # deslizar, mola e girar saíram; "seca + zoom leve" entrou (Rodrigo, out/2026)
+    'entrada': ('sem', 'surgir', 'subir', 'voo_3d', 'zoom_borrado', 'seco_zoom'),
+    'entrada_2': ('sem', 'surgir', 'subir', 'voo_3d', 'zoom_borrado', 'seco_zoom'),  # a da 2ª mídia (insert com 2)
+    # como 2 mídias convivem (decisão de Rodrigo, out/2026); 3 ou mais ficam em sequência, divididas igualmente
+    'entre': ('sequencia', 'empilhadas', 'lado_a_lado'),  # cascata e picture-in-picture saíram (Rodrigo, out/2026)
     'movimento': ('parado', 'zoom_lento', 'zoom_ponto', 'rolagem'),
     'saida': ('corte', 'sumir', 'deslizar'),
 }
 ESTILO = {
-    'vertical': {'layout': 'card', 'entrada': 'surgir', 'entre': 'sequencia_corte', 'movimento': 'zoom_lento', 'saida': 'corte'},
-    'dividida': {'layout': 'metade', 'entrada': 'surgir', 'entre': 'sequencia_corte', 'movimento': 'zoom_lento', 'saida': 'corte'},
+    'vertical': {'layout': 'card', 'entrada': 'surgir', 'entrada_2': 'surgir', 'entre': 'sequencia', 'movimento': 'zoom_lento', 'saida': 'corte'},
+    'dividida': {'layout': 'metade', 'entrada': 'surgir', 'entrada_2': 'surgir', 'entre': 'sequencia', 'movimento': 'zoom_lento', 'saida': 'corte'},
 }
 
 
 # ajustes finos da entrada (sem padrão fixo: valem os da entrada escolhida até o criador mudar)
-AJUSTES = ('curva', 'duracao')  # duração da entrada em segundos: 0,5 a 5 s, de 0,25 em 0,25 (decisão de Rodrigo, out/2026)
+# duração da entrada em segundos: 0,5 a 5 s, de 0,25 em 0,25 (decisão de Rodrigo, out/2026); `_2` = os da 2ª mídia; `corte` =
+# onde a 2ª mídia começa, em fração do insert (0 a 0,95; padrão: no meio; 0 = junto com a 1ª, nos layouts juntos)
+AJUSTES = ('curva', 'duracao', 'curva_2', 'duracao_2', 'corte')
 
 
 def _validar_enriquecimento(formato: str, campos: dict) -> dict:
     limpo = {}
     for k, v in campos.items():
-        if k == 'curva' and v is not None:
+        if k in ('curva', 'curva_2') and v is not None:
             # cubic-bezier: x entre 0 e 1 (é o tempo), y livre dentro de -1 a 2 (passar do ponto e voltar)
             if not isinstance(v, list) or len(v) != 4 or not all(isinstance(n, (int, float)) and not isinstance(n, bool) for n in v):
                 raise ValueError('A curva são 4 números (cubic-bezier)')
             limpo[k] = [round(max(0.0, min(1.0, v[0])), 3), round(max(-1.0, min(2.0, v[1])), 3),
                         round(max(0.0, min(1.0, v[2])), 3), round(max(-1.0, min(2.0, v[3])), 3)]
             continue
-        if k == 'duracao' and v is not None:
+        if k in ('duracao', 'duracao_2') and v is not None:
             if not isinstance(v, (int, float)) or isinstance(v, bool):
                 raise ValueError('A duração é em segundos')
             limpo[k] = round(max(0.5, min(5.0, float(v))) * 4) / 4  # passos de 0,25 s
+            continue
+        if k == 'corte' and v is not None:
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                raise ValueError('O corte é uma fração do insert')
+            limpo[k] = round(max(0.0, min(0.95, float(v))), 3)  # 0: a 2ª começa junto (layouts em que as duas aparecem juntas)
             continue
         if k in AJUSTES:
             limpo[k] = None

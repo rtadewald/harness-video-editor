@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Maximize2, Minus, Plus } from 'lucide-react'
-import { urlBancoMiniatura, type ItemRef, type PedidoInsert } from '@/api'
+import { urlBancoMiniatura, type ItemRef, type MidiaLigada, type PedidoInsert } from '@/api'
 import { cn } from '@/lib/utils'
 import { COR_ELEMENTO, COR_PLANO } from '@/referencias/LinhaDirecao'
+import { corteDe, enriquecimentoDe, type Formato, type Qual } from './enriquecimento'
 import { useAtalhoZoom } from './useAtalhoZoom'
 
 export type PlanoLinha = ItemRef & { n: number; fala: string }
@@ -29,6 +30,9 @@ export default function LinhaInserts(p: {
   selecionado: string | null
   buscar: (t: number) => void
   selecionar: (plano: string, aba?: Aba) => void
+  /** Com 2 mídias: clicar num bloco seleciona o plano; mudar onde a 2ª começa (fração do insert; null = no meio). */
+  escolherMidia: (plano: string) => void
+  ajustarCorte: (pid: string, v: number | null, salvar: boolean) => void
 }) {
   const rolagem = useRef<HTMLDivElement>(null)
   const [px, setPx] = useState(14)
@@ -149,6 +153,21 @@ export default function LinhaInserts(p: {
                   </button>
                 )
               if (!ped) return null
+              if (ped.midias.length === 2)
+                return (
+                  <TrilhaDupla
+                    key={pl.id}
+                    pl={pl}
+                    ped={ped}
+                    x={x}
+                    tDe={tDe}
+                    lugar={lugar}
+                    palavras={p.palavras}
+                    selecionado={p.selecionado === pl.id}
+                    escolher={() => p.escolherMidia(pl.id)}
+                    ajustar={(v, salvar) => p.ajustarCorte(ped.id, v, salvar)}
+                  />
+                )
               return (
                 <button
                   key={pl.id}
@@ -187,5 +206,105 @@ export default function LinhaInserts(p: {
         </div>
       </div>
     </div>
+  )
+}
+
+const MIN_MIDIA = 0.5 // s: nenhuma das duas mídias fica com menos que isto
+const IMA_PX = 10 // a emenda gruda no começo de uma palavra a até 10 px (Shift solta o ímã)
+
+/** As 2 mídias de um insert na trilha Mídias: na sequência, uma depois da outra; nos layouts em que as duas aparecem
+ *  juntas, a 1ª o insert todo (em cima) e a 2ª do corte até o fim (embaixo). A alça muda onde a 2ª começa; duplo clique
+ *  volta ao meio; clicar num bloco seleciona o plano. */
+function TrilhaDupla(p: {
+  pl: PlanoLinha
+  ped: PedidoInsert
+  x: (t: number) => number
+  tDe: (clientX: number) => number
+  lugar: { left: number; width: number; top: number; height: number }
+  palavras: { inicio: number }[]
+  selecionado: boolean
+  escolher: () => void
+  ajustar: (v: number | null, salvar: boolean) => void
+}) {
+  const e = enriquecimentoDe(p.ped as PedidoInsert & { formato: Formato })
+  const dur = Math.max(p.pl.fim - p.pl.inicio, 0.01)
+  const tc = p.pl.inicio + corteDe(e, dur) * dur
+  const juntas = e.entre !== 'sequencia'
+  const [a, b] = p.ped.midias
+  const { top, height } = p.lugar
+  const arrastar = (ev: React.PointerEvent) => {
+    ev.stopPropagation()
+    ev.preventDefault()
+    let ultimo: number | null = null
+    const onde = (cx: number, livre: boolean) => {
+      let t = p.tDe(cx)
+      if (!livre) {
+        // ímã: o começo da palavra mais perto, se estiver a poucos pixels
+        const perto = p.palavras.filter((w) => w.inicio > p.pl.inicio + MIN_MIDIA && w.inicio < p.pl.fim - MIN_MIDIA)
+          .reduce<number | null>((m, w) => (m == null || Math.abs(w.inicio - t) < Math.abs(m - t) ? w.inicio : m), null)
+        if (perto != null && Math.abs(p.x(perto) - p.x(t)) <= IMA_PX) t = perto
+      }
+      // juntas, a 2ª pode começar com a 1ª (ímã no início); na sequência, a 1ª fica pelo menos 0,5 s
+      if (juntas && !livre && p.x(t) - p.x(p.pl.inicio) <= IMA_PX) t = p.pl.inicio
+      t = Math.max(p.pl.inicio + (juntas ? 0 : MIN_MIDIA), Math.min(p.pl.fim - MIN_MIDIA, t))
+      return Math.round(Math.max(juntas ? 0 : 0.05, Math.min(0.95, (t - p.pl.inicio) / dur)) * 1000) / 1000
+    }
+    const mover = (m: PointerEvent) => {
+      ultimo = onde(m.clientX, m.shiftKey)
+      p.ajustar(ultimo, false)
+    }
+    const soltar = () => {
+      window.removeEventListener('pointermove', mover)
+      window.removeEventListener('pointerup', soltar)
+      if (ultimo != null) p.ajustar(ultimo, true)
+    }
+    window.addEventListener('pointermove', mover)
+    window.addEventListener('pointerup', soltar)
+  }
+  const bloco = (m: MidiaLigada, q: Qual, ini: number, fim: number, cima: number, alt: number) => (
+    <button
+      key={m.id}
+      onClick={(ev) => {
+        ev.stopPropagation()
+        p.escolher()
+      }}
+      className={cn(
+        'absolute flex items-center gap-1 overflow-hidden rounded-[4px] bg-cream/[0.05] p-0.5 text-[9.5px] font-semibold text-cream/80 ring-1 ring-line-dark',
+        p.selecionado && 'ring-2 ring-yellow',
+      )}
+      style={{ left: p.x(ini) + 1, width: Math.max(p.x(fim - ini) - 2, 2), top: cima, height: alt }}
+      title={`${q}ª mídia`}
+    >
+      <img src={urlBancoMiniatura(m.banco)} alt="" className="h-full w-auto shrink-0 rounded-[2px] bg-black object-cover" style={{ aspectRatio: '16 / 9' }} />
+      <span className="shrink-0 rounded-full bg-black/50 px-1">{q}</span>
+    </button>
+  )
+  return (
+    <>
+      {juntas ? (
+        <>
+          {bloco(a, 1, p.pl.inicio, p.pl.fim, top, height / 2 - 1)}
+          {bloco(b, 2, tc, p.pl.fim, top + height / 2 + 1, height / 2 - 1)}
+        </>
+      ) : (
+        <>
+          {bloco(a, 1, p.pl.inicio, tc, top, height)}
+          {bloco(b, 2, tc, p.pl.fim, top, height)}
+        </>
+      )}
+      {/* a alça: onde a 2ª mídia começa */}
+      <div
+        onPointerDown={arrastar}
+        onDoubleClick={(ev) => {
+          ev.stopPropagation()
+          p.ajustar(null, true)
+        }}
+        className="group absolute z-20 flex w-2.5 -translate-x-1/2 cursor-ew-resize justify-center"
+        style={{ left: p.x(tc), top: top - 3, height: height + 6 }}
+        title="Arraste para mudar onde a 2ª mídia começa (gruda no começo das palavras; Shift solta). Duplo clique: no meio."
+      >
+        <span className="h-full w-0.5 rounded-full bg-yellow/70 group-hover:w-1 group-hover:bg-yellow" />
+      </div>
+    </>
   )
 }

@@ -367,7 +367,7 @@ export type PedidoInsert = {
   duracao: number
   midias: MidiaLigada[]
   /** O que o criador mudou no enriquecimento (o resto vem do estilo do formato; SPEC §8.3). */
-  enriquecimento?: Partial<Record<'layout' | 'entrada' | 'entre' | 'movimento' | 'saida', string> & { curva: [number, number, number, number]; duracao: number }>
+  enriquecimento?: Partial<Record<'layout' | 'entrada' | 'entrada_2' | 'entre' | 'movimento' | 'saida', string> & { curva: [number, number, number, number]; duracao: number; curva_2: [number, number, number, number]; duracao_2: number; corte: number }>
   /** O card de comentário (só em Comentário + insert + ator): o que difere do padrão. */
   comentario?: Partial<{ texto: string | null; avatar: number; usuario: string; tempo: string; traducao: boolean; x: number; y: number; escala: number }>
   /** As capturas de site deste insert: as em andamento (várias podem rodar ao mesmo tempo) e as que falharam (§8.3). */
