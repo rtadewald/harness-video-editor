@@ -44,6 +44,20 @@ def fontes_presets():
     return presets.fontes()
 
 
+@rotas.get('/api/presets/ordem')
+def ordem_presets():
+    """A ordem dos presets por situação (tela:mídias) e quantos dos primeiros são favoritos (os recomendados)."""
+    return presets.ordem()
+
+
+@rotas.put('/api/presets/ordem/{situacao}')
+def definir_ordem_presets(situacao: str, c: Campos):
+    try:
+        return presets.definir_ordem(situacao, c.campos.get('ids'), c.campos.get('favoritos', 0))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
 @rotas.patch('/api/presets/{pid}')
 def editar_preset(pid: str, e: Campos):
     """Nome, aprovação e a receita (vale para todos os inserts que usam o preset)."""
@@ -93,3 +107,19 @@ def quadro_referencia(ref: str, t: float):
     except (FileNotFoundError, ValueError):
         raise HTTPException(404, 'Sem quadro')
 
+
+
+# ---------------------------------------------------------------- recorte do ator (divisão da tela)
+
+@rotas.get('/api/projetos/{id}/recorte')
+def estado_recorte(id: str):
+    from .rotas_comum import ler_projeto
+    return ler_projeto(id).get('recorte') or {'estado': 'nenhum'}
+
+
+@rotas.post('/api/projetos/{id}/recorte')
+def pedir_recorte(id: str):
+    from . import recorte_ator
+    from .rotas_comum import ler_projeto
+    ler_projeto(id)
+    return recorte_ator.pedir(id)

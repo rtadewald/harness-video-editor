@@ -13,7 +13,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import calibragem, captura_site, comum, exportacao, cortes, direcao, direcao_projeto, inserts, midia, mocks, motores, pipeline, projeto, referencias, rotas_motions, rotas_presets
+from . import calibragem, captura_site, comum, exportacao, cortes, direcao, direcao_projeto, inserts, midia, mocks, motores, pipeline, projeto, referencias, rotas_motions, rotas_presets, recorte_ator
 from .rotas_comum import ler_projeto as _ler
 
 comum.carregar_env()
@@ -28,6 +28,7 @@ async def ciclo(_app):
     inserts.atualizar_proxies()
     captura_site.retomar_interrompidas()
     exportacao.retomar_interrompidas()
+    recorte_ator.retomar_interrompidos()
     yield
 
 
@@ -777,7 +778,7 @@ def opcoes_de_enriquecimento():
 
 
 class Enriquecimento(BaseModel):
-    campos: dict[str, str | float | list[float] | None]
+    campos: dict[str, str | float | list[float] | dict[str, str] | None]
 
 
 @app.put('/api/projetos/{id}/inserts/{pid}/enriquecimento')

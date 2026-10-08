@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import Fundo from './Fundo'
-import { cantosNoTempo, estadoCard, janela, matrizDosCantos, zoomMidia, type Receita } from './presets'
+import { cantosNoTempo, estadoCard, janela, matrizDosCantos, noTempo, zoomMidia, type Receita } from './presets'
 
 /** Um preset tocando (SPEC §8.4): cada card na pose do instante, com a sua mídia dentro. As medidas são % da área do
  *  insert (a tela toda ou a metade de cima), em unidades de container, então a mesma receita serve na prévia, na
  *  miniatura do banco e na exportação. `midia(k, rel)` desenha a mídia do card k, `rel` s depois de ele aparecer. */
-export default function CenaPreset(p: { receita: Receita; rel: number; dur: number; fundo: string; midia: (k: number, rel: number, topo: boolean) => ReactNode; className?: string }) {
-  const r = p.receita
+export default function CenaPreset(p: { receita: Receita; rel: number; dur: number; fundo: string; midia: (k: number, rel: number, topo: boolean) => ReactNode; className?: string; semFundo?: boolean }) {
+  const r = noTempo(p.receita, p.dur)
   // o tamanho da área em px: os cards guiados pelos cantos (`quadros`) precisam de px para a matrix3d
   const caixa = useRef<HTMLDivElement>(null)
   const [tam, setTam] = useState<[number, number] | null>(null)
@@ -20,8 +20,9 @@ export default function CenaPreset(p: { receita: Receita; rel: number; dur: numb
     return () => ro.disconnect()
   }, [temQuadros])
   return (
-    <div ref={caixa} className={cn('pointer-events-none absolute isolate overflow-hidden', p.className, r.fundo === 'nenhum' && 'bg-black')} style={{ containerType: 'size' }}>
-      {r.fundo === 'proprio' && <Fundo id={p.fundo} />}
+    <div ref={caixa} className={cn('pointer-events-none absolute isolate overflow-hidden', p.className, r.fundo === 'nenhum' && !p.semFundo && 'bg-black')} style={{ containerType: 'size' }}>
+      {/* `semFundo`: quem usa já desenha o fundo, maior que a cena (o "ator embaixo": a tela toda) */}
+      {r.fundo === 'proprio' && !p.semFundo && <Fundo id={p.fundo} />}
       {r.cards.map((c, k) => {
         const e = estadoCard(c, p.rel, p.dur)
         if (!e || e.opacidade <= 0.001) return null

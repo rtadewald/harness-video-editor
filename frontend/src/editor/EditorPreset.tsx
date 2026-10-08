@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Play } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import EditorCurva from './EditorCurva'
+import { tipoDoPreset } from './divisao'
+import { AJUSTES, rapidosDe } from './ajustes'
 import { NOME_PROP, editarPreset, previaPreset, type CardReceita, type Estado, type Preset, type Propriedade, type Receita } from './presets'
 
 type Faixa = { rotulo: string; min: number; max: number; passo: number; un: string }
@@ -40,6 +42,8 @@ export default function EditorPreset(p: {
   parte?: 'geral' | 'lugar'
   card?: number
   escolherCard?: (k: number) => void
+  /** Um bloco antes das seções (no modal: os ajustes rápidos, no topo da 1ª coluna). */
+  topo?: React.ReactNode
 }) {
   const [kLocal, setKLocal] = useState(0)
   const k = p.card ?? kLocal
@@ -60,6 +64,7 @@ export default function EditorPreset(p: {
 
   return (
     <div className={cn('text-[12px]', p.colunas ? 'columns-2 gap-6 [&>*]:mb-4 [&>*]:break-inside-avoid' : 'grid gap-5')}>
+      {p.topo}
       {geral && (
         <>
       <div className="flex items-center gap-2">
@@ -100,6 +105,46 @@ export default function EditorPreset(p: {
               </button>
             )
           })}
+        </div>
+      </div>
+      <div className="grid gap-1.5 text-[11px]">
+        <span className="text-fog">Ajustes rápidos (o que aparece na edição do insert)</span>
+        <div className="flex flex-wrap gap-1">
+          {AJUSTES.map((aj) => {
+            const ligado = rapidosDe(p.preset).includes(aj.id)
+            return (
+              <button
+                key={aj.id}
+                onClick={() => {
+                  const atual = rapidosDe(p.preset)
+                  void editarPreset(p.preset.id, { rapidos: ligado ? atual.filter((x) => x !== aj.id) : [...atual, aj.id] }).catch((x) => setErro((x as Error).message))
+                }}
+                className={cn('rounded-full px-2.5 py-0.5 font-semibold ring-1', ligado ? 'bg-cream text-ink ring-cream' : 'text-fog ring-line-dark hover:text-cream')}
+              >
+                {aj.nome}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <div className="grid gap-1.5 text-[11px]">
+        <span className="text-fog">Na tela dividida</span>
+        <div className="flex w-fit rounded-full p-0.5 whitespace-nowrap ring-1 ring-line-dark">
+          {(
+            [
+              ['area', 'Ocupa a área'],
+              ['card', 'Card'],
+              ['atras', 'Ator embaixo'],
+            ] as const
+          ).map(([t, rotulo]) => (
+            <button
+              key={t}
+              onClick={() => t !== tipoDoPreset(p.preset) && void editarPreset(p.preset.id, { divisao_tipo: t }).catch((x) => setErro((x as Error).message))}
+              className={cn('rounded-full px-2.5 py-0.5 font-semibold', tipoDoPreset(p.preset) === t ? 'bg-cream text-ink' : 'text-fog hover:text-cream')}
+            >
+              {rotulo}
+            </button>
+          ))}
         </div>
       </div>
       {(!p.preset.formatos || p.preset.formatos.length === 2) && (

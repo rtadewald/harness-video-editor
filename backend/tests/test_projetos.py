@@ -1361,7 +1361,7 @@ def test_exportacao_ator_mantem_cortes_e_sincronia_e_camada_no_instante_certo(vi
     subprocess.run(['ffmpeg', '-v', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', f'{w}x{h}', '-framerate', str(fps), '-i', '-',
                     '-c:v', 'prores_videotoolbox', '-profile:v', '4444', str(camada)], input=bytes([255, 0, 0, 255]) * (w * h * 3), check=True)
     saida = tmp_path / 'final.mp4'
-    subprocess.run(exportacao.comando_final(video, clipes, False, 0.5, w, h, fps, [(0, 0.6)], [(camada, 10 / fps)], 'h264', dur, saida),
+    subprocess.run(exportacao.comando_final(video, clipes, False, 0.5, w, h, fps, [(0, 0.6, {'modo': 'metade', 'f': 0.5})], [(camada, 10 / fps)], 'h264', dur, saida),
                    check=True, capture_output=True)
     n = round(dur * fps)
     info = json.loads(subprocess.run(['ffprobe', '-v', 'error', '-count_frames', '-show_entries', 'stream=codec_type,width,height,nb_read_frames,duration',
@@ -1374,6 +1374,24 @@ def test_exportacao_ator_mantem_cortes_e_sincronia_e_camada_no_instante_certo(vi
                                     '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], capture_output=True).stdout
     vermelho = lambda k: cor(k)[0] > 200 and cor(k)[1] < 60 and cor(k)[2] < 60
     assert [vermelho(k) for k in (9, 10, 11, 12, 13)] == [False, True, True, True, False]
+
+
+def test_exportacao_com_divisoes_e_pessoa_recortada(video, tmp_path):
+    """Com a máscara da pessoa: um trecho 56/44 (a cabeça sai por cima) e um "insert atrás" (o ator numa janela) montam e
+    o vídeo sai inteiro."""
+    from app import exportacao
+    clipes = [{'inicio': 0.2, 'fim': 0.8}, {'inicio': 2.1, 'fim': 2.9}]
+    w, h, fps, dur = 180, 320, 24, 1.4
+    mascara = tmp_path / 'mascara.mp4'
+    subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=white:s=360x640:r=30:d=3', '-pix_fmt', 'yuv420p', str(mascara)], check=True)
+    saida = tmp_path / 'final.mp4'
+    divisoes = [(0, 0.6, {'modo': 'metade', 'f': 0.5625}), (0.7, 1.3, {'modo': 'atras'})]
+    r = subprocess.run(exportacao.comando_final(video, clipes, False, 0.5, w, h, fps, divisoes, [], 'h264', dur, saida, mascara),
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr[-400:]
+    n = json.loads(subprocess.run(['ffprobe', '-v', 'error', '-count_frames', '-show_entries', 'stream=nb_read_frames', '-select_streams', 'v',
+                                   '-of', 'json', str(saida)], capture_output=True, text=True).stdout)['streams'][0]['nb_read_frames']
+    assert int(n) == round(dur * fps)
 
 
 def test_exportacao_divide_os_inserts_em_pedacos():
@@ -1447,6 +1465,20 @@ def test_preset_feito_a_mao_e_marcado_na_referencia(tmp_path, monkeypatch):
     with pytest.raises(ValueError):
         presets.validar_receita({'formato': 'quadrado', 'cards': []})
     assert presets.validar_receita(_receita(dy=999))['cards'][0]['entrada']['de']['dy'] == 200  # nos limites
+
+
+def test_ordem_dos_presets_por_situacao(cliente, monkeypatch, tmp_path):
+    from app import presets
+    monkeypatch.setattr(presets, 'RAIZ', tmp_path / 'presets')
+    a, b = (presets.criar(n, _receita(), [])['id'] for n in ('A', 'B'))
+    url = '/api/presets/ordem/vertical%3A2%2B'
+    assert cliente.put(url, json={'campos': {'ids': [b, a, b, '0000000000'], 'favoritos': 1}}).json() == {'vertical:2+': {'ids': [b, a], 'favoritos': 1}}
+    assert len(cliente.get('/api/presets').json()) == 2  # o ordem.json não vira preset
+    assert cliente.put('/api/presets/ordem/quadrado%3A1', json={'campos': {'ids': [a]}}).status_code == 422
+    assert cliente.put('/api/presets/ordem/dividida%3A1%3Ape', json={'campos': {'ids': [a]}}).status_code == 200  # 1 mídia: pela proporção
+    presets.apagar(b)
+    assert cliente.get('/api/presets/ordem').json()['vertical:2+'] == {'ids': [a], 'favoritos': 0}  # o favorito apagado sai
+    assert 'vertical:2+' not in cliente.put(url, json={'campos': {'ids': []}}).json()  # vazia: volta a não ter ordem
 
 
 def test_insert_com_preset(cliente, video, monkeypatch, tmp_path):

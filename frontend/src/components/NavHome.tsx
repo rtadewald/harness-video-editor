@@ -6,19 +6,21 @@ import { fecharAba, useAbasProjetos } from './abasProjetos'
 
 /** A barra de cima de todas as telas, nas pílulas `.tab` do Otto: primeiro os projetos abertos como abas (× fecha; dois
  *  cliques no nome da aba ativa renomeiam, quando a tela permite), depois Projetos, Banco (vídeos e imagens dos inserts),
- *  Referências (galeria dos planos), Presets (de enriquecimento), Motions (galeria dos presets de motion), Calibragem
- *  (vídeos que treinam a Direção visual) e a Heurística da direção. Cada link com um ícone. */
+ *  Referências (galeria dos planos), Presets (de enriquecimento) e Motions (galeria dos presets de motion), juntos; à
+ *  direita, a Calibragem (vídeos que treinam a Direção visual) e a Heurística da direção. */
 const PILULA = 'shrink-0 rounded-full border text-[12px] font-semibold tracking-[-0.01em] transition-colors duration-300'
 const ATIVA = 'border-cream bg-cream text-ink'
 const INATIVA = 'border-line-dark text-fog hover:border-cream/50 hover:text-cream'
 type Link = { para: string; nome: string; icone: LucideIcon; exato?: boolean }
-const LINKS: (Link | '|')[] = [
+const LINKS: Link[] = [
   { para: '/', nome: 'Projetos', icone: FolderOpen, exato: true },
   { para: '/banco', nome: 'Banco', icone: Images },
-  '|',
   { para: '/referencias', nome: 'Referências', icone: Film },
   { para: '/presets', nome: 'Presets', icone: Layers },
   { para: '/motions', nome: 'Motions', icone: Clapperboard },
+]
+// o treino da Direção visual, alinhado à direita
+const TREINO: Link[] = [
   { para: '/calibragem', nome: 'Calibragem', icone: SlidersHorizontal, exato: true },
   { para: '/heuristica', nome: 'Heurística da direção', icone: BookOpenText },
 ]
@@ -28,7 +30,7 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
   const ir = useNavigate()
   const aba = ({ isActive }: { isActive: boolean }) => cn(PILULA, 'flex items-center gap-1.5 px-3.5 py-[7px]', isActive ? ATIVA : INATIVA)
   return (
-    <nav className="flex min-w-0 items-center gap-1.5">
+    <nav className="flex min-w-0 flex-1 items-center gap-1.5">
       <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
         {abas.map((a) => {
           const ativa = local.pathname === `/p/${a.id}`
@@ -48,16 +50,20 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
         })}
       </div>
       {abas.length > 0 && <span className="mx-1.5 h-5 w-px shrink-0 bg-line-dark" />}
-      {LINKS.map((l, k) =>
-        l === '|' ? (
-          <span key={k} className="mx-1.5 h-5 w-px shrink-0 bg-line-dark" />
-        ) : (
+      {LINKS.map((l) => (
+        <NavLink key={l.para} to={l.para} end={l.exato} className={aba}>
+          <l.icone className="size-3.5 opacity-80" aria-hidden />
+          {l.nome}
+        </NavLink>
+      ))}
+      <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-3">
+        {TREINO.map((l) => (
           <NavLink key={l.para} to={l.para} end={l.exato} className={aba}>
             <l.icone className="size-3.5 opacity-80" aria-hidden />
             {l.nome}
           </NavLink>
-        ),
-      )}
+        ))}
+      </div>
     </nav>
   )
 }

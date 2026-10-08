@@ -40,6 +40,8 @@ export type Projeto = {
   nome: string
   criado_em: string
   fontes: Fonte[]
+  /** O recorte do ator (a pessoa sem o fundo), para a divisão da tela. */
+  recorte?: { estado: 'fila' | 'rodando' | 'pronto' | 'erro'; progresso?: number; erro?: string | null }
   briefing: { texto: string; audio: string | null }
   enquadramento: { x: number }
   etapas: Record<Etapa, string>
@@ -367,7 +369,7 @@ export type PedidoInsert = {
   duracao: number
   midias: MidiaLigada[]
   /** O que o criador mudou no enriquecimento (o resto vem do estilo do formato; SPEC §8.3). */
-  enriquecimento?: Partial<Record<'layout' | 'entrada' | 'entrada_2' | 'saida' | 'saida_2' | 'entre' | 'movimento', string> & { corte: number; preset: string }>
+  enriquecimento?: Partial<Record<'layout' | 'entrada' | 'entrada_2' | 'saida' | 'saida_2' | 'entre' | 'movimento', string> & { corte: number; preset: string; divisao: string; ajustes: Record<string, string> }>
   /** O card de comentário (só em Comentário + insert + ator): o que difere do padrão. */
   comentario?: Partial<{ texto: string | null; avatar: number; usuario: string; tempo: string; traducao: boolean; x: number; y: number; escala: number }>
   /** As capturas de site deste insert: as em andamento (várias podem rodar ao mesmo tempo) e as que falharam (§8.3). */

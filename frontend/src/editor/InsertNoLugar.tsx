@@ -5,6 +5,8 @@ import { corteDe, enriquecimentoDe, entradaDe, saidaDe, type Qual } from './enri
 import Fundo, { RelogioRender } from './Fundo'
 import CenaPreset from './CenaPreset'
 import { mexendo, noFormato, serve, usePresets, type Preset } from './presets'
+import { areaDoInsert, aspectosDe, divisaoDe, receitaParaInsert } from './divisao'
+import { ajustesEfetivos, comAjustes } from './ajustes'
 import { duracaoEntrada, duracaoSaida, estiloTransicao, type Transicoes } from './transicoes'
 
 /** O insert desenhado por cima do ator, igual na prévia da etapa Inserts e na exportação (a página de render). */
@@ -69,19 +71,23 @@ export function VideoNoTempo({ item, rel, tocando, topo }: { item: ItemBanco; re
 /** As mídias do insert do momento por cima do vídeo, com o enriquecimento: layout, entrada e saída de cada mídia (a
  *  configuração de cada tipo é global, `trans`) e, com 2 mídias, como elas convivem (sequência, empilhadas, lado a lado). */
 export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<string, ItemBanco>; tempo: number; tocando: boolean; fundo: string; trans: Transicoes | null }) {
-  const { pedido, banco, tempo, tocando } = p
+  const { banco, tempo, tocando } = p
+  const presets = usePresets()
+  // a divisão da tela (pelo preset e pela proporção da mídia): a área do insert e o card na proporção da mídia
+  const divisao = divisaoDe(p.pedido, banco, presets)
+  const pedido = p.pedido
+  const area = areaDoInsert(divisao)
   const exportando = useContext(RelogioRender) != null // o contador "1/3" é só da prévia
   const e = enriquecimentoDe(pedido)
-  const presets = usePresets()
   const preset = presetDe(pedido, presets)
+  const ajEf = ajustesEfetivos(preset, pedido.enriquecimento?.ajustes, aspectosDe(pedido.midias, banco))
   // entrada e saída de uma mídia (sem a configuração carregada ainda, parada)
   const anim = (qual: Qual, relM: number, durM: number): React.CSSProperties =>
     p.trans ? estiloTransicao(entradaDe(e, qual), saidaDe(e, qual), p.trans, relM, durM) : {}
   const n = pedido.midias.length
   const dur = Math.max(pedido.t.fim - pedido.t.inicio, 0.01)
   const rel = Math.max(tempo - pedido.t.inicio, 0)
-  const caixa = pedido.formato === 'vertical' ? 'inset-0' : 'inset-x-0 top-0 h-1/2'
-  if (!n) return <div className={cn('pointer-events-none absolute grid place-items-center bg-black/55 p-6 text-center text-[12px] text-cream/80', caixa)}>Insert sem mídia</div>
+  if (!n) return <div className="pointer-events-none absolute grid place-items-center bg-black/55 p-6 text-center text-[12px] text-cream/80" style={area}>Insert sem mídia</div>
 
   // a mídia; `topo`: cortada, mostra a parte de cima (mídias em pé)
   const midia = (m: MidiaLigada, relM: number, topo?: boolean) => {
@@ -133,14 +139,25 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
   // um preset manda em tudo: layout, entrada e saída de cada mídia, com as curvas medidas nas referências
   if (preset)
     return (
-      <CenaPreset
-        receita={preset.receita}
-        rel={rel}
-        dur={dur}
-        fundo={p.fundo}
-        className={caixa}
-        midia={(k, relM, topo) => pedido.midias[k] && midia(pedido.midias[k], relM, topo)}
-      />
+      <>
+      {/* no "ator embaixo" o insert vai na tela toda: o fundo cobre também o espaço em volta da janela do ator */}
+      {divisao?.modo === 'atras' && (
+        <div className="pointer-events-none absolute inset-0">
+          <Fundo id={p.fundo} />
+        </div>
+      )}
+      <div className="pointer-events-none absolute" style={area}>
+        <CenaPreset
+          receita={comAjustes(receitaParaInsert(comAjustes(preset.receita, ajEf, 'antes'), divisao, aspectosDe(pedido.midias, banco), pedido.formato), ajEf, 'depois')}
+          rel={rel}
+          dur={dur}
+          fundo={p.fundo}
+          className="inset-0"
+          semFundo={divisao?.modo === 'atras'}
+          midia={(k, relM, topo) => pedido.midias[k] && midia(pedido.midias[k], relM, topo)}
+        />
+      </div>
+      </>
     )
 
   let camadas: ReactNode
@@ -200,9 +217,16 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
   }
 
   return (
+    <>
+    {/* no "ator embaixo" o insert vai na tela toda: o fundo cobre também o espaço em volta da janela do ator */}
+    {divisao?.modo === 'atras' && (
+      <div className="pointer-events-none absolute inset-0">
+        <Fundo id={p.fundo} />
+      </div>
+    )}
     <div
-      className={cn('pointer-events-none absolute overflow-hidden', caixa, !comFundo && 'bg-black')}
-      style={e.layout === 'mesclada' ? { WebkitMaskImage: 'linear-gradient(to bottom, black 62%, transparent)', maskImage: 'linear-gradient(to bottom, black 62%, transparent)' } : undefined}
+      className={cn('pointer-events-none absolute overflow-hidden', !comFundo && 'bg-black')}
+      style={{ ...area, ...(e.layout === 'mesclada' ? { WebkitMaskImage: 'linear-gradient(to bottom, black 62%, transparent)', maskImage: 'linear-gradient(to bottom, black 62%, transparent)' } : {}) }}
     >
       {comFundo && <Fundo id={p.fundo} />}
       {atras && <div className="absolute inset-0 scale-125 opacity-60 blur-2xl">{atras}</div>}
@@ -213,6 +237,7 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
         </span>
       )}
     </div>
+    </>
   )
 }
 
