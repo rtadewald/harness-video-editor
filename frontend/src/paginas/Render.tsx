@@ -4,8 +4,7 @@ import { abrirEditor, lerInserts, listarBanco, type DadosEditor, type InsertsPro
 import { CardComentario, comentarioDe } from '@/editor/ComentarioIG'
 import { paraTempo, palavrasNaSaida } from '@/editor/direcaoProjeto'
 import { ChuvaAoVivo, RelogioRender } from '@/editor/Fundo'
-import InsertNoLugar, { pedidosNoTempo } from '@/editor/InsertNoLugar'
-import { duracaoDe, enriquecimentoDe } from '@/editor/enriquecimento'
+import InsertNoLugar, { fimDasEntradas, pedidosNoTempo } from '@/editor/InsertNoLugar'
 import { montarSequencia } from '@/editor/sequencia'
 
 /** Páginas abertas pelo navegador escondido do backend (nunca pelo criador). */
@@ -92,8 +91,7 @@ export function RenderProjeto() {
 
   const atual = pedidos?.lista.find((x) => tempo >= x.t.inicio && tempo < x.t.fim)
   // parado: sem vídeo na tela (checado depois de pintar) e com a entrada já terminada
-  const e = atual && enriquecimentoDe(atual)
-  chave.current = atual && e && tempo - atual.t.inicio >= (e.entrada === 'sem' ? 0 : duracaoDe(e, ins?.curva_padrao)) ? atual.id : null
+  chave.current = atual && tempo - atual.t.inicio >= fimDasEntradas(atual, ins?.curva_padrao) ? atual.id : null
   if (!atual || !banco) return null
   const c = comentarioDe(atual)
   return (

@@ -1,26 +1,40 @@
 /** Enriquecimento dos inserts (mock; SPEC §8.3): como cada insert aparece. Espelha `inserts.OPCOES_ENRIQUECIMENTO` e
  *  `inserts.ESTILO` do backend; os nomes ficam aqui. */
-export type Categoria = 'layout' | 'entrada' | 'entre' | 'movimento' | 'saida'
+export type Categoria = 'layout' | 'entrada' | 'entrada_2' | 'entre' | 'movimento' | 'saida'
 export type Curva = [number, number, number, number]
-/** As categorias e os ajustes da entrada (curva e a parte do trecho que ela dura). */
-export type Enriquecimento = Record<Categoria, string> & { curva?: Curva; duracao?: number }
+/** As categorias e os ajustes da entrada (curva e duração; `_2` = os da 2ª mídia) e, com 2 mídias, onde a 2ª começa
+ *  (`corte`, fração do insert). */
+export type Enriquecimento = Record<Categoria, string> & { curva?: Curva; duracao?: number; curva_2?: Curva; duracao_2?: number; corte?: number }
+/** Qual mídia: 1 (a 1ª, ou a única) ou 2 (a 2ª, num insert com duas). */
+export type Qual = 1 | 2
 
-/** Curvas prontas, só as suaves e elegantes (decisão de Rodrigo, out/2026), bem diferentes entre si. */
+/** Curvas prontas: só três (decisão de Rodrigo, out/2026) — a dele e as duas mais clássicas entre editores e motion
+ *  designers: a "expo out" (a entrada mais usada em interface e motion profissional: desacelera natural, sem quicar) e o
+ *  Easy Ease do After Effects (o F9: influência de 33% nas duas pontas). */
 export const PRESETS_CURVA: { nome: string; curva: Curva }[] = [
-  { nome: 'Chega rápido e freia', curva: [0.16, 1, 0.3, 1] },
   { nome: 'Freia bem devagar', curva: [0, 0.7, 0.3, 0.9] }, // chega rápido e vai freando até o último instante
-  { nome: 'Desliza leve', curva: [0.33, 1, 0.68, 1] },
-  { nome: 'Suave', curva: [0.25, 0.1, 0.25, 1] },
-  { nome: 'Acelera e freia', curva: [0.65, 0, 0.35, 1] },
-  { nome: 'Começa devagar e assenta', curva: [0.45, 0, 0.2, 1] },
+  { nome: 'Chega rápido e assenta', curva: [0.16, 1, 0.3, 1] }, // expo out
+  { nome: 'Easy Ease', curva: [0.33, 0, 0.67, 1] }, // o do After Effects
 ]
 /** Duração da entrada (s): slider de 0,5 a 5 s, de 0,25 em 0,25; padrão 1,5 s. */
 export const DURACAO = { min: 0.5, max: 5, passo: 0.25, padrao: 1.5 }
 export type PadraoCurva = { curva?: Curva; duracao?: number }
-/** A curva valendo num insert: a dele, senão o padrão do vídeo, senão chega rápido e freia. */
-export const curvaDe = (e: Enriquecimento, padrao?: PadraoCurva): Curva => e.curva ?? padrao?.curva ?? [0.16, 1, 0.3, 1]
-/** A duração da entrada (s): a do insert, senão a do padrão do vídeo, senão 1,5 s. */
-export const duracaoDe = (e: Enriquecimento, padrao?: PadraoCurva) => e.duracao ?? padrao?.duracao ?? DURACAO.padrao
+/** A curva valendo numa mídia do insert: a dela, senão o padrão do vídeo, senão chega rápido e freia. */
+export const curvaDe = (e: Enriquecimento, padrao?: PadraoCurva, qual: Qual = 1): Curva =>
+  (qual === 2 ? e.curva_2 : e.curva) ?? padrao?.curva ?? [0.16, 1, 0.3, 1]
+/** A duração da entrada (s): a da mídia, senão a do padrão do vídeo, senão 1,5 s. */
+export const duracaoDe = (e: Enriquecimento, padrao?: PadraoCurva, qual: Qual = 1) =>
+  (qual === 2 ? e.duracao_2 : e.duracao) ?? padrao?.duracao ?? DURACAO.padrao
+/** Entradas sem curva própria (o card da curva some): sem animação e a seca com zoom leve, que dura a mídia toda. */
+export const SEM_CURVA = ['sem', 'seco_zoom']
+/** A entrada de uma mídia. */
+export const entradaDe = (e: Enriquecimento, qual: Qual = 1) => (qual === 2 ? e.entrada_2 : e.entrada)
+/** Onde a 2ª mídia começa, em fração do insert (padrão: no meio). */
+export const corteDe = (e: Enriquecimento, dur = Infinity) =>
+  // na sequência a 1ª fica pelo menos 0,5 s (o corte 0, "junto com a 1ª", só vale nos layouts em que as duas aparecem juntas)
+  e.entre === 'sequencia' ? Math.max(e.corte ?? 0.5, Math.min(0.5 / dur, 0.5)) : (e.corte ?? 0.5)
+/** Os campos de ajuste de uma mídia (a 2ª tem o sufixo `_2`). */
+export const campo = (k: 'curva' | 'duracao' | 'entrada', qual: Qual) => (qual === 2 ? `${k}_2` : k)
 export type Formato = 'vertical' | 'dividida'
 
 /** Por enquanto (decisão de Rodrigo, out/2026) só o caso de 1 mídia: layout e entrada. Entre as mídias, movimento e saída
@@ -36,8 +50,10 @@ export const CATEGORIAS_ENRIQUECIMENTO: { id: Categoria; nome: string; dica?: st
 
 export const OPCOES: Record<Categoria, Record<Formato, string[]>> = {
   layout: { vertical: ['tela_cheia', 'card', 'janela_3d', 'inclinado', 'destaque'], dividida: ['metade', 'card_metade', 'janela_3d_metade', 'mesclada'] },
-  entrada: dobro(['sem', 'surgir', 'subir', 'voo_3d', 'zoom_borrado']),
-  entre: dobro(['sequencia_corte', 'sequencia_transicao', 'lado_a_lado', 'grade', 'empilhadas']),
+  entrada: dobro(['sem', 'surgir', 'subir', 'voo_3d', 'zoom_borrado', 'seco_zoom']),
+  entrada_2: dobro(['sem', 'surgir', 'subir', 'voo_3d', 'zoom_borrado', 'seco_zoom']),
+  // como 2 mídias convivem (decisão de Rodrigo, out/2026); 3 ou mais: em sequência, divididas igualmente
+  entre: dobro(['sequencia', 'empilhadas', 'lado_a_lado']),
   movimento: dobro(['parado', 'zoom_lento', 'zoom_ponto', 'rolagem']),
   saida: dobro(['corte', 'sumir', 'deslizar']),
 }
@@ -60,11 +76,10 @@ export const NOMES: Record<string, string> = {
   subir: 'Deslizar para cima',
   voo_3d: 'Voo 3D',
   zoom_borrado: 'Zoom borrado',
-  sequencia_corte: 'Em sequência · corte',
-  sequencia_transicao: 'Em sequência · transição',
-  lado_a_lado: 'Lado a lado',
-  grade: 'Grade',
+  seco_zoom: 'Seca + zoom leve',
+  sequencia: 'Sequência',
   empilhadas: 'Empilhadas',
+  lado_a_lado: 'Lado a lado',
   parado: 'Parado',
   zoom_lento: 'Zoom lento',
   zoom_ponto: 'Zoom num ponto',
@@ -79,8 +94,8 @@ export const NOMES: Record<string, string> = {
 }
 
 export const ESTILO: Record<Formato, Enriquecimento> = {
-  vertical: { layout: 'card', entrada: 'surgir', entre: 'sequencia_corte', movimento: 'zoom_lento', saida: 'corte' },
-  dividida: { layout: 'metade', entrada: 'surgir', entre: 'sequencia_corte', movimento: 'zoom_lento', saida: 'corte' },
+  vertical: { layout: 'card', entrada: 'surgir', entrada_2: 'surgir', entre: 'sequencia', movimento: 'zoom_lento', saida: 'corte' },
+  dividida: { layout: 'metade', entrada: 'surgir', entrada_2: 'surgir', entre: 'sequencia', movimento: 'zoom_lento', saida: 'corte' },
 }
 
 /** O enriquecimento valendo num insert: o estilo do formato com o que o criador mudou por cima. */

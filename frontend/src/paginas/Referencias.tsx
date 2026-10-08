@@ -5,10 +5,22 @@ import { listarClipes, marcarFavorito, urlArquivoReferencia, type ClipeReferenci
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
 import { cn } from '@/lib/utils'
+import IconeGrupo from '@/referencias/IconeGrupo'
 import { COR_PLANO } from '@/referencias/LinhaDirecao'
 
 type Ordem = 'aleatorio' | 'longos' | 'curtos' | 'video'
 const dur = (c: ClipeReferencia) => c.fim - c.inicio
+/** Só o ator falando (com ou sem lettering): a caixa "Ignorar Full ator" esconde os dois. */
+export const SO_ATOR = ['full_ator', 'full_ator_lettering']
+/** Os chips de filtro, agrupados (pedido de Rodrigo, out/2026): tela dividida e tela cheia valem para insert e motion; o
+ *  comentário vai no fim. Uma categoria nova que não esteja aqui vira um chip próprio antes do comentário. */
+export const GRUPOS: { id: string; nome: string; tipos: string[] }[] = [
+  { id: 'tela_dividida', nome: 'Tela dividida', tipos: ['tela_dividida_insert', 'tela_dividida_motion'] },
+  { id: 'tela_cheia', nome: 'Tela cheia', tipos: ['insert_tela_cheia', 'motion_tela_cheia'] },
+  { id: 'full_ator_lettering', nome: 'Full ator com lettering', tipos: ['full_ator_lettering'] },
+  { id: 'full_ator', nome: 'Full ator', tipos: ['full_ator'] },
+  { id: 'comentario_insert_ator', nome: 'Comentário + insert + ator', tipos: ['comentario_insert_ator'] },
+]
 const seg = (t: number) => `${t.toFixed(1).replace('.', ',')} s`
 const chave = (c: ClipeReferencia) => `${c.ref}/${c.id}`
 
@@ -24,6 +36,23 @@ export default function Referencias() {
   const [ordem, setOrdem] = useState<Ordem>('aleatorio')
   const [soRevisadas, setSoRevisadas] = useState(false)
   const [soFavoritos, setSoFavoritos] = useState(false)
+  // os "Full ator" (só o ator falando, com ou sem lettering) quase nunca servem de referência: ficam de fora por padrão (lembrado neste navegador)
+  const [semFullAtor, setSemFullAtorEstado] = useState(() => {
+    try {
+      return localStorage.getItem('referencias.semFullAtor') !== '0'
+    } catch {
+      return true
+    }
+  })
+  const setSemFullAtor = (v: boolean) => {
+    setSemFullAtorEstado(v)
+    if (v && categoria && SO_ATOR.includes(categoria)) setCategoria(null)
+    try {
+      localStorage.setItem('referencias.semFullAtor', v ? '1' : '0')
+    } catch {
+      /* sem armazenamento: só não lembra */
+    }
+  }
   const [aberto, setAberto] = useState<string | null>(null)
 
   useEffect(() => {
@@ -48,25 +77,38 @@ export default function Referencias() {
     })
   }
 
-  // ordem aleatória estável enquanto a página está aberta
-  const sorteio = useMemo(() => new Map((clipes ?? []).map((c) => [chave(c), Math.random()])), [clipes])
+  // ordem aleatória estável enquanto a página está aberta: cada clipe é sorteado uma vez só (favoritar não embaralha)
+  const sorteado = useRef(new Map<string, number>())
+  const sorteio = useMemo(() => {
+    for (const c of clipes ?? []) if (!sorteado.current.has(chave(c))) sorteado.current.set(chave(c), Math.random())
+    return sorteado.current
+  }, [clipes])
 
   const base = useMemo(() => {
     const q = busca.trim().toLowerCase()
     return (clipes ?? []).filter(
-      (c) => (!soRevisadas || c.revisado) && (!soFavoritos || c.favorito) && (!q || [c.descricao, c.texto ?? '', c.fala, c.ref_nome].some((t) => t.toLowerCase().includes(q))),
+      (c) =>
+        (!semFullAtor || !SO_ATOR.includes(c.tipo)) && (!soRevisadas || c.revisado) && (!soFavoritos || c.favorito) && (!q || [c.descricao, c.texto ?? '', c.fala, c.ref_nome].some((t) => t.toLowerCase().includes(q))),
     )
-  }, [clipes, busca, soRevisadas, soFavoritos])
+  }, [clipes, busca, soRevisadas, soFavoritos, semFullAtor])
+
+  // os grupos fixos, com as categorias que não estão neles antes do comentário
+  const grupos = useMemo(() => {
+    const cobertos = new Set(GRUPOS.flatMap((g) => g.tipos))
+    const soltos = Object.entries(categorias).filter(([t]) => !cobertos.has(t)).map(([t, nome]) => ({ id: t, nome, tipos: [t] }))
+    return [...GRUPOS.slice(0, -1), ...soltos, GRUPOS[GRUPOS.length - 1]]
+  }, [categorias])
+  const tiposDe = (grupo: string) => grupos.find((g) => g.id === grupo)?.tipos ?? [grupo]
 
   const visiveis = useMemo(() => {
-    const l = base.filter((c) => !categoria || c.tipo === categoria)
+    const l = base.filter((c) => !categoria || tiposDe(categoria).includes(c.tipo))
     if (ordem === 'aleatorio') return [...l].sort((a, b) => sorteio.get(chave(a))! - sorteio.get(chave(b))!)
     if (ordem === 'longos') return [...l].sort((a, b) => dur(b) - dur(a))
     if (ordem === 'curtos') return [...l].sort((a, b) => dur(a) - dur(b))
     return [...l].sort((a, b) => a.ref_nome.localeCompare(b.ref_nome) || a.inicio - b.inicio)
-  }, [base, categoria, ordem, sorteio])
+  }, [base, categoria, ordem, sorteio, grupos]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const contagem = (tipo: string | null) => base.filter((c) => !tipo || c.tipo === tipo).length
+  const contagem = (grupo: string | null) => base.filter((c) => !grupo || tiposDe(grupo).includes(c.tipo)).length
   const indiceAberto = visiveis.findIndex((c) => chave(c) === aberto)
 
   return (
@@ -101,15 +143,20 @@ export default function Referencias() {
           <Star className={cn('size-3.5', soFavoritos && 'fill-current')} /> Favoritos
           <span className={cn('tabular-nums', soFavoritos ? 'text-ink/60' : 'text-fog/60')}>{(clipes ?? []).filter((c) => c.favorito).length}</span>
         </button>
-        <Chip ativo={!categoria} onClick={() => setCategoria(null)} n={contagem(null)}>
+        <Chip ativo={!categoria} onClick={() => setCategoria(null)} n={contagem(null)} icone="todos">
           Todos
         </Chip>
-        {Object.entries(categorias).map(([tipo, nome]) => (
-          <Chip key={tipo} ativo={categoria === tipo} onClick={() => setCategoria(tipo)} n={contagem(tipo)} cor={COR_PLANO[tipo]}>
-            {nome}
-          </Chip>
-        ))}
+        {grupos
+          .filter((g) => !semFullAtor || !g.tipos.every((t) => SO_ATOR.includes(t)))
+          .map((g) => (
+            <Chip key={g.id} ativo={categoria === g.id} onClick={() => setCategoria(g.id)} n={contagem(g.id)} cor={COR_PLANO[g.tipos[0]]} icone={g.id}>
+              {g.nome}
+            </Chip>
+          ))}
         <div className="ml-auto flex items-center gap-3 text-[12px] text-fog">
+          <label className="flex cursor-pointer items-center gap-1.5" title="Esconde os planos em que só o ator fala (com ou sem lettering)">
+            <input type="checkbox" checked={semFullAtor} onChange={(e) => setSemFullAtor(e.target.checked)} /> Ignorar Full ator
+          </label>
           <label className="flex cursor-pointer items-center gap-1.5">
             <input type="checkbox" checked={soRevisadas} onChange={(e) => setSoRevisadas(e.target.checked)} /> Só revisadas
           </label>
@@ -159,7 +206,7 @@ export default function Referencias() {
   )
 }
 
-function Chip({ ativo, onClick, n, cor, children }: { ativo: boolean; onClick: () => void; n: number; cor?: string; children: React.ReactNode }) {
+export function Chip({ ativo, onClick, n, cor, icone, children }: { ativo: boolean; onClick: () => void; n: number; cor?: string; icone?: string; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
@@ -168,7 +215,7 @@ function Chip({ ativo, onClick, n, cor, children }: { ativo: boolean; onClick: (
         ativo ? 'border-cream bg-cream text-ink' : 'border-line-dark text-fog hover:border-cream/50 hover:text-cream',
       )}
     >
-      {cor && <span className={cn('size-2.5 rounded-full', cor)} />}
+      {icone ? <IconeGrupo grupo={icone} className={ativo ? 'text-ink' : 'text-cream/70'} /> : cor && <span className={cn('size-2.5 rounded-full', cor)} />}
       {children}
       <span className={cn('tabular-nums', ativo ? 'text-ink/60' : 'text-fog/60')}>{n}</span>
     </button>
@@ -176,7 +223,7 @@ function Chip({ ativo, onClick, n, cor, children }: { ativo: boolean; onClick: (
 }
 
 /** Toca só o intervalo [inicio, fim) do vídeo, em loop. */
-function useTrecho(video: React.RefObject<HTMLVideoElement | null>, c: ClipeReferencia, ligado: boolean) {
+export function useTrecho(video: React.RefObject<HTMLVideoElement | null>, c: ClipeReferencia, ligado: boolean) {
   useEffect(() => {
     const v = video.current
     if (!v || !ligado) return
@@ -218,7 +265,7 @@ function Estrela({ ligada, onClick, className }: { ligada: boolean; onClick: () 
   )
 }
 
-function Cartao({ clipe: c, nome, abrir, favoritar }: { clipe: ClipeReferencia; nome: string; abrir: () => void; favoritar: () => void }) {
+export function Cartao({ clipe: c, nome, abrir, favoritar }: { clipe: ClipeReferencia; nome: string; abrir: () => void; favoritar: () => void }) {
   const [tocando, setTocando] = useState(false)
   const video = useRef<HTMLVideoElement>(null)
   useTrecho(video, c, tocando)
