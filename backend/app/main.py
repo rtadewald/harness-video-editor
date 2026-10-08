@@ -13,7 +13,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import calibragem, captura_site, comum, exportacao, motions, cortes, direcao, direcao_projeto, inserts, midia, mocks, motores, pipeline, projeto, referencias, rotas_motions, rotas_presets
+from . import calibragem, captura_site, comum, exportacao, cortes, direcao, direcao_projeto, inserts, midia, mocks, motores, pipeline, projeto, referencias, rotas_motions, rotas_presets
 from .rotas_comum import ler_projeto as _ler
 
 comum.carregar_env()
@@ -28,7 +28,6 @@ async def ciclo(_app):
     inserts.atualizar_proxies()
     captura_site.retomar_interrompidas()
     exportacao.retomar_interrompidas()
-    motions.retomar_interrompidos()
     yield
 
 
@@ -59,8 +58,6 @@ class Config(BaseModel):
     modelo_direcao_projeto: str | None = Field(default=None, min_length=3, max_length=120)
     modelo_diretora: str | None = Field(default=None, min_length=3, max_length=120)  # quem escreve o roteiro dirigido
     raciocinio_diretora: Literal['low', 'medium', 'high'] | None = None
-    modelo_motion: str | None = Field(default=None, min_length=3, max_length=120)  # quem escreve os motions
-    identidade_motion: str | None = Field(default=None, max_length=6000)
 
 
 def _config_completa() -> dict:

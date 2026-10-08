@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Search, Settings } from 'lucide-react'
+import { Plus, Settings } from 'lucide-react'
 import { formatarDuracao, listarProjetos, urlMiniatura, type ResumoProjeto } from '@/api'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
@@ -15,14 +15,11 @@ export default function Projetos() {
   const [projetos, setProjetos] = useState<ResumoProjeto[] | null>(null)
   const [erro, setErro] = useState('')
   const [criando, setCriando] = useState(false)
-  const [busca, setBusca] = useState('')
   const [config, setConfig] = useState(false)
 
   useEffect(() => {
     listarProjetos().then(setProjetos).catch((e) => setErro(e.message))
   }, [])
-
-  const visiveis = projetos?.filter((p) => p.nome.toLowerCase().includes(busca.trim().toLowerCase()))
 
   return (
     <div className="grid h-svh grid-rows-[56px_minmax(0,1fr)] bg-deep text-cream">
@@ -31,16 +28,7 @@ export default function Projetos() {
         <span className="h-5 w-px bg-line-dark" />
         <NavHome />
 
-        <label className="ml-auto flex h-9 w-64 items-center gap-2 rounded-full border border-line-dark px-3.5 text-fog focus-within:border-cream/50">
-          <Search className="size-3.5" />
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar projeto"
-            className="w-full bg-transparent text-[12px] text-cream outline-none placeholder:text-fog/70"
-          />
-        </label>
-        <button onClick={() => setConfig(true)} aria-label="Configurações" title="Configurações" className="grid size-9 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream">
+        <button onClick={() => setConfig(true)} aria-label="Configurações" title="Configurações" className="ml-auto grid size-9 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream">
           <Settings className="size-4" />
         </button>
         <Button variant="coral" size="sm" className="h-9 gap-6 px-4" onClick={() => setCriando(true)}>
@@ -74,7 +62,7 @@ export default function Projetos() {
             </button>
           </li>
 
-          {visiveis?.map((p) => (
+          {projetos?.map((p) => (
             <li key={p.id}>
               <Link to={`/p/${p.id}`} className="group block">
                 <div className="relative aspect-[9/16] overflow-hidden rounded-[6px] bg-deeper ring-1 ring-line-dark transition-[transform,box-shadow] duration-300 group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-coral">
@@ -103,9 +91,6 @@ export default function Projetos() {
 
         {projetos?.length === 0 && (
           <p className="mt-8 text-[13px] text-fog">Nenhum projeto ainda. Comece subindo um vídeo bruto.</p>
-        )}
-        {projetos && projetos.length > 0 && visiveis?.length === 0 && (
-          <p className="mt-8 text-[13px] text-fog">Nenhum projeto com “{busca}”.</p>
         )}
       </main>
 

@@ -4,7 +4,7 @@ import { listarClipes, marcarFavorito, urlArquivoReferencia, type ClipeReferenci
 import Modal from '@/components/Modal'
 import { cn } from '@/lib/utils'
 import { useLembrado } from '@/lib/useLembrado'
-import { Cartao, Chip, GRUPOS, SO_ATOR, useTrecho } from '@/paginas/Referencias'
+import { Cartao, Chip, gruposDe, SO_ATOR, useAgrupar, useTrecho } from '@/paginas/Referencias'
 
 const chave = (c: ClipeReferencia) => `${c.ref}/${c.id}`
 const seg = (t: number) => `${t.toFixed(1).replace('.', ',')} s`
@@ -15,7 +15,15 @@ export default function BuscarReferencias({ tipo, fechar, usar }: { tipo: string
   const [clipes, setClipes] = useState<ClipeReferencia[] | null>(null)
   const [categorias, setCategorias] = useState<Record<string, string>>({})
   const [erro, setErro] = useState('')
-  const [grupo, setGrupo] = useState<string | null>(() => GRUPOS.find((g) => tipo && g.tipos.includes(tipo))?.id ?? tipo)
+  // a mesma caixa "Agrupar insert e motion" da página Referências; trocar volta ao grupo do plano no agrupamento novo
+  const [agrupar, lembrarAgrupar] = useAgrupar()
+  const grupos = gruposDe(agrupar)
+  const doPlano = (gs: typeof grupos) => gs.find((g) => tipo && g.tipos.includes(tipo))?.id ?? tipo
+  const [grupo, setGrupo] = useState<string | null>(() => doPlano(grupos))
+  const setAgrupar = (v: boolean) => {
+    lembrarAgrupar(v)
+    setGrupo(doPlano(gruposDe(v)))
+  }
   const [soFavoritos, setSoFavoritos] = useState(false)
   const [busca, setBusca] = useState('')
   // a mesma caixa da página Referências (marcada por padrão, lembrada no navegador)
@@ -45,7 +53,7 @@ export default function BuscarReferencias({ tipo, fechar, usar }: { tipo: string
     })
   }
 
-  const tiposDe = (g: string) => GRUPOS.find((x) => x.id === g)?.tipos ?? [g]
+  const tiposDe = (g: string) => grupos.find((x) => x.id === g)?.tipos ?? [g]
   // favoritos primeiro; dentro deles e fora, ordem aleatória sorteada uma vez (favoritar não embaralha)
   const sorteado = useRef(new Map<string, number>())
   const base = useMemo(() => {
@@ -74,12 +82,15 @@ export default function BuscarReferencias({ tipo, fechar, usar }: { tipo: string
         <Chip ativo={!grupo} onClick={() => setGrupo(null)} n={contagem(null)} icone="todos">
           Todos
         </Chip>
-        {GRUPOS.filter((g) => !semFullAtor || !g.tipos.every((t) => SO_ATOR.includes(t))).map((g) => (
-          <Chip key={g.id} ativo={grupo === g.id} onClick={() => setGrupo(g.id)} n={contagem(g.id)} icone={g.id}>
+        {grupos.filter((g) => !semFullAtor || !g.tipos.every((t) => SO_ATOR.includes(t))).map((g) => (
+          <Chip key={g.id} ativo={grupo === g.id} onClick={() => setGrupo(g.id)} n={contagem(g.id)} icone={g.icone ?? g.id}>
             {g.nome}
           </Chip>
         ))}
-        <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[12px] text-fog" title="Esconde os planos em que só o ator fala (com ou sem lettering)">
+        <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[12px] text-fog" title="Desmarcado, tela dividida e tela cheia aparecem separadas em insert e motion">
+          <input type="checkbox" checked={agrupar} onChange={(e) => setAgrupar(e.target.checked)} /> Agrupar insert e motion
+        </label>
+        <label className="ml-3 flex cursor-pointer items-center gap-1.5 text-[12px] text-fog" title="Esconde os planos em que só o ator fala (com ou sem lettering)">
           <input type="checkbox" checked={semFullAtor} onChange={(e) => setSemFullAtor(e.target.checked)} /> Ignorar Full ator
         </label>
         <label className="ml-3 flex h-8 w-[260px] items-center gap-2 rounded-full border border-line-dark px-3 text-fog focus-within:border-cream/50">

@@ -15,13 +15,25 @@ const dur = (c: ClipeReferencia) => c.fim - c.inicio
 export const SO_ATOR = ['full_ator', 'full_ator_lettering']
 /** Os chips de filtro, agrupados (pedido de Rodrigo, out/2026): tela dividida e tela cheia valem para insert e motion; o
  *  comentário vai no fim. Uma categoria nova que não esteja aqui vira um chip próprio antes do comentário. */
-export const GRUPOS: { id: string; nome: string; tipos: string[] }[] = [
+type Grupo = { id: string; nome: string; tipos: string[]; icone?: string }
+export const GRUPOS: Grupo[] = [
   { id: 'tela_dividida', nome: 'Tela dividida', tipos: ['tela_dividida_insert', 'tela_dividida_motion'] },
   { id: 'tela_cheia', nome: 'Tela cheia', tipos: ['insert_tela_cheia', 'motion_tela_cheia'] },
   { id: 'full_ator_lettering', nome: 'Full ator com lettering', tipos: ['full_ator_lettering'] },
   { id: 'full_ator', nome: 'Full ator', tipos: ['full_ator'] },
   { id: 'comentario_insert_ator', nome: 'Comentário + insert + ator', tipos: ['comentario_insert_ator'] },
 ]
+const SEPARADOS: Record<string, string> = {
+  tela_dividida_insert: 'Tela dividida · insert',
+  tela_dividida_motion: 'Tela dividida · motion',
+  insert_tela_cheia: 'Tela cheia · insert',
+  motion_tela_cheia: 'Tela cheia · motion',
+}
+/** Os chips com insert e motion juntos (padrão) ou separados (caixa "Agrupar insert e motion", pedido de Rodrigo,
+ *  out/2026; lembrada neste navegador e valendo também no "Buscar por referências"). Separados, o id é o próprio tipo. */
+export const gruposDe = (agrupar: boolean): Grupo[] =>
+  agrupar ? GRUPOS : GRUPOS.flatMap((g) => (g.tipos.length > 1 ? g.tipos.map((t) => ({ id: t, nome: SEPARADOS[t] ?? t, tipos: [t], icone: g.id })) : [g]))
+export const useAgrupar = () => useLembrado('referencias.agruparMotion', true)
 /** Os presets feitos a partir deste trecho (o trecho do preset cai dentro do clipe, com folga de meio segundo). */
 const presetsDoClipe = (fs: FontePreset[], c: ClipeReferencia) => fs.filter((f) => f.ref === c.ref && f.inicio >= c.inicio - 0.5 && f.fim <= c.fim + 0.5)
 const seg = (t: number) => `${t.toFixed(1).replace('.', ',')} s`
@@ -45,6 +57,11 @@ export default function Referencias() {
   const setSemFullAtor = (v: boolean) => {
     lembrarSemFullAtor(v)
     if (v && categoria && SO_ATOR.includes(categoria)) setCategoria(null)
+  }
+  const [agrupar, lembrarAgrupar] = useAgrupar()
+  const setAgrupar = (v: boolean) => {
+    lembrarAgrupar(v)
+    setCategoria(null)
   }
   const [aberto, setAberto] = useState<string | null>(null)
 
@@ -87,11 +104,12 @@ export default function Referencias() {
   }, [clipes, busca, soRevisadas, soFavoritos, semFullAtor])
 
   // os grupos fixos, com as categorias que não estão neles antes do comentário
-  const grupos = useMemo(() => {
-    const cobertos = new Set(GRUPOS.flatMap((g) => g.tipos))
+  const grupos = useMemo((): Grupo[] => {
+    const fixos = gruposDe(agrupar)
+    const cobertos = new Set(fixos.flatMap((g) => g.tipos))
     const soltos = Object.entries(categorias).filter(([t]) => !cobertos.has(t)).map(([t, nome]) => ({ id: t, nome, tipos: [t] }))
-    return [...GRUPOS.slice(0, -1), ...soltos, GRUPOS[GRUPOS.length - 1]]
-  }, [categorias])
+    return [...fixos.slice(0, -1), ...soltos, fixos[fixos.length - 1]]
+  }, [categorias, agrupar])
   const tiposDe = (grupo: string) => grupos.find((g) => g.id === grupo)?.tipos ?? [grupo]
 
   const visiveis = useMemo(() => {
@@ -143,11 +161,14 @@ export default function Referencias() {
         {grupos
           .filter((g) => !semFullAtor || !g.tipos.every((t) => SO_ATOR.includes(t)))
           .map((g) => (
-            <Chip key={g.id} ativo={categoria === g.id} onClick={() => setCategoria(g.id)} n={contagem(g.id)} cor={COR_PLANO[g.tipos[0]]} icone={g.id}>
+            <Chip key={g.id} ativo={categoria === g.id} onClick={() => setCategoria(g.id)} n={contagem(g.id)} cor={COR_PLANO[g.tipos[0]]} icone={g.icone ?? g.id}>
               {g.nome}
             </Chip>
           ))}
         <div className="ml-auto flex items-center gap-3 text-[12px] text-fog">
+          <label className="flex cursor-pointer items-center gap-1.5" title="Desmarcado, tela dividida e tela cheia aparecem separadas em insert e motion">
+            <input type="checkbox" checked={agrupar} onChange={(e) => setAgrupar(e.target.checked)} /> Agrupar insert e motion
+          </label>
           <label className="flex cursor-pointer items-center gap-1.5" title="Esconde os planos em que só o ator fala (com ou sem lettering)">
             <input type="checkbox" checked={semFullAtor} onChange={(e) => setSemFullAtor(e.target.checked)} /> Ignorar Full ator
           </label>

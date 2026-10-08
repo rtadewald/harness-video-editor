@@ -1,0 +1,46 @@
+<script type="application/json" id="preset">{"nome": "Lettering com destaque", "descricao": "Uma frase curta no centro, uma palavra por vez; a última, de destaque, numa fonte redonda.", "fundo": "chuva", "duracao": 1.2}</script>
+<script type="application/json" id="campos">{"texto": {"tipo": "texto", "rotulo": "Texto", "padrao": "Image to"}, "destaque": {"tipo": "texto", "rotulo": "Palavra de destaque", "padrao": "Code"}}</script>
+<style>
+  #frase { position: absolute; left: 0; right: 0; top: 50%; display: flex; justify-content: center; align-items: baseline; flex-wrap: wrap;
+    column-gap: .26em; row-gap: .1em; padding: 0 7%; transform: translateY(-50%); font-family: "SF Pro", system-ui, sans-serif; font-weight: 500;
+    font-size: 92px; letter-spacing: -.01em; color: #f6f6f6; text-align: center; text-shadow: 0 2px 24px rgba(0, 0, 0, .35); }
+  .palavra { display: inline-block; opacity: 0; will-change: transform, opacity, filter; }
+  .destaque { font-family: "SF Pro Rounded", system-ui, sans-serif; font-weight: 500; font-size: 1.1em; color: #e2e2e2; transform-origin: 0 100%; }
+</style>
+<div id="frase"></div>
+<script>
+  (function () {
+    const D = MOTION.duracao
+    const frase = document.getElementById('frase')
+    const palavras = String(MOTION.campos.texto || '').split(/\s+/).filter(Boolean)
+    const destaque = String(MOTION.campos.destaque || '').trim()
+    const els = palavras.map((p) => Object.assign(document.createElement('span'), { className: 'palavra', textContent: p }))
+    if (destaque) els.push(Object.assign(document.createElement('span'), { className: 'palavra destaque', textContent: destaque }))
+    els.forEach((e) => frase.appendChild(e))
+
+    // frases longas: a fonte diminui até caber em 2 linhas (medido depois das fontes; o runtime espera o `pronto`)
+    document.fonts.ready.then(() => {
+      let tam = 92
+      while (frase.scrollHeight > tam * 2.6 && tam > 48) frase.style.fontSize = `${(tam -= 4)}px`
+      montar()
+    })
+
+    // uma palavra por vez, já no lugar final (medido na referência, 30 fps): cada uma entra ~0,22 s depois da anterior,
+    // sobe ~0,5 em (45 px) e leva ~0,65 s para assentar, com uma chegada bem longa; a opacidade chega em ~0,35 s e o
+    // desfoque some em ~0,35 s (na de destaque, um pouco mais). Nenhuma muda de escala.
+    function montar() {
+    const tl = gsap.timeline({ paused: true })
+    const passo = Math.min(0.22, (D * 0.7) / Math.max(els.length, 1))
+    const sobe = motion.curva(0.05, 0.2, 0.15, 1), aparece = motion.curva(0.2, 0.6, 0.35, 1)
+    els.forEach((e, k) => {
+      const ultima = k === els.length - 1 && !!destaque
+      const t = 0.05 + k * passo
+      tl.fromTo(e, { y: parseFloat(getComputedStyle(e).fontSize) * 0.5 }, { y: 0, duration: Math.min(0.7, D * 0.6), ease: sobe }, t)
+      tl.fromTo(e, { opacity: 0 }, { opacity: 1, duration: Math.min(0.35, D * 0.3), ease: aparece }, t)
+      tl.fromTo(e, { filter: 'blur(10px)' }, { filter: 'blur(0px)', duration: Math.min(ultima ? 0.45 : 0.35, D * 0.35), ease: aparece }, t)
+    })
+    tl.to({}, { duration: 0 }, D)
+    motion.pronto(tl)
+    }
+  })()
+</script>

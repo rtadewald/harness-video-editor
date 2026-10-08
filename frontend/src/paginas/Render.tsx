@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { abrirEditor, lerInserts, listarBanco, mapaBanco, type DadosEditor, type InsertsProjeto, type ItemBanco } from '@/api'
-import { motionsDoProjeto, urlPaginaMotionPlano, type MotionPlano } from '@/motions/api'
+import { falaDoPlano, fundoDoMotion, motionsDoProjeto, urlPaginaMotionPlano, type MotionPlano } from '@/motions/api'
 import { CardComentario, comentarioDe } from '@/editor/ComentarioIG'
 import { paraTempo, palavrasNaSaida } from '@/editor/direcaoProjeto'
 import { ChuvaAoVivo, RelogioRender } from '@/editor/Fundo'
@@ -79,7 +79,7 @@ export function RenderProjeto() {
     const saida = palavrasNaSaida(dados.palavras, seq)
     const planos = paraTempo(dados.projeto.direcao?.itens ?? [], dados.palavras, saida, seq.duracao).visiveis.filter((i) => i.camada === 'plano')
     // os motions: os planos de motion que já têm um motion escolhido
-    const comMotion = planos.filter((pl) => motions?.[pl.id]).map((pl) => ({ plano: pl.id, ini: pl.inicio, fim: pl.fim, dividida: pl.tipo === 'tela_dividida_motion' }))
+    const comMotion = planos.filter((pl) => motions?.[pl.id]).map((pl) => ({ plano: pl.id, ini: pl.inicio, fim: pl.fim, dividida: pl.tipo === 'tela_dividida_motion', fala: falaDoPlano(saida, pl.inicio, pl.fim) }))
     return { duracao: seq.duracao, lista: pedidosNoTempo(ins.pedidos, planos).filter((x) => x.midias.length), motions: comMotion }
   }, [dados, ins, motions])
 
@@ -115,8 +115,9 @@ export function RenderProjeto() {
       <RelogioRender.Provider value={tempo}>
         <div className="fixed inset-0 overflow-hidden">
           <MotionNoLugar
-            src={urlPaginaMotionPlano(id, motion.plano, motions[motion.plano], motion.fim - motion.ini, true)}
+            src={urlPaginaMotionPlano(id, motion.plano, motions[motion.plano], motion.fim - motion.ini, motion.fala, true)}
             formato={motions[motion.plano].formato}
+            fundo={fundoDoMotion(motions[motion.plano])}
             rel={tempo - motion.ini}
           />
         </div>

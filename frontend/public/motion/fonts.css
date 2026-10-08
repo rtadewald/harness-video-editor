@@ -5,3 +5,7 @@
 @font-face { font-family: Inter; font-weight: 700; font-display: block; src: url("fonts/inter-700.woff2") format("woff2"); }
 @font-face { font-family: "Instrument Serif"; font-weight: 400; font-display: block; src: url("fonts/instrument-serif-400.woff2") format("woff2"); }
 @font-face { font-family: "Instrument Serif"; font-style: italic; font-weight: 400; font-display: block; src: url("fonts/instrument-serif-400-italic.woff2") format("woff2"); }
+/* As da Apple (SF Pro, SF Pro Rounded e SF Mono), lidas do próprio Mac pelo backend: o app só roda no Mac e elas não vão para o git. */
+@font-face { font-family: "SF Pro"; font-weight: 100 900; font-display: block; src: url("/api/motions/fonte/pro") format("truetype"); }
+@font-face { font-family: "SF Pro Rounded"; font-weight: 100 900; font-display: block; src: url("/api/motions/fonte/rounded") format("truetype"); }
+@font-face { font-family: "SF Mono"; font-weight: 100 900; font-display: block; src: url("/api/motions/fonte/mono") format("truetype"); }

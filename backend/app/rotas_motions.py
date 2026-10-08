@@ -1,122 +1,72 @@
-"""Rotas dos motions (SPEC §8.5; ver docs/motions.md): a biblioteca e o uso nos planos de um projeto."""
+"""Rotas dos motions (SPEC §8.5; ver docs/motions.md): os presets e o motion de cada plano de um projeto."""
+import json
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from . import motions
-from .rotas_comum import Campos, ler_projeto
+from .rotas_comum import ler_projeto
 
 rotas = APIRouter()
+_SEM_CACHE = {'Cache-Control': 'no-cache'}
 
 
-# ---------------------------------------------------------------- motions (SPEC §8.5)
+# as fontes da Apple que os presets usam, lidas do próprio Mac (não vão para o git; o Chromium não as acha pelo nome)
+FONTES_DO_MAC = {'pro': 'SFNS.ttf', 'rounded': 'SFNSRounded.ttf', 'mono': 'SFNSMono.ttf'}
 
-def _motion(mid: str) -> dict:
+
+@rotas.get('/api/motions/fonte/{nome}')
+def fonte_do_mac(nome: str):
+    if nome not in FONTES_DO_MAC:
+        raise HTTPException(404, 'Fonte desconhecida')
+    return FileResponse(f'/System/Library/Fonts/{FONTES_DO_MAC[nome]}', media_type='font/ttf', headers={'Cache-Control': 'max-age=86400'})
+
+
+@rotas.get('/api/motions/presets')
+def listar_presets():
+    return motions.listar_presets()
+
+
+@rotas.get('/api/motions/presets/{pid}/pagina')
+def pagina_preset(pid: str, formato: str = 'vertical', duracao: float | None = None, valores: str = '{}', fala: str = '[]'):
+    """Um preset com estes valores (as miniaturas da grade)."""
     try:
-        return motions.ler(mid)
+        v = json.loads(valores)
+        return HTMLResponse(motions.pagina_do_preset(pid, formato, duracao, v if isinstance(v, dict) else {}, motions.ler_fala(fala)), headers=_SEM_CACHE)
     except FileNotFoundError:
-        raise HTTPException(404, 'Motion não encontrado')
-
-
-@rotas.get('/api/motions')
-def listar_motions():
-    return motions.listar()
-
-
-@rotas.post('/api/motions')
-def criar_motion(pedido: motions.Pedido):
-    """Um motion novo: a IA escreve a v1 em segundo plano (o status diz em que etapa está)."""
-    try:
-        return motions.criar(pedido)
-    except ValueError as e:
-        raise HTTPException(422, str(e))
-
-
-@rotas.get('/api/motions/{mid}')
-def ler_motion(mid: str):
-    return _motion(mid)
-
-
-@rotas.patch('/api/motions/{mid}')
-def editar_motion(mid: str, e: Campos):
-    """Nome, favorito, versão aberta e valores dos campos."""
-    _motion(mid)
-    return motions.editar(mid, e.campos)
-
-
-class NovaVersao(BaseModel):
-    de: int
-    comentario: str = Field(min_length=1, max_length=3000)
-
-
-@rotas.post('/api/motions/{mid}/versoes')
-def corrigir_motion(mid: str, v: NovaVersao):
-    """A próxima versão, a partir da `de`, com o comentário."""
-    _motion(mid)
-    try:
-        return motions.corrigir(mid, v.de, v.comentario)
-    except ValueError as e:
-        raise HTTPException(409, str(e))
-
-
-@rotas.delete('/api/motions/{mid}')
-def apagar_motion(mid: str):
-    _motion(mid)
-    motions.apagar(mid)
-    return {'ok': True}
-
-
-@rotas.get('/api/motions/{mid}/pagina')
-def pagina_motion(mid: str, n: int | None = None, exportacao: bool = False):
-    """O motion como página (o iframe da prévia e da exportação)."""
-    _motion(mid)
-    try:
-        return HTMLResponse(motions.pagina(mid, n, exportacao), headers={'Cache-Control': 'no-cache'})
-    except (LookupError, FileNotFoundError) as e:
-        raise HTTPException(404, str(e))
-
-
-@rotas.get('/api/motions/{mid}/miniatura')
-def miniatura_motion(mid: str, n: int | None = None):
-    m = _motion(mid)
-    arq = motions.pasta(mid) / f"v{n or m.get('ativa')}.jpg"
-    if not arq.is_file():
-        raise HTTPException(404, 'Sem miniatura')
-    return FileResponse(arq, headers={'Cache-Control': 'no-cache'})
+        raise HTTPException(404, 'Preset não encontrado')
+    except ValueError:
+        raise HTTPException(422, 'Valores inválidos')
 
 
 @rotas.get('/api/projetos/{id}/motions')
 def motions_do_projeto(id: str):
-    """O motion de cada plano (a cópia guardada no projeto)."""
     return ler_projeto(id).get('motions') or {}
 
 
-class UsoMotion(BaseModel):
-    motion: str
-    versao: int | None = None
-    valores: dict[str, str] | None = None
-
-
 @rotas.put('/api/projetos/{id}/motions/{plano}')
-def usar_motion(id: str, plano: str, u: UsoMotion):
-    """Copia a versão do motion (e os valores dos campos) para o plano."""
+def usar_motion(id: str, plano: str, u: motions.UsoMotion):
+    """Um preset ou um vídeo do banco no plano."""
     ler_projeto(id)
-    _motion(u.motion)
     try:
-        return motions.usar(id, plano, u.motion, u.versao, u.valores)
-    except (ValueError, FileNotFoundError) as e:
+        return motions.usar(id, plano, u)
+    except FileNotFoundError:
+        raise HTTPException(404, 'Preset ou vídeo não encontrado')
+    except ValueError as e:
         raise HTTPException(422, str(e))
 
 
-class ValoresMotion(BaseModel):
-    valores: dict[str, str]
+class AjusteMotion(BaseModel):
+    valores: dict[str, str] | None = None
+    fundo: str | None = None
 
 
 @rotas.patch('/api/projetos/{id}/motions/{plano}')
-def valores_motion_do_plano(id: str, plano: str, v: ValoresMotion):
+def ajustar_motion(id: str, plano: str, a: AjusteMotion):
     ler_projeto(id)
     try:
-        return motions.valores_no_plano(id, plano, v.valores)
+        return motions.ajustar(id, plano, a.valores, a.fundo)
     except LookupError as e:
         raise HTTPException(404, str(e))
 
@@ -129,17 +79,9 @@ def tirar_motion_do_plano(id: str, plano: str):
 
 
 @rotas.get('/api/projetos/{id}/motions/{plano}/pagina')
-def pagina_motion_do_plano(id: str, plano: str, duracao: float | None = None, exportacao: bool = False):
+def pagina_motion_do_plano(id: str, plano: str, duracao: float | None = None, fala: str = '[]', exportacao: bool = False):
     ler_projeto(id)
     try:
-        return HTMLResponse(motions.pagina_do_plano(id, plano, duracao, exportacao), headers={'Cache-Control': 'no-cache'})
+        return HTMLResponse(motions.pagina_do_plano(id, plano, duracao, motions.ler_fala(fala), exportacao), headers=_SEM_CACHE)
     except (LookupError, FileNotFoundError) as e:
         raise HTTPException(404, str(e))
-
-
-@rotas.get('/api/projetos/{id}/motions/{plano}/miniatura')
-def miniatura_motion_do_plano(id: str, plano: str):
-    arq = motions.pasta_plano(id) / f'{plano}.jpg'
-    if not arq.is_file():
-        raise HTTPException(404, 'Sem miniatura')
-    return FileResponse(arq, headers={'Cache-Control': 'no-cache'})

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import Fundo from "@/editor/Fundo";
 import { cn } from "@/lib/utils";
 
 type Janela = Window & { __ir?: (t: number) => Promise<void> };
@@ -6,11 +7,13 @@ type Janela = Window & { __ir?: (t: number) => Promise<void> };
 const PALCO = { vertical: { w: 1080, h: 1920 }, dividida: { w: 1080, h: 960 } };
 
 /** Um motion tocando (SPEC §8.5): a página dele num iframe do tamanho do palco, escalada para caber na área do plano (a
- *  tela toda ou a metade de cima). Quem manda no tempo é quem usa: a cada instante, `__ir(rel)` leva a cena até lá. */
+ *  tela toda ou a metade de cima), com o fundo escolhido atrás (os presets; o vídeo cobre tudo). Quem manda no tempo é
+ *  quem usa: a cada instante, `__ir(rel)` leva a cena até lá. */
 export default function MotionNoLugar(p: {
   src: string;
   formato: "vertical" | "dividida";
   rel: number;
+  fundo?: string;
   className?: string;
   noLugar?: boolean;
 }) {
@@ -52,6 +55,7 @@ export default function MotionNoLugar(p: {
         p.className,
       )}
     >
+      {p.fundo && <Fundo id={p.fundo} />}
       {escala > 0 && (
         <iframe
           ref={quadro}
@@ -59,7 +63,7 @@ export default function MotionNoLugar(p: {
           title="motion"
           onLoad={() => setPronto(true)}
           data-pronto={pronto ? "1" : "0"}
-          className="origin-top-left border-0"
+          className="absolute top-0 left-0 origin-top-left border-0"
           style={{
             width: palco.w,
             height: palco.h,
