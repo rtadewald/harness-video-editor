@@ -1,13 +1,27 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import Fundo from './Fundo'
 import { cantosNoTempo, estadoCard, janela, matrizDosCantos, noTempo, zoomMidia, type Receita } from './presets'
+import { eventosDaReceita, useCatalogoSons, useSonsNoTempo } from './sons'
 
 /** Um preset tocando (SPEC §8.4): cada card na pose do instante, com a sua mídia dentro. As medidas são % da área do
  *  insert (a tela toda ou a metade de cima), em unidades de container, então a mesma receita serve na prévia, na
  *  miniatura do banco e na exportação. `midia(k, rel)` desenha a mídia do card k, `rel` s depois de ele aparecer. */
-export default function CenaPreset(p: { receita: Receita; rel: number; dur: number; fundo: string; midia: (k: number, rel: number, topo: boolean) => ReactNode; className?: string; semFundo?: boolean }) {
+export default function CenaPreset(p: {
+  receita: Receita
+  rel: number
+  dur: number
+  fundo: string
+  midia: (k: number, rel: number, topo: boolean) => ReactNode
+  className?: string
+  semFundo?: boolean
+  /** Tocando de verdade (a prévia andando): os sons do preset tocam no seu instante (SPEC §8.6). */
+  sons?: boolean
+}) {
   const r = noTempo(p.receita, p.dur)
+  const catalogo = useCatalogoSons()
+  const eventos = useMemo(() => (p.sons ? eventosDaReceita(p.receita, p.dur, catalogo) : []), [p.sons, p.receita, p.dur, catalogo])
+  useSonsNoTempo(eventos, p.rel, !!p.sons)
   // o tamanho da área em px: os cards guiados pelos cantos (`quadros`) precisam de px para a matrix3d
   const caixa = useRef<HTMLDivElement>(null)
   const [tam, setTam] = useState<[number, number] | null>(null)

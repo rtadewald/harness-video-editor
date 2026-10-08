@@ -5,6 +5,8 @@ import SeletorBanco from "@/editor/SeletorBanco";
 import { FUNDOS } from "@/editor/Fundo";
 import { cn } from "@/lib/utils";
 import MotionNoLugar from "./MotionNoLugar";
+import EscolhaSons from "@/editor/EscolhaSons";
+import { escolhasDeSom } from "./sons";
 import { ajustarMotion, listarPresets, urlPaginaPreset, type Formato, type MotionPlano, type Preset } from "./api";
 
 let cache: Promise<Preset[]> | null = null;
@@ -77,7 +79,7 @@ export function EdicaoPreset(p: { projetoId: string; plano: string; motion: Moti
 const CAMPO = "w-full rounded-[4px] border border-line-dark bg-deeper px-2.5 py-1.5 text-[12.5px] text-cream outline-none focus:border-cream/50";
 
 /** O preset de um plano: os campos (a prévia muda na hora; grava 0,35 s depois) e o fundo. */
-export function AjustesPreset(p: {
+function AjustesPreset(p: {
   projetoId: string;
   plano: string;
   motion: Extract<MotionPlano, { tipo: "preset" }>;
@@ -112,6 +114,19 @@ export function AjustesPreset(p: {
           )}
         </label>
       ))}
+      {Object.keys(p.preset.sons ?? {}).length > 0 && (
+        <div className="grid gap-1.5">
+          <span className="eyebrow text-sage">Sons</span>
+          <EscolhaSons
+            linhas={Object.entries(escolhasDeSom([p.preset], p.motion)).map(([k, e]) => ({ chave: k, nome: p.preset.sons![k].rotulo, ...e }))}
+            mudar={(k, m) => {
+              const atual = escolhasDeSom([p.preset], p.motion);
+              const sons = { ...(p.motion.sons ?? {}), [k]: { som: m.som !== undefined ? m.som : atual[k].som, intensidade: m.intensidade ?? atual[k].intensidade } };
+              void ajustarMotion(p.projetoId, p.plano, { sons }).then(p.mudou).catch(falhar);
+            }}
+          />
+        </div>
+      )}
       <div className="grid gap-1.5">
         <span className="eyebrow text-sage">Fundo</span>
         <div className="grid grid-cols-5 gap-1.5">

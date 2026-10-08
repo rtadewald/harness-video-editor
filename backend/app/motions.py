@@ -11,7 +11,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from . import inserts, projeto
+from . import banco, projeto, sons
 
 PRESETS = Path(__file__).resolve().parents[2] / 'frontend' / 'public' / 'motion' / 'presets'
 FORMATOS = {'vertical': (1080, 1920), 'dividida': (1080, 960)}  # tela cheia 9:16; tela dividida: a metade de cima
@@ -22,7 +22,7 @@ def _item_banco(bid) -> dict:
     """Um item do banco pelo id (10 caracteres hex): um valor qualquer vindo da tela nunca vira caminho."""
     if not isinstance(bid, str) or not re.fullmatch(r'[0-9a-f]{10}', bid):
         raise FileNotFoundError(bid)
-    return inserts.ler_item(bid)
+    return banco.ler_item(bid)
 
 
 # ---------------------------------------------------------------- presets
@@ -52,7 +52,19 @@ def ler_preset(pid: str) -> dict:
     frag = html_do_preset(pid)
     info = _json_do_script(frag, 'preset')
     return {'id': pid, 'nome': str(info.get('nome') or pid), 'descricao': str(info.get('descricao') or ''), 'fundo': info.get('fundo') or 'gradiente',
-            'duracao': float(info.get('duracao') or 3), 'miniatura': float(info.get('miniatura') or 0.8), 'campos': campos_de(frag)}
+            'duracao': float(info.get('duracao') or 3), 'miniatura': float(info.get('miniatura') or 0.8), 'campos': campos_de(frag),
+            'sons': sons_de(info)}
+
+
+def sons_de(info: dict) -> dict:
+    """Os momentos de som que o preset declara (`sons` no JSON do preset: rótulo, som e intensidade padrão; SPEC §8.6).
+    A página marca cada momento com `motion.som(momento, t, dur)`."""
+    out = {}
+    for k, v in (info.get('sons') or {}).items():
+        if isinstance(v, dict) and re.fullmatch(r'[a-z0-9_]{1,30}', k):
+            s = sons.validar([{'momento': 'entrada', 'som': v.get('som'), 'intensidade': v.get('intensidade')}])[0]
+            out[k] = {'rotulo': str(v.get('rotulo') or k), 'som': s['som'], 'intensidade': s['intensidade']}
+    return out
 
 
 def listar_presets() -> list[dict]:
@@ -138,8 +150,9 @@ def usar(pid: str, plano: str, u: UsoMotion) -> dict:
     return info
 
 
-def ajustar(pid: str, plano: str, valores: dict | None, fundo: str | None) -> dict:
-    """Muda os valores dos campos e o fundo do preset de um plano (o que não vem fica)."""
+def ajustar(pid: str, plano: str, valores: dict | None, fundo: str | None, escolhas_som: dict | None = None) -> dict:
+    """Muda os valores dos campos, o fundo e os sons (`{momento: {som, intensidade}}`, por cima dos padrões do preset)
+    do preset de um plano (o que não vem fica)."""
     def mudar(p):
         x = (p.get('motions') or {}).get(plano)
         if not x or x['tipo'] != 'preset':
@@ -148,6 +161,11 @@ def ajustar(pid: str, plano: str, valores: dict | None, fundo: str | None) -> di
             x['valores'] = {k: str(v)[:500] for k, v in valores.items()}
         if fundo:
             x['fundo'] = fundo[:40]
+        if escolhas_som is not None:
+            momentos = ler_preset(x['preset'])['sons']
+            x['sons'] = {k: {'som': s['som'], 'intensidade': s['intensidade']}
+                         for k, v in escolhas_som.items() if k in momentos and isinstance(v, dict)
+                         for s in sons.validar([{'momento': 'entrada', **v}])}
     return projeto.atualizar(pid, mudar)['motions'][plano]
 
 

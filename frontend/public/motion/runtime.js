@@ -7,6 +7,7 @@
   var tl = null
   var esperando = []
   var aCada = []
+  var marcas = [] // os sons (SPEC §8.6): o momento, quando (s na timeline) e, opcional, por quanto tempo
   var norm = function (s) {
     return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
   }
@@ -31,6 +32,11 @@
         }
         return b(y1, y2, t)
       }
+    },
+    /** Marca um som de apoio: o `momento` (um dos declarados em `sons` no JSON do preset, com o som padrão) acontece em
+     *  `t` s; com `dur`, o som dura isso (a digitação toca enquanto as letras aparecem). O app escolhe o som e toca. */
+    som: function (momento, t, dur) {
+      marcas.push({ momento: momento, t: t, dur: dur })
     },
     /** `f(t)` roda a cada instante pedido (t = tempo da cena, em s): para o que não é tween, como a digitação. */
     aCada: function (f) {
@@ -115,6 +121,14 @@
         }
       })
     }))
+  }
+  /** As marcas de som no tempo do plano (a timeline esticada como em `__ir`), depois de a cena estar montada. */
+  window.__sons = function () {
+    var ler = function () {
+      var escala = M.duracao && tl ? (tl.duration() || 1) / M.duracao : 1
+      return marcas.map(function (m) { return { momento: m.momento, t: m.t / escala, dur: m.dur ? m.dur / escala : undefined } })
+    }
+    return new Promise(function (r) { tl ? r(ler()) : esperando.push(function () { r(ler()) }) })
   }
   window.__ir = function (t) {
     var feito = function () {

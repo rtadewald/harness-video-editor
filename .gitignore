@@ -13,6 +13,7 @@ scratch.log
 /banco/
 /motions/
 /presets/
+/sons/
 /.dev.env
 # na segunda cópia (git worktree) os dados são links para os da pasta principal
 /projetos

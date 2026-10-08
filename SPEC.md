@@ -74,7 +74,9 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 ├── dev.sh             # sobe backend + frontend
 ├── backend/
 │   ├── app/
-│   │   ├── main.py            # FastAPI, rotas
+│   │   ├── main.py            # o app FastAPI: o que recomeça quando o servidor sobe e a inclusão das rotas
+│   │   ├── rotas_*.py         # as rotas por assunto: projetos, referencias, cortes, direcao, inserts (e banco),
+│   │   │                      #   exportacao, presets (e sons), motions; rotas_comum.py: o que elas compartilham
 │   │   ├── comum.py           # .env, modelos do OpenRouter, mídia para a IA (base64), normalizador de texto, JSON atômico
 │   │   ├── projeto.py         # projeto.json, configuração do app (_config.json), motores de transcrição
 │   │   ├── pipeline.py        # fila do projeto: proxy, silêncios, transcrição, alinhamento, cortes, motores extras
@@ -86,8 +88,14 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 │   │   ├── direcao.py         # análise das referências (cenas, IA multimodal, montagem, descrição dos inserts) e revisão
 │   │   ├── calibragem.py      # roteiros dirigidos e heurística da direção (regras + roteiros de exemplo)
 │   │   ├── direcao_projeto.py # direção do projeto: diretora, formatadora, corretora, versões
-│   │   ├── inserts.py         # banco de mídias (subir, descrever com IA, buscar, usos, trechos, corte do original) e as mídias ligadas a cada insert
+│   │   ├── banco.py           # banco de mídias (subir, proxies, descrever com IA, buscar, usos, trechos, corte do original)
+│   │   ├── inserts.py         # os pedidos de insert vindos da direção, as mídias ligadas a cada um, enriquecimento, comentário, fundo
 │   │   ├── captura_site.py    # captura de site para um insert: prévia da página inteira, dobras, gravação (Playwright)
+│   │   ├── presets.py         # presets de enriquecimento (receitas), ordem e recomendados (§8.4)
+│   │   ├── sons.py            # sons de apoio: catálogo, momentos de som, mistura na exportação, nível da voz (§8.6)
+│   │   ├── motions.py         # motions: presets em HTML + GSAP e o motion de cada plano (§8.5)
+│   │   ├── exportacao.py      # exportação: inserts fotografados em paralelo + uma passada do ffmpeg (§13)
+│   │   ├── recorte_ator.py    # a silhueta do ator (MediaPipe) para a cabeça passar por cima do insert
 │   │   └── mocks.py           # V2/V3/LEG e chat simulados
 │   ├── tests/
 │   └── pyproject.toml
@@ -99,6 +107,9 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 ├── projetos/          # dados dos projetos (fora do git)
 ├── referencias/       # vídeos da Calibragem, _favoritos.json, _heuristica.json (fora do git, §8.2)
 ├── banco/             # mídias dos inserts (global, fora do git, §8.3)
+├── presets/           # presets de enriquecimento e ordem.json (fora do git, §8.4)
+├── sons/              # sons do time (brutos) e sons/biblioteca/ processada (fora do git: licença, §8.6)
+├── ferramentas/       # scripts do Claude: montar presets (tira, curva, pose) e processar/detectar sons
 └── _legado/           # projeto anterior, só referência
 ```
 
@@ -364,7 +375,7 @@ Sem tempos nem proporções: só o roteiro e o que fazia sentido mostrar ali. Mo
 
 ✅ **Curvas:** nenhuma transição linear, em nenhum elemento — entradas, saídas, zooms, rolagens e misturas usam cubic-bezier (`editor/curvas.ts`: CHEGAR `(0.16, 1, 0.3, 1)` chega rápido e assenta; MOLA `(0.34, 1.56, 0.64, 1)` passa do ponto e volta; SAIR `(0.7, 0, 0.84, 0)`; SUAVE `(0.65, 0, 0.35, 1)`); entrada em 0,7 s por padrão. **Curva da entrada**: virou parte da engrenagem de cada entrada e saída (ver abaixo).
 
-✅ **Entrada e saída** (`transicoes.py`, `editor/transicoes.ts`, `editor/ConfigTransicao.tsx`; decisões de Rodrigo, out/2026): no painel, a seção **"Entrada e saída"** (uma por mídia, com 2) tem um toggle **Entrada | Saída** acima da grade. Entradas: sem animação · surgir ★ · **deslizar** · voo 3D · zoom borrado · seca + zoom leve; saídas: **corte seco** ★ · sumir · **deslizar** · voo 3D · zoom borrado (`saida`/`saida_2` no pedido). A opção escolhida ganha uma **engrenagem** (não as que não têm o que configurar: sem animação e corte seco) que abre, logo abaixo, a configuração **global** daquele tipo — vale para todos os inserts de todos os vídeos que o usam (configurou uma vez, fica sendo o padrão daquele tipo; nas Configurações, `transicoes`): curva (os 3 presets), duração (0,25 a 5 s) e os detalhes — surgir: escala inicial; deslizar: **direção** (cima · baixo · esquerda · direita), distância de partida/saída, posição final e fade; voo 3D: ângulo, deslocamento e fade; zoom borrado: escala, desfoque e fade; seca + zoom leve: zoom final. Os sliders mudam a prévia na hora e salvam ao soltar; "▶ Ver" toca a transição no insert; "Padrão de fábrica" volta tudo. A saída termina exatamente no fim da mídia (na sequência de 2, a 1ª sai terminando no corte) e usa a mesma curva espelhada (acelera ao sair), com no máximo metade da mídia. Saíram a curva e a duração por insert e o padrão do vídeo (`inserts.curva_padrao`), e o card "Curva da entrada" ao lado do vídeo. Rotas: `GET /api/transicoes`, `PUT /api/transicoes/{entrada|saida}/{tipo} {campos}` (`null` volta ao padrão de fábrica).
+✅ **Entrada e saída** (`transicoes.py`, `editor/transicoes.ts`; decisões de Rodrigo, out/2026; o painel com a engrenagem saiu quando os presets passaram a mandar na entrada e na saída — a configuração global continua valendo para os inserts sem preset e se muda pela rota): no painel, a seção **"Entrada e saída"** (uma por mídia, com 2) tem um toggle **Entrada | Saída** acima da grade. Entradas: sem animação · surgir ★ · **deslizar** · voo 3D · zoom borrado · seca + zoom leve; saídas: **corte seco** ★ · sumir · **deslizar** · voo 3D · zoom borrado (`saida`/`saida_2` no pedido). A opção escolhida ganha uma **engrenagem** (não as que não têm o que configurar: sem animação e corte seco) que abre, logo abaixo, a configuração **global** daquele tipo — vale para todos os inserts de todos os vídeos que o usam (configurou uma vez, fica sendo o padrão daquele tipo; nas Configurações, `transicoes`): curva (os 3 presets), duração (0,25 a 5 s) e os detalhes — surgir: escala inicial; deslizar: **direção** (cima · baixo · esquerda · direita), distância de partida/saída, posição final e fade; voo 3D: ângulo, deslocamento e fade; zoom borrado: escala, desfoque e fade; seca + zoom leve: zoom final. Os sliders mudam a prévia na hora e salvam ao soltar; "▶ Ver" toca a transição no insert; "Padrão de fábrica" volta tudo. A saída termina exatamente no fim da mídia (na sequência de 2, a 1ª sai terminando no corte) e usa a mesma curva espelhada (acelera ao sair), com no máximo metade da mídia. Saíram a curva e a duração por insert e o padrão do vídeo (`inserts.curva_padrao`), e o card "Curva da entrada" ao lado do vídeo. Rotas: `GET /api/transicoes`, `PUT /api/transicoes/{entrada|saida}/{tipo} {campos}` (`null` volta ao padrão de fábrica).
 
 ⏳ **Transição** entre os planos: saiu da etapa Inserts (decisão de Rodrigo, out/2026) e vai para a etapa seguinte, **Transições e Áudio**. Já existe a escolha do vídeo todo no backend (`inserts.transicao`, `PUT …/inserts/transicao`: seca · zoom com desfoque, da referência "cursor free" — o que sai desfoca e cresce em ~0,12 s; o que entra começa 10% maior e desfocado e assenta em ~0,3 s · piscada suave, ~0,24 s); a tela vem quando essa etapa for construída.
 
@@ -396,9 +407,15 @@ Sem tempos nem proporções: só o roteiro e o que fazia sentido mostrar ali. Mo
 
 ✅ Num plano de motion, um **preset** (animação pronta em HTML + CSS + GSAP, escrita à mão, em que o criador troca só os textos, a imagem e o fundo) ou um **vídeo** feito fora (do banco; entra e sai seco). Tocam ao vivo na prévia e entram na exportação. (A geração por IA saiu em out/2026.) **A especificação completa fica em [docs/motions.md](docs/motions.md)** (separada para os motions poderem andar em paralelo com o resto).
 
-### 8.6 Áudio (mock)
+### 8.6 Sons de apoio dos presets (decisões de Rodrigo, out/2026)
 
-✅ Visão: efeitos sonoros do vídeo (whoosh na entrada dos inserts, cliques, transições). Os efeitos de áudio dos inserts ficam aqui, não na Inserts. Por ora, simulada.
+✅ **Biblioteca:** os sons do time de audiovisual (cliques, pops, whooshes, risers, impactos, digitação…) ficam na pasta bruta `sons/`, **fora do git** (o repositório é público e os sons são licenciados). `ferramentas/sons_biblioteca.py` gera `sons/biblioteca/`: cada som só com o trecho útil (sem o silêncio do começo, o fim onde o som morre, no máximo 8 s com fade), no mesmo volume percebido (o pico da energia em janelas de 50 ms a −18 dBFS; os contínuos, como a digitação, 6 dB abaixo), AAC mono quando os canais são iguais (143 MB → 1,5 MB), e o `catalogo.json` (nome, família, duração e o `ataque`, o instante do golpe dentro do arquivo). Nenhum som foi descartado: os que os presets não usam ficam para as transições entre categorias (depois).
+✅ **Onde o time usa cada som** (`ferramentas/sons_detectar.py`: correlação da forma de onda de cada som com o áudio de cada referência, acima de 1,5 kHz, com a nota relativa ao chão de cada som): UI Pop 02 quando um elemento/card aparece dentro do insert ou do motion; Click Classic 01 nos cortes entre planos (e às vezes dentro de motions); Riser 07 subindo até o corte para o ator; Instant Camera 01 no corte para um insert de tela cheia; Mechanical Click 03 e Correct Ding 02 dentro de motions. Os sons ficam de 14 a 20 dB abaixo da voz (o clique de corte, ~8 dB). **Por ora só dentro dos presets** (não entre categorias).
+✅ **Momentos de som de um preset de enriquecimento** (`receita.sons`): **Entrada** (cada card que aparece), **Troca** (cada mídia nova, menos a primeira), **Saída**, **Mergulho** e **Zoom na mídia** — estes dois **acompanham o movimento**: o som começa quando o zoom começa e o golpe cai quando ele termina (o som acelera ou desacelera de 0,65× a 1,6× para caber, igual na prévia e na exportação; num zoom curto demais, começa já adiantado no arquivo) — só os que a receita tem. Em cada um: o som (ou nenhum), a intensidade (**Baixo** ou **Médio**) e o "quando cai" (onde o golpe do som cai em relação ao momento, em s). Padrões montados pela análise: o pop nas entradas, o clique seco nas trocas (Corte seco, Passeio de câmera), cliques pequenos em cascata, whooshes curtos nas saídas e no zoom borrado, o Riser 07 terminando no fim do mergulho. Na página Presets, o card **Sons** do modal (select agrupado por família, Baixo · Médio, ▶ para ouvir).
+✅ **No insert:** o ajuste rápido **Som** (Sem · Baixo · Médio) aparece sempre que o preset tem som (só abaixa, aumenta ou tira; trocar o som em si é na página Presets).
+✅ **Motions:** o preset declara os momentos no JSON do preset (`sons`: rótulo e som padrão de cada um) e a página marca cada um com `motion.som(momento, t, dur)` (a digitação toca enquanto as letras aparecem); no card do motion, um select e a intensidade por momento (`motions[plano].sons`, por cima dos padrões). Padrões: o pop quando a janela/lupa aparece, a digitação do teclado, um clique pequeno por palavra do lettering e o pop na palavra de destaque.
+✅ **Volume:** as intensidades valem para uma voz no nível das referências (−14 dBFS: o percentil 90 da energia da fala em janelas de 50 ms); Baixo fica ~16 dB e Médio ~10 dB abaixo dela. Cada projeto mede a voz do bruto uma vez (`nivel_voz` no projeto) e os sons sobem ou descem junto (`fator`), na prévia e na exportação — o bruto cru costuma vir ~10 dB mais baixo que um vídeo finalizado.
+✅ **Onde se ouve:** na prévia do editor (inserts e motions, tocando junto com o vídeo; pular o cursor não toca nada), na simulação e na recriação da página Presets, e na **exportação**: a página de render entrega os eventos (`__render.sons()`: o instante no vídeo final, o som, o ganho, de onde tocar o arquivo e, opcional, a duração; os dos motions lidos de cada página) e o ffmpeg soma tudo à voz (um arquivo de entrada por som, `amix` sem normalizar: a voz fica como estava).
 
 ### 8.7 Legenda (mock na v1)
 
@@ -545,7 +562,7 @@ Fatos medidos (no projeto anterior, em `_legado/`, e neste), úteis para a imple
 ## 17. Em aberto
 
 - ⏳ Meta de desempenho (antes: 5 min de bruto processados em até 3 min). Não reconfirmada.
-- 💡 Limpeza feita (out/2026) a partir de uma auditoria: rotas, funções, trilha DIR e arquivos sem uso removidos; `.env`, modelos, mídia para a IA, normalizador e JSON atômico em `comum.py`; ffmpeg/ffprobe em `midia.py`; `Modal` e `tempoBR` compartilhados no frontend. Ficaram de fora, de propósito: as migrações de dados antigos no `projeto.ler` (apagá-las tiraria o suporte a projetos antigos — só com um script de migração único), e dividir `direcao.py` (análise · captura · revisão · galeria), `inserts.py` (banco · pedidos) e `main.py` (rotas por domínio), que são refatorações maiores para quando a estrutura estabilizar.
+- 💡 Limpeza feita (out/2026) a partir de uma auditoria: rotas, funções, trilha DIR e arquivos sem uso removidos; `.env`, modelos, mídia para a IA, normalizador e JSON atômico em `comum.py`; ffmpeg/ffprobe em `midia.py`; `Modal` e `tempoBR` compartilhados no frontend. Ficaram de fora, de propósito: as migrações de dados antigos no `projeto.ler` (apagá-las tiraria o suporte a projetos antigos — só com um script de migração único), e dividir `direcao.py` (análise · captura · revisão · galeria), refatoração maior para quando a estrutura estabilizar. Feito depois (out/2026): `main.py` dividido em rotas por assunto (`rotas_*.py`, as mesmas 95 rotas), o banco de mídias separado dos inserts (`banco.py`), a página Presets em `presets/` e a etapa Inserts em `editor/inserts/` e, no frontend, o painel antigo das transições, o painel antigo de Cortes (`PainelCortes` → `DetalheCorte`) e as funções sem uso removidos; o que era usado só dentro do próprio arquivo deixou de ser exportado.
 - ⏳ Tudo listado como "em aberto" em Inserts, Enriquecimento, Motion, Áudio e Legenda.
 - ⏳ Música, transições e estilo de legenda.
 - ⏳ Aprendizado das correções: como uma correção recorrente vira regra.

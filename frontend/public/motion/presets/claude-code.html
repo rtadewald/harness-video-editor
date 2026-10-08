@@ -1,4 +1,4 @@
-<script type="application/json" id="preset">{"nome": "Janela do Claude Code", "descricao": "A janela do terminal entra pequena e cresce até passar da borda; o prompt é digitado letra a letra e a cena acompanha o cursor.", "fundo": "verde_claro", "duracao": 2.6, "miniatura": 0.45}</script>
+<script type="application/json" id="preset">{"nome": "Janela do Claude Code", "descricao": "A janela do terminal entra pequena e cresce até passar da borda; o prompt é digitado letra a letra e a cena acompanha o cursor.", "fundo": "verde_claro", "duracao": 2.6, "miniatura": 0.45, "sons": {"entrada": {"rotulo": "A janela aparece", "som": "ui-pop-02", "intensidade": "baixo"}, "digitacao": {"rotulo": "Digitação", "som": "typing-keyboard-01", "intensidade": "baixo"}}}</script>
 <script type="application/json" id="campos">{"prompt": {"tipo": "texto", "rotulo": "O que é digitado", "padrao": "cria esse site pra mim com animações 3d"}}</script>
 <style>
   /* medidas da janela em px "naturais" (922×782 na tela cheia; mais baixa na dividida, com o prompt e o rodapé presos
@@ -74,6 +74,8 @@ Opus (1M context) · ~/acme
     const t0 = Math.min(0.2, D * 0.08)
     const tempos = motion.digitar(texto, t0, D - 0.2, 0.07)
     const t1 = tempos.length ? tempos[tempos.length - 1] : t0
+    motion.som('entrada', 0)
+    motion.som('digitacao', t0, t1 - t0 + 0.1)
 
     // a cena nunca para: depois do zoom ela desliza para a esquerda com velocidade crescente (na referência, o
     // deslocamento cresce como ~82·(t − 0,65)² px: aceleração de ~164 px/s²), até acompanhar a digitação; quando a

@@ -5,7 +5,7 @@ import types
 import pytest
 from fastapi.testclient import TestClient
 
-from app import comum, direcao, inserts, main, pipeline, projeto, referencias
+from app import banco, comum, direcao, main, pipeline, projeto, referencias, sons
 
 
 @pytest.fixture(autouse=True)
@@ -13,7 +13,8 @@ def _nada_real(tmp_path, monkeypatch):
     """Todo teste usa pastas temporárias: nenhum teste lê ou grava projetos, referências ou configurações de verdade."""
     monkeypatch.setattr(projeto, 'RAIZ', tmp_path / 'projetos')
     monkeypatch.setattr(referencias, 'RAIZ', tmp_path / 'referencias')
-    monkeypatch.setattr(inserts, 'RAIZ_BANCO', tmp_path / 'banco')
+    monkeypatch.setattr(banco, 'RAIZ', tmp_path / 'banco')
+    monkeypatch.setattr(sons, 'RAIZ', tmp_path / 'sons')  # a biblioteca de sons de verdade fica fora dos testes
     monkeypatch.setattr(comum, 'carregar_env', lambda: None)  # nenhum teste lê o .env de verdade (chaves de API)
 
 

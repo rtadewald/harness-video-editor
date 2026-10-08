@@ -3,8 +3,8 @@ import type { ItemRef } from '@/api'
 /** Operações da revisão de uma referência. Puras: recebem os itens e devolvem uma lista nova.
  *  Regras iguais às do servidor (direcao.validar_edicao): planos-base contíguos cobrindo o vídeo; elementos livres. */
 
-export const MIN_PLANO = 0.1
-export const MIN_ELEMENTO = 0.05
+const MIN_PLANO = 0.1
+const MIN_ELEMENTO = 0.05
 
 export const planosDe = (itens: ItemRef[]) => itens.filter((i) => i.camada === 'plano').sort((a, b) => a.inicio - b.inicio)
 export const elementosDe = (itens: ItemRef[]) => itens.filter((i) => i.camada === 'elemento').sort((a, b) => a.inicio - b.inicio)

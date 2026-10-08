@@ -1,119 +1,20 @@
 import { useState } from 'react'
-import { Play } from 'lucide-react'
-import { ms3, type DadosEditor, type Duvida, type Palavra, type TranscricaoCompleta } from '@/api'
+import { ms3, type DadosEditor, type Palavra, type TranscricaoCompleta } from '@/api'
 import { cn } from '@/lib/utils'
 import { bordasDoCorte, refCorte, refPalavra, type Corte, type Selecao } from './cortes'
 
-type Props = {
+type DetalheProps = {
   dados: DadosEditor
   cortes: Corte[]
   selecao: Selecao
-  selecionar: (s: Selecao) => void
-  bruto: number
-  buscarBruto: (t: number) => void
   ouvirPalavra: (p: Palavra) => void
   ouvirEmenda: (c: Corte) => void
   loop: boolean
   setLoop: (v: boolean) => void
+  restaurar?: (clipeId: string) => void
+  devolver?: (ini: number, fim: number) => void
+  comparacao?: TranscricaoCompleta | null
 }
-
-/** Texto da etapa de Cortes: o que a IA tirou fica riscado, cada corte mostra os tempos exatos no bruto. */
-export default function PainelCortes(p: Props) {
-  const { palavras, duvidas } = p.dados
-  const indice = new Map(palavras.map((w, i) => [w.id, i]))
-  const duvidaDe = (i: number) => duvidas.find((d: Duvida) => indice.get(d.ini)! <= i && i <= indice.get(d.fim)!)
-
-  const linhas: Palavra[][] = []
-  palavras.forEach((w, i) => {
-    if (i === 0 || w.inicio - palavras[i - 1].fim > 0.8) linhas.push([])
-    linhas[linhas.length - 1].push(w)
-  })
-  const aposPalavra = new Map(p.cortes.filter((c) => c.palavraAntes).map((c) => [c.palavraAntes!.id, c]))
-  const noComeco = p.cortes.find((c) => !c.antes)
-
-  const marca = (c: Corte) => <MarcaCorte key={`c${c.n}`} corte={c} escolhido={p.selecao?.tipo === 'corte' && p.selecao.n === c.n} selecionar={p.selecionar} buscarBruto={p.buscarBruto} ouvir={p.ouvirEmenda} />
-
-  return (
-    <section className="flex h-full min-h-0 flex-col text-cream">
-      <p className="shrink-0 pb-3 text-[11px] text-fog">
-        Clique numa palavra ou num corte para ver os milissegundos. <kbd className="rounded border border-line-dark px-1">E</kbd> ouve a emenda mais próxima.
-      </p>
-
-      <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-        <div className="grid gap-3 text-[17px] leading-[1.9] tracking-[-0.01em]">
-          {duvidas.length > 0 && (
-            <p className="border-l-2 border-yellow pl-3 text-[12px] leading-[1.6] text-fog">
-              A IA ficou em dúvida em {duvidas.length} trecho{duvidas.length > 1 && 's'} (sublinhado amarelo) e os manteve.
-            </p>
-          )}
-          {linhas.map((linha, li) => (
-            <p key={linha[0].id}>
-              {li === 0 && noComeco && marca(noComeco)}
-              {linha.map((w) => {
-                const sai = !w.mantida
-                const atual = p.bruto >= w.inicio && p.bruto < w.fim
-                const escolhida = p.selecao?.tipo === 'palavra' && p.selecao.id === w.id
-                const duvida = duvidaDe(indice.get(w.id)!)
-                const corte = aposPalavra.get(w.id)
-                return (
-                  <span key={w.id}>
-                    <button
-                      onClick={() => {
-                        p.selecionar({ tipo: 'palavra', id: w.id })
-                        p.buscarBruto(w.inicio)
-                      }}
-                      title={duvida ? `Dúvida da IA: ${duvida.motivo}` : `${w.id} · ${ms3(w.inicio)} → ${ms3(w.fim)} s`}
-                      className={cn(
-                        'rounded-[2px] px-0.5 align-bottom transition-colors',
-                        sai ? 'text-fog/55 line-through decoration-coral decoration-[1.5px]' : 'hover:bg-cream/10',
-                        duvida && 'underline decoration-yellow decoration-2 underline-offset-4',
-                        atual && 'bg-yellow/90 text-ink hover:bg-yellow/90',
-                        escolhida && 'ring-2 ring-yellow',
-                      )}
-                    >
-                      {w.texto}
-                    </button>{' '}
-                    {corte && marca(corte)}
-                  </span>
-                )
-              })}
-            </p>
-          ))}
-        </div>
-      </div>
-
-      <Detalhe {...p} />
-    </section>
-  )
-}
-
-function MarcaCorte({ corte: c, escolhido, selecionar, buscarBruto, ouvir }: { corte: Corte; escolhido: boolean; selecionar: Props['selecionar']; buscarBruto: Props['buscarBruto']; ouvir: Props['ouvirEmenda'] }) {
-  return (
-    <span
-      className={cn(
-        'mx-1 inline-flex items-center overflow-hidden rounded-full border align-middle text-[10px] font-semibold tabular-nums',
-        escolhido ? 'border-yellow bg-yellow text-ink' : 'border-coral/60 bg-coral/10 text-coral',
-      )}
-    >
-      <button
-        onClick={() => {
-          selecionar({ tipo: 'corte', n: c.n })
-          buscarBruto(c.ini)
-        }}
-        className="py-0.5 pr-1.5 pl-2.5 hover:bg-coral/15"
-        title="Ver detalhes do corte"
-      >
-        ✂{c.n} · {ms3(c.ini)} → {ms3(c.fim)} · −{(c.fim - c.ini).toFixed(2)} s
-        {c.tipo === 'pausa' && ' · pausa'}
-      </button>
-      <button onClick={() => ouvir(c)} className="border-l border-current/25 px-2 py-0.5 hover:bg-coral/20" aria-label="Ouvir emenda" title="Ouvir emenda (E)">
-        <Play className="size-2.5 fill-current" />
-      </button>
-    </span>
-  )
-}
-
-export type DetalheProps = Pick<Props, 'dados' | 'cortes' | 'selecao' | 'ouvirPalavra' | 'ouvirEmenda' | 'loop' | 'setLoop'> & { restaurar?: (clipeId: string) => void; devolver?: (ini: number, fim: number) => void; comparacao?: TranscricaoCompleta | null }
 
 export function Detalhe(p: DetalheProps) {
   const [copiado, setCopiado] = useState(false)

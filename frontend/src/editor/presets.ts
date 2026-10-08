@@ -2,6 +2,7 @@ import { enviar, json } from '@/api'
 import { bezier, limite01 } from './curvas'
 import { criarLoja } from './loja'
 import type { Curva } from './enriquecimento'
+import type { SomMomento } from './sons'
 
 /** Presets de enriquecimento (SPEC §8.4): a receita de como as mídias de um insert aparecem, medida nas referências
  *  favoritas. Espelha `presets.py`. Posições e deslocamentos em % da área do insert (a tela toda ou a metade de cima). */
@@ -16,7 +17,7 @@ export type Movimento = {
   dur: Partial<Record<Propriedade, number>>
 } & ({ de: Estado } | { para: Estado })
 /** `desfoque`: desfoque permanente, em px a 1080 (um fundo feito da própria mídia). */
-export type Repouso = { cx: number; cy: number; w: number; h: number; rot: number; rx: number; ry: number; raio: number; sombra: boolean; z: number; desfoque?: number }
+type Repouso = { cx: number; cy: number; w: number; h: number; rot: number; rx: number; ry: number; raio: number; sombra: boolean; z: number; desfoque?: number }
 export type CardReceita = {
   inicio_frac: number
   sai_antes_do_fim: number
@@ -43,12 +44,13 @@ export type CardReceita = {
 }
 /** Zoom no conteúdo do card (a moldura fica igual): começa `inicio` s depois de o card aparecer, dura `duracao` s e
  *  chega a `escala`, ancorado em (`ox`, `oy`) % da mídia. */
-export type ZoomMidia = { inicio: number; duracao: number; escala: number; ox: number; oy: number; curva: Curva }
-export type Continuo = { escala: number; dx: number; dy: number; rot?: number }
+type ZoomMidia = { inicio: number; duracao: number; escala: number; ox: number; oy: number; curva: Curva }
+type Continuo = { escala: number; dx: number; dy: number; rot?: number }
 /** `repete`: serve a qualquer número de mídias (2 ou mais): o último card é o molde da 2ª mídia em diante, cada uma
  *  numa parte igual do insert (ver `paraMidias`). */
 /** `sai_ultimo`: numa sequência que repete, o último card também sai (senão fica até o corte). */
-export type Receita = { formato: 'vertical' | 'dividida'; fundo: 'proprio' | 'nenhum'; duracao_ref: number; cards: CardReceita[]; repete?: boolean; sai_ultimo?: boolean }
+/** `sons`: os momentos de som (SPEC §8.6; ver `sons.ts`). */
+export type Receita = { formato: 'vertical' | 'dividida'; fundo: 'proprio' | 'nenhum'; duracao_ref: number; cards: CardReceita[]; repete?: boolean; sai_ultimo?: boolean; sons?: SomMomento[] }
 export type Preset = {
   id: string
   nome: string
@@ -308,9 +310,9 @@ export const PROPORCOES_USO: { id: Proporcao; nome: string }[] = [
   { id: 'quadrada', nome: 'Quadrada' },
   { id: 'deitada', nome: 'Horizontal' },
 ]
-export const chaveProporcao = (a: number): Proporcao => (a < 0.8 ? 'pe' : a <= 1.2 ? 'quadrada' : 'deitada')
+const chaveProporcao = (a: number): Proporcao => (a < 0.8 ? 'pe' : a <= 1.2 ? 'quadrada' : 'deitada')
 /** A chave do número de mídias: 1, 2 ou 2+ (3 ou mais). */
-export const chaveMidias = (n: number) => (n <= 1 ? '1' : n === 2 ? '2' : '2+') as Usos['midias'][number]
+const chaveMidias = (n: number) => (n <= 1 ? '1' : n === 2 ? '2' : '2+') as Usos['midias'][number]
 /** Onde o preset vale: o marcado, ou o que a receita suporta (as telas de `formatos`, e "ator embaixo" se vale na
  *  dividida; as mídias pela receita: as que repetem servem a 2 e 2+). */
 export function usosDe(p: Preset): Usos {
@@ -333,7 +335,7 @@ export const serve = (p: Preset, _formato: string, n: number, tela?: Usos['telas
 /** A receita levada para o outro formato. A metade de cima da tela dividida é a faixa central da tela cheia, na mesma
  *  largura: de tela cheia para dividida, o que está no meio da tela continua no meio e as alturas dobram (o que passa
  *  da área fica cortado); de dividida para tela cheia, os cards vão para a faixa do meio com metade da altura. */
-export function paraFormato(r: Receita, formato: Receita['formato']): Receita {
+function paraFormato(r: Receita, formato: Receita['formato']): Receita {
   if (r.formato === formato) return r
   const k = formato === 'dividida' ? 2 : 0.5 // quanto as medidas verticais (em % da área) mudam
   const y = (v: number) => (formato === 'dividida' ? (v - 25) * 2 : v / 2 + 25)

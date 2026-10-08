@@ -2,8 +2,8 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from . import presets, transicoes
-from .rotas_comum import Campos
+from . import presets, sons, transicoes
+from .rotas_comum import Campos, ler_projeto
 
 rotas = APIRouter()
 
@@ -22,6 +22,29 @@ def definir_transicao_global(lado: str, tipo: str, c: Campos):
         return transicoes.definir(lado, tipo, c.campos)
     except ValueError as e:
         raise HTTPException(422, str(e))
+
+
+# ---------------------------------------------------------------- sons de apoio (SPEC §8.6)
+
+@rotas.get('/api/sons')
+def catalogo_sons():
+    """A biblioteca de sons (id, nome, família, duração, ataque) e o ganho de cada intensidade."""
+    return {'sons': sons.catalogo(), 'intensidades': sons.INTENSIDADES}
+
+
+@rotas.get('/api/projetos/{id}/sons/fator')
+def fator_dos_sons(id: str):
+    """Quanto os sons sobem ou descem neste projeto (pelo nível da voz do bruto), para a prévia soar como a exportação."""
+    ler_projeto(id)
+    return {'fator': sons.fator_do_projeto(id)}
+
+
+@rotas.get('/api/sons/{sid}.m4a')
+def arquivo_som(sid: str):
+    try:
+        return FileResponse(sons.arquivo(sid), media_type='audio/mp4', headers={'Cache-Control': 'no-cache'})
+    except FileNotFoundError:
+        raise HTTPException(404, 'Som não encontrado')
 
 
 # ---------------------------------------------------------------- presets de enriquecimento (SPEC §8.4)
@@ -103,7 +126,7 @@ def video_externo(nome: str):
 def quadro_referencia(ref: str, t: float):
     """Um quadro parado da referência (a foto da revisão enquanto o vídeo não toca)."""
     try:
-        return FileResponse(presets.quadro(ref, t), headers={'Cache-Control': 'max-age=86400'})
+        return FileResponse(presets.quadro(ref, t), headers={'Cache-Control': 'no-cache'})
     except (FileNotFoundError, ValueError):
         raise HTTPException(404, 'Sem quadro')
 

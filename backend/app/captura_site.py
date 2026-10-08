@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import urlparse
 
-from . import inserts, midia, projeto
+from . import banco, inserts, midia, projeto
 
 # proporção → janela de computador (largura e altura em px de CSS) e densidade na gravação. A 9:16 é um computador em
 # pé (nunca a versão de celular, que mostra pouco): 1200 px de largura pega o layout desktop; 1,8× → 2160×3840
@@ -195,7 +195,7 @@ def _rodar(id: str, pid: str, cid: str, url: str, proporcao: str, ys: list[int],
             visto = gravar(url, proporcao, y, duracao, saida, do_carregamento=(k == 0 and y == 0))
             titulo = titulo or visto or urlparse(url).netloc
             nome = f'{titulo} · dobra {k + 1}' if len(ys) > 1 else titulo
-            item = inserts.subir(saida, f'{nome}.mp4', fonte={'tipo': 'captura de site', 'url': url, 'proporcao': proporcao, 'dobra': y})
+            item = banco.subir(saida, f'{nome}.mp4', fonte={'tipo': 'captura de site', 'url': url, 'proporcao': proporcao, 'dobra': y})
 
             def ligar(p, bid=item['id'], feitas=k + 1):
                 for x in (p.get('inserts') or {}).get('pedidos', []):

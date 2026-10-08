@@ -1,4 +1,4 @@
-<script type="application/json" id="preset">{"nome": "Caixa de prompt", "descricao": "Uma caixa de prompt branca com o texto sendo digitado; a cena se afasta devagar o tempo todo, sem nunca parar.", "fundo": "verde_claro", "duracao": 2.5}</script>
+<script type="application/json" id="preset">{"nome": "Caixa de prompt", "descricao": "Uma caixa de prompt branca com o texto sendo digitado; a cena se afasta devagar o tempo todo, sem nunca parar.", "fundo": "verde_claro", "duracao": 2.5, "sons": {"digitacao": {"rotulo": "Digitação", "som": "typing-keyboard-01", "intensidade": "baixo"}}}</script>
 <script type="application/json" id="campos">{"prompt": {"tipo": "texto", "rotulo": "O que é digitado", "padrao": "Let's design an interactive, dark themed graphic showing how culture flows between cities. A rotating globe"}}</script>
 <style>
   /* medidas da referência em 1080×1920, no fim do afastamento (escala 1): card de 920 px, base a ~60% da altura */
@@ -44,6 +44,7 @@
     // a digitação vem em rajadas, rápida (~0,018 s por letra, com pausas na pontuação e entre algumas palavras); começou
     // antes do corte: no 1º quadro já há algumas letras
     const tempos = motion.digitar(texto, -0.25, D - 0.1, 0.0185)
+    if (tempos.length) motion.som('digitacao', Math.max(tempos[0], 0), tempos[tempos.length - 1] - Math.max(tempos[0], 0) + 0.1)
     motion.aCada(function (t) {
       let n = 0
       while (n < tempos.length && tempos[n] <= t) n++

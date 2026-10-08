@@ -8,7 +8,6 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-
 from . import comum, cortes, midia, motores, projeto, transcricao
 
 PRINCIPAIS = ['proxy', 'silencios', 'transcricao', 'alinhamento', 'cortes']  # pausas antes: a transcrição é feita por pedaços entre elas

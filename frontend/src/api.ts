@@ -1,4 +1,4 @@
-export type Fonte = {
+type Fonte = {
   id: string
   papel: 'bruto' | 'apoio'
   arquivo: string
@@ -22,8 +22,8 @@ export type Transcricao = {
   aviso?: string | null
 }
 
-export type Passo = { status: 'pendente' | 'rodando' | 'pronto' | 'erro'; segundos?: number; progresso?: number; aviso?: string; pulado?: boolean }
-export type Pipeline = { passos: Partial<Record<'proxy' | 'transcricao' | 'alinhamento' | 'silencios' | 'cortes' | 'variantes', Passo>>; erro: string | null }
+type Passo = { status: 'pendente' | 'rodando' | 'pronto' | 'erro'; segundos?: number; progresso?: number; aviso?: string; pulado?: boolean }
+type Pipeline = { passos: Partial<Record<'proxy' | 'transcricao' | 'alinhamento' | 'silencios' | 'cortes' | 'variantes', Passo>>; erro: string | null }
 
 export type Etapa = 'cortes' | 'direcao' | 'inserts' | 'enriquecimento' | 'motion' | 'audio' | 'legenda'
 
@@ -66,9 +66,9 @@ export type ItemDirecaoProjeto = {
   descricao: string
 }
 /** Comentário do criador sobre a direção, num ponto do vídeo (preso a uma palavra + deslocamento em s). */
-export type ComentarioDirecao = { id: string; palavra: string; off: number; texto: string; criado_em: string }
+type ComentarioDirecao = { id: string; palavra: string; off: number; texto: string; criado_em: string }
 /** Uma versão da direção: v1 = diretora + formatadora; v2, v3… = corretora sobre `origem` + os comentários dela. */
-export type VersaoDirecao = {
+type VersaoDirecao = {
   n: number
   origem: number | null
   gerado_em?: string
@@ -107,14 +107,14 @@ export type Palavra = {
   mantida?: boolean
 }
 export type Silencio = { inicio: number; fim: number; dur: number }
-export type Duvida = { ini: string; fim: string; motivo: string }
+type Duvida = { ini: string; fim: string; motivo: string }
 
 /** Itens das trilhas ficam presos a palavras (SPEC §9); o tempo na saída é sempre calculado. */
 export type Ancora = { palavra_ini: string; palavra_fim: string }
 /** `auto` existe só se o criador mexeu numa borda: guarda o que a IA tinha decidido. */
 export type Clipe = Ancora & { id: string; fonte: string; inicio: number; fim: number; auto?: { inicio: number; fim: number } }
 export type Item = Ancora & { id: string; rotulo: string }
-export type Legenda = Ancora & { id: string; texto: string }
+type Legenda = Ancora & { id: string; texto: string }
 /** Item (mock) da Direção visual: um plano-base ou um elemento sobreposto, preso às palavras. */
 export type Timeline = { V1: Clipe[]; V2: Item[]; V3: Item[]; LEG: Legenda[] }
 
@@ -137,7 +137,7 @@ export const enviarMensagem = (id: string, etapa: Etapa, texto: string) =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ texto }),
   }).then(json<Mensagem[]>)
-export const post = <T,>(url: string) => fetch(url, { method: 'POST' }).then(json<T>)
+const post = <T,>(url: string) => fetch(url, { method: 'POST' }).then(json<T>)
 export const processar = (id: string) => post<Projeto>(`/api/projetos/${id}/processar`)
 export const renomearProjeto = (id: string, nome: string) =>
   fetch(`/api/projetos/${id}/nome`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome }) }).then(json<Projeto>)
@@ -227,8 +227,8 @@ export type Referencia = {
   erro: string | null
   analise?: { passos: Partial<Record<PassoReferencia, PassoAnalise>> }
 }
-export type PassoReferencia = 'proxy' | 'transcricao' | 'cenas' | 'analise' | 'montagem' | 'inserts'
-export type PassoAnalise = { status: 'pendente' | 'rodando' | 'pronto' | 'erro'; segundos?: number; progresso?: number; feitos?: number; total?: number; motor?: string; tokens?: number }
+type PassoReferencia = 'proxy' | 'transcricao' | 'cenas' | 'analise' | 'montagem' | 'inserts'
+type PassoAnalise = { status: 'pendente' | 'rodando' | 'pronto' | 'erro'; segundos?: number; progresso?: number; feitos?: number; total?: number; motor?: string; tokens?: number }
 
 /** Item da direção de uma referência: plano-base (contíguos, cobrem o vídeo) ou elemento sobreposto. */
 export type ItemRef = {
@@ -246,7 +246,7 @@ export type ItemRef = {
   palavra_fim?: string | null
 }
 export type TipoMidia = 'video' | 'imagem'
-export type FormatoMidia = '16:9' | '16:10' | '4:3' | '1:1' | '4:5' | '3:4' | '9:16' | 'alto'
+type FormatoMidia = '16:9' | '16:10' | '4:3' | '1:1' | '4:5' | '3:4' | '9:16' | 'alto'
 export const NOME_TIPO_MIDIA: Record<TipoMidia, string> = { video: 'vídeo', imagem: 'imagem' }
 export type Categorias = { planos: Record<string, string>; elementos: Record<string, string> }
 export type Revisao = { referencia: Referencia; palavras: Palavra[]; itens: ItemRef[]; cortes: number[]; categorias: Categorias }
@@ -375,7 +375,7 @@ export type PedidoInsert = {
   /** As capturas de site deste insert: as em andamento (várias podem rodar ao mesmo tempo) e as que falharam (§8.3). */
   capturas?: CapturaInsert[]
 }
-export type CapturaInsert = {
+type CapturaInsert = {
   id: string
   status: 'fila' | 'rodando' | 'pronto' | 'erro'
   url: string

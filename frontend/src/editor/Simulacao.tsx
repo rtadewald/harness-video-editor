@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import type { ItemBanco } from '@/api'
 import { cn } from '@/lib/utils'
 import { ajustesEfetivos, comAjustes, type Ajustes } from './ajustes'
@@ -43,16 +43,26 @@ export function aspectosSim(s: Sim): number[] {
 export type MidiasSim = { pe: string[]; h43: string[]; h169: string[]; ator: { video: string; pessoa: string | null } | null }
 
 /** A mídia k da simulação, pela proporção dela: um vídeo do banco com essa proporção (rodando entre os que há). */
-export function midiaSim(m: MidiasSim | null, aspecto: number, k: number): string | null {
+function midiaSim(m: MidiasSim | null, aspecto: number, k: number): string | null {
   if (!m) return null
   const l = aspecto < 0.8 ? m.pe : aspecto > 1.5 ? (m.h169.length ? m.h169 : m.h43) : m.h43.length ? m.h43 : m.h169
   return l.length ? l[k % l.length] : null
 }
 
 /** Um vídeo em loop, mudo, tocando sozinho. */
-const Video = ({ src, className, style }: { src: string; className?: string; style?: React.CSSProperties }) => (
-  <video src={src} autoPlay loop muted playsInline preload="auto" className={className} style={style} />
-)
+/** Um vídeo em loop, mudo, que toca enquanto a simulação toca (parado, fica no quadro em que estava). */
+function Video({ src, className, style }: { src: string; className?: string; style?: React.CSSProperties }) {
+  const tocando = useContext(SimTocando)
+  const v = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    const el = v.current
+    if (!el) return
+    if (tocando) void el.play().catch(() => {})
+    else el.pause()
+  }, [tocando])
+  return <video ref={v} src={src} loop muted playsInline preload="auto" className={className} style={style} />
+}
+const SimTocando = createContext(false)
 
 /** O quadro 9:16 inteiro com o preset na situação `sim`: o fundo, o ator (o vídeo de um projeto; sem ele, um boneco) e o
  *  insert com as mesmas regras do editor (divisão pela proporção, card na proporção da mídia, ajustes). As mídias são
@@ -106,6 +116,7 @@ export default function Simulacao(p: {
   )
   const pessoa = sim.tela === 'atras' && atorReal?.pessoa ? estiloDaPessoa(divisao) : null
   return (
+    <SimTocando.Provider value={!!p.tocando}>
     <div data-simulacao className={cn('relative aspect-[9/16] w-full overflow-hidden bg-black', p.className)}>
       {(sim.tela === 'atras' || formato === 'dividida') && <Fundo id="gradiente" />}
       {sim.tela === 'dividida' && ator}
@@ -117,6 +128,7 @@ export default function Simulacao(p: {
           fundo="gradiente"
           className="inset-0"
           semFundo={sim.tela === 'atras'}
+          sons={!!p.tocando}
           midia={(k, _rel, topo) => {
             const v = midiaSim(p.midias ?? null, aspectos[k] ?? 16 / 9, k)
             return v ? <Video src={v} className={cn('size-full object-cover', topo && 'object-top')} /> : <img src={p.midia(k)} alt="" className={cn('size-full object-cover', topo && 'object-top')} />
@@ -126,6 +138,7 @@ export default function Simulacao(p: {
       {sim.tela === 'atras' && ator}
       {pessoa && atorReal?.pessoa && <Video src={atorReal.pessoa} className="pointer-events-none absolute inset-0 size-full object-cover" style={pessoa} />}
     </div>
+    </SimTocando.Provider>
   )
 }
 

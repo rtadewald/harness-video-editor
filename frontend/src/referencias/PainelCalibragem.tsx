@@ -40,7 +40,7 @@ function useIntervalo(video: React.RefObject<HTMLVideoElement | null>, linha: Li
 const TAG_LETTERING = /<lettering(?:\s+texto\s*=\s*["“]([^"”]*)["”])?\s*>(.*?)<\/lettering\s*>/gi
 
 /** A fala com os `<lettering>` destacados (e o texto da tela, quando é diferente do falado). */
-export function FalaComLettering({ fala }: { fala: string }) {
+function FalaComLettering({ fala }: { fala: string }) {
   const partes: React.ReactNode[] = []
   let pos = 0
   for (const m of fala.matchAll(TAG_LETTERING)) {
