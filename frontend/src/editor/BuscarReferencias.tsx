@@ -10,7 +10,7 @@ const seg = (t: number) => `${t.toFixed(1).replace('.', ',')} s`
 
 /** "Buscar por referências" (etapa Inserts): os planos dos vídeos de referência (a galeria de Referências), já filtrados
  *  pelo grupo do plano selecionado. Passar o mouse toca o trecho mudo; clicar abre ao lado, com som, em loop. */
-export default function BuscarReferencias({ tipo, fechar }: { tipo: string | null; fechar: () => void }) {
+export default function BuscarReferencias({ tipo, fechar, usar }: { tipo: string | null; fechar: () => void; usar?: (c: ClipeReferencia) => void }) {
   const [clipes, setClipes] = useState<ClipeReferencia[] | null>(null)
   const [categorias, setCategorias] = useState<Record<string, string>>({})
   const [erro, setErro] = useState('')
@@ -112,15 +112,16 @@ export default function BuscarReferencias({ tipo, fechar }: { tipo: string | nul
             </ul>
           )}
         </div>
-        {sel && <Tocador key={chave(sel)} c={sel} nome={categorias[sel.tipo]} fechar={() => setAberto(null)} />}
+        {sel && <Tocador key={chave(sel)} c={sel} nome={categorias[sel.tipo]} fechar={() => setAberto(null)} usar={usar && (() => usar(sel))} />}
       </div>
     </Modal>
   )
 }
 
 /** O trecho aberto, com som e controles, em loop, e o que a referência diz dele. */
-function Tocador({ c, nome, fechar }: { c: ClipeReferencia; nome: string; fechar: () => void }) {
+function Tocador({ c, nome, fechar, usar }: { c: ClipeReferencia; nome: string; fechar: () => void; usar?: () => void }) {
   const video = useRef<HTMLVideoElement>(null)
+  const [usada, setUsada] = useState(false)
   useTrecho(video, c, true)
   return (
     <aside className="flex min-h-0 w-[360px] shrink-0 flex-col gap-3 overflow-y-auto">
@@ -145,6 +146,18 @@ function Tocador({ c, nome, fechar }: { c: ClipeReferencia; nome: string; fechar
       {c.texto && <p className="text-[12.5px] font-semibold">“{c.texto}”</p>}
       <p className="text-[12.5px] leading-[1.6] text-cream/85">{c.descricao}</p>
       {c.fala && <p className="border-l-2 border-line-dark pl-3 text-[12px] leading-[1.6] text-fog">{c.fala}</p>}
+      {usar && (
+        <button
+          onClick={() => {
+            usar()
+            setUsada(true)
+          }}
+          disabled={usada}
+          className="rounded-full bg-coral px-4 py-2 text-[12.5px] font-semibold text-cream hover:bg-coral/90 disabled:opacity-50"
+        >
+          {usada ? '✓ Adicionada ao motion' : '+ Usar como referência'}
+        </button>
+      )}
     </aside>
   )
 }

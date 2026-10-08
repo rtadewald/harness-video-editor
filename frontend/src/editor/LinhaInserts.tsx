@@ -32,6 +32,8 @@ export default function LinhaInserts(p: {
   selecionar: (plano: string, aba?: Aba) => void
   /** Com 2 mídias: clicar num bloco seleciona o plano; mudar onde a 2ª começa (fração do insert; null = no meio). */
   escolherMidia: (plano: string) => void
+  /** O motion escolhido em cada plano de motion (nome). */
+  motions: Record<string, { nome: string }>
   ajustarCorte: (pid: string, v: number | null, salvar: boolean) => void
 }) {
   const rolagem = useRef<HTMLDivElement>(null)
@@ -146,10 +148,15 @@ export default function LinhaInserts(p: {
                   <button
                     key={pl.id}
                     onClick={() => p.selecionar(pl.id, 'motion')}
-                    className="absolute overflow-hidden rounded-[4px] border border-dashed border-yellow/40 px-1 text-[9.5px] whitespace-nowrap text-yellow/80"
+                    className={cn(
+                      'absolute overflow-hidden rounded-[4px] px-1.5 text-left text-[9.5px] font-semibold whitespace-nowrap',
+                      p.motions[pl.id] ? 'bg-yellow/15 text-yellow ring-1 ring-yellow/50' : 'border border-dashed border-yellow/40 text-yellow/80',
+                      p.selecionado === pl.id && 'ring-2 ring-yellow',
+                    )}
                     style={lugar}
+                    title={p.motions[pl.id]?.nome ?? 'Sem motion: clique e crie ou escolha um'}
                   >
-                    em construção
+                    {p.motions[pl.id] ? `✦ ${p.motions[pl.id].nome}` : '+ motion'}
                   </button>
                 )
               if (!ped) return null

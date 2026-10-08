@@ -7,13 +7,13 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
-from . import calibragem, captura_site, comum, exportacao, cortes, direcao, direcao_projeto, inserts, midia, mocks, motores, pipeline, projeto, referencias
+from . import calibragem, captura_site, comum, exportacao, motions, transicoes, cortes, direcao, direcao_projeto, inserts, midia, mocks, motores, pipeline, projeto, referencias
 
 comum.carregar_env()
 
@@ -27,6 +27,7 @@ async def ciclo(_app):
     inserts.atualizar_proxies()
     captura_site.retomar_interrompidas()
     exportacao.retomar_interrompidas()
+    motions.retomar_interrompidos()
     yield
 
 
@@ -64,6 +65,8 @@ class Config(BaseModel):
     modelo_direcao_projeto: str | None = Field(default=None, min_length=3, max_length=120)
     modelo_diretora: str | None = Field(default=None, min_length=3, max_length=120)  # quem escreve o roteiro dirigido
     raciocinio_diretora: Literal['low', 'medium', 'high'] | None = None
+    modelo_motion: str | None = Field(default=None, min_length=3, max_length=120)  # quem escreve os motions
+    identidade_motion: str | None = Field(default=None, max_length=6000)
 
 
 def _config_completa() -> dict:
@@ -836,11 +839,6 @@ def definir_transicao(id: str, t: TransicaoInserts):
         raise HTTPException(422, str(e))
 
 
-class CurvaPadrao(BaseModel):
-    curva: list[float] | None = None
-    duracao: float | None = None  # s
-
-
 class Exportar(BaseModel):
     resolucao: Literal['720p', '1080p', '4k'] = '4k'
     fps: Literal[24, 30, 60] = 24
@@ -894,12 +892,20 @@ def mostrar_exportacao(id: str):
     return {'ok': True}
 
 
-@app.put('/api/projetos/{id}/inserts/curva-padrao')
-def definir_curva_padrao(id: str, c: CurvaPadrao):
-    """A curva e a duração da entrada padrão do vídeo (para os inserts sem curva própria)."""
-    _ler(id)
+class Transicao(BaseModel):
+    campos: dict[str, Any]
+
+
+@app.get('/api/transicoes')
+def ler_transicoes():
+    """A configuração global de cada entrada e saída dos inserts."""
+    return transicoes.ler()
+
+
+@app.put('/api/transicoes/{lado}/{tipo}')
+def definir_transicao_global(lado: str, tipo: str, c: Transicao):
     try:
-        return inserts.definir_curva_padrao(id, c.curva, c.duracao)
+        return transicoes.definir(lado, tipo, c.campos)
     except ValueError as e:
         raise HTTPException(422, str(e))
 
@@ -1042,6 +1048,146 @@ def arquivo_do_banco(bid: str, qualidade: Literal['previa', 'exportacao'] = 'pre
     """O que toca ou aparece: a versão leve do vídeo, ou a imagem original; na exportação, o vídeo em resolução original."""
     item = _item(bid)
     return _no_banco(inserts.arquivo_para_exportar(item) if qualidade == 'exportacao' else inserts.arquivo_para_tocar(item))
+
+
+# ---------------------------------------------------------------- motions (SPEC §8.5)
+
+def _motion(mid: str) -> dict:
+    try:
+        return motions.ler(mid)
+    except FileNotFoundError:
+        raise HTTPException(404, 'Motion não encontrado')
+
+
+@app.get('/api/motions')
+def listar_motions():
+    return motions.listar()
+
+
+@app.post('/api/motions')
+def criar_motion(pedido: motions.Pedido):
+    """Um motion novo: a IA escreve a v1 em segundo plano (o status diz em que etapa está)."""
+    try:
+        return motions.criar(pedido)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+@app.get('/api/motions/{mid}')
+def ler_motion(mid: str):
+    return _motion(mid)
+
+
+class EdicaoMotion(BaseModel):
+    campos: dict[str, Any]
+
+
+@app.patch('/api/motions/{mid}')
+def editar_motion(mid: str, e: EdicaoMotion):
+    """Nome, favorito, versão aberta e valores dos campos."""
+    _motion(mid)
+    return motions.editar(mid, e.campos)
+
+
+class NovaVersao(BaseModel):
+    de: int
+    comentario: str = Field(min_length=1, max_length=3000)
+
+
+@app.post('/api/motions/{mid}/versoes')
+def corrigir_motion(mid: str, v: NovaVersao):
+    """A próxima versão, a partir da `de`, com o comentário."""
+    _motion(mid)
+    try:
+        return motions.corrigir(mid, v.de, v.comentario)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.delete('/api/motions/{mid}')
+def apagar_motion(mid: str):
+    _motion(mid)
+    motions.apagar(mid)
+    return {'ok': True}
+
+
+@app.get('/api/motions/{mid}/pagina')
+def pagina_motion(mid: str, n: int | None = None, exportacao: bool = False):
+    """O motion como página (o iframe da prévia e da exportação)."""
+    _motion(mid)
+    try:
+        return HTMLResponse(motions.pagina(mid, n, exportacao), headers={'Cache-Control': 'no-cache'})
+    except (LookupError, FileNotFoundError) as e:
+        raise HTTPException(404, str(e))
+
+
+@app.get('/api/motions/{mid}/miniatura')
+def miniatura_motion(mid: str, n: int | None = None):
+    m = _motion(mid)
+    arq = motions.pasta(mid) / f"v{n or m.get('ativa')}.jpg"
+    if not arq.is_file():
+        raise HTTPException(404, 'Sem miniatura')
+    return FileResponse(arq, headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/api/projetos/{id}/motions')
+def motions_do_projeto(id: str):
+    """O motion de cada plano (a cópia guardada no projeto)."""
+    return _ler(id).get('motions') or {}
+
+
+class UsoMotion(BaseModel):
+    motion: str
+    versao: int | None = None
+    valores: dict[str, str] | None = None
+
+
+@app.put('/api/projetos/{id}/motions/{plano}')
+def usar_motion(id: str, plano: str, u: UsoMotion):
+    """Copia a versão do motion (e os valores dos campos) para o plano."""
+    _ler(id)
+    _motion(u.motion)
+    try:
+        return motions.usar(id, plano, u.motion, u.versao, u.valores)
+    except (ValueError, FileNotFoundError) as e:
+        raise HTTPException(422, str(e))
+
+
+class ValoresMotion(BaseModel):
+    valores: dict[str, str]
+
+
+@app.patch('/api/projetos/{id}/motions/{plano}')
+def valores_motion_do_plano(id: str, plano: str, v: ValoresMotion):
+    _ler(id)
+    try:
+        return motions.valores_no_plano(id, plano, v.valores)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.delete('/api/projetos/{id}/motions/{plano}')
+def tirar_motion_do_plano(id: str, plano: str):
+    _ler(id)
+    motions.tirar_do_plano(id, plano)
+    return {'ok': True}
+
+
+@app.get('/api/projetos/{id}/motions/{plano}/pagina')
+def pagina_motion_do_plano(id: str, plano: str, duracao: float | None = None, exportacao: bool = False):
+    _ler(id)
+    try:
+        return HTMLResponse(motions.pagina_do_plano(id, plano, duracao, exportacao), headers={'Cache-Control': 'no-cache'})
+    except (LookupError, FileNotFoundError) as e:
+        raise HTTPException(404, str(e))
+
+
+@app.get('/api/projetos/{id}/motions/{plano}/miniatura')
+def miniatura_motion_do_plano(id: str, plano: str):
+    arq = projeto.pasta(id) / 'motions' / f'{plano}.jpg'
+    if not arq.is_file():
+        raise HTTPException(404, 'Sem miniatura')
+    return FileResponse(arq, headers={'Cache-Control': 'no-cache'})
 
 
 @app.get('/api/banco/{bid}/miniatura')
