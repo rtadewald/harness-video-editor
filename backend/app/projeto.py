@@ -27,7 +27,6 @@ MOTORES = {
 }
 PADRAO = 'elevenlabs'  # motor de transcrição de fábrica; muda em Configurações
 MODELO_DIRECAO = 'google/gemini-3.8-flash'  # multimodal que analisa as referências (OpenRouter); muda em Configurações
-MODELO_MOTION = 'anthropic/claude-opus-5.5'  # escreve os motions (código); muda em Configurações
 LEGADO = 'whisper-stable'  # projetos antigos e plano B quando o motor escolhido falha
 
 
@@ -40,8 +39,7 @@ def ler_config() -> dict:
     config = {'motor_padrao': PADRAO, 'antes_do_corte_ms': 100, 'depois_do_corte_ms': 100, 'pausa_max_ms': 2000, 'respiro_ms': 800,
               'modelo_direcao': MODELO_DIRECAO, 'quadros_por_segundo': 2,
               'formato_analise': 'video', 'grade_mosaico': '3x2', 'perfil_criador': '',
-              'modelo_direcao_projeto': MODELO_DIRECAO, 'regras_direcao': '', 'modelo_diretora': MODELO_DIRECAO, 'raciocinio_diretora': 'medium',
-              'modelo_motion': MODELO_MOTION, 'identidade_motion': ''}
+              'modelo_direcao_projeto': MODELO_DIRECAO, 'regras_direcao': '', 'modelo_diretora': MODELO_DIRECAO, 'raciocinio_diretora': 'medium'}
     try:
         config.update(json.loads(_arquivo_config().read_text(encoding='utf-8')))
     except (FileNotFoundError, ValueError):
@@ -56,8 +54,6 @@ def ler_config() -> dict:
     config['modelo_direcao_projeto'] = str(config['modelo_direcao_projeto']).strip() or MODELO_DIRECAO
     config['regras_direcao'] = str(config.get('regras_direcao') or '').strip()[:3000]  # antigo: migra para a heurística (calibragem.ler_heuristica)
     config['modelo_diretora'] = str(config.get('modelo_diretora') or '').strip() or MODELO_DIRECAO
-    config['modelo_motion'] = str(config.get('modelo_motion') or '').strip() or MODELO_MOTION
-    config['identidade_motion'] = str(config.get('identidade_motion') or '').strip()[:6000]
     if config.get('raciocinio_diretora') not in ('low', 'medium', 'high'):
         config['raciocinio_diretora'] = 'medium'
     config.pop('diretora_variante', None)

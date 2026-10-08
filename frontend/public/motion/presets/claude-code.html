@@ -1,0 +1,108 @@
+<script type="application/json" id="preset">{"nome": "Janela do Claude Code", "descricao": "A janela do terminal entra pequena e cresce até passar da borda; o prompt é digitado letra a letra e a cena acompanha o cursor.", "fundo": "verde_claro", "duracao": 2.6, "miniatura": 0.45}</script>
+<script type="application/json" id="campos">{"prompt": {"tipo": "texto", "rotulo": "O que é digitado", "padrao": "cria esse site pra mim com animações 3d"}}</script>
+<style>
+  /* medidas da janela em px "naturais" (922×782 na tela cheia; mais baixa na dividida, com o prompt e o rodapé presos
+     embaixo — o meio é só espaço escuro); a cena escala e move a janela inteira */
+  #pan { position: absolute; left: 0; top: 0; will-change: transform; }
+  #janela { position: absolute; left: 0; top: 0; width: 922px; height: 782px; transform-origin: 0 0; border-radius: 14px; background: #1b1b1b;
+    box-shadow: 0 28px 70px rgba(0, 0, 0, .28), 0 6px 18px rgba(0, 0, 0, .18); overflow: hidden; font-family: "SF Mono", Menlo, monospace; will-change: transform; }
+  #barra { position: absolute; inset: 0 0 auto 0; height: 30px; background: #252525; }
+  .bola { position: absolute; top: 9px; width: 13px; height: 13px; border-radius: 50%; }
+  #titulo { position: absolute; top: 0; left: 0; right: 0; line-height: 30px; text-align: center; font-size: 21px; color: #8d8d8d; letter-spacing: .01em; }
+  #mascote { position: absolute; left: 20px; top: 56px; width: 120px; height: 80px; }
+  #info { position: absolute; left: 184px; top: 50px; font-size: 21px; line-height: 30.5px; color: #9a9a9a; white-space: pre; }
+  #info b { color: #f2f2f2; font-weight: 700; }
+  .regua { position: absolute; left: 20px; right: 0; height: 1.5px; background: #5b5b5b; }
+  #linha { position: absolute; left: 20px; right: 20px; bottom: 76px; height: 34px; overflow: hidden; font-size: 24px; line-height: 34px; color: #f4f4f4; white-space: pre; }
+  #seta { position: absolute; left: 0; top: 0; font-weight: 700; }
+  #rolo { position: absolute; left: 32px; top: 0; right: 0; overflow: hidden; height: 34px; }
+  #texto { position: absolute; left: 0; top: 0; will-change: transform; }
+  #cursor { display: inline-block; width: 2px; height: 27px; margin-left: 1px; background: #f4f4f4; vertical-align: -5px; }
+  #rodape { position: absolute; left: 20px; bottom: 15px; font-size: 21px; line-height: 30px; color: #8d8d8d; white-space: pre; }
+  #rodape span { color: #d8a93f; }
+</style>
+<div id="pan">
+  <div id="janela">
+    <div id="barra">
+      <div class="bola" style="left:13px;background:#ff5f57"></div>
+      <div class="bola" style="left:33px;background:#febc2e"></div>
+      <div class="bola" style="left:53px;background:#28c840"></div>
+      <div id="titulo">perf-audit — claude — 72×20</div>
+    </div>
+    <!-- o mascote em pixel art: 12×8 quadradinhos de 10 px -->
+    <svg id="mascote" viewBox="0 0 12 8" shape-rendering="crispEdges">
+      <g fill="#d97757">
+        <rect x="2" y="0" width="8" height="2" /><rect x="0" y="2" width="12" height="2" /><rect x="2" y="4" width="8" height="2" />
+        <rect x="2" y="6" width="1" height="2" /><rect x="4" y="6" width="1" height="2" /><rect x="7" y="6" width="1" height="2" /><rect x="9" y="6" width="1" height="2" />
+      </g>
+      <g fill="#1b1b1b"><rect x="3" y="1" width="1" height="1" /><rect x="8" y="1" width="1" height="1" /></g>
+    </svg>
+    <div id="info"><b>Claude Code</b>
+Opus (1M context) · ~/acme
+~/acme/api/perf-audit</div>
+    <div class="regua" style="bottom:120.5px"></div>
+    <div id="linha"><span id="seta">❯</span><div id="rolo"><span id="texto"><span id="digitado"></span><span id="cursor"></span></span></div></div>
+    <span id="medida" style="position:absolute;visibility:hidden;font-size:24px;white-space:pre"></span>
+    <div class="regua" style="bottom:60.5px"></div>
+    <div id="rodape"><span>▸▸ auto mode on</span> (shift+tab to cycle)</div>
+  </div>
+</div>
+<script>
+  (function () {
+    const W = MOTION.largura, H = MOTION.altura, D = MOTION.duracao
+    const texto = String(MOTION.campos.prompt || '')
+    const janela = document.getElementById('janela'), pan = document.getElementById('pan')
+    const digitado = document.getElementById('digitado')
+    const medida = document.getElementById('medida')
+
+    // medido na referência (1080×1920): a janela entra com 922×782 (x 80, y 508) e cresce ×1,63 em ~1 s, com a origem perto da
+    // borda esquerda, na altura do meio da tela; a curva quase não anda no começo e chega bem devagar
+    const alto = H > W
+    // na tela dividida (1080×960), a mesma composição: mesma largura e mesmo zoom (passa da borda direita), com a janela
+    // mais baixa para caber na metade de cima
+    const ALT = alto ? 782 : 500
+    janela.style.height = `${ALT}px`
+    const kIni = 1, kFim = 1.63
+    const ini = { x: W * 0.074, y: alto ? H * 0.2646 : (H - ALT) / 2 }
+    const fim = { x: W * 0.067, y: alto ? H * 0.1167 : H * 0.07 }
+
+    const tl = gsap.timeline({ paused: true })
+    gsap.set(janela, { x: ini.x, y: ini.y, scale: kIni })
+    tl.to(janela, { x: fim.x, y: fim.y, scale: kFim, duration: Math.min(1.05, D * 0.5), ease: motion.curva(0.25, 0, 0.15, 1) }, 0)
+
+    // a digitação começa em ~0,2 s, a ~14 letras por segundo (ou junto com a fala, se o texto for dito)
+    const t0 = Math.min(0.2, D * 0.08)
+    const tempos = motion.digitar(texto, t0, D - 0.2, 0.07)
+    const t1 = tempos.length ? tempos[tempos.length - 1] : t0
+
+    // a cena nunca para: depois do zoom ela desliza para a esquerda com velocidade crescente (na referência, o
+    // deslocamento cresce como ~82·(t − 0,65)² px: aceleração de ~164 px/s²), até acompanhar a digitação; quando a
+    // digitação acaba, a velocidade cai devagar para um deslize lento que segue até o corte
+    const T0 = 0.65, ACEL = 164 * (W / 1080), LENTO = 40 * (W / 1080)
+    const largLetra = () => { medida.textContent = 'MMMMMMMMMM'; return medida.offsetWidth / 10 } // a fonte pode chegar depois
+    const velocidade = (t, vDig) => {
+      if (t <= T0) return 0
+      const subida = vDig * Math.tanh((ACEL * (Math.min(t, t1) - T0)) / Math.max(vDig, 1))
+      return t <= t1 ? subida : LENTO + (subida - LENTO) * Math.exp(-(t - t1) / 0.7)
+    }
+    const deslize = (t, vDig) => {
+      let soma = 0
+      for (let s = 0; s < t; s += 1 / 240) soma += velocidade(s, vDig) / 240
+      return soma
+    }
+    // proteção: o cursor nunca passa de ~90% da largura (só entra em textos longos demais para o deslize)
+    const B = W * 0.9
+    motion.aCada(function (t) {
+      let n = 0
+      while (n < tempos.length && tempos[n] <= t) n++
+      digitado.textContent = texto.slice(0, n)
+      const letra = largLetra(), k = gsap.getProperty(janela, 'scale')
+      const vDig = (letra * kFim) / Math.max((t1 - t0) / Math.max(tempos.length, 1), 0.02) // a velocidade da digitação na tela
+      const naTela = gsap.getProperty(janela, 'x') + (52 + digitado.offsetWidth) * k
+      const d = Math.max(deslize(t, vDig), naTela - B)
+      pan.style.transform = `translateX(${-d}px)`
+    })
+    tl.to({}, { duration: 0 }, D)
+    motion.pronto(tl)
+  })()
+</script>

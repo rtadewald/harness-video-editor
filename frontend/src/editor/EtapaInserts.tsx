@@ -41,7 +41,7 @@ import {
   ZoomIn,
 } from 'lucide-react'
 import { s1, definirMidias, configurarComentario, definirFundo, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, tempoBR, urlBancoMiniatura, type DadosEditor, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
-import { urlPaginaMotionPlano } from '@/motions/api'
+import { falaDoPlano, fundoDoMotion, urlPaginaMotionPlano } from '@/motions/api'
 import { cn } from '@/lib/utils'
 import { useLembrado } from '@/lib/useLembrado'
 import { paraTempo, palavrasNaSaida } from './direcaoProjeto'
@@ -55,9 +55,9 @@ import SeletorBanco from './SeletorBanco'
 import EditorPreset from './EditorPreset'
 import MiniPreset from './MiniPreset'
 import { presetsPara, usePresets } from './presets'
-import ModalMotions from '@/motions/ModalMotions'
 import MotionNoLugar from '@/motions/MotionNoLugar'
 import PainelMotion from '@/motions/PainelMotion'
+import { EdicaoPreset } from '@/motions/PresetMotion'
 import { useMotionsDoProjeto } from '@/motions/useMotionsDoProjeto'
 import EditorVideo from './EditorVideo'
 import { FUNDOS } from './Fundo'
@@ -100,10 +100,8 @@ export default function EtapaInserts(p: Props) {
   const [selPlano, setSelPlano] = useState<string | null>(null)
   const [subindo, setSubindo] = useState(false)
   const [buscandoRefs, setBuscandoRefs] = useState(false)
-  // motions (SPEC §8.5): o de cada plano (cópia no projeto), o modal e o seletor do banco que o modal pede
+  // motions (SPEC §8.5): o de cada plano (um preset ou um vídeo do banco)
   const { motions, recarregar: recarregarMotions } = useMotionsDoProjeto(projeto.id)
-  const [modalMotion, setModalMotion] = useState(false)
-  const [escolhaBanco, setEscolhaBanco] = useState<((i: ItemBanco) => void) | null>(null)
   const falhar = (e: unknown) => window.alert((e as Error).message)
 
   // o mapa tem os originais e os trechos (um trecho toca o arquivo do original, do início ao fim dele)
@@ -198,6 +196,8 @@ export default function EtapaInserts(p: Props) {
     if (salvarAgora) void enriquecerInsert(projeto.id, pid, { corte: v }).then(setIns).catch(falhar)
   }
   const ehMotion = !!planoSel && TEM_MOTION.includes(planoSel.tipo)
+  // o preset do plano de motion selecionado: o card de edição dele vai na coluna ao lado do vídeo
+  const motionPreset = ehMotion && motions[planoSel.id]?.tipo === 'preset' ? motions[planoSel.id] : null
   const comMidia = pedidos.filter((x) => x.midias.length).length
   /** Seleciona o plano e leva a prévia até ele, já depois da entrada, para o insert aparecer inteiro. */
   const escolher = (plano: string) => {
@@ -342,7 +342,7 @@ export default function EtapaInserts(p: Props) {
                 <span className="w-fit rounded-full bg-yellow px-2.5 py-1 text-[11px] font-semibold text-ink">{CATEGORIAS.planos[planoSel.tipo]}</span>
                 <p className="border-l-2 border-line-dark pl-3 text-[12.5px] leading-[1.6] text-cream/90">“{planoSel.fala}”</p>
                 {planoSel.descricao && <Campo rotulo="O que a direção pede">{planoSel.descricao}</Campo>}
-                <PainelMotion projetoId={projeto.id} plano={planoSel.id} motion={motions[planoSel.id]} abrir={() => setModalMotion(true)} mudou={recarregarMotions} />
+                <PainelMotion key={planoSel.id} projetoId={projeto.id} plano={planoSel} motion={motions[planoSel.id]} mudou={recarregarMotions} bancoMudou={() => void carregarBanco()} />
               </div>
             ) : (
               <SemInsert plano={planoSel} />
@@ -367,8 +367,9 @@ export default function EtapaInserts(p: Props) {
             sobreposicao={
               motionNoCursor ? (
                 <MotionNoLugar
-                  src={urlPaginaMotionPlano(projeto.id, motionNoCursor.id, motions[motionNoCursor.id], motionNoCursor.fim - motionNoCursor.inicio)}
+                  src={urlPaginaMotionPlano(projeto.id, motionNoCursor.id, motions[motionNoCursor.id], motionNoCursor.fim - motionNoCursor.inicio, falaDoPlano(saida, motionNoCursor.inicio, motionNoCursor.fim))}
                   formato={motions[motionNoCursor.id].formato}
+                  fundo={fundoDoMotion(motions[motionNoCursor.id])}
                   rel={tempo - motionNoCursor.inicio}
                 />
               ) : noCursor && (
@@ -403,6 +404,11 @@ export default function EtapaInserts(p: Props) {
                   ver={sel ? () => player.tocarTrecho(seq.saidaParaFonte(sel.t.inicio), seq.saidaParaFonte(Math.max(sel.t.fim - 0.01, sel.t.inicio)), { pular: true, loop: false }) : undefined}
                 />
               )}
+              {motionPreset && planoSel && (
+                <Recolhivel chave="motion" titulo="Motion" resumo={<span className="truncate text-[11.5px] text-fog">{motionPreset.nome}</span>}>
+                  <EdicaoPreset projetoId={projeto.id} plano={planoSel.id} motion={motionPreset} mudou={recarregarMotions} bancoMudou={() => void carregarBanco()} />
+                </Recolhivel>
+              )}
               <Recolhivel chave="fundo" titulo="Fundo" resumo={<ResumoFundo id={ins?.fundo ?? 'gradiente'} />}>
                 <EscolhaFundo atual={ins?.fundo ?? 'gradiente'} escolher={(f) => void definirFundo(projeto.id, f).then(setIns).catch(falhar)} />
               </Recolhivel>
@@ -418,7 +424,7 @@ export default function EtapaInserts(p: Props) {
                 <PanelRightOpen className="size-4" />
               </button>
               {/* recolhidos, os cards viram abas em pé (como os painéis recolhidos do Photoshop) */}
-              {[...(presetAberto ? ['Preset'] : []), 'Fundo', ...(sel?.tipo === 'comentario_insert_ator' ? ['Comentário'] : [])].map((nome) => (
+              {[...(presetAberto ? ['Preset'] : []), ...(motionPreset ? ['Motion'] : []), 'Fundo', ...(sel?.tipo === 'comentario_insert_ator' ? ['Comentário'] : [])].map((nome) => (
                 <button
                   key={nome}
                   onClick={() => setColuna(true)}
@@ -484,27 +490,6 @@ export default function EtapaInserts(p: Props) {
       <div className="relative min-h-0">
         <Alca lado="linha" pos={tam.linha} arrastar={arrastarBorda} />
         {buscandoRefs && <BuscarReferencias tipo={planoSel?.tipo ?? null} fechar={() => setBuscandoRefs(false)} />}
-        {modalMotion && planoSel && ehMotion && (
-          <ModalMotions
-            projetoId={projeto.id}
-            plano={planoSel}
-            atual={motions[planoSel.id] ?? null}
-            banco={banco}
-            escolherDoBanco={(f) => setEscolhaBanco(() => f)}
-            fechar={() => setModalMotion(false)}
-            mudou={recarregarMotions}
-          />
-        )}
-        {escolhaBanco && (
-          <SeletorBanco
-            fechar={() => setEscolhaBanco(null)}
-            escolher={(i) => {
-              escolhaBanco(i)
-              setEscolhaBanco(null)
-            }}
-            mudou={() => void carregarBanco()}
-          />
-        )}
         <LinhaInserts
           duracao={seq.duracao}
           planos={planosLinha}

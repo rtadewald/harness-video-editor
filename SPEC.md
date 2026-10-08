@@ -382,7 +382,7 @@ Sem tempos nem proporções: só o roteiro e o que fazia sentido mostrar ali. Mo
 
 ### 8.5 Motions
 
-✅ Animações escritas por IA em HTML + CSS + GSAP, com biblioteca, campos editáveis, versões e uso nos planos de motion; tocam ao vivo na prévia e entram na exportação. **A especificação completa fica em [docs/motions.md](docs/motions.md)** (separada para os motions poderem andar em paralelo com o resto).
+✅ Num plano de motion, um **preset** (animação pronta em HTML + CSS + GSAP, escrita à mão, em que o criador troca só os textos, a imagem e o fundo) ou um **vídeo** feito fora (do banco; entra e sai seco). Tocam ao vivo na prévia e entram na exportação. (A geração por IA saiu em out/2026.) **A especificação completa fica em [docs/motions.md](docs/motions.md)** (separada para os motions poderem andar em paralelo com o resto).
 
 ### 8.6 Áudio (mock)
 

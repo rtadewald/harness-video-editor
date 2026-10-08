@@ -1,16 +1,91 @@
-/* Runtime dos motions (SPEC §8.5). O motion (escrito pela IA) monta uma timeline do GSAP pausada e a entrega com
- * `motion.pronto(tl)`. Quem manda no tempo é o app: `window.__ir(t)` leva a cena ao instante t (s) — a timeline, e os
- * vídeos com `data-inicio` (o instante da cena em que começam) — e resolve quando tudo está pintado. A duração do plano
- * pode mudar depois: a timeline é esticada ou encolhida na proporção. */
+/* Runtime dos motions (SPEC §8.5). O preset monta uma timeline do GSAP pausada (com `MOTION.duracao`, a do plano) e a
+ * entrega com `motion.pronto(tl)`. Quem manda no tempo é o app: `window.__ir(t)` leva a cena ao instante t (s) — a
+ * timeline, os vídeos com `data-inicio` (o instante da cena em que começam) e o que foi registrado em `motion.aCada` —
+ * e resolve quando tudo está pintado. Se a timeline tiver outra duração, é esticada ou encolhida na proporção. */
 (function () {
   var M = window.MOTION || {}
   var tl = null
   var esperando = []
+  var aCada = []
+  var norm = function (s) {
+    return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
+  }
   window.motion = {
     pronto: function (t) {
       tl = t
       tl.pause(0)
+      aCada.forEach(function (f) { f(0) })
       esperando.splice(0).forEach(function (f) { f() })
+    },
+    /** Uma cubic-bezier (como no CSS) como ease do GSAP. As curvas dos presets foram ajustadas às referências: quase
+     *  todas têm entrada curta e suave e chegada bem longa, perto de (0.25, 0.1, 0.1, 1) em 0,8 a 1 s. */
+    curva: function (x1, y1, x2, y2) {
+      var b = function (a1, a2, t) { return 3 * (1 - t) * (1 - t) * t * a1 + 3 * (1 - t) * t * t * a2 + t * t * t }
+      return function (x) {
+        if (x <= 0 || x >= 1) return x
+        var lo = 0, hi = 1, t = x
+        for (var k = 0; k < 30; k++) { // busca binária: o t em que a curva passa por x
+          t = (lo + hi) / 2
+          if (b(x1, x2, t) < x) lo = t
+          else hi = t
+        }
+        return b(y1, y2, t)
+      }
+    },
+    /** `f(t)` roda a cada instante pedido (t = tempo da cena, em s): para o que não é tween, como a digitação. */
+    aCada: function (f) {
+      aCada.push(f)
+    },
+    /** O instante (s) em que cada letra de `texto` aparece, a partir de `ini` e no máximo até `fim`. Se o texto é dito na
+     *  fala do plano (as mesmas palavras, em sequência), cada palavra é digitada enquanto é falada. Senão, num ritmo de
+     *  gente: `ritmo` s por letra (sem ele, o texto se espalha até `fim`), com pausas depois de vírgula e de ponto, como
+     *  nas referências (a digitação vem em rajadas). Se não couber até `fim`, o ritmo aperta. */
+    digitar: function (texto, ini, fim, ritmo) {
+      var n = texto.length
+      var tempos = []
+      var palavras = texto.split(/(\s+)/) // mantém os espaços
+      var digitadas = palavras.filter(function (p) { return norm(p) })
+      var fala = (M.fala || []).map(function (w) { return { n: norm(w.texto), ini: w.ini, fim: w.fim } }).filter(function (w) { return w.n })
+      var achou = -1
+      for (var i = 0; digitadas.length && i + digitadas.length <= fala.length && achou < 0; i++) {
+        var ok = true
+        for (var j = 0; j < digitadas.length && ok; j++) ok = fala[i + j].n === norm(digitadas[j])
+        if (ok) achou = i
+      }
+      if (achou < 0) {
+        // o peso de cada letra: 1, e a pausa depois da pontuação (vírgula ~5 letras, ponto ~9)
+        var pesos = []
+        for (var k = 0; k < n; k++) {
+          var antes = texto[k - 1]
+          // e, depois de uma palavra a cada ~3 (sempre as mesmas: a exportação sai igual à prévia), uma pausa curta
+          var palavra = texto.slice(0, k).split(/\s+/).length
+          // (só pontuação seguida de espaço: dentro de um link, como "openrouter.ai", não pausa)
+          var pont = texto[k] === ' ' ? texto[k - 1] : ''
+          pesos.push(pont === ',' || pont === ';' || pont === ':' ? 6 : pont === '.' || pont === '!' || pont === '?' ? 10 : antes === ' ' && (palavra * 7) % 3 === 0 ? 4 : 1)
+        }
+        var total = pesos.reduce(function (a, b) { return a + b }, 0)
+        var passo = ritmo ? Math.min(ritmo, (fim - ini) / Math.max(total, 1)) : (fim - ini) / Math.max(total, 1)
+        var acc = 0
+        for (var q = 0; q < n; q++) {
+          tempos.push(ini + acc * passo)
+          acc += pesos[q + 1] || 1
+        }
+        return tempos
+      }
+      var w = achou
+      var ultimo = ini
+      palavras.forEach(function (p) {
+        if (!norm(p)) { // espaço (ou pontuação solta): logo depois da palavra anterior
+          for (var a = 0; a < p.length; a++) tempos.push(ultimo)
+          return
+        }
+        var f = fala[w++]
+        var a0 = Math.max(ini, f.ini)
+        var a1 = Math.max(a0, Math.min(fim, f.fim))
+        for (var b = 0; b < p.length; b++) tempos.push(a0 + ((a1 - a0) * b) / p.length)
+        ultimo = a1
+      })
+      return tempos
     },
   }
   function quadro() {
@@ -47,6 +122,7 @@
       var dur = tl.duration() || 1
       var escala = M.duracao ? dur / M.duracao : 1 // a duração do plano manda
       tl.time(Math.max(0, Math.min(t * escala, dur)), false)
+      aCada.forEach(function (f) { f(tl.time()) })
       return Promise.all([document.fonts.ready, videosProntos(t)]).then(quadro)
     }
     // um motion que nunca chama motion.pronto (erro no código) não pode travar a prévia nem a exportação

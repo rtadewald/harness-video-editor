@@ -1,0 +1,54 @@
+<script type="application/json" id="preset">{"nome": "Caixa de prompt", "descricao": "Uma caixa de prompt branca com o texto sendo digitado; a cena se afasta devagar o tempo todo, sem nunca parar.", "fundo": "verde_claro", "duracao": 2.5}</script>
+<script type="application/json" id="campos">{"prompt": {"tipo": "texto", "rotulo": "O que é digitado", "padrao": "Let's design an interactive, dark themed graphic showing how culture flows between cities. A rotating globe"}}</script>
+<style>
+  /* medidas da referência em 1080×1920, no fim do afastamento (escala 1): card de 920 px, base a ~60% da altura */
+  #card { position: absolute; left: 50%; width: 920px; margin-left: -460px; border-radius: 44px; background: #fdfdfd;
+    box-shadow: 0 34px 80px rgba(20, 40, 30, .16), 0 8px 22px rgba(20, 40, 30, .08); transform-origin: 50% 100%; will-change: transform;
+    font-family: "SF Pro", system-ui, sans-serif; }
+  #texto { padding: 44px 74px 0 43px; min-height: 56px; font-size: 45px; line-height: 56px; letter-spacing: -.005em; color: #1f1f1f; word-wrap: break-word; }
+  #cursor { display: inline-block; width: 2.5px; height: 44px; margin-left: 2px; background: #1f1f1f; vertical-align: -9px; }
+  #botoes { display: flex; align-items: center; gap: 12px; padding: 84px 43px 43px; }
+  .b { display: grid; place-items: center; height: 78px; border-radius: 16px; border: 2px solid #dcdcdc; color: #8b8b8b; }
+  .q { width: 78px; }
+  .b svg { width: 34px; height: 34px; }
+  #importar { padding: 0 38px; font-size: 36px; }
+  #enviar { margin-left: auto; display: flex; align-items: center; gap: 16px; height: 80px; padding: 0 36px 0 32px; border-radius: 16px; background: #d97757; color: #fff; font-size: 38px; font-weight: 500; }
+  #enviar svg { width: 36px; height: 36px; }
+</style>
+<div id="card">
+  <div id="texto"><span id="digitado"></span><span id="cursor"></span></div>
+  <div id="botoes">
+    <div class="b q"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></div>
+    <div class="b q"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" /></svg></div>
+    <div class="b q"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z" /></svg></div>
+    <div class="b" id="importar">Import</div>
+    <div id="enviar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 4l17 8-17 8 3-8z" /><path d="M7 12h14" /></svg>Send</div>
+  </div>
+</div>
+<script>
+  (function () {
+    const W = MOTION.largura, H = MOTION.altura, D = MOTION.duracao
+    const texto = String(MOTION.campos.prompt || '')
+    const card = document.getElementById('card'), digitado = document.getElementById('digitado')
+
+    // a base do card fica parada (as linhas novas crescem para cima, de uma vez, como na referência)
+    const alto = H > W
+    const base = alto ? 1 : 0.8
+    card.style.bottom = `${H - (alto ? H * 0.6 : H * 0.8)}px`
+
+    // o afastamento (medido, 24 fps): começa a 1,25× (o card passa das bordas), arranca devagar, acelera até ~0,5 s e
+    // segue numa velocidade lenta e constante até o corte — nunca para (a curva termina ainda andando)
+    const tl = gsap.timeline({ paused: true })
+    tl.fromTo(card, { scale: base * 1.25 }, { scale: base, duration: D, ease: motion.curva(0.2, 0.05, 0.1, 0.45) }, 0)
+
+    // a digitação vem em rajadas, rápida (~0,018 s por letra, com pausas na pontuação e entre algumas palavras); começou
+    // antes do corte: no 1º quadro já há algumas letras
+    const tempos = motion.digitar(texto, -0.25, D - 0.1, 0.0185)
+    motion.aCada(function (t) {
+      let n = 0
+      while (n < tempos.length && tempos[n] <= t) n++
+      digitado.textContent = texto.slice(0, n)
+    })
+    motion.pronto(tl)
+  })()
+</script>

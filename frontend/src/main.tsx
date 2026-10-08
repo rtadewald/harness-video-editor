@@ -11,6 +11,7 @@ import Banco from './paginas/Banco'
 import RevisaoReferencia from './paginas/RevisaoReferencia'
 import { RenderChuva, RenderProjeto } from './paginas/Render'
 import Presets from './paginas/Presets'
+import PaginaMotions from './motions/PaginaMotions'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -24,6 +25,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/heuristica" element={<Heuristica />} />
         <Route path="/banco" element={<Banco />} />
         <Route path="/presets" element={<Presets />} />
+        <Route path="/motions" element={<PaginaMotions />} />
         <Route path="/render/chuva" element={<RenderChuva />} />
         <Route path="/render/p/:id" element={<RenderProjeto />} />
       </Routes>

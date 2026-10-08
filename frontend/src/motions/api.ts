@@ -1,126 +1,86 @@
-/** A API dos motions (SPEC §8.5; docs/motions.md): a biblioteca e o motion de cada plano de um projeto. */
+/** A API dos motions (SPEC §8.5; docs/motions.md): os presets e o motion de cada plano de um projeto. */
 import { enviar, json } from "@/api";
 
+export type Formato = "vertical" | "dividida";
 export type CampoMotion = {
-  tipo: "texto" | "cor";
+  tipo: "texto" | "cor" | "imagem";
   rotulo: string;
   padrao: string;
 };
-export type ReferenciaMotion = {
-  ref: string;
-  inicio: number;
-  fim: number;
-  tipo: string;
-  descricao: string;
-  texto?: string | null;
-};
-export type VersaoMotion = {
-  n: number;
-  de: number | null;
-  comentario: string | null;
-  campos: Record<string, CampoMotion>;
-  criado_em: string;
-  modelo: string;
-  segundos: number;
-};
-export type Motion = {
+export type Preset = {
   id: string;
   nome: string;
-  formato: "vertical" | "dividida";
+  descricao: string;
+  fundo: string;
   duracao: number;
-  criado_em: string;
-  favorito: boolean;
-  pedido: {
-    nome: string;
-    formato: string;
-    duracao: number;
-    prompt: string;
-    referencias: ReferenciaMotion[];
-    midias: string[];
-  };
-  versoes: VersaoMotion[];
-  ativa: number | null;
-  valores: Record<string, string>;
-  status: {
-    estado: "fila" | "gerando" | "pronto" | "erro";
-    erro: string | null;
-    etapa: "escrevendo" | "conferindo" | "finalizando" | null;
-  };
-};
-/** O motion de um plano: a cópia guardada no projeto. */
-export type MotionPlano = {
-  origem: string;
-  versao: number;
-  nome: string;
-  formato: "vertical" | "dividida";
-  duracao: number;
+  /** o instante da miniatura parada, em fração da duração */
+  miniatura: number;
   campos: Record<string, CampoMotion>;
-  valores: Record<string, string>;
-  midias: string[];
-  usado_em: string;
 };
-export const listarMotions = () => fetch("/api/motions").then(json<Motion[]>);
-export const criarMotion = (p: {
-  nome: string;
-  formato: string;
-  duracao: number;
-  prompt: string;
-  referencias: ReferenciaMotion[];
-  midias: string[];
-}) => enviar<Motion>("POST", "/api/motions", p);
-export const editarMotion = (
-  mid: string,
-  campos: Partial<{
-    nome: string;
-    favorito: boolean;
-    ativa: number;
-    valores: Record<string, string>;
-  }>,
-) => enviar<Motion>("PATCH", `/api/motions/${mid}`, { campos });
-export const novaVersaoMotion = (mid: string, de: number, comentario: string) =>
-  enviar<Motion>("POST", `/api/motions/${mid}/versoes`, { de, comentario });
-export const apagarMotion = (mid: string) =>
-  enviar<{ ok: boolean }>("DELETE", `/api/motions/${mid}`);
-export const urlPaginaMotion = (m: Motion, n?: number | null) =>
-  `/api/motions/${m.id}/pagina?n=${n ?? m.ativa ?? ""}&v=${encodeURIComponent(JSON.stringify(m.valores))}`;
-export const urlMiniaturaMotion = (m: Motion, n?: number | null) =>
-  `/api/motions/${m.id}/miniatura?n=${n ?? m.ativa ?? ""}`;
+/** O motion de um plano: um preset (com os valores e o fundo) ou um vídeo do banco. */
+export type MotionPlano = { nome: string; formato: Formato; usado_em: string } & (
+  | { tipo: "preset"; preset: string; valores: Record<string, string>; fundo: string }
+  | { tipo: "video"; banco: string }
+);
+/** As palavras ditas no plano, em segundos desde o começo dele (a digitação dos presets acompanha a fala). */
+export type Fala = { texto: string; ini: number; fim: number }[];
+
+export const listarPresets = () =>
+  fetch("/api/motions/presets").then(json<Preset[]>);
 export const motionsDoProjeto = (id: string) =>
   fetch(`/api/projetos/${id}/motions`).then(json<Record<string, MotionPlano>>);
-export const usarMotion = (
+export const usarPreset = (
   id: string,
   plano: string,
-  motion: string,
-  versao?: number | null,
-  valores?: Record<string, string>,
+  formato: Formato,
+  preset: string,
+  valores: Record<string, string> = {},
+  fundo?: string,
 ) =>
   enviar<MotionPlano>("PUT", `/api/projetos/${id}/motions/${plano}`, {
-    motion,
-    versao,
+    tipo: "preset",
+    formato,
+    preset,
     valores,
+    fundo,
   });
-export const valoresMotionPlano = (
+export const usarVideo = (id: string, plano: string, formato: Formato, banco: string) =>
+  enviar<MotionPlano>("PUT", `/api/projetos/${id}/motions/${plano}`, {
+    tipo: "video",
+    formato,
+    banco,
+  });
+export const ajustarMotion = (
   id: string,
   plano: string,
-  valores: Record<string, string>,
-) =>
-  enviar<MotionPlano>("PATCH", `/api/projetos/${id}/motions/${plano}`, {
-    valores,
-  });
+  a: { valores?: Record<string, string>; fundo?: string },
+) => enviar<MotionPlano>("PATCH", `/api/projetos/${id}/motions/${plano}`, a);
 export const tirarMotionDoPlano = (id: string, plano: string) =>
   enviar<{ ok: boolean }>("DELETE", `/api/projetos/${id}/motions/${plano}`);
-/** A página do motion de um plano: `duracao` = a do plano agora (a animação estica ou encolhe se mudou). */
+
+/** O fundo atrás do motion: o do preset; um vídeo cobre o palco todo, sem fundo. */
+export const fundoDoMotion = (m: MotionPlano) => (m.tipo === "preset" ? m.fundo : undefined);
+
+/** As palavras de saída que caem no plano, com o tempo relativo ao começo dele. */
+export const falaDoPlano = (
+  palavras: { texto: string; saida_ini: number; saida_fim: number }[],
+  ini: number,
+  fim: number,
+): Fala =>
+  palavras
+    .filter((w) => w.saida_ini >= ini - 0.01 && w.saida_ini < fim)
+    .map((w) => ({ texto: w.texto, ini: +(w.saida_ini - ini).toFixed(3), fim: +(w.saida_fim - ini).toFixed(3) }));
+
+/** A página do motion de um plano: `duracao` = a do plano agora; `fala` = as palavras dele. */
 export const urlPaginaMotionPlano = (
   id: string,
   plano: string,
   m: MotionPlano,
   duracao: number,
+  fala: Fala,
   exportacao = false,
 ) =>
-  `/api/projetos/${id}/motions/${plano}/pagina?duracao=${duracao.toFixed(3)}${exportacao ? "&exportacao=true" : ""}&v=${encodeURIComponent(m.usado_em + JSON.stringify(m.valores))}`;
-export const urlMiniaturaMotionPlano = (
-  id: string,
-  plano: string,
-  m: MotionPlano,
-) =>
-  `/api/projetos/${id}/motions/${plano}/miniatura?v=${encodeURIComponent(m.usado_em)}`;
+  `/api/projetos/${id}/motions/${plano}/pagina?duracao=${duracao.toFixed(3)}&fala=${encodeURIComponent(JSON.stringify(fala))}${exportacao ? "&exportacao=true" : ""}&v=${encodeURIComponent(m.usado_em + JSON.stringify(m.tipo === "preset" ? m.valores : m.banco))}`;
+/** Um preset com estes valores, fora de um plano (as miniaturas da grade). */
+export const urlPaginaPreset = (p: Preset, formato: Formato, valores: Record<string, string> = {}) =>
+  `/api/motions/presets/${p.id}/pagina?formato=${formato}&valores=${encodeURIComponent(JSON.stringify(valores))}`;

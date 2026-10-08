@@ -1,0 +1,65 @@
+<script type="application/json" id="preset">{"nome": "Barra de busca", "descricao": "Uma lupa surge e vira barra de busca enquanto o link é digitado; a cena se aproxima devagar o tempo todo.", "fundo": "nevoa", "duracao": 2.6, "miniatura": 0.9}</script>
+<script type="application/json" id="campos">{"url": {"tipo": "texto", "rotulo": "Link", "padrao": "https://openrouter.ai/"}}</script>
+<style>
+  #cena { position: absolute; inset: 0; will-change: transform; }
+  #caixa { position: absolute; left: 50%; top: 0; width: 190px; height: 190px; border-radius: 48px; background: rgba(236, 236, 238, .94);
+    box-shadow: 0 24px 60px rgba(20, 30, 50, .22); overflow: hidden; will-change: transform, width; font-family: "SF Pro", system-ui, sans-serif; }
+  #busca { position: absolute; left: 0; top: 0; height: 190px; display: flex; align-items: center; column-gap: 24px; white-space: pre; }
+  #lupa { flex: none; width: 100px; height: 100px; color: #8a8a8e; }
+  #url { font-size: 76px; color: #3a3a3c; letter-spacing: -.01em; }
+</style>
+<div id="cena">
+  <div id="caixa">
+    <div id="busca">
+      <svg id="lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m15.5 15.5 5 5" /></svg>
+      <span id="url"></span>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    const W = MOTION.largura, H = MOTION.altura, D = MOTION.duracao
+    const url = String(MOTION.campos.url || '')
+    const cena = document.getElementById('cena'), caixa = document.getElementById('caixa'), busca = document.getElementById('busca')
+    const lupa = document.getElementById('lupa'), urlEl = document.getElementById('url')
+
+    // a barra no meio da tela (a 47% da altura na tela cheia, como na referência); largura máxima de 86% da tela
+    const ALT = 190, cy = H * (H > W ? 0.474 : 0.5)
+    const PAD = 72, ICONE = 64, GAP = 24, maxW = W * 0.86
+    gsap.set(caixa, { xPercent: -50, y: cy - ALT / 2, width: ALT })
+    gsap.set(busca, { left: (ALT - 100) / 2 - GAP / 2 })
+    gsap.set(cena, { transformOrigin: `50% ${cy}px` })
+    const larguraCom = (n) => { urlEl.textContent = url.slice(0, n); return urlEl.offsetWidth }
+    const barra = (a) => Math.max(ALT, Math.min(maxW, PAD + ICONE + GAP + a + PAD))
+
+    // a cena é montada depois das fontes: a largura final da barra depende delas
+    document.fonts.ready.then(montar)
+    function montar() {
+      const barraFinal = barra(larguraCom(url.length))
+      urlEl.textContent = ''
+      const CASA = motion.curva(0.25, 0.1, 0.1, 1) // entrada curta e suave, chegada bem longa
+      const tl = gsap.timeline({ paused: true })
+      // a lupa surge suave (sem passar do ponto): cresce um pouco, aparece e desfoca para nítido
+      tl.fromTo(caixa, { scale: 0.86, opacity: 0, filter: 'blur(8px)' }, { scale: 1, opacity: 1, filter: 'blur(0px)', duration: 0.6, ease: CASA }, 0)
+      // a barra se abre devagar até a largura final, enquanto o link é digitado dentro (a lupa diminui e vai para a esquerda)
+      const tBarra = 0.3
+      tl.fromTo(caixa, { width: ALT }, { width: barraFinal, duration: 1.1, ease: motion.curva(0.3, 0.1, 0.05, 1), immediateRender: false }, tBarra)
+      tl.to(lupa, { width: ICONE, height: ICONE, duration: 1.1, ease: CASA }, tBarra)
+      tl.to(busca, { left: PAD, duration: 1.1, ease: CASA }, tBarra)
+      // a cena nunca para: se aproxima devagar o plano inteiro e termina ainda andando (como o afastamento do prompt)
+      tl.fromTo(cena, { scale: 1 }, { scale: 1.08, duration: D, ease: motion.curva(0.2, 0.05, 0.1, 0.45) }, 0)
+
+      // a digitação em rajadas (~0,045 s por letra, pausas na pontuação); um link longo demais anda para a esquerda
+      const tempos = motion.digitar(url, tBarra + 0.1, D - 0.3, 0.045)
+      motion.aCada(function (t) {
+        let n = 0
+        while (n < tempos.length && tempos[n] <= t) n++
+        const a = larguraCom(n)
+        const sobra = PAD + ICONE + GAP + a + PAD - maxW
+        urlEl.style.transform = sobra > 0 ? `translateX(${-sobra}px)` : ''
+      })
+      tl.to({}, { duration: 0 }, D)
+      motion.pronto(tl)
+    }
+  })()
+</script>
