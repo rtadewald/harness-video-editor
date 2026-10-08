@@ -20,6 +20,7 @@ const CATEGORIAS: { id: string; nome: string; render: (c: Contexto) => ReactNode
   { id: 'geral', nome: 'Geral', render: (c) => <AbaGeral {...c} /> },
   { id: 'cortes', nome: 'Cortes', render: (c) => <AbaCortes {...c} /> },
   { id: 'direcao', nome: 'Direção visual', render: (c) => <AbaDirecao {...c} /> },
+  { id: 'motions', nome: 'Motions', render: (c) => <AbaMotions {...c} /> },
 ]
 
 /** Preferências do app. Cada mudança é gravada no ato (projetos/_config.json) e vale para os próximos cálculos e projetos. */
@@ -195,6 +196,36 @@ function AbaCortes({ config, escolherMotor, salvarNumero }: Contexto) {
             aoSalvar={(v) => salvarNumero('respiro_ms', v, 1000)}
           />
         </div>
+      </Grupo>
+    </>
+  )
+}
+
+/** Motions (SPEC §8.5): quem escreve o código e a ficha de identidade que vai em todo pedido. */
+function AbaMotions({ config, salvar }: Contexto) {
+  return (
+    <>
+      <Grupo titulo="Modelo" texto="Quem escreve os motions (código). Um modelo forte em código do OpenRouter, ex.: anthropic/claude-opus-5.5.">
+        <input
+          key={config?.modelo_motion}
+          defaultValue={config?.modelo_motion}
+          disabled={!config}
+          aria-label="Modelo dos motions"
+          onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== config?.modelo_motion && salvar({ modelo_motion: e.target.value.trim() })}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+          className="h-11 rounded-[3px] border border-line bg-white px-3.5 font-mono text-[12px] text-ink outline-none focus-visible:border-ink"
+        />
+      </Grupo>
+      <Grupo titulo="Identidade visual" texto="A ficha de estilo que vai em todo pedido de motion: cores, fontes, climas, como as coisas se movem. Vazia, vale uma ficha neutra e minimalista.">
+        <textarea
+          key={config?.identidade_motion}
+          defaultValue={config?.identidade_motion}
+          disabled={!config}
+          rows={14}
+          aria-label="Identidade visual dos motions"
+          onBlur={(e) => e.target.value.trim() !== (config?.identidade_motion ?? '') && salvar({ identidade_motion: e.target.value.trim() })}
+          className="rounded-[3px] border border-line bg-white px-3.5 py-2.5 text-[12.5px] leading-[1.55] text-ink outline-none focus-visible:border-ink"
+        />
       </Grupo>
     </>
   )

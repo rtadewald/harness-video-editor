@@ -31,6 +31,7 @@ import {
   RotateCw,
   Scissors,
   Search,
+  Settings2,
   Sparkles,
   Square,
   Trash2,
@@ -47,7 +48,6 @@ import {
   capturarSite,
   definirMidias,
   configurarComentario,
-  definirCurvaPadrao,
   definirFundo,
   enriquecerInsert,
   enriquecerTipo,
@@ -60,7 +60,12 @@ import {
   urlBancoMiniatura,
   urlPreviaSite,
   versaoBanco,
+  motionsDoProjeto,
+  tirarMotionDoPlano,
+  urlMiniaturaMotionPlano,
+  urlPaginaMotionPlano,
   type DadosEditor,
+  type MotionPlano,
   type InsertsProjeto,
   type ItemBanco,
   type ItemRef,
@@ -75,12 +80,15 @@ import { paraTempo, palavrasNaSaida } from './direcaoProjeto'
 import { CATEGORIAS } from './EtapaDirecao'
 import { CardComentario, PainelComentario, comentarioDe, type Comentario } from './ComentarioIG'
 import BuscarReferencias from './BuscarReferencias'
-import EditorCurva from './EditorCurva'
+import ConfigTransicao from './ConfigTransicao'
+import ModalMotions from './ModalMotions'
+import MotionNoLugar from './MotionNoLugar'
 import EditorVideo from './EditorVideo'
 import { FUNDOS } from './Fundo'
 import InsertNoLugar, { pedidosNoTempo, type PedidoNoTempo } from './InsertNoLugar'
 import LinhaInserts from './LinhaInserts'
-import { ESTILO, NOMES, OPCOES, SEM_CURVA, campo, curvaDe, duracaoDe, enriquecimentoDe, entradaDe, type Categoria, type Qual } from './enriquecimento'
+import { ESTILO, NOMES, OPCOES, campo, corteDe, enriquecimentoDe, entradaDe, saidaDe, type Categoria, type Qual } from './enriquecimento'
+import { duracaoEntrada, duracaoSaida, useTransicoes, type Lado, type Transicoes } from './transicoes'
 import Preview from './Preview'
 import type { Sequencia } from './sequencia'
 import type { usePlayer } from './usePlayer'
@@ -117,6 +125,12 @@ export default function EtapaInserts(p: Props) {
   const [selPlano, setSelPlano] = useState<string | null>(null)
   const [subindo, setSubindo] = useState(false)
   const [buscandoRefs, setBuscandoRefs] = useState(false)
+  // motions (SPEC §8.5): o de cada plano (cópia no projeto), o modal e o seletor do banco que o modal pede
+  const [motions, setMotions] = useState<Record<string, MotionPlano>>({})
+  const [modalMotion, setModalMotion] = useState(false)
+  const [escolhaBanco, setEscolhaBanco] = useState<((i: ItemBanco) => void) | null>(null)
+  const recarregarMotions = () => void motionsDoProjeto(projeto.id).then(setMotions).catch(() => {})
+  useEffect(recarregarMotions, [projeto.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const falhar = (e: unknown) => window.alert((e as Error).message)
 
   // o mapa tem os originais e os trechos (um trecho toca o arquivo do original, do início ao fim dele)
@@ -165,7 +179,8 @@ export default function EtapaInserts(p: Props) {
   }, [planoNoCursor?.id])
 
   // tela dividida com mídia: o ator desce para a metade de baixo (o centro do quadro no meio da metade de baixo)
-  const dividida = !!noCursor && noCursor.formato === 'dividida' && noCursor.midias.length > 0
+  const motionNoCursor = planoNoCursor && motions[planoNoCursor.id] ? planoNoCursor : null
+  const dividida = (!!noCursor && noCursor.formato === 'dividida' && noCursor.midias.length > 0) || motionNoCursor?.tipo === 'tela_dividida_motion'
   useEffect(() => {
     const v = player.ref.current
     if (!v) return
@@ -195,8 +210,6 @@ export default function EtapaInserts(p: Props) {
 
   const planoSel = planos.find((pl) => pl.id === selPlano) ?? null
   const sel = pedidos.find((x) => x.plano === selPlano) ?? null
-  // as mídias com curva própria (1 ou as 2): um card de curva para cada
-  const comCurva: Qual[] = sel ? ((sel.midias.length === 2 ? [1, 2] : [1]) as Qual[]).filter((q) => !SEM_CURVA.includes(entradaDe(enriquecimentoDe(sel), q))) : []
   /** Onde a 2ª mídia começa (fração do insert): muda na tela na hora (arrastando) e salva ao soltar. */
   const ajustarCorte = (pid: string, v: number | null, salvarAgora: boolean) => {
     setIns((r) =>
@@ -247,20 +260,38 @@ export default function EtapaInserts(p: Props) {
     }
   }
 
-  // R: toca de novo o trecho do plano atual, do começo ao fim (fora de campos de texto; o editor de vídeo segura as teclas dele)
+  // R: toca de novo o trecho do plano atual, do começo ao fim (fora de campos de texto; o editor de vídeo segura as teclas dele).
+  // Para um quadro antes do fim (o cursor fica dentro do plano) e lembra o plano tocado: R de novo logo depois do fim
+  // repete o mesmo, mesmo que o cursor tenha passado para o seguinte (pedido de Rodrigo, out/2026)
+  const ultimoR = useRef<{ id: string; fim: number } | null>(null)
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== 'r' || e.metaKey || e.ctrlKey || e.altKey) return
       if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return
-      const pl = planos.find((x) => x.id === selPlano) ?? planoNoCursor
+      const anterior = ultimoR.current && tempo >= ultimoR.current.fim - 0.1 && tempo <= ultimoR.current.fim + 1.5 ? planos.find((x) => x.id === ultimoR.current!.id) : null
+      const pl = anterior ?? planos.find((x) => x.id === selPlano) ?? planoNoCursor
       if (!pl) return
       e.preventDefault()
-      player.tocarTrecho(seq.saidaParaFonte(pl.inicio), seq.saidaParaFonte(Math.max(pl.fim - 0.01, pl.inicio)), { pular: true, loop: false })
+      ultimoR.current = { id: pl.id, fim: pl.fim }
+      if (selPlano !== pl.id) setSelPlano(pl.id)
+      player.tocarTrecho(seq.saidaParaFonte(pl.inicio), seq.saidaParaFonte(Math.max(pl.fim - 1 / 24, pl.inicio)), { pular: true, loop: false })
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
   })
 
+  const trans = useTransicoes()
+  /** Toca a entrada (o começo) ou a saída (o fim) de uma mídia do insert selecionado, com uma folga. */
+  const verTransicao = (x: Pedido, lado: Lado, q: Qual) => {
+    const e = enriquecimentoDe(x)
+    const dur = x.t.fim - x.t.inicio
+    const corte = x.midias.length === 2 ? corteDe(e, dur) * dur : 0
+    const ini = x.t.inicio + (q === 2 ? corte : 0)
+    const fim = q === 1 && x.midias.length === 2 && e.entre === 'sequencia' ? x.t.inicio + corte : x.t.fim
+    const d = lado === 'entrada' ? duracaoEntrada(entradaDe(e, q), trans!, fim - ini) : duracaoSaida(saidaDe(e, q), trans!, fim - ini)
+    const [a, b] = lado === 'entrada' ? [ini, Math.min(ini + d + 0.6, fim)] : [Math.max(fim - d - 0.6, ini), fim]
+    player.tocarTrecho(seq.saidaParaFonte(a), seq.saidaParaFonte(Math.max(b - 0.01, a)), { pular: true, loop: false })
+  }
   const pedidosPorPlano = useMemo(() => new Map(pedidos.map((x) => [x.plano, x])), [pedidos])
   const planosLinha = useMemo(() => planos.map((pl, k) => ({ ...pl, n: k + 1 })), [planos])
   const elementos = useMemo(() => itens.filter((i) => i.camada === 'elemento'), [itens])
@@ -337,10 +368,38 @@ export default function EtapaInserts(p: Props) {
                 <span className="w-fit rounded-full bg-yellow px-2.5 py-1 text-[11px] font-semibold text-ink">{CATEGORIAS.planos[planoSel.tipo]}</span>
                 <p className="border-l-2 border-line-dark pl-3 text-[12.5px] leading-[1.6] text-cream/90">“{planoSel.fala}”</p>
                 {planoSel.descricao && <Campo rotulo="O que a direção pede">{planoSel.descricao}</Campo>}
-                <div className="grid place-items-center gap-2 rounded-[8px] border border-dashed border-yellow/40 px-4 py-10 text-center text-[12.5px] text-fog">
-                  <Clapperboard className="size-6 text-yellow" />
-                  Criação de motions em construção.
-                </div>
+                {motions[planoSel.id] ? (
+                  <div className="grid gap-3 rounded-[8px] bg-cream/[0.04] p-3 ring-1 ring-line-dark">
+                    <div className="flex items-center gap-3">
+                      <img src={urlMiniaturaMotionPlano(projeto.id, planoSel.id, motions[planoSel.id])} alt="" className="h-20 w-auto rounded-[4px] object-cover" />
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-semibold">{motions[planoSel.id].nome}</p>
+                        <p className="text-[11.5px] text-fog">
+                          v{motions[planoSel.id].versao} · {Object.keys(motions[planoSel.id].campos).length} campos
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 text-[11px]">
+                      <button onClick={() => setModalMotion(true)} className={BOTAO}>
+                        <Wand2 className="size-3" /> Editar ou trocar
+                      </button>
+                      <button
+                        onClick={() => window.confirm('Tirar o motion deste plano?') && void tirarMotionDoPlano(projeto.id, planoSel.id).then(recarregarMotions).catch(falhar)}
+                        className={BOTAO}
+                      >
+                        <Trash2 className="size-3" /> Tirar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setModalMotion(true)}
+                    className="grid place-items-center gap-2 rounded-[8px] border border-dashed border-yellow/40 px-4 py-10 text-center text-[12.5px] text-fog transition-colors hover:border-yellow hover:text-cream"
+                  >
+                    <Clapperboard className="size-6 text-yellow" />
+                    Criar ou escolher um motion
+                  </button>
+                )}
               </div>
             ) : (
               <SemInsert plano={planoSel} />
@@ -363,9 +422,15 @@ export default function EtapaInserts(p: Props) {
             setVelocidade={player.setVelocidade}
             buscar={player.buscar}
             sobreposicao={
-              noCursor && (
+              motionNoCursor ? (
+                <MotionNoLugar
+                  src={urlPaginaMotionPlano(projeto.id, motionNoCursor.id, motions[motionNoCursor.id], motionNoCursor.fim - motionNoCursor.inicio)}
+                  formato={motions[motionNoCursor.id].formato}
+                  rel={tempo - motionNoCursor.inicio}
+                />
+              ) : noCursor && (
                 <>
-                  <InsertNoLugar pedido={noCursor} banco={banco} tempo={tempo} tocando={player.tocando} fundo={ins?.fundo ?? 'gradiente'} padrao={ins?.curva_padrao} />
+                  <InsertNoLugar pedido={noCursor} banco={banco} tempo={tempo} tocando={player.tocando} fundo={ins?.fundo ?? 'gradiente'} trans={trans} />
                   {noCursor.tipo === 'comentario_insert_ator' && (
                     <CardComentario
                       c={comentarioDe(noCursor)}
@@ -389,23 +454,6 @@ export default function EtapaInserts(p: Props) {
               >
                 Recolher <PanelRightClose className="size-3.5" />
               </button>
-              {sel &&
-                comCurva.map((q) => (
-                  <Recolhivel key={q} chave={q === 1 ? 'curva' : 'curva2'} titulo={sel.midias.length === 2 ? `Curva da entrada · ${q}ª mídia` : 'Curva da entrada'} fechado>
-                    <EditorCurva
-                      curva={curvaDe(enriquecimentoDe(sel), ins?.curva_padrao, q)}
-                      duracao={duracaoDe(enriquecimentoDe(sel), ins?.curva_padrao, q)}
-                      ajustada={!!(sel.enriquecimento?.[campo('curva', q) as 'curva'] || sel.enriquecimento?.[campo('duracao', q) as 'duracao'])}
-                      padrao={ins?.curva_padrao}
-                      mudar={(c) =>
-                        void enriquecerInsert(projeto.id, sel.id, Object.fromEntries(Object.entries(c).map(([k, v]) => [campo(k as 'curva' | 'duracao', q), v])) as Record<string, number[] | number | null>)
-                          .then(setIns)
-                          .catch(falhar)
-                      }
-                      salvarPadrao={(c) => void definirCurvaPadrao(projeto.id, c).then(setIns).catch(falhar)}
-                    />
-                  </Recolhivel>
-                ))}
               <Recolhivel chave="fundo" titulo="Fundo" resumo={<ResumoFundo id={ins?.fundo ?? 'gradiente'} />}>
                 <EscolhaFundo atual={ins?.fundo ?? 'gradiente'} escolher={(f) => void definirFundo(projeto.id, f).then(setIns).catch(falhar)} />
               </Recolhivel>
@@ -421,7 +469,7 @@ export default function EtapaInserts(p: Props) {
                 <PanelRightOpen className="size-4" />
               </button>
               {/* recolhidos, os cards viram abas em pé (como os painéis recolhidos do Photoshop) */}
-              {[...comCurva.map((q) => (comCurva.length > 1 ? `Curva ${q}ª` : 'Curva')), 'Fundo', ...(sel?.tipo === 'comentario_insert_ator' ? ['Comentário'] : [])].map((nome) => (
+              {['Fundo', ...(sel?.tipo === 'comentario_insert_ator' ? ['Comentário'] : [])].map((nome) => (
                 <button
                   key={nome}
                   onClick={() => setColuna(true)}
@@ -449,6 +497,8 @@ export default function EtapaInserts(p: Props) {
                 verEntrada={() =>
                   player.tocarTrecho(seq.saidaParaFonte(sel.t.inicio), seq.saidaParaFonte(Math.min(sel.t.inicio + 1.6, sel.t.fim - 0.01)), { pular: true, loop: false })
                 }
+                ver={(lado, q) => trans && verTransicao(sel, lado, q)}
+                trans={trans}
               />
             ) : ehMotion && planoSel ? (
               <PainelEnriquecimento
@@ -466,6 +516,8 @@ export default function EtapaInserts(p: Props) {
                 mudar={() => {}}
                 aplicarAoTipo={() => {}}
                 verEntrada={() => player.tocarTrecho(seq.saidaParaFonte(planoSel.inicio), seq.saidaParaFonte(Math.min(planoSel.inicio + 1.6, planoSel.fim - 0.01)), { pular: true, loop: false })}
+                ver={() => {}}
+                trans={trans}
               />
             ) : (
               <p className="text-[12.5px] leading-[1.7] text-fog">{planoSel ? 'Este plano não tem insert nem motion.' : 'Escolha um insert ou um motion na linha do tempo.'}</p>
@@ -477,6 +529,27 @@ export default function EtapaInserts(p: Props) {
       <div className="relative min-h-0">
         <Alca lado="linha" pos={tam.linha} arrastar={arrastarBorda} />
         {buscandoRefs && <BuscarReferencias tipo={planoSel?.tipo ?? null} fechar={() => setBuscandoRefs(false)} />}
+        {modalMotion && planoSel && ehMotion && (
+          <ModalMotions
+            projetoId={projeto.id}
+            plano={planoSel}
+            atual={motions[planoSel.id] ?? null}
+            banco={banco}
+            escolherDoBanco={(f) => setEscolhaBanco(() => f)}
+            fechar={() => setModalMotion(false)}
+            mudou={recarregarMotions}
+          />
+        )}
+        {escolhaBanco && (
+          <SeletorBanco
+            fechar={() => setEscolhaBanco(null)}
+            escolher={(i) => {
+              escolhaBanco(i)
+              setEscolhaBanco(null)
+            }}
+            mudou={() => void carregarBanco()}
+          />
+        )}
         <LinhaInserts
           duracao={seq.duracao}
           planos={planosLinha}
@@ -491,6 +564,7 @@ export default function EtapaInserts(p: Props) {
           selecionar={(id) => escolher(id)}
           escolherMidia={(id) => selPlano !== id && escolher(id)}
           ajustarCorte={ajustarCorte}
+          motions={motions}
         />
       </div>
     </div>
@@ -704,7 +778,17 @@ function IconeDupla({ tipo }: { tipo: string }) {
 }
 
 /** Uma grade de opções de uma categoria; ★ marca o estilo do tipo. */
-function Grade(p: { titulo: ReactNode; opcoes: string[]; valor: string; estilo: string; escolher: (o: string) => void; travado?: boolean; dupla?: boolean }) {
+function Grade(p: {
+  titulo: ReactNode
+  opcoes: string[]
+  valor: string
+  estilo: string
+  escolher: (o: string) => void
+  travado?: boolean
+  dupla?: boolean
+  /** A engrenagem na opção escolhida (as que têm o que configurar): aberta ou não, e alternar. */
+  engrenagem?: { tem: (o: string) => boolean; aberta: boolean; alternar: () => void }
+}) {
   return (
     <div className="grid gap-2">
       <div className="eyebrow text-sage">{p.titulo}</div>
@@ -723,6 +807,21 @@ function Grade(p: { titulo: ReactNode; opcoes: string[]; valor: string; estilo: 
               )}
             >
               {o === p.estilo && <span className="absolute top-1 right-1.5 text-[9px] text-yellow">★</span>}
+              {ativo && p.engrenagem?.tem(o) && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(ev) => {
+                    ev.stopPropagation()
+                    p.engrenagem!.alternar()
+                  }}
+                  className={cn('absolute top-1 left-1 grid size-5 place-items-center rounded-full transition-colors', p.engrenagem.aberta ? 'bg-coral text-cream' : 'text-fog hover:bg-cream/10 hover:text-cream')}
+                  title="Configurar esta transição (vale para todos os inserts)"
+                  aria-label="Configurar"
+                >
+                  <Settings2 className="size-3.5" />
+                </span>
+              )}
               {p.dupla ? <IconeDupla tipo={o} /> : <Icone className="size-4" />}
               {NOMES[o]}
             </button>
@@ -733,15 +832,73 @@ function Grade(p: { titulo: ReactNode; opcoes: string[]; valor: string; estilo: 
   )
 }
 
-/** Enriquecimento: com 1 mídia, layout e entrada; com 2, como as duas convivem (e a moldura, na sequência) e a entrada de
- *  cada uma, em seções separadas (a curva de cada uma fica num card próprio ao lado do vídeo). ★ marca o estilo do tipo;
- *  o pedido guarda só o que difere. */
+/** A "entrada e saída" de uma mídia: o toggle Entrada | Saída, a grade e a engrenagem da opção escolhida. */
+function EntradaESaida(p: {
+  pedido: Pedido
+  qual: Qual
+  dupla: boolean
+  banco?: Map<string, ItemBanco>
+  trans: Transicoes | null
+  escolher: (k: Categoria) => (o: string) => void
+  ver: (lado: Lado) => void
+  travado: boolean
+}) {
+  const [lado, setLado] = useState<Lado>('entrada')
+  const [aberta, setAberta] = useState(false)
+  const e = enriquecimentoDe(p.pedido)
+  const k = campo(lado, p.qual)
+  const valor = lado === 'entrada' ? entradaDe(e, p.qual) : saidaDe(e, p.qual)
+  const m = p.pedido.midias[p.qual - 1]
+  const cfg = p.trans?.[lado][valor]
+  return (
+    <div className="grid gap-2">
+      <Grade
+        titulo={
+          <div className="flex items-center gap-2">
+            Entrada e saída{p.dupla && ` · ${p.qual}ª mídia`}
+            {p.dupla && m && <img src={urlBancoMiniatura(m.banco)} alt="" title={p.banco?.get(m.banco)?.nome} className="h-5 w-8 rounded-full object-cover" />}
+            <div className="ml-auto flex rounded-full p-0.5 tracking-normal normal-case ring-1 ring-line-dark" role="tablist">
+              {(['entrada', 'saida'] as Lado[]).map((l) => (
+                <button
+                  key={l}
+                  role="tab"
+                  aria-selected={lado === l}
+                  onClick={() => {
+                    setLado(l)
+                    setAberta(false)
+                  }}
+                  className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-semibold', lado === l ? 'bg-cream text-ink' : 'text-fog hover:text-cream')}
+                >
+                  {l === 'entrada' ? 'Entrada' : 'Saída'}
+                </button>
+              ))}
+            </div>
+          </div>
+        }
+        opcoes={OPCOES[k][p.pedido.formato]}
+        valor={valor}
+        estilo={ESTILO[p.pedido.formato][k]}
+        escolher={p.escolher(k)}
+        travado={p.travado}
+        engrenagem={{ tem: (o) => !!p.trans?.[lado][o], aberta, alternar: () => setAberta((v) => !v) }}
+      />
+      {aberta && cfg && <ConfigTransicao lado={lado} tipo={valor} cfg={cfg} ver={() => p.ver(lado)} />}
+    </div>
+  )
+}
+
+/** Enriquecimento: com 1 mídia, layout e "entrada e saída"; com 2, como as duas convivem (e a moldura, na sequência) e a
+ *  entrada e a saída de cada uma. ★ marca o estilo do tipo; o pedido guarda só o que difere. A engrenagem da transição
+ *  escolhida configura aquele tipo para todos os inserts (curva, duração, direção…). */
 function PainelEnriquecimento(p: {
   pedido: Pedido
   banco?: Map<string, ItemBanco>
   mudar: (c: Record<string, string | number | number[] | null>) => void
   aplicarAoTipo: () => void
   verEntrada: () => void
+  /** Toca a entrada ou a saída de uma mídia (o "▶ Ver" da engrenagem). */
+  ver: (lado: Lado, qual: Qual) => void
+  trans: Transicoes | null
   /** Só para ver as opções (motions): o aviso aparece em cima e nada é salvo. */
   aviso?: string
 }) {
@@ -766,40 +923,29 @@ function PainelEnriquecimento(p: {
       </div>
       <p className="text-[11.5px] leading-[1.6] text-fog">
         {dupla
-          ? 'Com 2 mídias: como as duas convivem e a entrada de cada uma. Onde a 2ª começa se ajusta arrastando na trilha Mídias, lá embaixo.'
-          : `Como este ${p.aviso ? 'motion' : 'insert'} aparece: layout e entrada.`}{' '}
-        ★ é o estilo de “{nomeTipo}”; mude só o que quiser. As entradas usam curvas suaves (cubic-bezier), nunca lineares.
+          ? 'Com 2 mídias: como as duas convivem e a entrada e a saída de cada uma. Onde a 2ª começa se ajusta arrastando na trilha Mídias, lá embaixo.'
+          : `Como este ${p.aviso ? 'motion' : 'insert'} aparece: layout, entrada e saída.`}{' '}
+        ★ é o estilo de “{nomeTipo}”. A engrenagem configura a transição escolhida para todos os inserts.
       </p>
       {dupla && <Grade titulo="Layout das duas" opcoes={OPCOES.entre[x.formato]} valor={e.entre} estilo={estilo.entre} escolher={escolher('entre')} travado={!!p.aviso} dupla />}
       {(!dupla || e.entre === 'sequencia') && (
         <Grade titulo={dupla ? 'Moldura' : 'Layout'} opcoes={OPCOES.layout[x.formato]} valor={e.layout} estilo={estilo.layout} escolher={escolher('layout')} travado={!!p.aviso} />
       )}
-      {(dupla ? ([1, 2] as Qual[]) : ([1] as Qual[])).map((q) => {
-        const k = campo('entrada', q) as Categoria
-        const m = x.midias[q - 1]
-        return (
-          <Grade
-            key={q}
-            titulo={
-              dupla ? (
-                <div className="flex items-center gap-2">
-                  Entrada · {q}ª mídia
-                  {m && <img src={urlBancoMiniatura(m.banco)} alt="" title={p.banco?.get(m.banco)?.nome} className="h-5 w-8 rounded-full object-cover" />}
-                </div>
-              ) : (
-                'Entrada'
-              )
-            }
-            opcoes={OPCOES.entrada[x.formato]}
-            valor={entradaDe(e, q)}
-            estilo={estilo[k]}
-            escolher={escolher(k)}
-            travado={!!p.aviso}
-          />
-        )
-      })}
+      {(dupla ? ([1, 2] as Qual[]) : ([1] as Qual[])).map((q) => (
+        <EntradaESaida
+          key={q}
+          pedido={x}
+          qual={q}
+          dupla={dupla}
+          banco={p.banco}
+          trans={p.trans}
+          escolher={escolher}
+          ver={(lado) => p.ver(lado, q)}
+          travado={!!p.aviso}
+        />
+      ))}
       <div className={cn('flex flex-wrap gap-2 border-t border-line-dark pt-4 text-[11px]', p.aviso && 'hidden')}>
-        <button onClick={() => p.mudar({ layout: null, entrada: null, entrada_2: null, entre: null, corte: null })} disabled={!mudado} className={cn(BOTAO, 'disabled:opacity-40')}>
+        <button onClick={() => p.mudar({ layout: null, entrada: null, entrada_2: null, saida: null, saida_2: null, entre: null, corte: null })} disabled={!mudado} className={cn(BOTAO, 'disabled:opacity-40')}>
           <RotateCcw className="size-3" /> Voltar ao estilo
         </button>
         <button onClick={p.aplicarAoTipo} className={BOTAO} title={`Copia este enriquecimento para todos os planos “${nomeTipo}”`}>
@@ -1315,7 +1461,7 @@ function CapturaDeSite(p: { projetoId: string; pedido: Pedido; fechar: () => voi
 }
 
 /** Escolher uma mídia do banco: busca no nome, na descrição e nas palavras-chave, filtro vídeo/imagem. */
-function SeletorBanco(p: { tipo?: TipoMidia; fechar: () => void; escolher: (i: ItemBanco) => void; mudou: () => void }) {
+export function SeletorBanco(p: { tipo?: TipoMidia; fechar: () => void; escolher: (i: ItemBanco) => void; mudou: () => void }) {
   const { fechar, escolher } = p
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState<TipoMidia | ''>(p.tipo ?? '')

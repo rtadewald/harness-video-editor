@@ -514,35 +514,24 @@ OPCOES_ENRIQUECIMENTO = {
     # como 2 mídias convivem (decisão de Rodrigo, out/2026); 3 ou mais ficam em sequência, divididas igualmente
     'entre': ('sequencia', 'empilhadas', 'lado_a_lado'),  # cascata e picture-in-picture saíram (Rodrigo, out/2026)
     'movimento': ('parado', 'zoom_lento', 'zoom_ponto', 'rolagem'),
-    'saida': ('corte', 'sumir', 'deslizar'),
+    'saida': ('corte', 'sumir', 'deslizar', 'voo_3d', 'zoom_borrado'),  # a configuração de cada uma é global (transicoes.py)
+    'saida_2': ('corte', 'sumir', 'deslizar', 'voo_3d', 'zoom_borrado'),
 }
 ESTILO = {
-    'vertical': {'layout': 'card', 'entrada': 'surgir', 'entrada_2': 'surgir', 'entre': 'sequencia', 'movimento': 'zoom_lento', 'saida': 'corte'},
-    'dividida': {'layout': 'metade', 'entrada': 'surgir', 'entrada_2': 'surgir', 'entre': 'sequencia', 'movimento': 'zoom_lento', 'saida': 'corte'},
+    'vertical': {'layout': 'card', 'entrada': 'surgir', 'entrada_2': 'surgir', 'entre': 'sequencia', 'movimento': 'zoom_lento', 'saida': 'corte', 'saida_2': 'corte'},
+    'dividida': {'layout': 'metade', 'entrada': 'surgir', 'entrada_2': 'surgir', 'entre': 'sequencia', 'movimento': 'zoom_lento', 'saida': 'corte', 'saida_2': 'corte'},
 }
 
 
 # ajustes finos da entrada (sem padrão fixo: valem os da entrada escolhida até o criador mudar)
-# duração da entrada em segundos: 0,5 a 5 s, de 0,25 em 0,25 (decisão de Rodrigo, out/2026); `_2` = os da 2ª mídia; `corte` =
-# onde a 2ª mídia começa, em fração do insert (0 a 0,95; padrão: no meio; 0 = junto com a 1ª, nos layouts juntos)
-AJUSTES = ('curva', 'duracao', 'curva_2', 'duracao_2', 'corte')
+# onde a 2ª mídia começa, em fração do insert (0 a 0,95; padrão: no meio; 0 = junto com a 1ª, nos layouts juntos). A curva,
+# a duração e os detalhes de cada entrada e saída não são mais por insert: são globais, por tipo (transicoes.py)
+AJUSTES = ('corte',)
 
 
 def _validar_enriquecimento(formato: str, campos: dict) -> dict:
     limpo = {}
     for k, v in campos.items():
-        if k in ('curva', 'curva_2') and v is not None:
-            # cubic-bezier: x entre 0 e 1 (é o tempo), y livre dentro de -1 a 2 (passar do ponto e voltar)
-            if not isinstance(v, list) or len(v) != 4 or not all(isinstance(n, (int, float)) and not isinstance(n, bool) for n in v):
-                raise ValueError('A curva são 4 números (cubic-bezier)')
-            limpo[k] = [round(max(0.0, min(1.0, v[0])), 3), round(max(-1.0, min(2.0, v[1])), 3),
-                        round(max(0.0, min(1.0, v[2])), 3), round(max(-1.0, min(2.0, v[3])), 3)]
-            continue
-        if k in ('duracao', 'duracao_2') and v is not None:
-            if not isinstance(v, (int, float)) or isinstance(v, bool):
-                raise ValueError('A duração é em segundos')
-            limpo[k] = round(max(0.5, min(5.0, float(v))) * 4) / 4  # passos de 0,25 s
-            continue
         if k == 'corte' and v is not None:
             if not isinstance(v, (int, float)) or isinstance(v, bool):
                 raise ValueError('O corte é uma fração do insert')
@@ -639,20 +628,6 @@ def definir_fundo(id: str, fundo: str) -> dict:
 
     def aplicar(p):
         p.setdefault('inserts', {'versao': None, 'pedidos': []})['fundo'] = fundo
-    return projeto.atualizar(id, aplicar)['inserts']
-
-
-def definir_curva_padrao(id: str, curva: list | None, duracao: float | None) -> dict:
-    """A curva e a duração (s) da entrada que valem para o vídeo todo (inserts sem curva própria)."""
-    limpo = _validar_enriquecimento('vertical', {'curva': curva, 'duracao': duracao})
-
-    def aplicar(p):
-        ins = p.setdefault('inserts', {'versao': None, 'pedidos': []})
-        padrao = {k: v for k, v in limpo.items() if v is not None}
-        if padrao:
-            ins['curva_padrao'] = padrao
-        else:
-            ins.pop('curva_padrao', None)
     return projeto.atualizar(id, aplicar)['inserts']
 
 

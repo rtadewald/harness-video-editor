@@ -1,63 +1,39 @@
 import { useContext, useEffect, useRef, type ReactNode } from 'react'
 import { urlBancoArquivo, urlBancoExportacao, versaoBanco, type ItemBanco, type MidiaLigada, type PedidoInsert } from '@/api'
 import { cn } from '@/lib/utils'
-import { SAIR, ZOOM_LEVE, bezier } from './curvas'
-import { corteDe, curvaDe, duracaoDe, enriquecimentoDe, entradaDe, type Enriquecimento, type PadraoCurva, type Qual } from './enriquecimento'
+import { corteDe, enriquecimentoDe, entradaDe, saidaDe, type Qual } from './enriquecimento'
 import Fundo, { RelogioRender } from './Fundo'
+import { duracaoEntrada, duracaoSaida, estiloTransicao, type Transicoes } from './transicoes'
 
 /** O insert desenhado por cima do ator, igual na prévia da etapa Inserts e na exportação (a página de render). */
 export type PedidoNoTempo = PedidoInsert & { t: { inicio: number; fim: number } }
 
-const limite = (v: number) => Math.max(0, Math.min(1, v))
-
-/** Entrada e saída de uma mídia do insert: transform, opacidade e desfoque conforme o tempo desde que ela começa. */
-function estiloDeEntradaESaida(e: Enriquecimento, rel: number, dur: number, padrao?: PadraoCurva, qual: Qual = 1): React.CSSProperties {
-  // a entrada anda na curva e na duração escolhidas (curvas que passam do ponto passam)
-  const curva = bezier(...curvaDe(e, padrao, qual))
-  const ENTRADA_S = Math.min(duracaoDe(e, padrao, qual), dur) // nunca mais longa que o próprio trecho
-  const bruto = curva(limite(rel / ENTRADA_S)) // pode passar de 1 (curvas que passam do ponto e voltam)
-  const pe = limite(bruto)
-  const ps = e.saida === 'corte' ? 1 : 1 - SAIR(limite(1 - (dur - rel) / 0.4))
-  const t: string[] = []
-  let opacidade = 1
-  let filtro = ''
-  switch (entradaDe(e, qual)) {
-    case 'surgir':
-      opacidade = pe
-      t.push(`scale(${0.94 + 0.06 * bruto})`)
-      break
-    case 'subir':
-      opacidade = pe
-      t.push(`translateY(${(1 - bruto) * 40}%)`)
-      break
-    case 'voo_3d':
-      opacidade = pe
-      t.push(`perspective(800px) rotateX(${(1 - bruto) * 55}deg) translateY(${(1 - bruto) * 30}%)`)
-      break
-    case 'zoom_borrado':
-      opacidade = pe
-      t.push(`scale(${1.25 - 0.25 * bruto})`)
-      filtro = `blur(${(1 - pe) * 14}px)`
-      break
-    case 'seco_zoom':
-      // aparece de uma vez e o card inteiro aproxima até 106% ao longo da mídia toda
-      t.push(`scale(${1 + 0.06 * ZOOM_LEVE(limite(rel / Math.max(dur, 0.01)))})`)
-      break
-  }
-  if (e.saida === 'sumir') opacidade *= ps
-  if (e.saida === 'deslizar') t.push(`translateX(${-(1 - ps) * 60}%)`)
-  return { transform: t.join(' ') || undefined, opacity: opacidade, filter: filtro || undefined }
-}
-
-/** Quanto tempo (s, desde o começo do insert) as entradas levam para terminar: depois disso o insert fica parado. */
-export function fimDasEntradas(x: PedidoNoTempo, padrao?: PadraoCurva): number {
+/** O tempo de cada mídia do insert: onde começa e quanto dura (s, desde o começo do insert). Na sequência de 2, a 1ª
+ *  vai até o corte; nos layouts juntos, o insert todo; a 2ª, do corte ao fim. */
+function tempos(x: PedidoNoTempo): { ini: number; dur: number; qual: Qual }[] {
   const e = enriquecimentoDe(x)
   const dur = Math.max(x.t.fim - x.t.inicio, 0.01)
-  // a "seca + zoom leve" anda até o fim da mídia: nunca fica parada
-  const a = e.entrada === 'sem' ? 0 : e.entrada === 'seco_zoom' ? Infinity : Math.min(duracaoDe(e, padrao, 1), dur)
-  if (x.midias.length !== 2) return a
+  if (x.midias.length !== 2) return [{ ini: 0, dur, qual: 1 }]
   const corte = corteDe(e, dur) * dur
-  return Math.max(a, corte + (e.entrada_2 === 'sem' ? 0 : e.entrada_2 === 'seco_zoom' ? Infinity : Math.min(duracaoDe(e, padrao, 2), dur - corte)))
+  return [
+    { ini: 0, dur: e.entre === 'sequencia' ? corte : dur, qual: 1 },
+    { ini: corte, dur: dur - corte, qual: 2 },
+  ]
+}
+
+/** A chave do quadro quando o insert está parado no instante `rel` (s desde o começo): sem entrada nem saída andando (e
+ *  sem o zoom contínuo). Quadros com a mesma chave são iguais — a exportação reaproveita a foto. Inclui quais mídias estão
+ *  na tela (com 2, o insert fica parado antes e depois de a 2ª entrar). `null` = está mexendo. */
+export function chaveParada(x: PedidoNoTempo, rel: number, t: Transicoes | null): string | null {
+  if (!t) return null
+  const e = enriquecimentoDe(x)
+  const naTela = tempos(x).filter(({ ini, dur }) => rel >= ini && rel - ini <= dur)
+  const quieto = naTela.every(({ ini, dur, qual }) => {
+    const r = rel - ini
+    const ent = entradaDe(e, qual)
+    return ent !== 'seco_zoom' && r >= duracaoEntrada(ent, t, dur) && r <= dur - duracaoSaida(saidaDe(e, qual), t, dur)
+  })
+  return quieto ? `${x.id}:${naTela.map((m) => m.qual).join('')}` : null
 }
 
 // 2 mídias juntas na tela (decisão de Rodrigo, out/2026): o espaço de cada card (A = 1ª, B = 2ª)
@@ -86,13 +62,15 @@ function VideoNoTempo({ item, rel, tocando, topo }: { item: ItemBanco; rel: numb
   return <video ref={ref} src={exato ? urlBancoExportacao(item) : urlBancoArquivo(item.id) + versaoBanco(item)} muted playsInline preload="auto" className={cn('size-full object-cover', topo && 'object-top')} />
 }
 
-/** As mídias do insert do momento por cima do vídeo, com o enriquecimento: layout e entrada de cada mídia e, com 2
- *  mídias, como elas convivem (em sequência, empilhadas, em cascata, picture-in-picture, lado a lado). */
-export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<string, ItemBanco>; tempo: number; tocando: boolean; fundo: string; padrao?: PadraoCurva }) {
+/** As mídias do insert do momento por cima do vídeo, com o enriquecimento: layout, entrada e saída de cada mídia (a
+ *  configuração de cada tipo é global, `trans`) e, com 2 mídias, como elas convivem (sequência, empilhadas, lado a lado). */
+export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<string, ItemBanco>; tempo: number; tocando: boolean; fundo: string; trans: Transicoes | null }) {
   const { pedido, banco, tempo, tocando } = p
   const exportando = useContext(RelogioRender) != null // o contador "1/3" é só da prévia
-  // por enquanto (decisão de Rodrigo, out/2026) o movimento fica parado e a saída é corte seco
-  const e = { ...enriquecimentoDe(pedido), movimento: 'parado', saida: 'corte' }
+  const e = enriquecimentoDe(pedido)
+  // entrada e saída de uma mídia (sem a configuração carregada ainda, parada)
+  const anim = (qual: Qual, relM: number, durM: number): React.CSSProperties =>
+    p.trans ? estiloTransicao(entradaDe(e, qual), saidaDe(e, qual), p.trans, relM, durM) : {}
   const n = pedido.midias.length
   const dur = Math.max(pedido.t.fim - pedido.t.inicio, 0.01)
   const rel = Math.max(tempo - pedido.t.inicio, 0)
@@ -154,8 +132,8 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
     const corte = corteDe(e, dur) * dur
     const relB = rel - corte
     const [a, b] = pedido.midias
-    const animA = estiloDeEntradaESaida(e, rel, dur, p.padrao, 1)
-    const animB = relB >= 0 ? estiloDeEntradaESaida(e, relB, dur - corte, p.padrao, 2) : null
+    const animA = anim(1, rel, e.entre === 'sequencia' ? corte : dur)
+    const animB = relB >= 0 ? anim(2, relB, dur - corte) : null
     if (e.entre === 'sequencia') {
       camadas = (
         <>
@@ -195,10 +173,10 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
       comFundo = true
     }
   } else {
-    // 1 mídia, ou 3 ou mais (por enquanto em sequência, divididas igualmente; a entrada é a da 1ª)
+    // 1 mídia, ou 3 ou mais (por enquanto em sequência, divididas igualmente; a entrada e a saída são as da 1ª)
     const parte = dur / n
     const k = Math.max(Math.min(Math.floor(rel / parte), n - 1), 0)
-    camadas = naMoldura(midia(pedido.midias[k], rel - k * parte), estiloDeEntradaESaida(e, rel, dur, p.padrao, 1), 'unica')
+    camadas = naMoldura(midia(pedido.midias[k], rel - k * parte), anim(1, rel, dur), 'unica')
     if (e.layout === 'destaque') atras = midia(pedido.midias[k], rel - k * parte)
   }
 

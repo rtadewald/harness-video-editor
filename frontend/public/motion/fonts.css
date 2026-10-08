@@ -1,0 +1,7 @@
+/* Fontes da Asimov para os motions (cópias locais, licença OFL): Inter (texto) e Instrument Serif (destaques). */
+@font-face { font-family: Inter; font-weight: 400; font-display: block; src: url("fonts/inter-400.woff2") format("woff2"); }
+@font-face { font-family: Inter; font-weight: 500; font-display: block; src: url("fonts/inter-500.woff2") format("woff2"); }
+@font-face { font-family: Inter; font-weight: 600; font-display: block; src: url("fonts/inter-600.woff2") format("woff2"); }
+@font-face { font-family: Inter; font-weight: 700; font-display: block; src: url("fonts/inter-700.woff2") format("woff2"); }
+@font-face { font-family: "Instrument Serif"; font-weight: 400; font-display: block; src: url("fonts/instrument-serif-400.woff2") format("woff2"); }
+@font-face { font-family: "Instrument Serif"; font-style: italic; font-weight: 400; font-display: block; src: url("fonts/instrument-serif-400-italic.woff2") format("woff2"); }

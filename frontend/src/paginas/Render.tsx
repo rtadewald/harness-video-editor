@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { abrirEditor, lerInserts, listarBanco, type DadosEditor, type InsertsProjeto, type ItemBanco } from '@/api'
+import { abrirEditor, lerInserts, listarBanco, motionsDoProjeto, urlPaginaMotionPlano, type DadosEditor, type InsertsProjeto, type ItemBanco, type MotionPlano } from '@/api'
 import { CardComentario, comentarioDe } from '@/editor/ComentarioIG'
 import { paraTempo, palavrasNaSaida } from '@/editor/direcaoProjeto'
 import { ChuvaAoVivo, RelogioRender } from '@/editor/Fundo'
-import InsertNoLugar, { fimDasEntradas, pedidosNoTempo } from '@/editor/InsertNoLugar'
+import InsertNoLugar, { chaveParada, pedidosNoTempo } from '@/editor/InsertNoLugar'
+import MotionNoLugar from '@/editor/MotionNoLugar'
+import { useTransicoes } from '@/editor/transicoes'
 import { montarSequencia } from '@/editor/sequencia'
 
 /** Páginas abertas pelo navegador escondido do backend (nunca pelo criador). */
@@ -35,6 +37,11 @@ async function pronto() {
   const ok = () => [...document.querySelectorAll('video')].every((v) => v.error || (v.readyState >= 2 && !v.seeking))
   while (!ok() && Date.now() < limite) await esperar(5)
   await Promise.all([...document.images].map((i) => (i.complete ? null : i.decode().catch(() => {}))))
+  // motions: o iframe carregado e a cena já no instante pedido
+  const iframes = () => [...document.querySelectorAll('iframe')].every((f) => f.dataset.pronto === '1')
+  while (!iframes() && Date.now() < limite) await esperar(10)
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+  while (window.__motionsPintando?.size && Date.now() < limite) await Promise.all([...window.__motionsPintando])
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
 }
 
@@ -45,6 +52,8 @@ export function RenderProjeto() {
   const [dados, setDados] = useState<DadosEditor | null>(null)
   const [ins, setIns] = useState<InsertsProjeto | null>(null)
   const [banco, setBanco] = useState<Map<string, ItemBanco> | null>(null)
+  const [motions, setMotions] = useState<Record<string, MotionPlano> | null>(null)
+  const trans = useTransicoes()
   const [pedido, setPedido] = useState({ t: -1, n: 0 }) // n: cada pedido responde, mesmo repetindo o instante
   const tempo = pedido.t
   const chegou = useRef<((chave: string | null) => void) | null>(null)
@@ -58,6 +67,7 @@ export function RenderProjeto() {
     document.body.style.background = 'transparent'
     void abrirEditor(id).then(setDados)
     void lerInserts(id).then(setIns)
+    void motionsDoProjeto(id).then(setMotions)
     void listarBanco().then((l) => setBanco(new Map(l.flatMap((i) => [i, ...(i.trechos ?? [])]).map((i) => [i.id, i]))))
   }, [id])
 
@@ -66,22 +76,27 @@ export function RenderProjeto() {
     const seq = montarSequencia(dados.timeline, dados.palavras)
     const saida = palavrasNaSaida(dados.palavras, seq)
     const planos = paraTempo(dados.projeto.direcao?.itens ?? [], dados.palavras, saida, seq.duracao).visiveis.filter((i) => i.camada === 'plano')
-    return { duracao: seq.duracao, lista: pedidosNoTempo(ins.pedidos, planos).filter((x) => x.midias.length) }
-  }, [dados, ins])
+    // os motions: os planos de motion que já têm um motion escolhido
+    const comMotion = planos.filter((pl) => motions?.[pl.id]).map((pl) => ({ plano: pl.id, ini: pl.inicio, fim: pl.fim, dividida: pl.tipo === 'tela_dividida_motion' }))
+    return { duracao: seq.duracao, lista: pedidosNoTempo(ins.pedidos, planos).filter((x) => x.midias.length), motions: comMotion }
+  }, [dados, ins, motions])
 
   // a página avisa o backend que está pronta e responde a cada instante pedido depois de tudo pintado
   useEffect(() => {
-    if (!pedidos || !banco) return
+    if (!pedidos || !banco || !trans || !motions) return
     window.__render = {
       duracao: pedidos.duracao,
-      trechos: pedidos.lista.map((x) => ({ ini: x.t.inicio, fim: x.t.fim, dividida: x.formato === 'dividida' })),
+      trechos: [
+        ...pedidos.lista.map((x) => ({ ini: x.t.inicio, fim: x.t.fim, dividida: x.formato === 'dividida' })),
+        ...pedidos.motions.map((m) => ({ ini: m.ini, fim: m.fim, dividida: m.dividida })),
+      ],
       ir: (t) =>
         new Promise<string | null>((ok) => {
           chegou.current = ok
           setPedido((x) => ({ t, n: x.n + 1 }))
         }),
     }
-  }, [pedidos, banco])
+  }, [pedidos, banco, trans, motions])
   useEffect(() => {
     if (!chegou.current) return
     const ok = chegou.current
@@ -90,14 +105,27 @@ export function RenderProjeto() {
   }, [pedido])
 
   const atual = pedidos?.lista.find((x) => tempo >= x.t.inicio && tempo < x.t.fim)
-  // parado: sem vídeo na tela (checado depois de pintar) e com a entrada já terminada
-  chave.current = atual && tempo - atual.t.inicio >= fimDasEntradas(atual, ins?.curva_padrao) ? atual.id : null
+  const motion = pedidos?.motions.find((m) => tempo >= m.ini && tempo < m.fim)
+  // parado: sem vídeo na tela (checado depois de pintar) e sem entrada nem saída andando (motion nunca é parado)
+  chave.current = atual && !motion ? chaveParada(atual, tempo - atual.t.inicio, trans) : null
+  if (motion && motions?.[motion.plano])
+    return (
+      <RelogioRender.Provider value={tempo}>
+        <div className="fixed inset-0 overflow-hidden">
+          <MotionNoLugar
+            src={urlPaginaMotionPlano(id, motion.plano, motions[motion.plano], motion.fim - motion.ini, true)}
+            formato={motions[motion.plano].formato}
+            rel={tempo - motion.ini}
+          />
+        </div>
+      </RelogioRender.Provider>
+    )
   if (!atual || !banco) return null
   const c = comentarioDe(atual)
   return (
     <RelogioRender.Provider value={tempo}>
       <div className="fixed inset-0 overflow-hidden">
-        <InsertNoLugar pedido={atual} banco={banco} tempo={tempo} tocando={false} fundo={ins?.fundo ?? 'gradiente'} padrao={ins?.curva_padrao} />
+        <InsertNoLugar pedido={atual} banco={banco} tempo={tempo} tocando={false} fundo={ins?.fundo ?? 'gradiente'} trans={trans} />
         {atual.tipo === 'comentario_insert_ator' && <CardComentario c={c} texto={c.texto ?? atual.texto ?? ''} />}
       </div>
     </RelogioRender.Provider>

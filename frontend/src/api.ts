@@ -200,6 +200,9 @@ export type Config = {
   /** Quem escreve o roteiro dirigido dos projetos, e com quanto raciocínio. */
   modelo_diretora: string
   raciocinio_diretora: 'low' | 'medium' | 'high'
+  /** Motions: o modelo que escreve o código e a ficha de identidade visual. */
+  modelo_motion: string
+  identidade_motion: string
   motores: Record<string, { nome: string; familia: string; chave: boolean | null }> }
 export const lerConfig = () => fetch('/api/config').then(json<Config>)
 export const salvarConfig = (mudancas: Partial<Omit<Config, 'motores'>>) =>
@@ -367,7 +370,7 @@ export type PedidoInsert = {
   duracao: number
   midias: MidiaLigada[]
   /** O que o criador mudou no enriquecimento (o resto vem do estilo do formato; SPEC §8.3). */
-  enriquecimento?: Partial<Record<'layout' | 'entrada' | 'entrada_2' | 'entre' | 'movimento' | 'saida', string> & { curva: [number, number, number, number]; duracao: number; curva_2: [number, number, number, number]; duracao_2: number; corte: number }>
+  enriquecimento?: Partial<Record<'layout' | 'entrada' | 'entrada_2' | 'saida' | 'saida_2' | 'entre' | 'movimento', string> & { corte: number }>
   /** O card de comentário (só em Comentário + insert + ator): o que difere do padrão. */
   comentario?: Partial<{ texto: string | null; avatar: number; usuario: string; tempo: string; traducao: boolean; x: number; y: number; escala: number }>
   /** As capturas de site deste insert: as em andamento (várias podem rodar ao mesmo tempo) e as que falharam (§8.3). */
@@ -395,7 +398,6 @@ export type InsertsProjeto = {
   /** A transição em cada troca de plano (seca, zoom com desfoque, piscada), para o vídeo todo. */
   transicao?: string
   /** A curva e a duração da entrada que valem para o vídeo todo (inserts sem curva própria). */
-  curva_padrao?: { curva?: [number, number, number, number]; duracao?: number }
 }
 /** Uma mídia do banco global. */
 export type ItemBanco = {
@@ -453,8 +455,6 @@ export const capturarSite = (id: string, pid: string, c: { url: string; proporca
   enviar<InsertsProjeto>('POST', `/api/projetos/${id}/inserts/${pid}/captura`, c)
 export const enriquecerInsert = (id: string, pid: string, campos: Record<string, string | number | number[] | null>) =>
   enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/${pid}/enriquecimento`, { campos })
-export const definirCurvaPadrao = (id: string, c: { curva?: number[] | null; duracao?: number | null }) =>
-  enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/curva-padrao`, c)
 export const definirTransicao = (id: string, transicao: string) => enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/transicao`, { transicao })
 export const definirFundo = (id: string, fundo: string) => enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/fundo`, { fundo })
 export const configurarComentario = (id: string, pid: string, campos: Record<string, unknown>) =>
@@ -482,3 +482,53 @@ export const exportarProjeto = (id: string, o: OpcoesExportacao & { nome: string
 export const cancelarExportacao = (id: string) => fetch(`/api/projetos/${id}/exportacao/cancelar`, { method: 'POST' }).then(json<{ ok: boolean }>)
 export const mostrarExportacao = (id: string) => fetch(`/api/projetos/${id}/exportacao/finder`, { method: 'POST' }).then(json<{ ok: boolean }>)
 export const urlExportacao = (id: string) => `/api/projetos/${id}/exportacao/arquivo`
+
+// motions (SPEC §8.5)
+export type CampoMotion = { tipo: 'texto' | 'cor'; rotulo: string; padrao: string }
+export type ReferenciaMotion = { ref: string; inicio: number; fim: number; tipo: string; descricao: string; texto?: string | null }
+export type VersaoMotion = { n: number; de: number | null; comentario: string | null; campos: Record<string, CampoMotion>; criado_em: string; modelo: string; segundos: number }
+export type Motion = {
+  id: string
+  nome: string
+  formato: 'vertical' | 'dividida'
+  duracao: number
+  criado_em: string
+  favorito: boolean
+  pedido: { nome: string; formato: string; duracao: number; prompt: string; referencias: ReferenciaMotion[]; midias: string[] }
+  versoes: VersaoMotion[]
+  ativa: number | null
+  valores: Record<string, string>
+  status: { estado: 'fila' | 'gerando' | 'pronto' | 'erro'; erro: string | null; etapa: 'escrevendo' | 'conferindo' | 'finalizando' | null }
+}
+/** O motion de um plano: a cópia guardada no projeto. */
+export type MotionPlano = {
+  origem: string
+  versao: number
+  nome: string
+  formato: 'vertical' | 'dividida'
+  duracao: number
+  campos: Record<string, CampoMotion>
+  valores: Record<string, string>
+  midias: string[]
+  usado_em: string
+}
+export const listarMotions = () => fetch('/api/motions').then(json<Motion[]>)
+export const lerMotion = (mid: string) => fetch(`/api/motions/${mid}`).then(json<Motion>)
+export const criarMotion = (p: { nome: string; formato: string; duracao: number; prompt: string; referencias: ReferenciaMotion[]; midias: string[] }) =>
+  enviar<Motion>('POST', '/api/motions', p)
+export const editarMotion = (mid: string, campos: Partial<{ nome: string; favorito: boolean; ativa: number; valores: Record<string, string> }>) =>
+  enviar<Motion>('PATCH', `/api/motions/${mid}`, { campos })
+export const novaVersaoMotion = (mid: string, de: number, comentario: string) => enviar<Motion>('POST', `/api/motions/${mid}/versoes`, { de, comentario })
+export const apagarMotion = (mid: string) => enviar<{ ok: boolean }>('DELETE', `/api/motions/${mid}`)
+export const urlPaginaMotion = (m: Motion, n?: number | null) => `/api/motions/${m.id}/pagina?n=${n ?? m.ativa ?? ''}&v=${encodeURIComponent(JSON.stringify(m.valores))}`
+export const urlMiniaturaMotion = (m: Motion, n?: number | null) => `/api/motions/${m.id}/miniatura?n=${n ?? m.ativa ?? ''}`
+export const motionsDoProjeto = (id: string) => fetch(`/api/projetos/${id}/motions`).then(json<Record<string, MotionPlano>>)
+export const usarMotion = (id: string, plano: string, motion: string, versao?: number | null, valores?: Record<string, string>) =>
+  enviar<MotionPlano>('PUT', `/api/projetos/${id}/motions/${plano}`, { motion, versao, valores })
+export const valoresMotionPlano = (id: string, plano: string, valores: Record<string, string>) =>
+  enviar<MotionPlano>('PATCH', `/api/projetos/${id}/motions/${plano}`, { valores })
+export const tirarMotionDoPlano = (id: string, plano: string) => enviar<{ ok: boolean }>('DELETE', `/api/projetos/${id}/motions/${plano}`)
+/** A página do motion de um plano: `duracao` = a do plano agora (a animação estica ou encolhe se mudou). */
+export const urlPaginaMotionPlano = (id: string, plano: string, m: MotionPlano, duracao: number, exportacao = false) =>
+  `/api/projetos/${id}/motions/${plano}/pagina?duracao=${duracao.toFixed(3)}${exportacao ? '&exportacao=true' : ''}&v=${encodeURIComponent(m.usado_em + JSON.stringify(m.valores))}`
+export const urlMiniaturaMotionPlano = (id: string, plano: string, m: MotionPlano) => `/api/projetos/${id}/motions/${plano}/miniatura?v=${encodeURIComponent(m.usado_em)}`
