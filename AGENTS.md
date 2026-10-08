@@ -1,14 +1,14 @@
 # AGENTS — Harness Video Editor
 
-Editor de vídeo local com interface web. Cada etapa (Cortes, Direção visual, Inserts, Motion, Legenda) é feita por IA e corrigida por Rodrigo. Tudo o que foi decidido está em [SPEC.md](SPEC.md). Leia antes de mexer.
+Editor de vídeo local com interface web. Cada etapa (Pré-processamento, Direção visual, Inserts, Transições, Áudio, Legenda) é feita por IA e corrigida por Rodrigo. O centro está em [SPEC.md](SPEC.md) e o detalhe de cada área em `docs/`. Leia a SPEC e o doc da área antes de mexer.
 
 Responda em PT-BR, direto. Separe o que existe do que é plano.
 
 ## Stack
 
 - `backend/`: Python, FastAPI, LangChain, OpenRouter, MLX Whisper, FFmpeg (`uv`).
-- `frontend/`: React, Vite, TypeScript, Tailwind, shadcn/ui. Visual segue o design system Otto (SPEC §7).
-- `projetos/` e `referencias/`: dados dos projetos e da Calibragem, fora do git.
+- `frontend/`: React, Vite, TypeScript, Tailwind, shadcn/ui. Visual no SPEC §7.
+- `projetos/`, `referencias/`, `banco/`, `presets/`, `sons/`, `transicoes/`, `trilhas/`: dados, fora do git.
 - `_legado/`: projeto anterior. Serve só de referência, não é fonte de verdade.
 
 ## Como rodar
@@ -26,13 +26,13 @@ Testes: `cd backend && uv run pytest`. Checagem do front: `cd frontend && npm ru
 - **Correção pontual não é regra geral**, a menos que Rodrigo diga.
 - **Não declare aprovado** o que Rodrigo não aprovou.
 - Originais em `projetos/*/midia/` nunca são alterados.
-- Mudou uma decisão? Atualize o SPEC no mesmo commit. Este arquivo fica com no máximo ~40 linhas.
+- Mudou uma decisão? Atualize o SPEC ou o doc da área no mesmo commit. Este arquivo fica com no máximo ~40 linhas.
 - Docs de bibliotecas: Context7.
 
 ## Git
 
 - Cada funcionalidade numa branch saída da main; **uma branch de trabalho por pasta** (não abra outra antes de a atual ir para a main). Commite à vontade nela.
-- **Sessões em paralelo** (quando Rodrigo pedir): uma segunda pasta com `git worktree`, portas próprias no `.dev.env` e os dados como links para os da pasta principal; cada sessão mexe só nos seus arquivos (os de motions estão em [docs/motions.md](docs/motions.md)). Hoje é uma pasta só.
+- **Sessões em paralelo** (quando Rodrigo pedir): uma segunda pasta com `git worktree`, portas próprias no `.dev.env` e os dados como links para os da pasta principal; cada sessão mexe só na sua área (os arquivos de cada uma estão no doc dela; a ordem das camadas, no SPEC §13). Hoje é uma pasta só.
 - No push (quando Rodrigo pedir): junte os commits da branch num só (`git reset --soft $(git merge-base main HEAD)` + commit; rebase sobre a main se ela andou), `git merge --no-ff` na main, `git push origin main` (nunca forçado) e apague a branch local.
 
 ## Segurança
