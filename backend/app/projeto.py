@@ -40,7 +40,7 @@ def _arquivo_config() -> Path:
 
 def ler_config() -> dict:
     """Preferências do app: perfil do criador, Cortes (motor, margens, pausas) e Direção visual (modelo multimodal, formato)."""
-    config = {'motor_padrao': PADRAO, 'antes_do_corte_ms': 100, 'depois_do_corte_ms': 100, 'pausa_max_ms': 2000, 'respiro_ms': 800,
+    config = {'motor_padrao': PADRAO, 'antes_do_corte_ms': 100, 'depois_do_corte_ms': 100, 'pausa_max_ms': 2000,
               'modelo_direcao': MODELO_DIRECAO, 'quadros_por_segundo': 2,
               'formato_analise': 'video', 'grade_mosaico': '3x2', 'perfil_criador': '',
               'modelo_direcao_projeto': MODELO_DIRECAO, 'regras_direcao': '', 'modelo_diretora': MODELO_DIRECAO, 'raciocinio_diretora': 'medium'}
@@ -48,9 +48,10 @@ def ler_config() -> dict:
         config.update(json.loads(_arquivo_config().read_text(encoding='utf-8')))
     except (FileNotFoundError, ValueError):
         pass
+    config.pop('respiro_ms', None)  # antigo: a pausa cortada usa as margens do corte
     if config['motor_padrao'] not in MOTORES:
         config['motor_padrao'] = PADRAO
-    for chave, maximo in (('antes_do_corte_ms', 1000), ('depois_do_corte_ms', 1000), ('pausa_max_ms', 30000), ('respiro_ms', 5000)):
+    for chave, maximo in (('antes_do_corte_ms', 1000), ('depois_do_corte_ms', 1000), ('pausa_max_ms', 30000)):
         config[chave] = min(max(int(config[chave]), 0), maximo)
     config['quadros_por_segundo'] = min(max(int(config['quadros_por_segundo']), 1), 4)
     config['modelo_direcao'] = str(config['modelo_direcao']).strip() or MODELO_DIRECAO

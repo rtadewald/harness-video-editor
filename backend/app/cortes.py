@@ -13,10 +13,12 @@ SPEC = Path(__file__).resolve().parents[2] / 'SPEC.md'
 MODELO = 'google/gemini-3.8-flash'
 PAUSA_NO_PROMPT = 0.3  # todas as pausas detectadas aparecem para a LLM: recomeços seguidos têm pausas de ~0,4 s (com 0,5 a IA não os via)
 JANELA_ANTES, JANELA_DEPOIS = 0.5, 0.35  # quão longe da borda da palavra o silêncio pode estar (Whisper erra ~0,2 s)
-# SPEC §8.1: pausa dentro de um trecho mantido só é encurtada se passar de `pausa_max` (e fica `respiro`).
+# SPEC §8.1: pausa dentro de um trecho mantido só é cortada se passar de `pausa_max`.
 # O ar mantido junto às palavras nas bordas de um corte: `folga_inicio` antes da primeira palavra de um trecho (= depois do
-# corte anterior) e `folga_fim` depois da última (= antes do próximo corte). São configuráveis (Configurações do app).
-PARAMETROS = {'pausa_max': 2.0, 'respiro': 0.8, 'folga_inicio': 0.1, 'folga_fim': 0.1}
+# corte anterior) e `folga_fim` depois da última (= antes do próximo corte). Valem para todo corte, o de palavras
+# removidas e o de uma pausa longa (pedido de Rodrigo, out/2026: antes uma pausa cortada deixava um "respiro" à parte).
+# São configuráveis (Configurações do app).
+PARAMETROS = {'pausa_max': 2.0, 'folga_inicio': 0.1, 'folga_fim': 0.1}
 
 
 def parametros(config: dict) -> dict:
@@ -24,9 +26,8 @@ def parametros(config: dict) -> dict:
     return {**PARAMETROS,
             'folga_inicio': config.get('depois_do_corte_ms', 100) / 1000,
             'folga_fim': config.get('antes_do_corte_ms', 100) / 1000,
-            # 0 = nunca encurtar pausas; senão, pausas maiores que isso (dentro de um trecho mantido) viram `respiro`
-            'pausa_max': config.get('pausa_max_ms', 2000) / 1000 or math.inf,
-            'respiro': config.get('respiro_ms', 800) / 1000}
+            # 0 = nunca cortar pausas; senão, pausas maiores que isso (dentro de um trecho mantido) são cortadas
+            'pausa_max': config.get('pausa_max_ms', 2000) / 1000 or math.inf}
 
 PROMPT = """Você edita a fala de um criador de conteúdo que gravou várias tentativas da mesma frase.
 Escolha quais palavras formam o texto final do vídeo.
@@ -122,7 +123,7 @@ def mantidas_por_indice(palavras: list[dict], mantidas: list[list[str]]) -> list
 
 
 def montar_clipes(palavras: list[dict], fica: list[bool], silencios: list[dict], duracao: float,
-                  pausa_max: float = PARAMETROS['pausa_max'], respiro: float = PARAMETROS['respiro'],
+                  pausa_max: float = PARAMETROS['pausa_max'],
                   folga_inicio: float = PARAMETROS['folga_inicio'], folga_fim: float = PARAMETROS['folga_fim']) -> list[dict]:
     """Transforma as palavras mantidas em clipes da V1 (tempo do bruto)."""
 
@@ -160,14 +161,13 @@ def montar_clipes(palavras: list[dict], fica: list[bool], silencios: list[dict],
             intervalos.append([a, b])
         i = j + 1
 
-    # só pausas muito longas dentro de um trecho mantido viram cortes, e sobra um respiro (metade de cada lado)
+    # só pausas muito longas dentro de um trecho mantido viram cortes, com as mesmas margens dos outros cortes
     pedacos = []
     for a, b in intervalos:
         pontos = [a]
         for s in silencios:
             if s['dur'] >= pausa_max and s['inicio'] > a and s['fim'] < b:
-                f = min(respiro / 2, s['dur'] / 2)
-                pontos += [s['inicio'] + f, s['fim'] - f]
+                pontos += [s['inicio'] + min(folga_fim, s['dur'] / 2), s['fim'] - min(folga_inicio, s['dur'] / 2)]
         pontos.append(b)
         pedacos += [(pontos[k], pontos[k + 1]) for k in range(0, len(pontos), 2)]
 
