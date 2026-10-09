@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Check, Star, Volume2 } from 'lucide-react'
+import { Check, Pause, Play, Star, Volume2 } from 'lucide-react'
 import { urlArquivoReferencia } from '@/api'
 import { NOME_INTENSIDADE, eventoNoTempo, useCatalogoSons, type Intensidade } from '@/editor/sons'
 import { cn } from '@/lib/utils'
@@ -62,14 +62,20 @@ export default function CardTransicao(p: {
     return () => obs.disconnect()
   }, [])
 
+  const icone = 'grid size-8 shrink-0 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream'
+  const efeito = { seco: 'Corte seco', luz: 'Luz', brilho: 'Brilho', zoom: 'Zoom' }[e.tipo]
   return (
-    <article className={cn('grid gap-2 rounded-[8px] p-2 ring-1', p.favorita?.ligada ? 'bg-cream/[0.04] ring-yellow/30' : 'ring-line-dark')}>
+    <section className="flex min-w-0 flex-col">
+      {/* a miniatura, como nos presets: a referência e a recriação lado a lado, de borda a borda */}
       <div
         role="button"
         tabIndex={0}
         onClick={() => p.tocar(!p.tocando)}
         onKeyDown={(k) => (k.key === 'Enter' || k.key === ' ') && (k.preventDefault(), p.tocar(!p.tocando))}
-        className="group relative grid cursor-pointer grid-cols-2 gap-px overflow-hidden rounded-[6px] bg-line-dark ring-1 ring-line-dark hover:ring-2 hover:ring-coral"
+        className={cn(
+          'group relative grid w-full cursor-pointer grid-cols-2 gap-px overflow-hidden rounded-[6px] bg-line-dark ring-1 transition-[box-shadow] [contain:paint] hover:ring-2 hover:ring-coral',
+          p.favorita?.ligada ? 'ring-yellow/50' : 'ring-line-dark',
+        )}
         title={p.tocando ? 'Parar' : 'Tocar em loop (a referência e a recriação juntas)'}
       >
         <div className="relative aspect-[9/16] overflow-hidden bg-black">
@@ -83,7 +89,6 @@ export default function CardTransicao(p: {
           ) : (
             <p className="absolute inset-0 grid place-items-center p-3 text-center text-[11px] text-fog">Sem corte de referência</p>
           )}
-          <span className="absolute left-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-cream">Referência</span>
         </div>
         <div ref={caixa} className="relative aspect-[9/16] overflow-hidden bg-black">
           {fonte && (
@@ -92,8 +97,19 @@ export default function CardTransicao(p: {
               <img src={quadro(fonte.ref, fonte.t + fimEfeito + 0.15)} alt="" loading="lazy" className={cn('absolute inset-0 size-full object-cover', rel < corte && 'invisible')} />
             </EfeitoNoPalco>
           )}
-          <span className="absolute left-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-cream">Recriação</span>
         </div>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#0b1714e6] to-transparent" />
+        <span className="absolute bottom-2.5 left-2.5 text-[9.5px] font-semibold tracking-[0.08em] text-cream/70 uppercase">Referência</span>
+        <span className="absolute bottom-2.5 left-[calc(50%+10px)] text-[9.5px] font-semibold tracking-[0.08em] text-cream/70 uppercase">Recriação</span>
+        <span className={cn('absolute top-2.5 left-2.5 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] uppercase', t.aprovado ? 'bg-mint text-ink' : 'bg-coral text-cream')}>
+          {t.aprovado ? 'Aprovada' : 'A revisar'}
+        </span>
+        {p.favorita?.primeira && (
+          <span className="absolute top-2.5 right-2.5 rounded-full bg-yellow px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-ink uppercase">Padrão do par</span>
+        )}
+        <span className={cn('absolute top-1/2 left-1/2 grid size-11 -translate-1/2 place-items-center rounded-full bg-ink/80 text-cream transition-opacity', p.tocando ? 'opacity-0 group-hover:opacity-100' : 'opacity-90')}>
+          {p.tocando ? <Pause className="size-4" /> : <Play className="size-4 translate-x-px fill-current" />}
+        </span>
         {p.tocando && (
           <div className="absolute inset-x-0 bottom-0 h-1 bg-black/40">
             <div className="h-full bg-coral" style={{ width: `${(rel / fim) * 100}%` }} />
@@ -101,42 +117,47 @@ export default function CardTransicao(p: {
           </div>
         )}
       </div>
-      <div className="flex items-start gap-2">
+      <div className="mt-3 flex items-start gap-1">
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-[15px] font-semibold tracking-[-0.02em]" title={t.nome}>
+            {t.nome}
+          </h3>
+          <p className="mt-0.5 truncate text-[12px] text-fog">
+            {efeito}
+            {t.som ? ' · com som' : ''}
+            {p.favorita?.ligada && !p.favorita.primeira && (
+              <button onClick={p.favorita.tornarPrimeira} className="ml-1.5 text-cream/80 underline-offset-2 hover:text-cream hover:underline">
+                · tornar o padrão
+              </button>
+            )}
+          </p>
+        </div>
         {p.favorita && (
           <button
             onClick={p.favorita.alternar}
+            className={cn(icone, p.favorita.ligada && 'text-yellow hover:text-yellow')}
             title={p.favorita.ligada ? 'Tirar das favoritas do par' : 'Tornar favorita do par'}
-            className="mt-0.5 shrink-0"
+            aria-label="Favorita do par"
           >
-            <Star className={cn('size-4', p.favorita.ligada ? 'fill-yellow text-yellow' : 'text-fog hover:text-cream')} />
-          </button>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 text-[12.5px] font-semibold">
-            <span className="truncate">{t.nome}</span>
-            {p.favorita?.primeira && <span className="rounded-full bg-yellow/15 px-1.5 text-[10px] text-yellow">padrão do par</span>}
-          </p>
-          <p className="text-[11px] leading-[1.5] text-fog">{t.descricao}</p>
-        </div>
-      </div>
-      <Som t={t} />
-      <div className="flex items-center gap-2">
-        {p.favorita?.ligada && !p.favorita.primeira && (
-          <button onClick={p.favorita.tornarPrimeira} className="text-[11px] text-fog underline-offset-2 hover:text-cream hover:underline">
-            Tornar o padrão do par
+            <Star className={cn('size-4', p.favorita.ligada && 'fill-yellow')} />
           </button>
         )}
         <button
           onClick={() => void editarTransicao(t.id, { aprovado: !t.aprovado })}
-          className={cn(
-            'ml-auto flex h-7 items-center gap-1 rounded-full border px-3 text-[11px] font-semibold',
-            t.aprovado ? 'border-sage/50 bg-sage/15 text-sage' : 'border-line-dark text-fog hover:text-cream',
-          )}
+          className={cn(icone, t.aprovado ? 'bg-mint text-ink hover:bg-mint/80 hover:text-ink' : 'text-mint hover:bg-mint/15 hover:text-mint')}
+          title={t.aprovado ? 'Aprovada (clique para tirar a aprovação)' : 'Aprovar'}
+          aria-label={t.aprovado ? 'Tirar a aprovação' : 'Aprovar'}
         >
-          <Check className="size-3" /> {t.aprovado ? 'Aprovada' : 'Aprovar'}
+          <Check className="size-4" />
         </button>
       </div>
-    </article>
+      <p className="mt-1 line-clamp-2 text-[11.5px] leading-[1.5] text-fog" title={t.descricao}>
+        {t.descricao}
+      </p>
+      <div className="mt-2.5">
+        <Som t={t} />
+      </div>
+    </section>
   )
 }
 
@@ -145,7 +166,7 @@ function Som({ t }: { t: Transicao }) {
   const cat = useCatalogoSons()
   const mudar = (som: Transicao['som']) => void editarTransicao(t.id, { som }).catch((x) => window.alert((x as Error).message))
   return (
-    <div className="flex items-center gap-1.5 text-[11px]">
+    <div className="flex min-w-0 items-center gap-1.5 text-[11px]">
       <Volume2 className="size-3.5 shrink-0 text-fog" />
       <select
         value={t.som?.som ?? ''}
@@ -159,16 +180,20 @@ function Som({ t }: { t: Transicao }) {
           </option>
         ))}
       </select>
-      {t.som &&
-        (Object.keys(NOME_INTENSIDADE) as Intensidade[]).map((i) => (
-          <button
-            key={i}
-            onClick={() => t.som && mudar({ ...t.som, intensidade: i })}
-            className={cn('h-7 rounded-full border px-2.5 font-semibold', t.som?.intensidade === i ? 'border-cream bg-cream text-ink' : 'border-line-dark text-fog hover:text-cream')}
-          >
-            {NOME_INTENSIDADE[i]}
-          </button>
-        ))}
+      {t.som && (
+        // a intensidade num grupo compacto (cabe no card mais estreito da grade, ao lado do som)
+        <div className="flex shrink-0 rounded-full p-0.5 ring-1 ring-line-dark">
+          {(Object.keys(NOME_INTENSIDADE) as Intensidade[]).map((i) => (
+            <button
+              key={i}
+              onClick={() => t.som && mudar({ ...t.som, intensidade: i })}
+              className={cn('h-6 rounded-full px-2 font-semibold', t.som?.intensidade === i ? 'bg-cream text-ink' : 'text-fog hover:text-cream')}
+            >
+              {NOME_INTENSIDADE[i]}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

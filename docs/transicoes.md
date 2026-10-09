@@ -171,3 +171,10 @@ card do comentário só arrasta na Inserts). Assim "Ver o corte" mostra a troca 
 💡 **As transições só aparecem onde o quadro está montado**: o efeito e o som delas valem na prévia das etapas Inserts e
 Transições (`Preview transicoes`); no Pré-processamento e na Direção o ator fica limpo (sem flashes ao avaliar o look,
 sem cliques ao ouvir uma emenda).
+
+💡 **Página Transições, revisão de out/2026** (pedido de Rodrigo): uma vista **Todas as transições** no topo da lista (a
+abertura da página), com os cards das 7 transições juntos, cada uma com um corte das referências de onde veio; e o card
+no padrão dos cards de preset — a referência e a recriação de borda a borda (sem moldura), os rótulos embaixo sobre um
+degradê, o selo Aprovada/A revisar e "Padrão do par" no canto, o play no meio; embaixo, o nome com o tipo de efeito, os
+ícones de favorita do par e de aprovar, a descrição (duas linhas) e o som (a intensidade num grupo compacto, que cabe no
+card mais estreito da grade — antes, a linha do som passava da borda do card).
