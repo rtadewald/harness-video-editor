@@ -5,10 +5,10 @@ import { cn } from '@/lib/utils'
 import { fecharAba, useAbasProjetos } from './abasProjetos'
 
 /** A barra de cima de todas as telas, nas pílulas `.tab` do Otto: primeiro os projetos abertos como abas (× fecha; dois
- *  cliques no nome da aba ativa renomeiam, quando a tela permite), depois Projetos, Banco (vídeos e imagens dos inserts),
- *  Referências (galeria dos planos), Presets (de enriquecimento), Motions (galeria dos presets de motion) e Transições
- *  (entre os planos), juntos; à
- *  direita, a Calibragem (vídeos que treinam a Direção visual) e a Heurística da direção. */
+ *  cliques no nome da aba ativa renomeiam, quando a tela permite), depois o trabalho do dia a dia — Projetos, Banco
+ *  (vídeos e imagens dos inserts), Motions (galeria dos presets de motion) e Referências (galeria dos planos); à direita,
+ *  o que treina e regula o app — Presets (de enriquecimento), Transições (entre os planos), a Calibragem (vídeos que
+ *  treinam a Direção visual) e a Heurística da direção. */
 const PILULA = 'shrink-0 rounded-full border text-[12px] font-semibold tracking-[-0.01em] transition-colors duration-300'
 const ATIVA = 'border-cream bg-cream text-ink'
 const INATIVA = 'border-line-dark text-fog hover:border-cream/50 hover:text-cream'
@@ -16,13 +16,13 @@ type Link = { para: string; nome: string; icone: LucideIcon; exato?: boolean }
 const LINKS: Link[] = [
   { para: '/', nome: 'Projetos', icone: FolderOpen, exato: true },
   { para: '/banco', nome: 'Banco', icone: Images },
-  { para: '/referencias', nome: 'Referências', icone: Film },
-  { para: '/presets', nome: 'Presets', icone: Layers },
   { para: '/motions', nome: 'Motions', icone: Clapperboard },
-  { para: '/transicoes', nome: 'Transições', icone: Blend },
+  { para: '/referencias', nome: 'Referências', icone: Film },
 ]
-// o treino da Direção visual, alinhado à direita
+// o que treina e regula o app, alinhado à direita
 const TREINO: Link[] = [
+  { para: '/presets', nome: 'Presets', icone: Layers },
+  { para: '/transicoes', nome: 'Transições', icone: Blend },
   { para: '/calibragem', nome: 'Calibragem', icone: SlidersHorizontal }, // acesa também na revisão de uma referência
   { para: '/heuristica', nome: 'Heurística da direção', icone: BookOpenText },
 ]
