@@ -23,7 +23,36 @@ def test_criar_listar_abrir_e_enfileirar(cliente, video, enfileirados):
     assert apoio['papel'] == 'apoio' and apoio['nome_original'] == 'site.mp4'
     assert enfileirados == [('melhor-ia-de-design', pipeline.PASSOS)]
     assert [x['id'] for x in cliente.get('/api/projetos').json()] == ['melhor-ia-de-design']
+    assert cliente.get('/api/projetos').json()[0]['duracao_final'] is None  # sem cortes ainda: o card mostra o bruto
     assert cliente.get(f"/api/projetos/{p['id']}/arquivos/{bruto['arquivo']}").status_code == 200
+
+
+def test_criar_recusa_video_sem_audio_e_arquivo_que_nao_e_video_com_erro_legivel(cliente, tmp_path, enfileirados):
+    """SPEC §4 ("erro legível"): sem a linha de comando do ffprobe na tela; um vídeo sem áudio não chega ao pipeline."""
+    mudo = tmp_path / 'mudo.mp4'
+    subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=30:duration=1', '-an',
+                    '-pix_fmt', 'yuv420p', str(mudo)], check=True)
+    falso = tmp_path / 'falso.mp4'
+    falso.write_text('não sou um vídeo')
+    for arq, msg in ((mudo, 'não tem áudio'), (falso, 'Não consegui ler o vídeo')):
+        with arq.open('rb') as b:
+            r = cliente.post('/api/projetos', data={'nome': f'QA {arq.stem}'}, files={'bruto': (arq.name, b, 'video/mp4')})
+        assert r.status_code == 422 and msg in r.json()['detail'] and 'ffprobe' not in r.json()['detail'], r.text
+    assert not enfileirados and not [d for d in projeto.RAIZ.iterdir() if d.is_dir()]  # nada fica para trás
+    erro = subprocess.CalledProcessError(234, ['ffmpeg', '-i', 'x.mp4', 'audio.wav'])
+    assert midia.legivel(erro) == 'O ffmpeg falhou (código 234).'
+
+
+def test_lista_deriva_o_estado_dos_inserts():
+    """A barrinha dos Inserts na lista sai dos dados: prontos com mídia ou motion em todos, em andamento com alguma."""
+    base = {'etapas': {'cortes': 'pronta', 'inserts': 'pendente'}, 'motions': {'p2': {}}}
+    def estado(pedidos):
+        return projeto.etapas_no_resumo({**base, 'inserts': {'pedidos': pedidos}})['inserts']
+    assert estado([]) == 'pendente'
+    assert estado([{'plano': 'p1', 'midias': []}, {'plano': 'p3', 'midias': []}]) == 'pendente'
+    assert estado([{'plano': 'p1', 'midias': [{'id': 'm'}]}, {'plano': 'p3', 'midias': []}]) == 'andamento'
+    assert estado([{'plano': 'p1', 'midias': [{'id': 'm'}]}, {'plano': 'p2', 'midias': []}]) == 'pronta'
+    assert projeto.etapas_no_resumo(base)['cortes'] == 'pronta'
 
 
 def test_criar_com_formato_so_reels_por_ora(cliente, video, enfileirados):
@@ -671,6 +700,8 @@ def test_pipeline_completo_com_whisper_e_llm_falsos(cliente, video, monkeypatch)
     assert (projeto.pasta('e') / p['fontes'][0]['proxy']).exists()
     assert p['etapas']['cortes'] == 'pronta' and len(p['timeline']['V1']) == 2
     assert (projeto.pasta('e') / 'picos.json').exists()
+    resumo = cliente.get('/api/projetos').json()[0]  # o card mostra o vídeo editado, não o bruto
+    assert resumo['duracao_final'] == round(sum(c['fim'] - c['inicio'] for c in p['timeline']['V1']), 3) < resumo['duracao']
     assert 'silencios' in cliente.get('/api/projetos/e/editor').json()
     e = cliente.get('/api/projetos/e/editor').json()
     assert [w['mantida'] for w in e['palavras']] == [True, False, True, True]
@@ -689,6 +720,38 @@ def test_erro_num_passo_fica_registrado(cliente, video, monkeypatch):
     assert p['pipeline']['passos']['transcricao']['status'] == 'erro'
     assert p['pipeline']['passos']['cortes']['status'] == 'pendente'
     assert 'modelo indisponível' in p['pipeline']['erro']
+    assert p['pipeline']['erro'].startswith('Não consegui transcrever o áudio')
+
+
+def test_erro_de_biblioteca_no_alinhamento_vira_frase_do_passo_sem_o_caminho(cliente, video, monkeypatch):
+    """SPEC §4: o stable-ts (motor de reserva) que falha não mostra o caminho do servidor; a tela diz qual passo parou."""
+    _criar(cliente, video)
+    monkeypatch.setattr(transcricao, 'transcrever', lambda audio, silencios: _palavras((0.1, 0.5)))
+
+    def quebra(audio, palavras):
+        raise RuntimeError(f'FFmpeg failed to read "{audio}".')
+    monkeypatch.setattr(transcricao, 'refinar', quebra)
+    selecionou = []
+    monkeypatch.setattr(cortes, 'selecionar', lambda *a: selecionou.append(a))
+    projeto.atualizar('e', lambda p: p.update(pipeline=pipeline.estado_inicial()))
+    pipeline._rodar('e', pipeline.PASSOS)
+    p = projeto.ler('e')
+    assert p['pipeline']['passos']['alinhamento']['status'] == 'erro' and not selecionou
+    assert p['pipeline']['erro'] == 'Não consegui ajustar o tempo de cada palavra ao áudio (FFmpeg failed to read "audio.wav").'
+
+
+def test_transcricao_sem_nenhuma_palavra_para_antes_da_ia_dos_cortes(cliente, video, monkeypatch):
+    _criar(cliente, video)
+    monkeypatch.setattr(transcricao, 'transcrever', lambda audio, silencios: [])
+    refinou, selecionou = [], []
+    monkeypatch.setattr(transcricao, 'refinar', lambda audio, palavras: refinou.append(1))
+    monkeypatch.setattr(cortes, 'selecionar', lambda *a: selecionou.append(a))
+    projeto.atualizar('e', lambda p: p.update(pipeline=pipeline.estado_inicial()))
+    pipeline._rodar('e', pipeline.PASSOS)
+    p = projeto.ler('e')
+    assert p['pipeline']['passos']['transcricao']['status'] == 'erro'
+    assert p['pipeline']['passos']['alinhamento']['status'] == 'pendente' and not refinou and not selecionou
+    assert p['pipeline']['erro'].startswith('Não encontrei fala neste vídeo')
 
 
 @pytest.fixture(scope='session')
@@ -1190,6 +1253,9 @@ def test_banco_sobe_descreve_busca_edita_e_apaga(cliente, tmp_path, monkeypatch)
     assert [x['id'] for x in cliente.get('/api/banco?busca=graphify').json()] == [item['id']]
     assert cliente.get('/api/banco?busca=graphify&tipo=video').json() == []
     assert cliente.get('/api/banco?busca=sora').json() == []
+    # a busca não diferencia acentos, nos dois sentidos: "pagina" acha "Página", "grâphify" acha "Graphify"
+    for q in ('pagina', 'PÁGINA', 'grâphify'):
+        assert [x['id'] for x in cliente.get('/api/banco', params={'busca': q}).json()] == [item['id']], q
     assert cliente.delete(f"/api/banco/{item['id']}").json() == {'ok': True}
     assert cliente.get(f"/api/banco/{item['id']}").status_code == 404
 

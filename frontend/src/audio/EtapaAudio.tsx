@@ -43,6 +43,8 @@ export default function EtapaAudio(p: {
   tempo: number
   tocando: boolean
   buscar: (t: number) => void
+  /** Pausa a prévia (ouvir uma faixa de fundo sozinha). */
+  pausar: () => void
 }) {
   const [tam, arrastarBorda] = useTamanhos()
   const esq = Math.min(tam.esq, 480)
@@ -54,7 +56,7 @@ export default function EtapaAudio(p: {
         <aside className="flex min-h-0 min-w-0 flex-col border-r border-line-dark text-cream">
           <Cabecalho icone={AudioLines} titulo="Voz e fundo" />
           <div className="grid min-h-0 flex-1 content-start gap-6 overflow-y-auto px-4 py-4">{p.a && e ? <Voz a={p.a} mudar={p.mudar} /> : <p className="text-[12px] text-fog">Carregando…</p>}
-            {e && <Fundo cat={p.cat} escolhido={e.fundo} escolher={(id) => p.mudar({ fundo: id })} />}
+            {e && <Fundo cat={p.cat} escolhido={e.fundo} escolher={(id) => p.mudar({ fundo: id })} previaTocando={p.tocando} pausarPrevia={p.pausar} />}
           </div>
         </aside>
         <section className="flex min-h-0 min-w-0 flex-col px-6 pt-5 pb-3">{p.previa}</section>
@@ -190,9 +192,16 @@ function Voz(p: { a: AudioDoProjeto; mudar: (c: Record<string, unknown>) => void
   )
 }
 
-function Fundo(p: { cat: Catalogo | null; escolhido: string | null; escolher: (id: string | null) => void }) {
+/** As faixas de fundo. O ▶ de uma faixa a toca sozinha: pausa a prévia (que tocaria a voz e o fundo escolhido junto);
+ *  dar play na prévia para a faixa que se estava ouvindo. */
+function Fundo(p: { cat: Catalogo | null; escolhido: string | null; escolher: (id: string | null) => void; previaTocando: boolean; pausarPrevia: () => void }) {
   const [ouvindo, setOuvindo] = useState<string | null>(null)
   const el = useRef<HTMLAudioElement | null>(null)
+  const [previaAntes, setPreviaAntes] = useState(p.previaTocando)
+  if (p.previaTocando !== previaAntes) {
+    setPreviaAntes(p.previaTocando)
+    if (p.previaTocando && ouvindo) setOuvindo(null)
+  }
   useEffect(() => {
     el.current?.pause()
     if (!ouvindo) return
@@ -219,7 +228,10 @@ function Fundo(p: { cat: Catalogo | null; escolhido: string | null; escolher: (i
           className={cn('flex items-center gap-2 rounded-[6px] px-2 py-1.5 ring-1', p.escolhido === f.id ? 'bg-cream/10 ring-cream/60' : 'ring-line-dark')}
         >
           <button
-            onClick={() => setOuvindo(ouvindo === f.id ? null : f.id)}
+            onClick={() => {
+              if (ouvindo !== f.id && p.previaTocando) p.pausarPrevia()
+              setOuvindo(ouvindo === f.id ? null : f.id)
+            }}
             className="grid size-7 shrink-0 place-items-center rounded-full bg-cream/10 hover:bg-cream/20"
             title={ouvindo === f.id ? 'Parar' : 'Ouvir a faixa'}
           >

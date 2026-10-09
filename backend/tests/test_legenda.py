@@ -16,7 +16,11 @@ def test_escolhas_e_validar():
     n = legenda.validar({'ajustes': {'w00003': None, 'w00007': {}}}, n)
     assert n['ajustes'] == {}  # null e vazio voltam ao automático
     assert legenda.validar({'limpar': True}, {**a, 'ajustes': {'w1': {'texto': 'x'}}})['ajustes'] == {}
-    for ruim in ({'modo': 'karaoke'}, {'ajustes': {'../x': {}}}, {'ajustes': {'w1': 'texto'}}, {'ajustes': {'w1': {'fim': 'a b'}}}):
+    # a presilha do Separar no Frase curta guarda o modo; com texto corrigido, o modo sai (o texto vale nos dois)
+    n = legenda.validar({'ajustes': {'w00062': {'fim': 'w00062', 'modo': 'frase'}, 'w00063': {'fim': 'w00064', 'texto': 'x', 'modo': 'frase'}}}, a)
+    assert n['ajustes'] == {'w00062': {'fim': 'w00062', 'modo': 'frase'}, 'w00063': {'fim': 'w00064', 'texto': 'x'}}
+    ruins = ({'modo': 'karaoke'}, {'ajustes': {'../x': {}}}, {'ajustes': {'w1': 'texto'}}, {'ajustes': {'w1': {'fim': 'a b'}}}, {'ajustes': {'w1': {'fim': 'w1', 'modo': 'x'}}})
+    for ruim in ruins:
         with pytest.raises(ValueError):
             legenda.validar(ruim, a)
 

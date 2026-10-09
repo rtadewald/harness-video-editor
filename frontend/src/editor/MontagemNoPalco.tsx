@@ -3,18 +3,19 @@ import { lerInserts, listarBanco, mapaBanco, urlArquivo, type InsertsProjeto, ty
 import { falaDoPlano, fundoDoMotion, urlPaginaMotionPlano, type MotionPlano } from '@/motions/api'
 import MotionNoLugar from '@/motions/MotionNoLugar'
 import { usePresets as usePresetsMotion } from '@/motions/PresetMotion'
-import { escolhasDeSom } from '@/motions/sons'
+import { escolhasDeSom, usePreCarregarMarcas } from '@/motions/sons'
 import { useMotionsDoProjeto } from '@/motions/useMotionsDoProjeto'
 import AtorArrastavel from './AtorArrastavel'
 import AtorRecortado from './AtorRecortado'
 import { ajusteNaFolga, estiloDaPessoaNaGeometria, estiloDoQuadro, geometriaDoAtor, type AjusteAtor, type Rosto } from './ator'
 import { CardComentario, comentarioDe, type Comentario } from './ComentarioIG'
 import type { PalavraSaida } from './direcaoProjeto'
-import { divisaoDe, posicaoDoComentario, type Divisao } from './divisao'
+import { divisaoDe, lugarDoComentario, type Divisao } from './divisao'
 import { useEntradas } from './entradas'
-import InsertNoLugar, { pedidosNoTempo } from './InsertNoLugar'
+import InsertNoLugar, { pedidosNoTempo, presetDe } from './InsertNoLugar'
 import type { Pedido } from './inserts/comum'
 import { usePresets } from './presets'
+import { precarregarSons } from './sons'
 
 /** O quadro montado por cima do ator (SPEC §13, camada 2): o insert sob o cursor no lugar (com a entrada, o fundo, o
  *  card do comentário), o ator descendo ou encolhendo na tela dividida, a pessoa recortada por cima, ou o motion do
@@ -30,6 +31,10 @@ export default function MontagemNoPalco(p: {
   motions: Record<string, MotionPlano>
   tempo: number
   tocando: boolean
+  /** A velocidade da prévia (0,5× a 2×): as mídias dos inserts andam junto. */
+  velocidade?: number
+  /** Marca os inserts ainda sem mídia (só na etapa Inserts; nas outras, como na exportação, fica o ator limpo). */
+  avisoSemMidia?: boolean
   videoRef: RefObject<HTMLVideoElement | null>
   src: string
   enquadramentoX: number
@@ -43,6 +48,18 @@ export default function MontagemNoPalco(p: {
   const presets = usePresets()
   const presetsMotion = usePresetsMotion()
   const entradas = useEntradas()
+  // os arquivos dos sons do projeto (dos presets dos inserts e dos motions), baixados ao abrir a etapa: o insert e o
+  // motion só montam quando aparecem, e o 1º toque, esperando baixar e decodificar, saía sem o começo
+  const idsSons = [
+    ...new Set([
+      ...p.pedidos.flatMap((x) => (presetDe(x, presets)?.receita.sons ?? []).map((s) => s.som)),
+      ...Object.values(motions).flatMap((m) => Object.values(escolhasDeSom(presetsMotion, m)).map((s) => s.som)),
+    ]),
+  ]
+    .filter((x): x is string => !!x)
+    .sort()
+    .join()
+  useEffect(() => precarregarSons(idsSons.split(',').filter(Boolean)), [idsSons])
   const noCursor = p.pedidos.find((x) => tempo >= x.t.inicio && tempo < x.t.fim) ?? null
   const planoNoCursor = p.planos.find((pl) => tempo >= pl.inicio && tempo < pl.fim) ?? null
   const motionNoCursor = planoNoCursor && motions[planoNoCursor.id] ? planoNoCursor : null
@@ -89,7 +106,7 @@ export default function MontagemNoPalco(p: {
   const mudar = p.mudarComentario
   return (
     <>
-      <InsertNoLugar pedido={noCursor} banco={p.banco} tempo={tempo} tocando={p.tocando} fundo={p.fundo} entradas={entradas} />
+      <InsertNoLugar pedido={noCursor} banco={p.banco} tempo={tempo} tocando={p.tocando} velocidade={p.velocidade} avisoSemMidia={p.avisoSemMidia} fundo={p.fundo} entradas={entradas} />
       {/* o ator por cima do insert vai também por cima do card do comentário (z-10), como na exportação: lá o card é
           fotografado junto com a camada dos inserts e o ator é posto depois (SPEC §13) */}
       {(estiloQuadro || estiloPessoa) && (
@@ -103,7 +120,7 @@ export default function MontagemNoPalco(p: {
       )}
       {noCursor.tipo === 'comentario_insert_ator' && (
         <CardComentario
-          c={comentarioDe(noCursor, posicaoDoComentario(divisao, g))}
+          c={comentarioDe(noCursor, lugarDoComentario(noCursor, divisao, g))}
           texto={comentarioDe(noCursor).texto ?? noCursor.texto ?? ''}
           mudar={mudar && ((campos) => mudar(noCursor.id, campos))}
         />
@@ -120,6 +137,7 @@ export function MontagemDoProjeto(p: {
   saida: PalavraSaida[]
   tempo: number
   tocando: boolean
+  velocidade?: number
   videoRef: RefObject<HTMLVideoElement | null>
   src: string
   enquadramentoX: number
@@ -138,5 +156,7 @@ export function MontagemDoProjeto(p: {
       .catch(() => {})
   }, [id, p.projeto.direcao?.ativa, p.projeto.direcao?.gerado_em])
   const pedidos = useMemo(() => pedidosNoTempo(ins?.pedidos ?? [], p.planos), [ins, p.planos])
+  // as marcas de som dos motions, de antemão: na 1ª passagem por um motion, o som já entra no tempo
+  usePreCarregarMarcas(id, p.planos, motions, p.saida)
   return <MontagemNoPalco {...p} pedidos={pedidos} banco={banco} fundo={ins?.fundo ?? 'gradiente'} motions={motions} />
 }

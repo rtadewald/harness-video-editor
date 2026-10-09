@@ -83,13 +83,16 @@ export function eventosDaReceita(receita: Receita, dur: number, cat: Catalogo | 
   const cards = r.cards.map((c) => ({ c, ...janela(c, dur) })).sort((a, b) => a.ini - b.ini)
   // o instante de cada momento e, nos que acompanham um movimento (o mergulho, o zoom na mídia), a duração dele
   const quando: Record<Momento, [number, number?][]> = { entrada: [], troca: [], saida: [], mergulho: [], zoom: [] }
+  // uma saída que só desliza e, na tela toda, amplia junto para não descobrir o fundo (`divisao.saidaCobrindo`) continua
+  // com o som de saída: o preset não tem o momento do mergulho
+  const temMergulho = (r.sons ?? []).some((s) => s.momento === 'mergulho')
   cards.forEach(({ c, ini, fim }, k) => {
     quando.entrada.push([ini + (c.entrada?.atraso?.pos ?? 0)])
     if (k > 0 && ini > cards[0].ini + 0.02) quando.troca.push([ini])
     // a saída: quando começa; o mergulho (zoom de saída): o som abrange o zoom de verdade — a janela da escala dentro da
     // saída (`atraso.escala` e `dur.escala`; o resto da saída o card fica parado) —, com o golpe no fim do zoom
     if (c.saida) {
-      if (c.saida.para.escala > 1.05) {
+      if (c.saida.para.escala > 1.05 && temMergulho) {
         const atraso = c.saida.atraso?.escala ?? 0
         const d = c.saida.dur?.escala ?? c.saida.duracao - atraso
         quando.mergulho.push([fim - c.saida.duracao + atraso + d, d])
@@ -130,20 +133,53 @@ function buffer(id: string) {
       id,
       fetch(`/api/sons/${id}.m4a`)
         .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject()))
-        .then((b) => contexto().decodeAudioData(b))
+        .then((b) => decodificador().decodeAudioData(b))
         .catch(() => null),
     )
   return buffers.get(id)!
 }
-/** Baixa e decodifica os sons de antemão (o primeiro toque sai na hora). */
-const precarregar = (ids: string[]) => ids.forEach((id) => void buffer(id))
+let offline: OfflineAudioContext | null = null
+/** Quem decodifica: o contexto da prévia, se já existe; senão um offline (baixar de antemão, antes de qualquer clique,
+ *  não cria o da prévia: criado sem um gesto ele nasce suspenso e o navegador reclama). O som decodificado toca em
+ *  qualquer contexto. */
+const decodificador = (): BaseAudioContext => ctx ?? (offline ??= new OfflineAudioContext(1, 1, 48000))
+/** Acorda o áudio de antemão, já no 1º gesto na página (um clique, uma tecla): o dispositivo leva ~0,1–0,2 s para ligar
+ *  e, ligado só no 1º som, o pop do começo (0,1 s) já tinha passado quando o áudio acordava. Sem gesto ainda, espera o
+ *  primeiro (criado antes, o navegador o deixaria suspenso e reclamaria). */
+function aquecerAudio() {
+  const ja = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive
+  const acordar = () => {
+    const c = contexto()
+    if (c.state === 'suspended') void c.resume().catch(() => {})
+  }
+  if (ja) return acordar()
+  for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, acordar, { once: true, capture: true })
+}
+/** Baixa e decodifica os sons de antemão (o primeiro toque sai na hora, inteiro). */
+export const precarregarSons = (ids: Iterable<string>) => {
+  let algum = false
+  for (const id of ids) {
+    algum = true
+    void buffer(id)
+  }
+  if (algum) aquecerAudio()
+}
 
-/** Toca um evento agora, adiantado `atrasado` s (quem toca chegou depois do instante dele). */
-export async function tocarEvento(e: EventoSom, atrasado = 0) {
+/** Toca um evento agora, adiantado `atrasado` s (quem toca chegou depois do instante dele). `noRelogio`: o som segue um
+ *  relógio que anda (a prévia); ouvir um som solto (a escolha do som) toca do começo. */
+export async function tocarEvento(e: EventoSom, atrasado = 0, noRelogio = true) {
+  // baixar, decodificar e acordar o áudio levam tempo (no 1º toque, dezenas de ms): o relógio andou junto, e o som entra
+  // adiantado o mesmo tanto, para o golpe cair no lugar
+  const t0 = performance.now()
   const b = await buffer(e.som)
   if (!b) return
   const c = contexto()
   if (c.state === 'suspended') await c.resume().catch(() => {})
+  if (noRelogio) atrasado += (performance.now() - t0) / 1000
+  // ainda não chegou a hora (atrasado negativo): entra daqui a pouco, do começo, em vez de pedir ao áudio um ponto antes
+  // do início do arquivo (o navegador recusa, e a fonte nunca começada não pode ser parada depois)
+  const espera = Math.max(-atrasado, 0)
+  atrasado = Math.max(atrasado, 0)
   const vel = e.vel ?? 1
   const desde = e.desde + atrasado * vel // `desde` é no tempo do arquivo
   if (desde >= b.duration || (e.dur != null && atrasado >= e.dur)) return
@@ -152,20 +188,34 @@ export async function tocarEvento(e: EventoSom, atrasado = 0) {
   fonte.playbackRate.value = vel
   const g = c.createGain()
   g.gain.value = e.ganho
+  const quando = c.currentTime + espera
   if (e.dur != null) {
-    const fim = c.currentTime + e.dur - atrasado
-    g.gain.setValueAtTime(e.ganho, Math.max(fim - Math.min(0.12, e.dur / 2), c.currentTime)) // o fade: no máximo metade do som
+    const fim = quando + e.dur - atrasado
+    g.gain.setValueAtTime(e.ganho, Math.max(fim - Math.min(0.12, e.dur / 2), quando)) // o fade: no máximo metade do som
     g.gain.linearRampToValueAtTime(0, fim)
   }
   fonte.connect(g).connect(barramento(e.grupo === 'transicoes' ? 'transicoes' : 'presets'))
+  try {
+    fonte.start(quando, desde, e.dur != null ? (e.dur - atrasado) * vel : undefined)
+  } catch {
+    fonte.disconnect()
+    return
+  }
+  // só a fonte que começou entra na lista do que está soando (parar uma que nunca começou é um erro)
   tocando.add(fonte)
   fonte.onended = () => tocando.delete(fonte)
-  fonte.start(0, desde, e.dur != null ? (e.dur - atrasado) * vel : undefined)
 }
 
-/** Para na hora todos os sons que estão soando (a prévia parou ou saiu da tela). */
+/** Para na hora todos os sons que estão soando (a prévia parou ou saiu da tela). Um som que já tinha acabado não
+ *  derruba os outros (nem a tela: quem chama costuma ser um efeito do React). */
 export function pararSons() {
-  for (const f of tocando) f.stop()
+  for (const f of tocando) {
+    try {
+      f.stop()
+    } catch {
+      // já parado
+    }
+  }
   tocando.clear()
 }
 
@@ -174,10 +224,14 @@ export function pararSons() {
 export const FatorSom = createContext(1)
 /** Um avanço maior que isso entre dois quadros é um pulo (arrastar o cursor), não a prévia andando. */
 const SALTO = 0.5
+/** Até quanto tempo depois de começar um som ainda pode estar soando (os de apoio duram poucos segundos). */
+const SOANDO = 6
 
 /** Toca os `eventos` enquanto `rel` (s, no mesmo relógio) anda para a frente em passos de quadro: cada evento cujo
  *  instante foi cruzado desde o último quadro (os do zero também, quando o relógio sai do zero). Pular (arrastar o
- *  cursor, voltar) não toca nada. */
+ *  cursor, voltar) não toca nada. Ao dar play com o cursor parado no meio de um som (um riser que começa antes do corte),
+ *  ele entra já adiantado, como se a prévia viesse tocando: no 1º quadro com `ativo`, `rel` tem de ser o ponto de onde o
+ *  play sai (quem toca de outro ponto que o quadro parado, como o loop da página Presets, liga `ativo` já nele). */
 export function useSonsNoTempo(eventos: EventoSom[], rel: number, ativo: boolean, tardios = false) {
   const antes = useRef<number | null>(null)
   const fator = useContext(FatorSom)
@@ -189,9 +243,8 @@ export function useSonsNoTempo(eventos: EventoSom[], rel: number, ativo: boolean
     tocava.current = ativo
   }, [ativo])
   const chave = eventos.map((e) => `${e.som}@${e.t.toFixed(2)}`).join()
-  useEffect(() => {
-    if (ativo) precarregar([...new Set(chave.split(',').filter(Boolean).map((x) => x.split('@')[0]))])
-  }, [ativo, chave])
+  // os arquivos já ao montar (parado também): o 1º play não espera baixar e decodificar
+  useEffect(() => precarregarSons(new Set(chave.split(',').filter(Boolean).map((x) => x.split('@')[0]))), [chave])
   // `tardios`: os eventos podem chegar depois que o relógio já andou (as marcas de um motion só vêm quando a página dele
   // carrega): quando chegam, o que ainda estaria soando entra já adiantado
   const chegaram = useRef(chave)
@@ -202,12 +255,29 @@ export function useSonsNoTempo(eventos: EventoSom[], rel: number, ativo: boolean
     const agora = antes.current
     for (const e of eventos) if (e.t <= agora && agora < e.t + (e.dur ?? 0.25)) void tocarEvento({ ...e, ganho: e.ganho * fator }, agora - e.t)
   }, [chave, ativo, eventos, fator, tardios])
+  const ativoAntes = useRef(false)
   useEffect(() => {
+    const comecou = ativo && !ativoAntes.current
+    ativoAntes.current = ativo
     // quem acabou de aparecer tocando (o insert começou agora) conta desde um pouco antes do zero
     let a = antes.current ?? (ativo && rel < SALTO ? -0.001 : null)
-    // o relógio da prévia às vezes volta alguns ms (o vídeo se ressincronizando): não é voltar, e não toca de novo
-    if (a != null && rel < a && a - rel < 0.05) return
+    // tocando, o relógio da prévia às vezes volta alguns ms (o vídeo se ressincronizando): não é voltar, e não toca de
+    // novo. Parado, qualquer volta conta (um clique na régua logo antes de onde se pausou é o novo ponto do play)
+    if (ativo && !comecou && a != null && rel < a && a - rel < 0.05) return
+    // parado no zero (o começo do insert, um R): os sons do zero ficam para quando o relógio sair dele (senão, parado
+    // ali, o "antes" virava 0 e o som do instante 0 nunca era cruzado)
+    if (rel <= 0) {
+      antes.current = -0.001
+      return
+    }
     antes.current = rel
+    // o play com o cursor parado no meio (o 1º quadro tocando é o ponto do play): o que começou até aqui e ainda estaria
+    // soando entra adiantado, como se a prévia viesse tocando (até onde o som vai, `tocarEvento` confere pelo arquivo).
+    // Quem toca passa, nesse 1º quadro, o instante de onde o play sai (não o quadro parado de antes)
+    if (comecou && a != null && a > 0) {
+      for (const e of eventos) if (e.t <= rel && rel - e.t < SOANDO && (e.dur == null || rel < e.t + e.dur)) void tocarEvento({ ...e, ganho: e.ganho * fator }, rel - e.t)
+      return
+    }
     if (a != null && rel < a && rel < SALTO) a = -0.001 // voltou ao começo (um loop): o que está no zero toca de novo
     if (!ativo || a == null || rel <= a || rel - a > SALTO) return
     for (const e of eventos) if (e.t > a && e.t <= rel) void tocarEvento({ ...e, ganho: e.ganho * fator }, rel - e.t)

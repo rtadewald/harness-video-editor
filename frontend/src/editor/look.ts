@@ -15,8 +15,12 @@ export type CatalogoLook = {
 const loja = criarLoja(() => fetch('/api/look').then(json<CatalogoLook>))
 export const useCatalogoLook = loja.use
 
-/** O look que vale no editor aberto (o player e as cópias do ator o usam; null: sem look). */
+/** O look que vale no editor aberto (o player e as cópias do ator o usam; null: fora do editor, o vídeo puro). */
 export const LookAtor = createContext<Look | null>(null)
+
+/** Look nenhum (sem LUT, sem vinheta): no editor, o "segure para ver sem o look" usa este em vez de null, para a prévia
+ *  continuar no mesmo caminho (o canvas WebGL) e a comparação mostrar só o look, não a diferença de cor do navegador. */
+export const SEM_LOOK: Look = { lut: null, intensidade: 0, vinheta: 'sem' }
 
 /** O look de um projeto, como mudá-lo (muda na tela na hora; o servidor recebe junto) e como só ver uma mudança na tela,
  *  sem gravar (o slider da intensidade durante o arraste). */

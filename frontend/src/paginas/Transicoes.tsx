@@ -42,7 +42,7 @@ export default function Transicoes() {
         <NavHome />
       </header>
       <div className="grid min-h-0 grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="grid min-h-0 content-start gap-4 overflow-y-auto border-r border-line-dark px-3 py-5">
+        <aside className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-4 overflow-x-hidden overflow-y-auto border-r border-line-dark px-3 py-5">
           {!b && <p className="px-2 text-[12px] text-fog">Carregando…</p>}
           {b && !vistos.length && !familias.length && (
             <p className="px-2 text-[12px] leading-[1.6] text-fog">Nenhuma transição ainda: o Claude analisa os cortes das referências e grava as transições (docs/transicoes.md).</p>
@@ -82,7 +82,7 @@ export default function Transicoes() {
 
 function Grupo(p: { titulo: string; children: ReactNode }) {
   return (
-    <div className="grid gap-0.5">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5">
       <p className="eyebrow px-2 pb-1 text-sage">{p.titulo}</p>
       {p.children}
     </div>
@@ -94,7 +94,7 @@ function ItemPar(p: { k: string; b: Biblioteca; n?: number; ativo: boolean; abri
   const o = p.k.startsWith('familia:') ? p.b.ordem[p.k] : ordemDoPar(p.b, de, para)
   const padrao = o && o.favoritas > 0 ? p.b.transicoes.find((t) => t.id === o.ids[0]) : null
   return (
-    <button onClick={p.abrir} className={cn('grid rounded-[6px] px-2 py-1.5 text-left ring-1', p.ativo ? 'bg-cream/10 ring-cream/40' : 'ring-transparent hover:bg-cream/[0.05]')}>
+    <button onClick={p.abrir} title={nomePar(p.k)} className={cn('grid min-w-0 grid-cols-[minmax(0,1fr)] rounded-[6px] px-2 py-1.5 text-left ring-1', p.ativo ? 'bg-cream/10 ring-cream/40' : 'ring-transparent hover:bg-cream/[0.05]')}>
       <span className="flex items-center gap-2 text-[12px] font-semibold">
         <span className="min-w-0 flex-1 truncate">{nomePar(p.k)}</span>
         {p.n != null && <span className="text-[11px] font-normal text-fog tabular-nums">{p.n}</span>}
@@ -131,11 +131,20 @@ function DetalhePar(p: {
   }
   const tornarPrimeira = (id: string) => salvar([id, ...ids.filter((x) => x !== id)], nFav)
   const parInfo: Par | undefined = familia ? undefined : b.pares[k]
-  // de qual corte mostrar cada transição: um corte dela neste par; senão, o 1º dela; o corte seco, um corte seco do par
+  // de qual corte mostrar cada transição: um corte dela neste par; senão, o 1º dela. O corte seco (sem fontes): um corte
+  // seco sem som do par; senão, um seco do par mesmo com som (a referência toca muda, a menos que se escolha o som dela);
+  // senão, um seco sem som de qualquer par. Um corte que é fonte de uma transição com efeito é dela, não da de som que
+  // também o lista (a luz colorida do manychat 6,9 s não aparece como o "Corte com clique")
+  const todos = Object.values(b.pares).flatMap((x) => x.cortes)
+  const deOutroEfeito = (t: Transicao, f: { ref: string; t: number }) =>
+    b.transicoes.some((o) => o.id !== t.id && o.efeito.tipo !== 'seco' && o.fontes.some((g) => g.ref === f.ref && Math.abs(g.t - f.t) < 0.2))
   const fonteDe = (t: Transicao) => {
-    const noPar = t.fontes.find((f) => parInfo?.cortes.some((c) => c.ref === f.ref && Math.abs(c.t - f.t) < 0.2))
-    if (noPar ?? t.fontes[0]) return noPar ?? t.fontes[0]
-    const seco = (parInfo?.cortes ?? Object.values(b.pares).flatMap((x) => x.cortes)).find((c) => c.classe === 'seco' && !c.sons.length)
+    const proprias = t.fontes.filter((f) => !deOutroEfeito(t, f))
+    const noPar = proprias.find((f) => parInfo?.cortes.some((c) => c.ref === f.ref && Math.abs(c.t - f.t) < 0.2))
+    if (noPar ?? proprias[0]) return noPar ?? proprias[0]
+    const doPar = parInfo?.cortes ?? []
+    const seco =
+      doPar.find((c) => c.classe === 'seco' && !c.sons.length) ?? doPar.find((c) => c.classe === 'seco') ?? todos.find((c) => c.classe === 'seco' && !c.sons.length)
     return seco ? { ref: seco.ref, t: seco.t } : null
   }
   const card = (t: Transicao, i: number) => (
@@ -159,7 +168,7 @@ function DetalhePar(p: {
           <h1 className="text-[22px] font-semibold">{nomePar(k)}</h1>
           <p className="text-[12px] leading-[1.6] text-fog">
             {parInfo
-              ? `${parInfo.n} cortes nas referências · ${Object.entries(parInfo.sons)
+              ? `${parInfo.n} ${parInfo.n === 1 ? 'corte' : 'cortes'} nas referências · ${Object.entries(parInfo.sons)
                   .map(([s, n]) => `${s} ${n}×`)
                   .join(', ') || 'sem som de corte'}`
               : 'Vale para os pares desta família que não aparecem nas referências.'}

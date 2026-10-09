@@ -12,6 +12,7 @@ import type { Qual } from '../enriquecimento'
 import { type Lado, type Entradas } from '../entradas'
 import { BOTAO, NOME_TIPO, type Pedido } from './comum'
 import { NOME_MODO, type AjusteAtor, type ModoAtor } from '../ator'
+import { ajustesAoTrocar } from '../ajustes'
 
 export default function PainelEnriquecimento(p: {
   pedido: Pedido
@@ -81,7 +82,7 @@ export default function PainelEnriquecimento(p: {
                       return (
                         <div key={pr.id} className="relative" onMouseEnter={() => setSobre(pr.id)} onMouseLeave={() => setSobre(null)}>
                           <button
-                            onClick={() => p.mudar({ preset: ativo ? null : pr.id })}
+                            onClick={() => p.mudar({ preset: ativo ? null : pr.id, ajustes: ajustesAoTrocar(ativo ? null : pr, x.enriquecimento?.ajustes) } as never)}
                             className="group/p grid w-full gap-1.5 text-left"
                             title={pr.nome}
                           >
@@ -125,7 +126,7 @@ export default function PainelEnriquecimento(p: {
         </div>
       )}
       <div className={cn('flex flex-wrap gap-2 border-t border-line-dark pt-4 text-[11px]', p.aviso && 'hidden')}>
-        <button onClick={() => p.mudar({ layout: null, entrada: null, entrada_2: null, saida: null, saida_2: null, entre: null, corte: null, preset: null })} disabled={!mudado} className={cn(BOTAO, 'disabled:opacity-40')}>
+        <button onClick={() => p.mudar({ layout: null, entrada: null, entrada_2: null, saida: null, saida_2: null, entre: null, corte: null, preset: null, ajustes: null })} disabled={!mudado} className={cn(BOTAO, 'disabled:opacity-40')}>
           <RotateCcw className="size-3" /> Tirar o preset
         </button>
         <button onClick={p.aplicarAoTipo} className={BOTAO} title={`Copia este enriquecimento para todos os planos “${nomeTipo}”`}>

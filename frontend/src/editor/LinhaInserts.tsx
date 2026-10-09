@@ -32,6 +32,9 @@ export default function LinhaInserts(p: {
   /** O motion escolhido em cada plano de motion (nome). */
   motions: Record<string, { nome: string }>
   ajustarCorte: (pid: string, v: number | null, salvar: boolean) => void
+  /** Nos inserts com preset e várias mídias, quando cada uma está na tela (s desde o começo do insert; `vidasDasMidias`):
+   *  é o preset que manda nos tempos, então os blocos seguem ele e não há alça de corte. */
+  vidas?: Map<string, ({ ini: number; fim: number } | null)[]>
   /** As ferramentas da linha do tempo, antes do zoom (ex.: cortar o plano sob o cursor). */
   ferramentas?: React.ReactNode
 }) {
@@ -85,6 +88,11 @@ export default function LinhaInserts(p: {
                 </button>
               )
             if (!ped) return null
+            const vidas = p.vidas?.get(pl.id)
+            if (vidas && ped.midias.length >= 2)
+              return (
+                <TrilhaDoPreset key={pl.id} pl={pl} ped={ped} vidas={vidas} x={x} lugar={lugar} selecionado={p.selecionado === pl.id} escolher={() => p.escolherMidia(pl.id)} />
+              )
             if (ped.midias.length === 2)
               return (
                 <TrilhaDupla
@@ -134,6 +142,48 @@ export default function LinhaInserts(p: {
         </>
       )}
     </LinhaBase>
+  )
+}
+
+/** As mídias de um insert com preset na trilha Mídias: uma faixa por mídia, cada bloco do instante em que ela entra ao
+ *  instante em que sai, como o preset toca (a sequência, o que entra por cima). Sem alça: os tempos são do preset. */
+function TrilhaDoPreset(p: {
+  pl: PlanoLinha
+  ped: PedidoInsert
+  vidas: ({ ini: number; fim: number } | null)[]
+  x: (t: number) => number
+  lugar: { left: number; width: number; top: number; height: number }
+  selecionado: boolean
+  escolher: () => void
+}) {
+  const n = p.ped.midias.length
+  const alt = (p.lugar.height - (n - 1) * 2) / n
+  return (
+    <>
+      {p.ped.midias.map((m, k) => {
+        const v = p.vidas[k]
+        if (!v) return null
+        const ini = p.pl.inicio + v.ini
+        return (
+          <button
+            key={m.id}
+            onClick={(ev) => {
+              ev.stopPropagation()
+              p.escolher()
+            }}
+            className={cn(
+              'absolute flex items-center gap-1 overflow-hidden rounded-[3px] bg-cream/[0.05] px-0.5 text-[9px] font-semibold text-cream/80 ring-1 ring-line-dark',
+              p.selecionado && 'ring-2 ring-yellow',
+            )}
+            style={{ left: p.x(ini) + 1, width: Math.max(p.x(v.fim - v.ini) - 2, 2), top: p.lugar.top + k * (alt + 2), height: alt }}
+            title={`${k + 1}ª mídia (os tempos vêm do preset)`}
+          >
+            {alt >= 12 && <img src={urlBancoMiniatura(m.banco)} alt="" className="h-full w-auto shrink-0 rounded-[2px] bg-black object-cover" style={{ aspectRatio: '16 / 9' }} />}
+            <span className="shrink-0 rounded-full bg-black/50 px-1 leading-tight">{k + 1}</span>
+          </button>
+        )
+      })}
+    </>
   )
 }
 

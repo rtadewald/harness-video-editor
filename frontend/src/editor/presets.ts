@@ -159,11 +159,37 @@ export function noTempo(r: Receita, dur: number): Receita {
   }
 }
 
+/** O card com outro repouso (outro tamanho ou lugar). Um mergulho (a saída que amplia o card) guarda o ponto da imagem
+ *  que fica parado (o "Mergulha em"), que é relativo ao card: o deslocamento da saída acompanha o tamanho novo. Medido
+ *  num card largo, o mesmo deslocamento num card estreito (uma mídia em pé) jogaria o card para fora da área. */
+export function comRepouso(c: CardReceita, rep: Partial<CardReceita['repouso']>): CardReceita {
+  const novo = { ...c.repouso, ...rep }
+  const s = c.saida
+  if (!s || s.para.escala <= 1.05 || (novo.w === c.repouso.w && novo.h === c.repouso.h)) return { ...c, repouso: novo }
+  const kx = novo.w / Math.max(c.repouso.w, 0.01)
+  const ky = novo.h / Math.max(c.repouso.h, 0.01)
+  return { ...c, repouso: novo, saida: { ...s, para: { ...s.para, dx: s.para.dx * kx, dy: s.para.dy * ky } } }
+}
+
 /** O tempo de cada card num insert de `dur` s: começa em `inicio_frac` da duração e termina `sai_antes_do_fim` antes do fim. */
 export function janela(c: CardReceita, dur: number) {
   const ini = c.inicio_frac * dur
   const fim = Math.max(c.fim_frac != null ? Math.min(c.fim_frac * dur + (c.fim_mais ?? 0), dur) : dur - c.sai_antes_do_fim, ini + 0.05)
   return { ini, fim }
+}
+
+/** Quando cada mídia está na tela num insert de `dur` s (s desde o começo; do 1º card dela que entra ao último que sai):
+ *  a linha do tempo desenha os blocos das mídias por aqui quando o insert tem preset (é ele que manda nos tempos). */
+export function vidasDasMidias(r0: Receita, dur: number, n: number): ({ ini: number; fim: number } | null)[] {
+  const r = noTempo(r0, dur)
+  const v: ({ ini: number; fim: number } | null)[] = Array.from({ length: n }, () => null)
+  r.cards.forEach((c, k) => {
+    const m = c.midia ?? k
+    if (m >= n) return
+    const j = janela(c, dur)
+    v[m] = v[m] ? { ini: Math.min(v[m]!.ini, j.ini), fim: Math.max(v[m]!.fim, j.fim) } : j
+  })
+  return v
 }
 
 // o progresso (0 → 1, a curva pode passar do ponto) de uma propriedade num movimento, `t` s depois de ele começar
@@ -275,8 +301,13 @@ export function mexendo(r0: Receita, rel: number, dur: number) {
 /** Quantas mídias a receita pede (os cards podem repetir mídias). */
 export const nMidias = (r: Receita) => Math.max(...r.cards.map((c, k) => (c.midia ?? k) + 1))
 /** A receita para `n` mídias. Numa receita que repete, os cards fixos ficam e o último (o molde) vira um card por mídia
- *  restante: a mídia k entra em k/n do insert e, se o molde termina antes do fim (uma sequência), sai em (k+1)/n. */
+ *  restante: a mídia k entra em k/n do insert e, se o molde termina antes do fim (uma sequência), sai em (k+1)/n. Com
+ *  tantas mídias quanto os cards da receita (as da referência), os tempos medidos valem como estão (só o último card vai
+ *  até o fim e sai só com `sai_ultimo`, como em qualquer número). */
+/** Numa receita que não repete e pede mais mídias do que o insert tem (marcada para valer com menos, no "Vale em"), os
+ *  cards das mídias que faltam mostram as que há, em rodízio (a 3ª janela da cascata volta à 1ª mídia). */
 export function paraMidias(r: Receita, n: number): Receita {
+  if (!r.repete && n >= 1 && n < nMidias(r)) return { ...r, cards: r.cards.map((c, k) => ({ ...c, midia: (c.midia ?? k) % n })) }
   if (!r.repete || n < 1) return r
   const fixos = r.cards.slice(0, -1)
   const molde = r.cards[r.cards.length - 1]
@@ -287,12 +318,14 @@ export function paraMidias(r: Receita, n: number): Receita {
   // a saída começa quando o próximo entra: o card fica a duração dela além da sua parte
   const mais = (c: CardReceita, k: number) => (k < n - 1 && c.saida ? c.saida.duracao : 0)
   const ultimoSai = (k: number) => k < n - 1 || !!r.sai_ultimo
-  const cards: CardReceita[] = fixos.map((c, k) => (seq ? { ...c, fim_frac: fimDe(c, k), fim_mais: mais(c, k), saida: ultimoSai(k) ? c.saida : null } : c))
+  // o número da referência: os fixos ficam como medidos e o molde entra quando entrava nela
+  const comoMedida = n === r.cards.length
+  const cards: CardReceita[] = fixos.map((c, k) => (seq && !comoMedida ? { ...c, fim_frac: fimDe(c, k), fim_mais: mais(c, k), saida: ultimoSai(k) ? c.saida : null } : c))
   for (let k = fixos.length; k < n; k++)
     cards.push({
       ...molde,
       midia: k,
-      inicio_frac: k === 0 ? molde.inicio_frac : k / n,
+      inicio_frac: k === 0 || comoMedida ? molde.inicio_frac : k / n,
       fim_frac: seq ? fimDe(molde, k) : molde.fim_frac,
       fim_mais: seq ? mais(molde, k) : molde.fim_mais,
       saida: seq && !ultimoSai(k) ? null : molde.saida,
@@ -313,6 +346,16 @@ export const PROPORCOES_USO: { id: Proporcao; nome: string }[] = [
 const chaveProporcao = (a: number): Proporcao => (a < 0.8 ? 'pe' : a <= 1.2 ? 'quadrada' : 'deitada')
 /** A chave do número de mídias: 1, 2 ou 2+ (3 ou mais). */
 const chaveMidias = (n: number) => (n <= 1 ? '1' : n === 2 ? '2' : '2+') as Usos['midias'][number]
+/** O nome de um número de mídias do "Vale em" para a receita: "3 ou mais" só vale para quem repete; numa que não repete, o
+ *  "2+" vai até as mídias que ela pede (com mais, alguma ficaria de fora e o preset não aparece: `serve`). */
+export function nomeMidias(m: Usos['midias'][number], r: Receita): string {
+  if (m === '1') return '1 mídia'
+  if (m === '2') return '2 mídias'
+  const n = nMidias(r)
+  return r.repete || n < 3 ? '3 ou mais' : n === 3 ? '3 mídias' : `3 a ${n} mídias`
+}
+/** A receita dá conta desse número de mídias? (uma que não repete, só até as que pede) */
+export const cabeMidias = (m: Usos['midias'][number], r: Receita) => r.repete || nMidias(r) >= (m === '1' ? 1 : m === '2' ? 2 : 3)
 /** Onde o preset vale: o marcado, ou o que a receita suporta (as telas de `formatos`, e "ator embaixo" se vale na
  *  dividida; as mídias pela receita: as que repetem servem a 2 e 2+). */
 export function usosDe(p: Preset): Usos {
@@ -327,7 +370,9 @@ export function usosDe(p: Preset): Usos {
  *  com `aspectos`, as proporções das mídias (todas entre as marcadas). */
 export const serve = (p: Preset, _formato: string, n: number, tela?: Usos['telas'][number], aspectos?: number[]) => {
   const u = usosDe(p)
-  const cabe = p.receita.repete ? n >= 1 : nMidias(p.receita) === n // os que repetem servem a quantas mídias forem (as marcadas)
+  // os que repetem servem a quantas mídias forem (as marcadas); os outros, a até as que a receita pede (com menos, as
+  // mídias se repetem nos cards: `paraMidias`); com mais, alguma ficaria de fora
+  const cabe = p.receita.repete ? n >= 1 : n >= 1 && n <= nMidias(p.receita)
   const props = !aspectos || !u.proporcoes || aspectos.every((a) => u.proporcoes!.includes(chaveProporcao(a)))
   return cabe && props && u.midias.includes(chaveMidias(n)) && (!tela || u.telas.includes(tela))
 }
@@ -360,7 +405,8 @@ function paraFormato(r: Receita, formato: Receita['formato']): Receita {
 
 /** O preset pronto para um insert do formato dado: a receita adaptada se o preset é do outro formato. */
 export const noFormato = (p: Preset, formato: string, n?: number): Preset & { adaptado?: boolean } => {
-  const q = n && p.receita.repete ? { ...p, receita: paraMidias(p.receita, n) } : p
+  const r = n ? paraMidias(p.receita, n) : p.receita
+  const q = r === p.receita ? p : { ...p, receita: r }
   return q.formato === formato || (formato !== 'vertical' && formato !== 'dividida') ? q : { ...q, receita: paraFormato(q.receita, formato), adaptado: true }
 }
 /** Os presets que servem a um insert (por padrão, só os aprovados), já no formato dele: os do mesmo formato primeiro. */

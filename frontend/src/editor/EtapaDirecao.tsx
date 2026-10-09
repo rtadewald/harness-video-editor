@@ -24,6 +24,7 @@ import { dividirPlano, editar, excluir, moverBorda, moverElemento, novoElemento,
 import LinhaDirecao, { X_COMENTARIOS, type Arrasto } from '@/referencias/LinhaDirecao'
 import { paraAncora, paraTempo, palavrasNaSaida, type PalavraSaida } from './direcaoProjeto'
 import Modal from '@/components/Modal'
+import { emCampoDeTexto, modalAberto, useFecharComEsc } from '@/lib/atalhos'
 import Preview from './Preview'
 import type { Sequencia } from './sequencia'
 import type { usePlayer } from './usePlayer'
@@ -193,23 +194,33 @@ function Edicao(p: Props) {
   const duracao = seq.duracao
 
   // salva sozinho, um pouco depois da última mudança (de volta para palavras + deslocamento)
+  const [reenvio, setReenvio] = useState(0)
+  const enviando = useRef(false)
   useEffect(() => {
-    if (itens === salvos.current) return
+    if (itens === salvos.current) {
+      // voltou ao que já está gravado (mudou e desfez antes de salvar): nada pendente
+      if (!enviando.current) setSalvamento('salvo')
+      return
+    }
     setSalvamento('pendente')
     const t = setTimeout(async () => {
       const enviado = itens
+      enviando.current = true
       setSalvamento('salvando')
       try {
         const r = await salvarDirecaoProjeto(projeto.id, [...paraAncora(enviado, saida), ...orfaos])
         salvos.current = enviado
         p.aoMudarProjeto({ ...projeto, direcao: r })
         if (itensRef.current === enviado) setSalvamento('salvo')
+        else setReenvio((n) => n + 1) // mudou (ou desfez) enquanto gravava: grava o que está na tela
       } catch (e) {
         setSalvamento({ erro: (e as Error).message })
+      } finally {
+        enviando.current = false
       }
     }, 700)
     return () => clearTimeout(t)
-  }, [itens]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [itens, reenvio]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const mudar = useCallback((f: (i: ItemRef[]) => ItemRef[], guardar = true) => {
     const atuais = itensRef.current
@@ -262,10 +273,10 @@ function Edicao(p: Props) {
     setSelecionado(id)
   }, [planoNoCursor])
 
-  // atalhos próprios da etapa (o editor já cuida de espaço e setas)
+  // atalhos próprios da etapa (o editor já cuida de espaço e setas); com um modal aberto, as teclas são dele
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).closest('input, textarea, select')) return
+      if (emCampoDeTexto(e.target) || modalAberto()) return
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         desfazer()
@@ -349,7 +360,7 @@ function Edicao(p: Props) {
           </button>
         </div>
         {dir.status === 'erro' && dir.erro && <p className="border-b border-line-dark bg-coral/10 px-3 py-2 text-[11px] text-coral">⚠ {dir.erro}</p>}
-        <div className="relative h-6 border-b border-line-dark text-[9px] tracking-[0.1em] text-fog uppercase">
+        <div className="relative h-6 shrink-0 overflow-hidden border-b border-line-dark text-[9px] tracking-[0.1em] text-fog uppercase">
           {(
             [
               [54, 'Fala'],
@@ -484,7 +495,6 @@ function ModalComentario(p: { titulo: string; fala: string; inicial: string; sal
         onChange={(e) => setTexto(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void enviar()
-          if (e.key === 'Escape') p.fechar()
         }}
         rows={4}
         placeholder="O que mudar aqui? Ex.: este trecho pede um insert do site, não o ator."
@@ -605,8 +615,9 @@ function Esboco({ plano, elementos }: { plano: ItemRef | null; elementos: ItemRe
 function ModalRegistro({ r, fechar }: { r: RegistroDirecao; fechar: () => void }) {
   const [aba, setAba] = useState<'sistema' | 'usuario' | 'roteiro' | 'resposta'>(r.roteiro ? 'roteiro' : 'sistema')
   const texto = aba === 'sistema' ? r.sistema : aba === 'usuario' ? r.usuario : aba === 'roteiro' ? (r.roteiro ?? '') : JSON.stringify(r.resposta, null, 1)
+  const ref = useFecharComEsc(fechar)
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-6" onClick={fechar}>
+    <div ref={ref} data-modal className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-6" onClick={fechar}>
       <div className="flex h-[88vh] w-full max-w-[1100px] flex-col gap-3 rounded-[8px] bg-deep p-5 ring-1 ring-line-dark" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-[16px] font-semibold">

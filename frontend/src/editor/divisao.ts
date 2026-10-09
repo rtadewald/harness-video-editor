@@ -1,5 +1,5 @@
 import type { ItemBanco } from '@/api'
-import type { Preset, Receita } from './presets'
+import { comRepouso, type CardReceita, type Preset, type Propriedade, type Receita } from './presets'
 import { ajustesEfetivos } from './ajustes'
 import { topoDoAtor, type Geometria } from './ator'
 
@@ -88,16 +88,19 @@ export function receitaParaInsert(r: Receita, d: Divisao | null, aspectos: numbe
         h = 90
         w = (h * a0) / areaAsp
       }
-      return { ...c, repouso: { ...c.repouso, cx: 50, cy: 50, w, h, raio: c.repouso.raio || 2.2, sombra: true }, ajuste: 'cover' as const }
+      return { ...comRepouso(c, { cx: 50, cy: 50, w, h, raio: c.repouso.raio || 2.2, sombra: true }), ajuste: 'cover' as const }
     }
     if (cheio) {
       const z = c.continuo
       // o zoom contínuo cresce a partir do centro na horizontal; na vertical, preso pelo topo (a parte de cima da mídia em
-      // pé continua à vista), a não ser que a receita tenha a própria deriva vertical (uma rolagem, por exemplo)
-      const continuo = z ? { ...z, dy: z.dy || (z.escala * 100) / 2 } : z
-      return { ...c, repouso: { ...c.repouso, cx: 50, cy: 50, w: 100, h: 100 }, ajuste: 'topo' as const, continuo }
+      // pé continua à vista), a não ser que a receita tenha a própria deriva vertical (uma rolagem, por exemplo). Um zoom
+      // que afasta (escala < 0) descobriria o fundo nas bordas, e a tela toda deixaria de ser toda: vira o mesmo zoom
+      // lento aproximando, preso pelo topo (a câmera continua andando, sem abrir margens)
+      const continuo = !z ? z : z.escala < 0 ? { ...z, escala: -z.escala, dx: 0, dy: (-z.escala * 100) / 2 } : { ...z, dy: z.dy || (z.escala * 100) / 2 }
+      const cc = comRepouso(c, { cx: 50, cy: 50, w: 100, h: 100 })
+      return { ...cc, ajuste: 'topo' as const, continuo, saida: saidaCobrindo(cc.saida) }
     }
-    if (d?.card && r.cards.length === 1) return { ...c, repouso: { ...c.repouso, cx: 50, cy: 50, w: d.card.w, h: d.card.h }, ajuste: 'cover' as const }
+    if (d?.card && r.cards.length === 1) return { ...comRepouso(c, { cx: 50, cy: 50, w: d.card.w, h: d.card.h }), ajuste: 'cover' as const }
     const a = aspectos[c.midia ?? k] ?? aspectos[0]
     if (!a) return c
     // a caixa do preset, sem passar de 96% da área
@@ -125,9 +128,32 @@ export function receitaParaInsert(r: Receita, d: Divisao | null, aspectos: numbe
     // um card desenhado maior que a área (passando da borda) e que encolheu para caber a mídia: fica preso pela borda
     // esquerda do original (o lado que aparecia), em vez de ficar no centro antigo e deixar um vão à esquerda
     const cx = atras || emPe ? 50 : c.repouso.w > 96 ? Math.max(c.repouso.cx - c.repouso.w / 2, 2) + w / 2 : c.repouso.cx
-    return { ...c, repouso: { ...c.repouso, w, h, cy, cx }, continuo, ajuste: 'cover' as const }
+    return { ...comRepouso(c, { w, h, cy, cx }), continuo, ajuste: 'cover' as const }
   })
   return { ...r, cards }
+}
+
+/** A saída de um card que ocupa a área toda, sem descobrir o fundo (a tela toda continua toda):
+ *  - um mergulho (a saída que amplia) fica com o ponto que não se mexe dentro do card: com ele fora (o "Base à esquerda"
+ *    medido num card largo), a borda do lado oposto entrava na tela durante o zoom;
+ *  - uma saída que só desliza um pouco (até 1/4 da área, sem sumir nem mudar de tamanho: no desenho, um card maior que a
+ *    tela correndo de lado) amplia junto, na mesma curva, o bastante para continuar cobrindo — a câmera corre e aproxima.
+ *  As que somem, encolhem ou saem de cena mostram o fundo de propósito e ficam como estão. */
+export function saidaCobrindo(s: CardReceita['saida']): CardReceita['saida'] {
+  if (!s || s.para.opacidade < 0.99) return s
+  const { dx, dy, escala } = s.para
+  if (escala > 1.05) {
+    const m = 50 * (escala - 1) // o deslocamento que leva o ponto parado à borda do card
+    return { ...s, para: { ...s.para, dx: Math.min(Math.max(dx, -m), m), dy: Math.min(Math.max(dy, -m), m) } }
+  }
+  const d = Math.max(Math.abs(dx), Math.abs(dy))
+  if (escala < 0.999 || d < 0.5 || d > 25) return s
+  // a escala anda junto com a posição (mesma curva, atraso e duração): a cada instante, o tanto que ampliou cobre o que andou
+  const comoPos = <T,>(o: Partial<Record<Propriedade, T>> | undefined): Partial<Record<Propriedade, T>> => {
+    const resto = Object.fromEntries(Object.entries(o ?? {}).filter(([k]) => k !== 'escala')) as Partial<Record<Propriedade, T>>
+    return o?.pos != null ? { ...resto, escala: o.pos } : resto
+  }
+  return { ...s, para: { ...s.para, escala: Math.max(escala, 1 + (2 * d) / 100) }, curvas: comoPos(s.curvas), atraso: comoPos(s.atraso), dur: comoPos(s.dur) }
 }
 
 /** As proporções (largura ÷ altura) das mídias do insert, pelo banco; sem as dimensões, 16:9. */
@@ -141,12 +167,40 @@ export const aspectosDe = (midias: { banco: string }[], banco?: Map<string, Item
 export const areaDoInsert = (d: Divisao | null): React.CSSProperties => (!d ? { inset: 0 } : { left: 0, right: 0, top: 0, height: `${d.f * 100}%` })
 
 /** Onde a caixinha do comentário fica sozinha (centro, % do quadro): na costura do insert com o ator. `g`: a geometria
- *  do ator (`ator.geometriaDoAtor`, a P5), para desviar dele no modo e na posição em que estiver. */
-export function posicaoDoComentario(d: Divisao | null, g?: Geometria | null): { x: number; y: number } {
+ *  do ator (`ator.geometriaDoAtor`, a P5), para desviar dele no modo e na posição em que estiver; `h`: a altura do card
+ *  (fração do quadro, `alturaDoComentario`), para a borda de baixo dele, e não só o centro, ficar acima do ator. */
+export function posicaoDoComentario(d: Divisao | null, g?: Geometria | null, h = 0): { x: number; y: number } {
   if (!d) return { x: 50, y: 50 }
   // no "ator embaixo", acima da cabeça (que sai da janela, ou do recortado; no canto, acima da caixa), ou na borda de
   // baixo do card se ela estiver mais acima. Na exportação, o ator vai por cima do card: aqui ele não cobre o texto
   const cabeca = g && g.modo !== 'metade' ? topoDoAtor(g) * 100 : TOPO_CABECA
-  if (d.modo === 'atras') return { x: 50, y: Math.min(cabeca - 6, d.card ? (d.f / 2 + (d.card.h / 100) * (d.f / 2)) * 100 : 100) }
+  if (d.modo === 'atras') return { x: 50, y: Math.min(cabeca - Math.max(6, (h * 100) / 2 + 1.5), d.card ? (d.f / 2 + (d.card.h / 100) * (d.f / 2)) * 100 : 100) }
   return { x: 50, y: d.f * 100 }
+}
+
+/** O lugar automático do card do comentário de um insert (`posicaoDoComentario` com a altura do card dele: o texto e o
+ *  tamanho escolhidos). */
+export const lugarDoComentario = (x: { texto?: string | null; comentario?: { texto?: string | null; escala?: number } }, d: Divisao | null, g?: Geometria | null) =>
+  posicaoDoComentario(d, g, alturaDoComentario(x.comentario?.texto ?? x.texto ?? '', x.comentario?.escala ?? 1))
+
+/** O centro do card do comentário que cabe no quadro (% dele, 9:16): o card inteiro à vista, com a alça do canto, por
+ *  mais que o arraste ou o tamanho passem da borda — crescer encostado na borda empurra o card para dentro. A prévia, a
+ *  exportação e a legenda (que desvia dele) usam esta posição. */
+export function noQuadro(c: { x: number; y: number; escala: number }, texto: string) {
+  // meia largura e meia altura, com uma folga para a alça (que passa um pouco do canto)
+  const w = Math.min(75 * c.escala, 96) / 2 + 3
+  const h = (alturaDoComentario(texto, c.escala) * 100) / 2 + 3
+  // (maior que o quadro com a folga, como no tamanho máximo: no meio)
+  const lim = (v: number, m: number) => (m >= 50 ? 50 : +Math.min(Math.max(v, m), 100 - m).toFixed(1))
+  return { x: lim(c.x, w), y: lim(c.y, h) }
+}
+
+/** A altura do card do comentário (`ComentarioIG`), em fração do quadro 9:16: as margens, o usuário, as linhas do
+ *  texto (a SF a ~0,52em por letra) e "Responder". Uma estimativa: o card só existe desenhado no navegador. */
+export function alturaDoComentario(texto: string, escala: number) {
+  const largura = Math.min(75 * escala, 96) - escala * (2 * 3.2 + 8.2 + 2.6) // a do texto, em % da largura do quadro
+  const porLinha = Math.max(largura / (3.6 * escala * 0.52), 1)
+  const linhas = Math.max(1, Math.ceil(texto.length / porLinha))
+  const cqw = escala * (2 * 2.6 + 2 * 2.9 * 1.3 + 0.4 + 1.2) + linhas * 3.6 * escala * 1.3
+  return (cqw / 100) * (9 / 16)
 }

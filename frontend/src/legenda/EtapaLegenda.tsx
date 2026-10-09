@@ -6,7 +6,7 @@ import LinhaBase, { type Trilha } from '@/editor/LinhaBase'
 import { Alca, Cabecalho, useTamanhos } from '@/editor/inserts/layout'
 import { cn } from '@/lib/utils'
 import { COR_PLANO } from '@/referencias/LinhaDirecao'
-import type { Ajuste, Bloco, Legenda, Modo, Orfao } from './legenda'
+import { ajusteNoModo, type Ajuste, type Bloco, type Legenda, type Modo, type Orfao } from './legenda'
 
 const LINHA: Trilha[] = [
   { id: 'planos', nome: 'Planos', alt: 26 },
@@ -155,7 +155,10 @@ export default function EtapaLegenda(p: {
 }
 
 function EditorBloco(p: { b: Bloco; prox: Bloco | null; lg: Legenda | null; mudar: (c: Record<string, unknown>) => void }) {
-  const aj = p.lg?.ajustes[p.b.id] ?? {}
+  const modo = p.lg?.modo ?? 'palavra'
+  // o ajuste que vale neste modo, sem a marca de presilha: o que se faz aqui (corrigir, juntar, esconder) vale nos dois
+  // modos; só o Separar no Frase curta põe presilhas de novo
+  const { modo: _presilha, ...aj }: Ajuste = ajusteNoModo(p.lg?.ajustes[p.b.id], modo) ?? {}
   const ultima = p.b.palavras[p.b.palavras.length - 1]
   const [texto, setTexto] = useState(p.b.texto)
   // só grava o que foi digitado (focar e sair do campo não regrava o texto do bloco)
@@ -172,24 +175,30 @@ function EditorBloco(p: { b: Bloco; prox: Bloco | null; lg: Legenda | null; muda
     f()
   }
   // o texto prende também o fim: corrigido, ele fica sempre com as mesmas palavras (trocar o ritmo não o espalha)
+  // sem os espaços das pontas nem repetidos (no ASS, eles tirariam o texto do centro); igual ao de agora, nada muda
   const salvarTexto = () => {
-    if (!editado || texto === p.b.texto) return
+    if (!editado) return
     setEditado(false)
-    p.mudar({ ajustes: { [p.b.id]: { ...aj, fim: ultima, texto } } })
+    const limpo = texto.trim().replace(/\s+/g, ' ')
+    setTexto(limpo)
+    if (limpo === p.b.texto) return
+    p.mudar({ ajustes: { [p.b.id]: { ...aj, fim: ultima, texto: limpo } } })
   }
+  // o texto junto só fica gravado se um dos dois tinha texto corrigido (só o `fim` de uma presilha ou de um Juntar não
+  // conta: o texto automático das palavras juntas já é o mesmo, e acompanha um corte que tire uma delas)
   const juntar = () => {
-    if (!p.prox) return
-    const novo: Record<string, unknown> = { ...aj, fim: p.prox.palavras[p.prox.palavras.length - 1] }
-    if (aj.texto != null || p.prox.ajustado) novo.texto = `${p.b.texto} ${p.prox.texto}`.trim()
+    if (!p.prox || p.b.oculto || p.prox.oculto) return
+    const novo: Ajuste = { ...aj, fim: p.prox.palavras[p.prox.palavras.length - 1] }
+    if (aj.texto != null || ajusteNoModo(p.lg?.ajustes[p.prox.id], modo)?.texto != null) novo.texto = `${p.b.texto} ${p.prox.texto}`.trim()
     p.mudar({ ajustes: { [p.b.id]: novo, [p.prox.id]: null } })
   }
-  const separar = () => p.mudar({ ajustes: separado(p.b, aj, p.lg?.modo ?? 'palavra') })
+  const separar = () => p.mudar({ ajustes: separado(p.b, aj, modo) })
   const esconder = () => {
     if (!p.b.oculto) return p.mudar({ ajustes: { [p.b.id]: { ...aj, fim: ultima, texto: '' } } })
     // mostrar de novo: o texto volta ao automático; um bloco de uma palavra só, no palavra a palavra, volta inteiro
     const resto = { ...aj }
     delete resto.texto
-    const nada = p.lg?.modo !== 'frase' && p.b.palavras.length === 1
+    const nada = modo !== 'frase' && p.b.palavras.length === 1
     p.mudar({ ajustes: { [p.b.id]: nada ? null : resto } })
   }
   return (
@@ -213,7 +222,12 @@ function EditorBloco(p: { b: Bloco; prox: Bloco | null; lg: Legenda | null; muda
         className="h-10 rounded-[6px] border border-line-dark bg-ink px-3 text-[15px] font-semibold text-cream outline-none focus:border-cream/50"
       />
       <div className="flex flex-wrap gap-1.5 text-[11px]">
-        <Acao icone={Merge} onClick={agir(juntar)} desligado={!p.prox} titulo="Juntar com o próximo bloco">
+        <Acao
+          icone={Merge}
+          onClick={agir(juntar)}
+          desligado={!p.prox || p.b.oculto || p.prox.oculto}
+          titulo={p.b.oculto || p.prox?.oculto ? 'Mostre o bloco escondido antes de juntar (senão o texto do outro apareceria enquanto a palavra escondida é falada)' : 'Juntar com o próximo bloco'}
+        >
           Juntar com o próximo
         </Acao>
         <Acao icone={Split} onClick={agir(separar)} desligado={p.b.palavras.length < 2} titulo="A 1ª palavra num bloco, o resto noutro">
@@ -235,7 +249,9 @@ function EditorBloco(p: { b: Bloco; prox: Bloco | null; lg: Legenda | null; muda
 /** Separar: a 1ª palavra num bloco, o resto noutro. Um texto corrigido à mão é dividido entre as partes (as últimas
  *  palavras do texto vão para o resto, uma por palavra; o que sobrar fica na 1ª); um bloco escondido continua
  *  escondido. Só ficam ajustes que mudam algo: no palavra a palavra, uma parte de uma palavra sem texto volta ao
- *  automático; no frase curta, o resto fica preso (senão o automático juntaria tudo de novo). */
+ *  automático; no frase curta, as duas partes ficam presas (senão o automático juntaria o resto de novo à 1ª, ou a 1ª
+ *  ao bloco anterior, se ele for curto) — presilhas marcadas com o modo, que no palavra a palavra não valem (o resto de
+ *  um bloco que o criador juntou à mão continua junto nos dois). */
 function separado(b: Bloco, aj: Ajuste, modo: Modo): Record<string, Ajuste | null> {
   const ws = b.palavras
   const ultima = ws[ws.length - 1]
@@ -248,8 +264,10 @@ function separado(b: Bloco, aj: Ajuste, modo: Modo): Record<string, Ajuste | nul
     t1 = partes.slice(0, k).join(' ') || undefined
     t2 = partes.slice(k).join(' ') || undefined
   }
-  const a1 = t1 != null ? { fim: ws[0], texto: t1 } : null
-  const a2 = t2 != null ? { fim: ultima, texto: t2 } : ws.length > 2 || modo === 'frase' ? { fim: ultima } : null
+  const presilha = { modo: 'frase' as const }
+  const a1 = t1 != null ? { fim: ws[0], texto: t1 } : modo === 'frase' ? { fim: ws[0], ...presilha } : null
+  const juntoAMao = aj.fim != null && ws.length > 2
+  const a2 = t2 != null ? { fim: ultima, texto: t2 } : juntoAMao || (modo !== 'frase' && ws.length > 2) ? { fim: ultima } : modo === 'frase' ? { fim: ultima, ...presilha } : null
   return { [b.id]: a1, [ws[1]]: a2 }
 }
 

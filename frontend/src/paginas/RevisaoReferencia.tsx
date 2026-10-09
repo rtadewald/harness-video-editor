@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Minus, Pause, Play, Plus, Scissors, Undo2 } from 'lucide-react'
 import { abrirRevisao, marcarRevisada, reanalisarReferencia, salvarDirecao, urlArquivoReferencia, type ItemRef, type Revisao } from '@/api'
 import { Logo } from '@/components/Marca'
+import NavHome from '@/components/NavHome'
 import { cn } from '@/lib/utils'
 import { dividirPlano, editar, excluir, moverBorda, moverElemento, novoElemento, planosDe } from '@/referencias/edicao'
 import LinhaDirecao, { type Arrasto } from '@/referencias/LinhaDirecao'
@@ -220,22 +221,21 @@ export default function RevisaoReferencia() {
   return (
     <div className="grid h-svh grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-deep text-cream">
       <header className="flex items-center gap-4 border-b border-line-dark bg-ink px-4">
-        <Link to="/calibragem" title="Calibragem">
-          <Logo />
-        </Link>
-        <span className="h-5 w-px bg-line-dark" />
-        <Link to="/calibragem" className="text-[12px] text-fog hover:text-cream">
-          Calibragem
-        </Link>
-        <span className="text-fog/50">/</span>
-        <span className="truncate text-[13px] font-semibold">{dados.referencia.nome}</span>
-        <span className="ml-auto text-[11px] text-fog">
+        <Logo />
+        <span className="h-5 w-px shrink-0 bg-line-dark" />
+        {/* a barra de cima de todas as telas (SPEC §7), com a Calibragem acesa; ao lado, a referência aberta */}
+        <NavHome />
+        <span className="h-5 w-px shrink-0 bg-line-dark" />
+        <span className="max-w-[240px] min-w-[80px] truncate text-[13px] font-semibold" title={dados.referencia.nome}>
+          {dados.referencia.nome}
+        </span>
+        <span className="shrink-0 text-[11px] text-fog">
           {salvamento === 'salvo' ? '✓ Salvo' : salvamento === 'salvando' ? 'Salvando…' : salvamento === 'pendente' ? 'Alterações…' : <b className="text-coral">⚠ {salvamento.erro}</b>}
         </span>
         <button
           onClick={() => void reanalisar()}
           title="Analisa este vídeo de novo com o prompt e as configurações atuais"
-          className="flex h-9 items-center gap-2 rounded-full border border-line-dark px-4 text-[12px] font-semibold text-fog hover:border-cream/50 hover:text-cream"
+          className="flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-line-dark px-4 text-[12px] font-semibold text-fog hover:border-cream/50 hover:text-cream"
         >
           ↻ Reanalisar
         </button>
@@ -243,7 +243,7 @@ export default function RevisaoReferencia() {
           onClick={() => void revisar(!revisada)}
           disabled={!revisada && salvamento !== 'salvo'}
           className={cn(
-            'flex h-9 items-center gap-2 rounded-full px-4 text-[12px] font-semibold transition-colors disabled:opacity-50',
+            'flex h-9 shrink-0 items-center gap-2 rounded-full px-4 text-[12px] font-semibold whitespace-nowrap transition-colors disabled:opacity-50',
             revisada ? 'border border-mint/60 text-mint hover:bg-mint/10' : 'bg-coral text-cream hover:bg-coral/90',
           )}
           title={revisada ? 'Desmarcar: volta para “a revisar” e sai do dataset' : 'Entra no dataset que ensina a Direção visual'}
@@ -252,7 +252,8 @@ export default function RevisaoReferencia() {
         </button>
       </header>
 
-      <div className="grid min-h-0 grid-cols-[minmax(420px,520px)_minmax(0,1fr)_minmax(320px,380px)]">
+      {/* a linha do tempo e o detalhe crescem com a janela até o seu máximo; o vídeo fica com o resto, 240 px no mínimo */}
+      <div className="grid min-h-0 grid-cols-[clamp(320px,38vw,520px)_minmax(240px,1fr)_clamp(280px,24vw,380px)]">
         {/* timeline */}
         <section className="flex min-h-0 flex-col border-r border-line-dark">
           <div className="flex flex-wrap items-center gap-1.5 border-b border-line-dark px-3 py-2 text-[11px]">

@@ -445,18 +445,27 @@ export default function LinhaVertical(p: Props) {
           ))}
       </div>
 
+      {/* o nome de cada motor sobre a sua coluna (e o aviso de zoom), numa faixa fora da rolagem: nada fica por cima
+          das palavras nem dos cortes */}
+      <div className="shrink-0 border-b border-line-dark text-[9px] leading-none font-semibold tracking-wide">
+        <div className="relative h-[18px]">
+          <span className="absolute top-[5px] whitespace-nowrap text-cream" style={{ left: X_PALAVRAS + 6 }}>
+            {p.transcricoes[p.ativa]?.nome}
+          </span>
+          {comparando && (
+            <span className="absolute top-[5px] whitespace-nowrap text-yellow" style={{ left: xB + 36 }}>
+              {p.comparacao!.nome}
+            </span>
+          )}
+        </div>
+        {px < PX_MIN_PALAVRAS && (
+          <p className="pr-3 pb-1.5 font-normal tracking-normal text-fog/70" style={{ paddingLeft: X_PALAVRAS + 6 }}>
+            Aproxime (+ ou Ctrl/⌘ + roda do mouse) para ver as palavras.
+          </p>
+        )}
+      </div>
       <div ref={rolagem} onScroll={(e) => setScroll(e.currentTarget.scrollTop)} className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
         <div className="relative select-none" style={{ height: m.total + 60 }}>
-          <div className="sticky top-0 z-30 h-0">
-            <span className="absolute rounded-b-[4px] bg-deeper/95 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide whitespace-nowrap text-cream" style={{ left: X_PALAVRAS, top: 0 }}>
-              {p.transcricoes[p.ativa]?.nome}
-            </span>
-            {comparando && (
-              <span className="absolute rounded-b-[4px] bg-deeper/95 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide whitespace-nowrap text-yellow" style={{ left: xB + 30, top: 0 }}>
-                {p.comparacao!.nome}
-              </span>
-            )}
-          </div>
           {/* cortes expandidos: faixa listrada no tempo real */}
           {m.segs.map((s) =>
             s.corte && !s.compacto ? (
@@ -547,7 +556,7 @@ export default function LinhaVertical(p: Props) {
                   <button onClick={selecionar} className="flex min-w-0 flex-1 items-center gap-2 text-left" title={`✂${c.n} · ${ms3(c.ini)} → ${ms3(c.fim)} s`}>
                     <b className={cn('shrink-0', escolhido ? 'text-yellow' : 'text-coral')}>✂{c.n}</b>
                     <span className="shrink-0 tabular-nums text-fog">
-                      −{(c.fim - c.ini).toFixed(1)} s{c.removidas.length > 0 ? ` · ${c.removidas.length} pal.` : ' · pausa'}
+                      −{(c.fim - c.ini).toFixed(1).replace('.', ',')} s{c.removidas.length > 0 ? ` · ${c.removidas.length} pal.` : ' · pausa'}
                     </span>
                     {texto && <span className="truncate text-fog/60 line-through decoration-coral/60">{texto}</span>}
                   </button>
@@ -627,11 +636,11 @@ export default function LinhaVertical(p: Props) {
                   </button>
                   <button
                     onClick={selecionar}
-                    title={`✂${c.n} · ${ms3(c.ini)} → ${ms3(c.fim)} s · −${(c.fim - c.ini).toFixed(2)} s`}
+                    title={`✂${c.n} · ${ms3(c.ini)} → ${ms3(c.fim)} s · −${(c.fim - c.ini).toFixed(2).replace('.', ',')} s`}
                     className={cn('h-[20px] rounded-full px-2 text-[10px] font-semibold tabular-nums', escolhido ? 'bg-yellow text-ink' : 'bg-coral text-cream hover:bg-yellow hover:text-ink')}
                     style={{ width: L_CORTES - 38 }}
                   >
-                    ✂{c.n} · −{(c.fim - c.ini).toFixed(1)}s
+                    ✂{c.n} · −{(c.fim - c.ini).toFixed(1).replace('.', ',')} s
                   </button>
                 </div>
                 </div>
@@ -664,9 +673,12 @@ export default function LinhaVertical(p: Props) {
             </>
           )}
 
-          {/* cabeça de reprodução */}
+          {/* cabeça de reprodução; o tempo fica centrado na linha, ou logo abaixo dela no topo (ali a metade de cima
+              sairia da área de rolagem) */}
           <div className="pointer-events-none absolute inset-x-0 z-20 h-px bg-cream" style={{ top: m.yDe(p.bruto) }}>
-            <span className="absolute top-0 left-0 -translate-y-1/2 rounded-r-[2px] bg-cream px-1 py-px text-[9px] font-semibold text-ink tabular-nums">{ms3(p.bruto)}</span>
+            <span className={cn('absolute top-0 left-0 rounded-r-[2px] bg-cream px-1 py-px text-[9px] font-semibold text-ink tabular-nums', m.yDe(p.bruto) >= 8 && '-translate-y-1/2')}>
+              {ms3(p.bruto)}
+            </span>
           </div>
         </div>
       </div>
@@ -695,15 +707,28 @@ type ColunaProps = {
 function ColunaPalavras(c: ColunaProps) {
   const mostrar = c.px >= PX_MIN_PALAVRAS
   const ys = useMemo(() => c.palavras.map((w) => (c.m.oculto(w.inicio) ? null : c.m.yDe(w.inicio))), [c.palavras, c.m])
-  const tops = useMemo(() => {
+  // o rótulo desce até o começo do próximo corte compactado, nunca por cima dele: o que não cabe fica só com a barra, e o
+  // último rótulo que coube mostra quantos ficaram de fora (+N; aproximar os mostra)
+  const { tops, fora } = useMemo(() => {
+    const barreiras = c.m.segs.filter((s) => s.compacto).map((s) => s.y0)
+    const fora = new Map<number, number>()
     let livre = -Infinity
-    return ys.map((y) => {
+    let b = 0
+    let ultimo = -1
+    const tops = ys.map((y, i) => {
       if (y == null) return null
+      while (b < barreiras.length && barreiras[b] <= y) b++
       const top = Math.max(y, livre)
+      if (top + ALT_PALAVRA > (barreiras[b] ?? Infinity) + 0.5) {
+        if (ultimo >= 0) fora.set(ultimo, (fora.get(ultimo) ?? 0) + 1)
+        return null
+      }
       livre = top + ALT_PALAVRA
+      ultimo = i
       return top
     })
-  }, [ys])
+    return { tops, fora }
+  }, [ys, c.m])
   const a = c.tipo === 'a'
 
   return (
@@ -719,11 +744,6 @@ function ColunaPalavras(c: ColunaProps) {
           />
         )
       })}
-      {a && !mostrar && (
-        <p className="sticky top-3 z-10 mr-3 ml-auto text-[10px] leading-snug text-fog/70" style={{ width: `calc(100% - ${c.xRotulo + 12}px)` }}>
-          Aproxime (+ ou Ctrl/⌘ + roda do mouse) para ver as palavras.
-        </p>
-      )}
       {mostrar && (
         <svg className="pointer-events-none absolute top-0" style={{ left: c.xBarra + 6, width: 24, height: c.total }}>
           {c.palavras.map((w, i) => {
@@ -741,11 +761,12 @@ function ColunaPalavras(c: ColunaProps) {
           const top = tops[i]
           if (top == null || !c.janela(top, top + ALT_PALAVRA)) return null
           const atual = c.bruto >= w.inicio && c.bruto < w.fim
+          const mais = fora.get(i)
           return (
             <button
               key={w.id}
               onClick={() => c.aoClicar(w)}
-              title={`${w.id} · ${ms3(w.inicio)} → ${ms3(w.fim)} s (${Math.round((w.fim - w.inicio) * 1000)} ms)`}
+              title={`${w.id} · ${ms3(w.inicio)} → ${ms3(w.fim)} s (${Math.round((w.fim - w.inicio) * 1000)} ms)${mais ? ` · mais ${mais} palavra(s) até o corte: aproxime para vê-las` : ''}`}
               className={cn(
                 'absolute flex items-center justify-between gap-2 overflow-hidden rounded-[3px] px-1.5 text-left text-[12px] leading-none whitespace-nowrap',
                 !a ? 'text-yellow hover:bg-yellow/10' : w.mantida ? 'text-cream hover:bg-cream/10' : 'text-fog/70 line-through decoration-coral decoration-[1.5px] hover:bg-coral/10',
@@ -755,6 +776,7 @@ function ColunaPalavras(c: ColunaProps) {
               style={{ top, height: ALT_PALAVRA, left: c.xRotulo, right: c.direita }}
             >
               <span className="truncate">{w.texto}</span>
+              {mais && <span className="shrink-0 text-[10px] text-fog/70">+{mais}</span>}
             </button>
           )
         })}

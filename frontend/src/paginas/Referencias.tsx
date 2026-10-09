@@ -4,6 +4,7 @@ import { Layers, Search, Star, X } from 'lucide-react'
 import { listarClipes, listarFontesPresets, marcarFavorito, urlArquivoReferencia, type ClipeReferencia, type FontePreset, type OrigemClipe } from '@/api'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
+import { paraBusca } from '@/lib/busca'
 import { cn } from '@/lib/utils'
 import { useLembrado } from '@/lib/useLembrado'
 import IconeGrupo from '@/referencias/IconeGrupo'
@@ -96,10 +97,10 @@ export default function Referencias() {
   }, [clipes])
 
   const base = useMemo(() => {
-    const q = busca.trim().toLowerCase()
+    const q = paraBusca(busca.trim())
     return (clipes ?? []).filter(
       (c) =>
-        (!semFullAtor || !SO_ATOR.includes(c.tipo)) && (!soRevisadas || c.revisado) && (!soFavoritos || c.favorito) && (!q || [c.descricao, c.texto ?? '', c.fala, c.ref_nome].some((t) => t.toLowerCase().includes(q))),
+        (!semFullAtor || !SO_ATOR.includes(c.tipo)) && (!soRevisadas || c.revisado) && (!soFavoritos || c.favorito) && (!q || [c.descricao, c.texto ?? '', c.fala, c.ref_nome].some((t) => paraBusca(t).includes(q))),
     )
   }, [clipes, busca, soRevisadas, soFavoritos, semFullAtor])
 
@@ -129,7 +130,7 @@ export default function Referencias() {
         <Logo />
         <span className="h-5 w-px bg-line-dark" />
         <NavHome />
-        <label className="ml-6 flex h-9 w-[min(420px,32vw)] items-center gap-2 rounded-full border border-line-dark px-3.5 text-fog focus-within:border-cream/50">
+        <label className="ml-6 flex h-9 w-[clamp(200px,26vw,420px)] shrink-0 items-center gap-2 rounded-full border border-line-dark px-3.5 text-fog focus-within:border-cream/50">
           <Search className="size-3.5" />
           <input
             value={busca}

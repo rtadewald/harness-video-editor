@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Search, Star, X } from 'lucide-react'
 import { listarClipes, marcarFavorito, urlArquivoReferencia, type ClipeReferencia } from '@/api'
 import Modal from '@/components/Modal'
+import { paraBusca } from '@/lib/busca'
 import { cn } from '@/lib/utils'
 import { useLembrado } from '@/lib/useLembrado'
 import { Cartao, Chip, gruposDe, SO_ATOR, useAgrupar, useTrecho } from '@/paginas/Referencias'
@@ -57,10 +58,10 @@ export default function BuscarReferencias({ tipo, fechar, usar }: { tipo: string
   // favoritos primeiro; dentro deles e fora, ordem aleatória sorteada uma vez (favoritar não embaralha)
   const sorteado = useRef(new Map<string, number>())
   const base = useMemo(() => {
-    const q = busca.trim().toLowerCase()
+    const q = paraBusca(busca.trim())
     for (const c of clipes ?? []) if (!sorteado.current.has(chave(c))) sorteado.current.set(chave(c), Math.random())
     return (clipes ?? [])
-      .filter((c) => (!semFullAtor || !SO_ATOR.includes(c.tipo)) && (!soFavoritos || c.favorito) && (!q || [c.descricao, c.texto ?? '', c.fala, c.ref_nome].some((t) => t.toLowerCase().includes(q))))
+      .filter((c) => (!semFullAtor || !SO_ATOR.includes(c.tipo)) && (!soFavoritos || c.favorito) && (!q || [c.descricao, c.texto ?? '', c.fala, c.ref_nome].some((t) => paraBusca(t).includes(q))))
       .sort((a, b) => sorteado.current.get(chave(a))! - sorteado.current.get(chave(b))!)
   }, [clipes, busca, soFavoritos, semFullAtor])
   const visiveis = base.filter((c) => !grupo || tiposDe(grupo).includes(c.tipo))

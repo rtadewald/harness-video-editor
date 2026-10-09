@@ -260,14 +260,29 @@ def espelhar_direcao(d: dict) -> dict:
     return d
 
 
+def etapas_no_resumo(p: dict) -> dict:
+    """O estado de cada etapa para a lista de projetos. Cortes e Direção são marcados quando a IA termina; os Inserts saem
+    dos dados: prontos com mídia (ou motion) em todos, em andamento com alguma. Transições, Áudio e Legenda ainda não têm
+    um critério de pronta (ficam como gravados)."""
+    etapas = dict(p.get('etapas') or {})
+    pedidos = (p.get('inserts') or {}).get('pedidos') or []
+    motions = p.get('motions') or {}
+    if pedidos:
+        feitos = sum(1 for x in pedidos if x.get('midias') or x.get('plano') in motions)
+        etapas['inserts'] = 'pronta' if feitos == len(pedidos) else 'andamento' if feitos else 'pendente'
+    return etapas
+
+
 def listar() -> list[dict]:
     if not RAIZ.exists():
         return []
     projetos = [json.loads(p.read_text(encoding='utf-8')) for p in RAIZ.glob('*/projeto.json')]
     resumo = [
-        {'id': p['id'], 'nome': p['nome'], 'criado_em': p['criado_em'], 'etapas': p['etapas'],
+        {'id': p['id'], 'nome': p['nome'], 'criado_em': p['criado_em'], 'etapas': etapas_no_resumo(p),
          'apoios': sum(f['papel'] == 'apoio' for f in p['fontes']),
-         'duracao': next((f['duracao'] for f in p['fontes'] if f['papel'] == 'bruto'), None)}
+         'duracao': next((f['duracao'] for f in p['fontes'] if f['papel'] == 'bruto'), None),
+         # o vídeo editado (a soma da V1), que é o tamanho do Reels; sem cortes ainda, None
+         'duracao_final': round(sum(c['fim'] - c['inicio'] for c in v1), 3) if (v1 := (p.get('timeline') or {}).get('V1')) else None}
         for p in projetos
     ]
     return sorted(resumo, key=lambda p: p['criado_em'], reverse=True)

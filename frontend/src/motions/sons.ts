@@ -1,7 +1,8 @@
 /** Os sons dos motions (SPEC §8.6): o preset declara os momentos (rótulo e som padrão) e a página marca quando cada um
  *  acontece (`motion.som(momento, t, dur)`); o plano pode trocar o som e a intensidade de cada momento. */
+import { useEffect } from "react";
 import { eventoNoTempo, type Catalogo, type EventoSom, type Intensidade } from "@/editor/sons";
-import type { Formato, MotionPlano, Preset } from "./api";
+import { falaDoPlano, urlPaginaMotionPlano, type Formato, type MotionPlano, type Preset } from "./api";
 
 export type EscolhaSom = { som: string | null; intensidade: Intensidade };
 /** Uma marca da página: o momento, quando (s desde o começo do plano) e, opcional, por quanto tempo. */
@@ -59,4 +60,24 @@ export const guardarMarcas = (src: string, m: Marca[]) => void lidas.set(src, m)
 export function preCarregarMarcas(src: string, formato: Formato): Promise<Marca[]> {
   if (!pedidas.has(src)) pedidas.set(src, marcasDaPagina(src, formato).then((m) => (lidas.set(src, m), m)));
   return pedidas.get(src)!;
+}
+
+/** Lê de antemão as marcas de som dos motions do projeto (uma página por vez), ao abrir uma etapa que mostra o quadro
+ *  montado: o som de um motion (a entrada, a digitação) começa junto com ele já na primeira passagem, sem esperar a
+ *  página dele carregar. */
+export function usePreCarregarMarcas(
+  projeto: string,
+  planos: { id: string; inicio: number; fim: number }[],
+  motions: Record<string, MotionPlano>,
+  saida: { texto: string; saida_ini: number; saida_fim: number }[],
+) {
+  useEffect(() => {
+    let fila = Promise.resolve();
+    for (const pl of planos) {
+      const m = motions[pl.id];
+      if (m?.tipo !== "preset") continue;
+      const src = urlPaginaMotionPlano(projeto, pl.id, m, pl.fim - pl.inicio, falaDoPlano(saida, pl.inicio, pl.fim));
+      fila = fila.then(() => preCarregarMarcas(src, m.formato).then(() => {}));
+    }
+  }, [planos, motions, saida, projeto]);
 }

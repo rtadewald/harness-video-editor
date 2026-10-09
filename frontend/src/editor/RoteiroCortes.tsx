@@ -29,7 +29,7 @@ export default function RoteiroCortes({ palavras, buscar, fechar }: { palavras: 
     return () => window.removeEventListener('keydown', t)
   }, [fechar])
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-6" onClick={fechar}>
+    <div data-modal className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-6" onClick={fechar}>
       <div
         className="flex w-full max-w-[760px] flex-col gap-4 rounded-[8px] bg-deep p-6 text-cream ring-1 ring-line-dark"
         style={{ maxHeight: 'min(70vh, 720px)' }}

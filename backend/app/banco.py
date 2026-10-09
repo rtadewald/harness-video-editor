@@ -94,10 +94,10 @@ def salvar_item(item: dict) -> dict:
 
 def listar_banco(busca: str = '', tipo: str | None = None) -> list[dict]:
     """Os originais do banco, os mais novos primeiro, cada um com os seus trechos; `busca` procura no nome, na descrição e
-    nas palavras-chave (do original ou de um trecho)."""
+    nas palavras-chave (do original ou de um trecho), sem diferenciar acentos."""
     if not RAIZ.exists():
         return []
-    termos = [comum.norm(t) for t in (busca or '').split() if comum.norm(t)]
+    termos = [comum.para_busca(t) for t in (busca or '').split() if comum.para_busca(t)]
     originais, trechos = [], {}
     for arq in RAIZ.glob('*/item.json'):
         try:
@@ -115,7 +115,7 @@ def listar_banco(busca: str = '', tipo: str | None = None) -> list[dict]:
         if tipo and i['tipo'] != tipo:
             continue
         if termos:
-            texto = ' '.join(comum.norm(x) for x in ' '.join([i.get('nome') or '', i.get('descricao') or '', ' '.join(i['palavras']),
+            texto = ' '.join(comum.para_busca(x) for x in ' '.join([i.get('nome') or '', i.get('descricao') or '', ' '.join(i['palavras']),
                                                                 *(t.get('nome') or '' for t in filhos)]).split())
             if not all(t in texto for t in termos):
                 continue

@@ -51,7 +51,7 @@ export default function EscolhaSons(p: { linhas: LinhaSom[]; mudar: (chave: stri
               disabled={!l.som || !cat}
               onClick={() => {
                 const e = cat && eventoNoTempo({ som: l.som, intensidade: l.intensidade, atraso: 0 }, 0, cat)
-                if (e) void tocarEvento({ ...e, t: 0, desde: 0 })
+                if (e) void tocarEvento({ ...e, t: 0, desde: 0 }, 0, false)
               }}
               className="grid size-8 shrink-0 place-items-center rounded-full text-fog ring-1 ring-line-dark hover:text-cream disabled:opacity-30"
               title="Ouvir (na intensidade escolhida)"

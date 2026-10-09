@@ -76,13 +76,16 @@ function montar(canvas: HTMLCanvasElement): Gl | null {
 
 /** O ator com o look (LUT + vinheta) desenhado por cima do próprio vídeo, num canvas WebGL do mesmo tamanho, que segue
  *  o vídeo em tudo (posição, transformação, recorte): o vídeo continua tocando e recebendo os cliques, só fica invisível.
- *  Sem look ou sem WebGL, não desenha nada (o vídeo aparece como sempre). `posX`: o object-position horizontal (0–1). */
+ *  Com um look que não muda nada (Sem LUT e Sem vinheta, ou o "ver sem o look"), desenha do mesmo jeito: o <video> puro
+ *  sai mais claro que o mesmo quadro passado pelo WebGL (o navegador trata a cor dele por outro caminho), e trocar de
+ *  caminho faria a comparação mostrar essa diferença como se fosse do look. Sem look (fora do editor) ou sem WebGL, não
+ *  desenha nada (o vídeo aparece como sempre). `posX`: o object-position horizontal (0–1). */
 export default function CanvasLook(p: { video: RefObject<HTMLVideoElement | null>; posX?: number; look?: Look | null }) {
   const doEditor = useContext(LookAtor)
   const look = p.look !== undefined ? p.look : doEditor
   const cat = useCatalogoLook()
   const canvas = useRef<HTMLCanvasElement>(null)
-  const ativo = !!look && !!cat && ((!!look.lut && look.intensidade > 0) || (cat.vinhetas[look.vinheta] ?? 0) > 0)
+  const ativo = !!look && !!cat
   // o que muda sem remontar o WebGL (o slider da intensidade, trocar o look): lido a cada quadro
   const atual = useRef({ look, cat, posX: p.posX })
   useEffect(() => {

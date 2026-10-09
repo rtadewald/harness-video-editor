@@ -3,7 +3,7 @@ import { enviar, json, lerInserts, listarBanco, mapaBanco, type InsertsProjeto, 
 import { comentarioDe } from '@/editor/ComentarioIG'
 import type { PalavraSaida } from '@/editor/direcaoProjeto'
 import { geometriaDoAtor, topoDoAtor, type Geometria } from '@/editor/ator'
-import { divisaoDe, posicaoDoComentario, type Divisao } from '@/editor/divisao'
+import { alturaDoComentario, divisaoDe, lugarDoComentario, noQuadro, type Divisao } from '@/editor/divisao'
 import { pedidosNoTempo } from '@/editor/InsertNoLugar'
 import type { Pedido } from '@/editor/inserts/comum'
 import { usePresets, type Preset } from '@/editor/presets'
@@ -13,7 +13,12 @@ import { usePresets, type Preset } from '@/editor/presets'
  *  referências) ou frases curtas (até 3 palavras), na altura de cada tipo de plano e desviando do card do comentário.
  *  Os blocos saem daqui para a prévia, para a etapa e para a página de render (o ASS da exportação, `legenda.py`). */
 export type Modo = 'palavra' | 'frase'
-export type Ajuste = { fim?: string; texto?: string }
+/** Um ajuste preso às palavras: o bloco vai até `fim`, com `texto` corrigido ('' esconde). `modo`: uma presilha (só o
+ *  `fim`) que o Separar pôs no Frase curta para o agrupamento automático não desfazer a separação; ela só vale nesse
+ *  modo (no Palavra a palavra, juntaria palavras que o criador nunca juntou ali). */
+export type Ajuste = { fim?: string; texto?: string; modo?: Modo }
+/** O ajuste como vale no modo de agora: uma presilha de outro modo não vale (é como se não houvesse ajuste). */
+export const ajusteNoModo = (aj: Ajuste | undefined, modo: Modo): Ajuste | undefined => (aj?.modo && aj.modo !== modo ? undefined : aj)
 export type Legenda = { ligada: boolean; modo: Modo; ajustes: Record<string, Ajuste> }
 /** Um bloco no tempo da saída: as palavras (ids), o texto, quando aparece e some, o centro do texto (fração da altura)
  *  e se foi mexido à mão (`ajustado`) ou escondido (`oculto`: texto vazio). */
@@ -70,38 +75,32 @@ export function zonasDaLegenda(pedidos: Pedido[], banco: Map<string, ItemBanco> 
     const ator = geometriaDoAtor(divisao, x.enriquecimento?.ator, null)
     let card = null
     if (x.tipo === 'comentario_insert_ator') {
-      const c = comentarioDe(x, posicaoDoComentario(divisao, ator))
-      card = { y: c.y / 100, h: alturaDoCard(c.texto ?? x.texto ?? '', c.escala) }
+      const c = comentarioDe(x, lugarDoComentario(x, divisao, ator))
+      const texto = c.texto ?? x.texto ?? ''
+      card = { y: noQuadro(c, texto).y / 100, h: alturaDoComentario(texto, c.escala) } // onde ele aparece (inteiro no quadro)
     }
     return { ini: x.t.inicio, fim: x.t.fim, divisao, ator, card }
   })
 }
 
 /** As zonas lidas do projeto (os inserts, o banco e os presets), para as etapas que não têm os inserts à mão; relidas
- *  quando `versao` muda (a etapa: o que mudou na de Inserts vale ao voltar). */
+ *  quando `versao` muda (a etapa: o que mudou na de Inserts vale ao voltar). Sem planos (o projeto ainda sem transcrição),
+ *  não pede nada: os inserts ainda não existem. */
 export function useZonasDaLegenda(id: string, planos: ItemRef[] | null, versao: unknown): Zona[] {
   const [ins, setIns] = useState<InsertsProjeto | null>(null)
   const [banco, setBanco] = useState<Map<string, ItemBanco> | null>(null)
   const presets = usePresets()
+  const temPlanos = planos !== null
   useEffect(() => {
+    if (!temPlanos) return
     void lerInserts(id)
       .then(setIns)
       .catch(() => {})
     void listarBanco()
       .then((l) => setBanco(mapaBanco(l)))
       .catch(() => {})
-  }, [id, versao])
+  }, [id, versao, temPlanos])
   return useMemo(() => (ins && planos ? zonasDaLegenda(pedidosNoTempo(ins.pedidos, planos), banco, presets) : []), [ins, planos, banco, presets])
-}
-
-/** A altura do card do comentário (`ComentarioIG`), em fração do quadro 9:16: as margens, o usuário, as linhas do
- *  texto (a SF a ~0,52em por letra) e "Responder". Uma estimativa: o card só existe desenhado no navegador. */
-function alturaDoCard(texto: string, escala: number) {
-  const largura = Math.min(75 * escala, 96) - escala * (2 * 3.2 + 8.2 + 2.6) // a do texto, em % da largura do quadro
-  const porLinha = Math.max(largura / (3.6 * escala * 0.52), 1)
-  const linhas = Math.max(1, Math.ceil(texto.length / porLinha))
-  const cqw = escala * (2 * 2.6 + 2 * 2.9 * 1.3 + 0.4 + 1.2) + linhas * 3.6 * escala * 1.3
-  return (cqw / 100) * (9 / 16)
 }
 
 /** A altura do centro da legenda num instante: a medida para o tipo de plano; na tela dividida, a costura real do
@@ -119,13 +118,15 @@ export function alturaDaLegenda(tipo: string | undefined, z: Zona | null): numbe
     y = g.modo === 'canto' ? topoDoAtor(g) - MEIA - FOLGA : g.ty + ALTURA_POR_PLANO.full_ator * g.s
   }
   else if (tipo === 'tela_dividida_motion') y = 0.5
-  const c = z?.card
-  if (c && y + MEIA + FOLGA > c.y - c.h / 2 && y - MEIA - FOLGA < c.y + c.h / 2) {
-    const acima = c.y - c.h / 2 - FOLGA - MEIA
-    const abaixo = c.y + c.h / 2 + FOLGA + MEIA
-    y = acima >= 0.08 ? acima : abaixo <= 0.92 ? abaixo : y
-  }
-  return y
+  return z?.card ? desviar(y, z.card) : y
+}
+
+/** A altura `y` fora do card `c`: logo acima dele (ou abaixo, se não couber); sem bater nele, fica. */
+function desviar(y: number, c: { y: number; h: number }) {
+  if (!(y + MEIA + FOLGA > c.y - c.h / 2 && y - MEIA - FOLGA < c.y + c.h / 2)) return y
+  const acima = c.y - c.h / 2 - FOLGA - MEIA
+  const abaixo = c.y + c.h / 2 + FOLGA + MEIA
+  return acima >= 0.08 ? acima : abaixo <= 0.92 ? abaixo : y
 }
 
 /** Os ajustes que valem no vídeo de agora e os órfãos (SPEC §9, como os planos da direção em `paraTempo`). Um ajuste
@@ -167,7 +168,9 @@ export function ajustesNoVideo(ajustes: Record<string, Ajuste>, palavras: { id: 
 export function blocosDaLegenda(saida: PalavraSaida[], planos: ItemRef[], lg: Legenda, palavras?: { id: string; texto: string }[], zonas: Zona[] = []): Bloco[] {
   const ws = [...saida].sort((a, b) => a.saida_ini - b.saida_ini)
   const pos = new Map(ws.map((w, i) => [w.id, i]))
-  const ajustes = ajustesNoVideo(lg.ajustes, palavras ?? ws, ws).valem
+  const valem = ajustesNoVideo(lg.ajustes, palavras ?? ws, ws).valem
+  const ajustes: Record<string, Ajuste> = {}
+  for (const [id, aj] of Object.entries(valem)) if (ajusteNoModo(aj, lg.modo)) ajustes[id] = aj
   const brutos: (Omit<Bloco, 'fim' | 'y'> & { fala: number; fimFala: number })[] = []
   for (let i = 0; i < ws.length; ) {
     const aj = ajustes[ws[i].id]
@@ -218,7 +221,11 @@ export function blocosDaLegenda(saida: PalavraSaida[], planos: ItemRef[], lg: Le
     if (prox) fim = Math.min(fim, prox.ini)
     const plano = ps.find((p) => p.inicio <= fala + 0.001 && fala < p.fim)
     const zona = zonas.find((z) => z.ini <= fala + 0.001 && fala < z.fim) ?? null
-    return { ...b, fim, y: alturaDaLegenda(plano?.tipo, zona) }
+    // o bloco entra antes da fala (`ANTECIPA`): a 1ª palavra de um plano aparece ainda no anterior, e desvia também do
+    // card do comentário de lá enquanto ele está na tela
+    let y = alturaDaLegenda(plano?.tipo, zona)
+    for (const z of zonas) if (z !== zona && z.card && z.ini < fim && b.ini < z.fim) y = desviar(y, z.card)
+    return { ...b, fim, y }
   })
 }
 
