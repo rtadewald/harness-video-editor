@@ -6,7 +6,7 @@ Editor de vídeo local onde a **IA faz cada etapa da edição** e você corrige 
 
 Você sobe o vídeo bruto e a IA propõe a edição, etapa por etapa: **Pré-processamento → Direção visual → Inserts → Transições → Áudio → Legenda**. Cada etapa tem controles manuais para corrigir o que a IA decidiu, e o render final só acontece depois que os cortes são aprovados.
 
-> **Estado atual:** os **Cortes** (no Pré-processamento), a **Direção visual**, os **Inserts** (mídias, presets, motions, sons) e a **exportação** são reais. A direção aprende com os seus vídeos editados na **Calibragem**. Enquadramento, Look, Transições, Áudio e Legenda estão especificados em `docs/` e aparecem como "em construção". O agente de chat ainda não foi feito.
+> **Estado atual:** os **Cortes** (no Pré-processamento), a **Direção visual**, os **Inserts** (mídias, presets, motions, sons) e a **exportação** são reais. A direção aprende com os seus vídeos editados na **Calibragem**. Look e Enquadramento (no Pré-processamento), Transições, Áudio e Legenda também são reais (cada um com o seu doc em `docs/`). O agente de chat ainda não foi feito.
 
 ## O que a etapa de Cortes faz
 

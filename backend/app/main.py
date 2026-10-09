@@ -5,7 +5,7 @@ from fastapi import FastAPI
 
 from . import (audio, banco, captura_site, comum, direcao, direcao_projeto, enquadramento, entradas, exportacao, pipeline, recorte_ator, rosto, rotas_cortes,
                rotas_direcao, rotas_exportacao, rotas_inserts, rotas_motions, rotas_presets, rotas_projetos, rotas_referencias,
-               rotas_preprocessamento, rotas_rosto, rotas_transicoes, rotas_audio)
+               rotas_preprocessamento, rotas_rosto, rotas_transicoes, rotas_audio, rotas_legenda)
 
 comum.carregar_env()
 
@@ -29,5 +29,5 @@ async def ciclo(_app):
 
 app = FastAPI(title='Harness Video Editor', lifespan=ciclo)
 
-for r in (rotas_projetos, rotas_referencias, rotas_cortes, rotas_direcao, rotas_inserts, rotas_exportacao, rotas_presets, rotas_motions, rotas_rosto, rotas_preprocessamento, rotas_transicoes, rotas_audio):
+for r in (rotas_projetos, rotas_referencias, rotas_cortes, rotas_direcao, rotas_inserts, rotas_exportacao, rotas_presets, rotas_motions, rotas_rosto, rotas_preprocessamento, rotas_transicoes, rotas_audio, rotas_legenda):
     app.include_router(r.rotas)

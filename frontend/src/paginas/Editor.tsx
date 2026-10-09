@@ -9,8 +9,6 @@ import { cn } from '@/lib/utils'
 import EtapaDirecao from '@/editor/EtapaDirecao'
 import EtapaInserts from '@/editor/EtapaInserts'
 import Exportar from '@/editor/Exportar'
-import EtapaEmConstrucao from '@/editor/EmConstrucao'
-import { RESUMOS, type Resumo } from '@/editor/resumos'
 import { ETAPAS } from '@/editor/etapas'
 import { calcularCortes, trechoDaEmenda, type Corte, type Selecao } from '@/editor/cortes'
 import LinhaVertical from '@/editor/LinhaVertical'
@@ -28,6 +26,9 @@ import { FatorSom } from '@/editor/sons'
 import { MontagemDoProjeto } from '@/editor/MontagemNoPalco'
 import EtapaTransicoes from '@/transicoes/EtapaTransicoes'
 import EtapaAudio from '@/audio/EtapaAudio'
+import EtapaLegenda from '@/legenda/EtapaLegenda'
+import CamadaLegenda from '@/legenda/CamadaLegenda'
+import { ajustesNoVideo, blocosDaLegenda, useLegendaDoProjeto, useZonasDaLegenda } from '@/legenda/legenda'
 import { falas as falasDoVideo, useAudioDoProjeto, useCadeiaNaPrevia, useCatalogoAudio, useFundoNaPrevia } from '@/audio/audio'
 import { sonsDasTransicoes } from '@/transicoes/transicoes'
 import { useCatalogoSons } from '@/editor/sons'
@@ -114,6 +115,16 @@ export default function Editor() {
     velocidade: player.velocidade,
     ativo: etapa !== 'cortes',
   })
+  // a legenda (SPEC §8.10): os blocos da fala cortada, com os ajustes do projeto
+  // (a altura desvia do que há na tela: a costura real de cada insert e o card do comentário — as zonas, relidas a cada
+  // troca de etapa; na de Inserts, a própria etapa calcula com o que está sendo mexido)
+  const [legenda, mudarLegenda] = useLegendaDoProjeto(id)
+  const zonasLegenda = useZonasDaLegenda(id, naSaida?.planos ?? null, etapa)
+  const blocosLegenda = useMemo(
+    () => (naSaida && legenda && dados ? blocosDaLegenda(naSaida.saida, naSaida.planos, legenda, dados.palavras, zonasLegenda) : []),
+    [naSaida, legenda, dados, zonasLegenda],
+  )
+  const orfaosLegenda = useMemo(() => (naSaida && legenda && dados ? ajustesNoVideo(legenda.ajustes, dados.palavras, naSaida.saida).orfaos : []), [naSaida, legenda, dados])
   const catSons = useCatalogoSons()
   const sonsTransicao = useMemo(() => (cortesTransicao ? sonsDasTransicoes(cortesTransicao, catSons) : []), [cortesTransicao, catSons])
   const [picos, setPicos] = useState<Picos | null>(null)
@@ -131,8 +142,6 @@ export default function Editor() {
   const [semLook, setSemLook] = useState(false)
   const direcaoReal = etapa === 'direcao'
   const insertsReal = etapa === 'inserts'
-  // Áudio e Legenda ainda estão em construção
-  const resumo: Resumo | null = etapa === 'legenda' ? RESUMOS[etapa] : null
 
   useEffect(() => {
     abrirEditor(id).then(setDados).catch((e) => setErro(e.message))
@@ -292,23 +301,7 @@ export default function Editor() {
   const vozProxy = vozTocada?.proxy && vozTocada.versao === (versao ?? null) ? vozTocada.proxy : null
   const proxy = vozProxy ?? bruto.proxy
   const src = urlArquivo(projeto.id, proxy ?? bruto.arquivo) + (versao ? `?v=${versao}` : '')
-  // a prévia das telas em construção: o vídeo do ator já cortado
-  const previa = (
-    <Preview
-      videoRef={player.ref}
-      src={src}
-      enquadramentoX={projeto.enquadramento.x}
-      tempo={player.tempo}
-      duracao={seq.duracao}
-      tocando={player.tocando}
-      alternar={player.alternar}
-      velocidade={player.velocidade}
-      setVelocidade={player.setVelocidade}
-      buscar={player.buscar}
-    />
-  )
-
-  // o quadro inteiro montado (o ator, os inserts e os motions), para as etapas Transições e Áudio
+  // o quadro inteiro montado (o ator, os inserts e os motions) com a legenda, para as etapas Transições, Áudio e Legenda
   const previaMontada = (
     <Preview
       videoRef={player.ref}
@@ -322,6 +315,7 @@ export default function Editor() {
       setVelocidade={player.setVelocidade}
       buscar={player.buscar}
       transicoes
+      legenda={legenda?.ligada && <CamadaLegenda blocos={blocosLegenda} tempo={player.tempo} />}
       sobreposicao={
         naSaida && (
           <MontagemDoProjeto
@@ -381,14 +375,6 @@ export default function Editor() {
             </button>
           )}
         </div>
-        {resumo && (
-          <span
-            className="shrink-0 rounded-full bg-yellow px-3 py-1 text-[9px] font-semibold tracking-[0.12em] whitespace-nowrap text-ink"
-            title={`${resumo.titulo}: ainda em construção (${resumo.fase})`}
-          >
-            EM CONSTRUÇÃO
-          </span>
-        )}
         {seq && <Exportar projeto={projeto} duracao={seq.duracao} />}
       </header>
 
@@ -506,7 +492,15 @@ export default function Editor() {
                 </aside>
               </div>
         ) : insertsReal ? (
-          <EtapaInserts dados={dados} seq={seq} player={player} src={src} enquadramentoX={projeto.enquadramento.x} aoMudarProjeto={(p) => setDados((d) => d && { ...d, projeto: p })} />
+          <EtapaInserts
+            dados={dados}
+            seq={seq}
+            player={player}
+            src={src}
+            enquadramentoX={projeto.enquadramento.x}
+            aoMudarProjeto={(p) => setDados((d) => d && { ...d, projeto: p })}
+            legenda={legenda}
+          />
         ) : direcaoReal ? (
           <EtapaDirecao
             dados={dados}
@@ -541,9 +535,20 @@ export default function Editor() {
               tocando={player.tocando}
               buscar={player.buscar}
             />
-          ) : (
-            resumo && <EtapaEmConstrucao resumo={resumo} previa={previa} />
-          )
+          ) : etapa === 'legenda' ? (
+            <EtapaLegenda
+              previa={previaMontada}
+              lg={legenda}
+              blocos={blocosLegenda}
+              orfaos={orfaosLegenda}
+              planos={planosSaida ?? []}
+              mudar={mudarLegenda}
+              duracao={seq.duracao}
+              tempo={player.tempo}
+              tocando={player.tocando}
+              buscar={player.buscar}
+            />
+          ) : null
         )}
       </div>
       )}

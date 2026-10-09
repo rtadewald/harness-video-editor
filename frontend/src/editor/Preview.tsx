@@ -22,6 +22,8 @@ type Props = {
   /** As transições entre planos no palco (o efeito e o som): só nas etapas em que o quadro está montado (Inserts e
    *  Transições); no Pré-processamento e na Direção, o ator fica limpo para avaliar o look e ouvir as emendas. */
   transicoes?: boolean
+  /** A legenda, por cima de tudo (fora do efeito das transições, como na exportação: SPEC §13). */
+  legenda?: ReactNode
 }
 
 /** Monitor 9:16. Recorte parado: bruto vertical só preenche; horizontal usa o centro do enquadramento. */
@@ -64,6 +66,7 @@ export default function Preview(p: Props) {
 
           {p.sobreposicao}
           </EfeitoNoPalco>
+          {p.legenda}
         </div>
       </div>
 
