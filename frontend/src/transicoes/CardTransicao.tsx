@@ -23,6 +23,8 @@ export function Miniatura(p: {
   favorita?: { ligada: boolean; primeira: boolean }
   /** sem o selo Aprovada / A revisar (na etapa Transições do editor) */
   semSelo?: boolean
+  /** só a referência, com o som dela e sem os nomes dos lados (na etapa Transições do editor) */
+  soReferencia?: boolean
   /** no modal: cada lado toca sozinho, com o próprio som (clicar no lado que está tocando para) */
   porLado?: (lado: 'referencia' | 'recriacao') => void
 }) {
@@ -75,7 +77,8 @@ export function Miniatura(p: {
         onClick={() => !p.porLado && p.tocar(!p.tocando)}
         onKeyDown={(k) => !p.porLado && (k.key === 'Enter' || k.key === ' ') && (k.preventDefault(), p.tocar(!p.tocando))}
         className={cn(
-          'group relative grid w-full cursor-pointer grid-cols-2 gap-px overflow-hidden rounded-[6px] bg-line-dark ring-1 transition-[box-shadow] [contain:paint] hover:ring-2 hover:ring-coral',
+          'group relative grid w-full cursor-pointer gap-px overflow-hidden rounded-[6px] bg-line-dark ring-1 transition-[box-shadow] [contain:paint] hover:ring-2 hover:ring-coral',
+          p.soReferencia ? 'grid-cols-1' : 'grid-cols-2',
           p.favorita?.ligada ? 'ring-yellow/50' : 'ring-line-dark',
         )}
         title={p.porLado ? undefined : p.tocando ? 'Parar' : 'Tocar em loop (a referência e a recriação juntas)'}
@@ -85,13 +88,14 @@ export function Miniatura(p: {
             <>
               <img src={quadro(fonte.ref, fonte.t - 0.4)} alt="" loading="lazy" className="absolute inset-0 size-full object-cover" />
               {p.tocando && (
-                <video ref={video} src={urlArquivoReferencia(fonte.ref, 'proxy.mp4')} muted={p.som !== 'referencia'} playsInline preload="auto" className="absolute inset-0 size-full object-cover" />
+                <video ref={video} src={urlArquivoReferencia(fonte.ref, 'proxy.mp4')} muted={!p.soReferencia && p.som !== 'referencia'} playsInline preload="auto" className="absolute inset-0 size-full object-cover" />
               )}
             </>
           ) : (
             <p className="absolute inset-0 grid place-items-center p-3 text-center text-[11px] text-fog">Sem corte de referência</p>
           )}
         </div>
+        {!p.soReferencia && (
         <div ref={caixa} className="relative aspect-[9/16] overflow-hidden bg-black">
           {fonte && (
             <EfeitoNoPalco tempo={rel} tocando={p.tocando} altura={altura} cortes={cortes} mudo={p.som !== 'recriacao'}>
@@ -100,9 +104,14 @@ export function Miniatura(p: {
             </EfeitoNoPalco>
           )}
         </div>
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#0b1714e6] to-transparent" />
-        <span className="absolute bottom-2.5 left-2.5 text-[9.5px] font-semibold tracking-[0.08em] text-cream/70 uppercase">Referência</span>
-        <span className="absolute bottom-2.5 left-[calc(50%+10px)] text-[9.5px] font-semibold tracking-[0.08em] text-cream/70 uppercase">Recriação</span>
+        )}
+        {!p.soReferencia && (
+          <>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#0b1714e6] to-transparent" />
+            <span className="absolute bottom-2.5 left-2.5 text-[9.5px] font-semibold tracking-[0.08em] text-cream/70 uppercase">Referência</span>
+            <span className="absolute bottom-2.5 left-[calc(50%+10px)] text-[9.5px] font-semibold tracking-[0.08em] text-cream/70 uppercase">Recriação</span>
+          </>
+        )}
         {!p.semSelo && (
         <span className={cn('absolute top-2.5 left-2.5 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] uppercase', t.aprovado ? 'bg-mint text-ink' : 'bg-coral text-cream')}>
           {t.aprovado ? 'Aprovada' : 'A revisar'}
