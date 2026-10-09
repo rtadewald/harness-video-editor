@@ -5,8 +5,8 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from . import direcao_projeto, projeto
-from .rotas_comum import ler_projeto as _ler
+from .. import direcao_projeto, projeto
+from .comum import ler_projeto as _ler
 
 rotas = APIRouter()
 

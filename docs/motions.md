@@ -8,7 +8,7 @@ resumo e o link). Mesmas regras da SPEC: atualizar junto com o código, decisõe
 | Parte | Arquivo |
 |---|---|
 | Presets, página do motion, uso no plano | `backend/app/motions.py` |
-| Rotas | `backend/app/rotas_motions.py` |
+| Rotas | `backend/app/rotas/motions.py` |
 | Testes | `backend/tests/test_motions.py` |
 | Os presets (um arquivo cada) | `frontend/public/motion/presets/*.html` |
 | Runtime, GSAP e fontes | `frontend/public/motion/` |

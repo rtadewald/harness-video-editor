@@ -2,8 +2,8 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from . import enquadramento, look, projeto
-from .rotas_comum import Campos, ler_projeto
+from .. import enquadramento, look, projeto
+from .comum import Campos, ler_projeto
 
 rotas = APIRouter()
 

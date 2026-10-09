@@ -3,8 +3,8 @@ em segundo plano, a biblioteca de faixas de fundo e os números da cadeia (os me
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from . import audio, projeto, trilhas
-from .rotas_comum import Campos, ler_projeto
+from .. import audio, projeto, trilhas
+from .comum import Campos, ler_projeto
 
 rotas = APIRouter()
 

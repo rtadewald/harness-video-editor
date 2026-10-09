@@ -5,8 +5,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
-from . import motions
-from .rotas_comum import ler_projeto
+from .. import motions
+from .comum import ler_projeto
 
 rotas = APIRouter()
 _SEM_CACHE = {'Cache-Control': 'no-cache'}

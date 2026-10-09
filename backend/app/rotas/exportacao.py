@@ -6,8 +6,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import exportacao
-from .rotas_comum import ler_projeto as _ler
+from .. import exportacao
+from .comum import ler_projeto as _ler
 
 rotas = APIRouter()
 
