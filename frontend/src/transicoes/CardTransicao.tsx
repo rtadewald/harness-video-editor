@@ -119,7 +119,7 @@ export default function CardTransicao(p: {
       </div>
       <div className="mt-3 flex items-start gap-1">
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-[15px] font-semibold tracking-[-0.02em]" title={t.nome}>
+          <h3 className="truncate text-[15px] font-semibold tracking-[-0.02em]" title={t.descricao || t.nome}>
             {t.nome}
           </h3>
           <p className="mt-0.5 truncate text-[12px] text-fog">
@@ -151,9 +151,6 @@ export default function CardTransicao(p: {
           <Check className="size-4" />
         </button>
       </div>
-      <p className="mt-1 line-clamp-2 text-[11.5px] leading-[1.5] text-fog" title={t.descricao}>
-        {t.descricao}
-      </p>
       <div className="mt-2.5">
         <Som t={t} />
       </div>

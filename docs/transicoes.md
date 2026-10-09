@@ -176,5 +176,5 @@ sem cliques ao ouvir uma emenda).
 abertura da página), com os cards das 7 transições juntos, cada uma com um corte das referências de onde veio; e o card
 no padrão dos cards de preset — a referência e a recriação de borda a borda (sem moldura), os rótulos embaixo sobre um
 degradê, o selo Aprovada/A revisar e "Padrão do par" no canto, o play no meio; embaixo, o nome com o tipo de efeito, os
-ícones de favorita do par e de aprovar, a descrição (duas linhas) e o som (a intensidade num grupo compacto, que cabe no
+ícones de favorita do par e de aprovar (a descrição fica na dica do nome) e o som (a intensidade num grupo compacto, que cabe no
 card mais estreito da grade — antes, a linha do som passava da borda do card).
