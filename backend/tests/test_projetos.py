@@ -905,6 +905,25 @@ def test_etapa_inserts_reescreve_a_marcacao_e_tira_os_campos_antigos(tmp_path, m
     assert calibragem.marcacao(p2, []) == '[Tela dividida · insert: o GitHub entra e dá zoom (p2)]'
 
 
+def test_etapa_inserts_um_bloco_que_falha_nao_derruba_a_referencia(tmp_path, monkeypatch):
+    """O provedor recusou um bloco (um insert de 0,45 s no 46_grill_me): ele fica com a marcação que tinha e os outros
+    seguem; a falta de crédito continua parando tudo."""
+    planos = [{'id': f'p{k}', 'camada': 'plano', 'tipo': 'insert_tela_cheia', 'conteudo': None, 'inicio': k, 'fim': k + 1, 'descricao': f'antes {k}'}
+              for k in (1, 2)]
+    comum.salvar_json(tmp_path / 'direcao.json', {'itens': planos})
+
+    def analisar(base, b, config):
+        if b['id'] == 'p1':
+            raise RuntimeError('Provider returned error')
+        return 'o site rola'
+    monkeypatch.setattr(direcao, 'analisar_insert', analisar)
+    assert direcao._inserts('ref', tmp_path) == {'blocos': 2, 'falhas': ['p1']}
+    assert [i['descricao'] for i in comum.ler_json(tmp_path / 'direcao.json')['itens']] == ['antes 1', 'o site rola']
+    monkeypatch.setattr(direcao, 'analisar_insert', lambda base, b, config: (_ for _ in ()).throw(RuntimeError('402 Insufficient credits')))
+    with pytest.raises(RuntimeError):
+        direcao._inserts('ref', tmp_path)
+
+
 def _w(id, t, a, b):
     return {'id': id, 'texto': t, 'inicio': a, 'fim': b}
 
