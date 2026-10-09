@@ -56,6 +56,14 @@ class Renomear(BaseModel):
     nome: str
 
 
+@rotas.delete('/api/projetos/{id}')
+def apagar(id: str):
+    """Tira o projeto da lista: a pasta vai para a lixeira (`projetos/_lixeira/`), de onde dá para recuperar."""
+    _ler(id)
+    projeto.apagar(id)
+    return {'ok': True}
+
+
 @rotas.put('/api/projetos/{id}/nome')
 def renomear(id: str, r: Renomear):
     """Muda só o nome exibido; o id (e a pasta) do projeto continuam os mesmos."""

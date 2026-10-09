@@ -44,7 +44,7 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 
 ## 2. Escopo
 
-✅ **Entra:** as seis etapas acima, reais; a tela de projetos (criar e abrir); o pipeline automático ao criar o projeto; as páginas de apoio (Banco, Referências, Calibragem, Heurística, Presets, Motions, Transições); a exportação MP4 a partir de qualquer etapa.
+✅ **Entra:** as seis etapas acima, reais; a tela de projetos (criar, abrir e apagar — apagar manda a pasta para `projetos/_lixeira/`, recuperável); o pipeline automático ao criar o projeto; as páginas de apoio (Banco, Referências, Calibragem, Heurística, Presets, Motions, Transições); a exportação MP4 a partir de qualquer etapa.
 
 ✅ **Fica fora (por ora):**
 - O agente do chat (§11) e o desfazer/refazer com versões nomeadas (§10).

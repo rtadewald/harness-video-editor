@@ -139,6 +139,7 @@ export async function json<T>(r: Response): Promise<T> {
 }
 
 export const listarProjetos = () => fetch('/api/projetos').then(json<ResumoProjeto[]>)
+export const apagarProjeto = (id: string) => enviar<{ ok: boolean }>('DELETE', `/api/projetos/${id}`)
 export const abrirProjeto = (id: string) => fetch(`/api/projetos/${id}`).then(json<Projeto>)
 export const abrirEditor = (id: string) => fetch(`/api/projetos/${id}/editor`).then(json<DadosEditor>)
 const post = <T,>(url: string) => fetch(url, { method: 'POST' }).then(json<T>)

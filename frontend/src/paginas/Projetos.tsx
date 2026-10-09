@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Settings } from 'lucide-react'
-import { formatarDuracao, listarProjetos, urlMiniatura, type ResumoProjeto } from '@/api'
+import { Plus, Settings, Trash2 } from 'lucide-react'
+import { apagarProjeto, formatarDuracao, listarProjetos, urlMiniatura, type ResumoProjeto } from '@/api'
+import { fecharAba } from '@/components/abasProjetos'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,16 @@ export default function Projetos() {
   useEffect(() => {
     listarProjetos().then(setProjetos).catch((e) => setErro(e.message))
   }, [])
+  // apagar vai para a lixeira (projetos/_lixeira/), não some do disco
+  const apagar = (p: ResumoProjeto) => {
+    if (!window.confirm(`Apagar o projeto “${p.nome}”?\n\nEle sai da lista e vai para a lixeira (projetos/_lixeira/), de onde dá para recuperar.`)) return
+    apagarProjeto(p.id)
+      .then(() => {
+        setProjetos((l) => l && l.filter((x) => x.id !== p.id))
+        fecharAba(p.id)
+      })
+      .catch((e) => window.alert((e as Error).message))
+  }
 
   return (
     <div className="grid h-svh grid-rows-[56px_minmax(0,1fr)] bg-deep text-cream">
@@ -63,7 +74,15 @@ export default function Projetos() {
           </li>
 
           {projetos?.map((p) => (
-            <li key={p.id}>
+            <li key={p.id} className="group/card relative">
+              <button
+                onClick={() => apagar(p)}
+                aria-label={`Apagar ${p.nome}`}
+                title="Apagar o projeto"
+                className="absolute top-2.5 left-2.5 z-10 grid size-7 place-items-center rounded-full bg-ink/85 text-fog opacity-0 transition-opacity group-hover/card:opacity-100 hover:bg-coral hover:text-cream focus-visible:opacity-100"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
               <Link to={`/p/${p.id}`} className="group block">
                 <div className="relative aspect-[9/16] overflow-hidden rounded-[6px] bg-deeper ring-1 ring-line-dark transition-[transform,box-shadow] duration-300 group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-coral">
                   <img
