@@ -77,7 +77,7 @@ export default function Transicoes() {
             </Grupo>
           )}
         </aside>
-        <main className="min-h-0 overflow-y-auto px-6 py-5">
+        <main className="min-h-0 overflow-y-auto px-10 py-8">
           {b && par === TODAS && <DetalheTodas b={b} som={som} mudarSom={setSom} tocando={tocando} tocar={tocar} />}
           {b && par && par !== TODAS && (
             <DetalhePar
@@ -116,7 +116,7 @@ function fonteDaTransicao(b: Biblioteca, t: Transicao, parInfo?: Par) {
  *  aprovar sem passar par a par. */
 function DetalheTodas(p: { b: Biblioteca; som: 'referencia' | 'recriacao'; mudarSom: (s: 'referencia' | 'recriacao') => void; tocando: string | null; tocar: (id: string) => (sim: boolean) => void }) {
   return (
-    <div className="grid max-w-[1400px] gap-6">
+    <div className="mx-auto grid max-w-[1320px] gap-10">
       <div className="flex flex-wrap items-end gap-4">
         <div className="grid gap-1">
           <p className="eyebrow text-sage">Biblioteca</p>
@@ -127,7 +127,7 @@ function DetalheTodas(p: { b: Biblioteca; som: 'referencia' | 'recriacao'; mudar
         </div>
         <EscolhaSom som={p.som} mudarSom={p.mudarSom} />
       </div>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-6 gap-y-8">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(270px,1fr))] gap-x-10 gap-y-12">
         {p.b.transicoes.map((t) => (
           <CardTransicao key={t.id} t={t} fonte={fonteDaTransicao(p.b, t)} som={p.som} tocando={p.tocando === t.id} tocar={p.tocar(t.id)} />
         ))}
@@ -220,7 +220,7 @@ function DetalhePar(p: {
   const lista = ids.map((id) => b.transicoes.find((t) => t.id === id)!)
 
   return (
-    <div className="grid max-w-[1200px] gap-6">
+    <div className="mx-auto grid max-w-[1320px] gap-10">
       <div className="flex flex-wrap items-end gap-4">
         <div className="grid gap-1">
           <p className="eyebrow text-sage">{familia ? 'Família' : 'Par'}</p>
@@ -236,14 +236,14 @@ function DetalhePar(p: {
         </div>
         <EscolhaSom som={p.som} mudarSom={p.mudarSom} />
       </div>
-      <section className="grid gap-3">
+      <section className="grid gap-4">
         <p className="eyebrow text-yellow">Favoritas do par</p>
         {!nFav && <p className="text-[12px] text-fog">Nenhuma favorita: os cortes deste par ficam secos. Marque a estrela de uma transição.</p>}
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-6 gap-y-8">{lista.slice(0, nFav).map(card)}</div>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(270px,1fr))] gap-x-10 gap-y-12">{lista.slice(0, nFav).map(card)}</div>
       </section>
-      <section className="grid gap-3">
+      <section className="grid gap-4 border-t border-line-dark pt-8">
         <p className="eyebrow text-fog">Outras transições</p>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-6 gap-y-8">{lista.slice(nFav).map((t, j) => card(t, j + nFav))}</div>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(270px,1fr))] gap-x-10 gap-y-12">{lista.slice(nFav).map((t, j) => card(t, j + nFav))}</div>
       </section>
       {parInfo && parInfo.cortes.length > 0 && <CortesDoPar par={parInfo} tocando={p.tocando} tocar={p.tocar} />}
     </div>
