@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Film, Library, Sparkles, Trash2, Upload } from "lucide-react";
 import { subirNoBanco, urlBancoMiniatura, type ItemBanco } from "@/api";
-import SeletorBanco from "@/editor/SeletorBanco";
+import SeletorBanco from "@/inserts/SeletorBanco";
 import { cn } from "@/lib/utils";
 import { GradePresets } from "./PresetMotion";
 import { tirarMotionDoPlano, usarPreset, usarVideo, type Formato, type MotionPlano } from "./api";

@@ -9,7 +9,7 @@ from . import comum
 LUTS = Path(__file__).resolve().parents[1] / 'luts'
 NOMES = {'natural': 'Natural', 'casa': 'Casa', 'frio': 'Frio / limpo'}
 # a vinheta: o quanto as bordas escurecem (0 = sem) e a forma (uma elipse do quadro 9:16, centro um pouco acima do meio,
-# borda bem suave). A mesma fórmula no shader do front (editor/look.ts) e na máscara da exportação (`mascara_vinheta`).
+# borda bem suave). A mesma fórmula no shader do front (preprocessamento/look.ts) e na máscara da exportação (`mascara_vinheta`).
 VINHETAS = {'sem': 0.0, 'leve': 0.25, 'normal': 0.4, 'forte': 0.55}
 FORMA = {'cy': 0.45, 'rx': 0.62, 'ry': 0.62, 'ini': 0.45, 'fim': 1.25}
 PADRAO = {'lut': 'casa', 'intensidade': 1.0, 'vinheta': 'normal'}

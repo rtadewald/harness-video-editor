@@ -17,8 +17,8 @@ resumo e o link). Mesmas regras da SPEC: atualizar junto com o código, decisõe
 | Motion tocando no lugar (prévia, miniaturas e exportação) | `frontend/src/motions/MotionNoLugar.tsx` |
 | Página Motions (galeria dos presets, `/motions`) | `frontend/src/motions/PaginaMotions.tsx` |
 
-Pontos de ligação com o resto (mexer só no necessário e avisar no commit): `editor/EtapaInserts.tsx` (o card e a prévia
-no plano), `editor/LinhaInserts.tsx` (a trilha Mídias), `paginas/Render.tsx` (a exportação) e `main.py` (inclui o router).
+Pontos de ligação com o resto (mexer só no necessário e avisar no commit): `inserts/EtapaInserts.tsx` (o card e a prévia
+no plano), `inserts/LinhaInserts.tsx` (a trilha Mídias), `paginas/Render.tsx` (a exportação) e `main.py` (inclui o router).
 
 ## Especificação
 

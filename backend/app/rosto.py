@@ -3,7 +3,7 @@ de curta distância, local, sem serviço pago) roda sobre o proxy a ~6 quadros p
 caixa do rosto (centro, largura e altura, em fração do quadro) e a confiança, em `midia/rosto/<bruto>.json`. Os buracos
 (rosto não achado, virado) são preenchidos com a medida vizinha (com confiança 0). Roda uma vez por projeto, em segundo
 plano, depois do proxy (como o recorte do ator). Serve a duas áreas: o enquadramento 16:9 → 9:16 (P1, que mede o
-original reduzido com `medir`) e o ator nas áreas que sobram da tela dividida (P5: o front lê as amostras, `editor/ator.ts`)."""
+original reduzido com `medir`) e o ator nas áreas que sobram da tela dividida (P5: o front lê as amostras, `ator/ator.ts`)."""
 import subprocess
 import tempfile
 import threading

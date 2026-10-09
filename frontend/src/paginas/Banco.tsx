@@ -15,7 +15,7 @@ import {
   type ItemBanco,
   type TipoMidia,
 } from '@/api'
-import EditorVideo from '@/editor/EditorVideo'
+import EditorVideo from '@/inserts/EditorVideo'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
 import { Button } from '@/components/ui/button'

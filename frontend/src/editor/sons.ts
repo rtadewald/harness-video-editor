@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useRef } from 'react'
 import { json } from '@/api'
 import { criarLoja } from './loja'
-import { bezier } from './curvas'
-import type { Curva } from './enriquecimento'
-import { janela, noTempo, type Receita } from './presets'
+import { bezier } from '@/presets/curvas'
+import type { Curva } from '@/inserts/enriquecimento'
+import { janela, noTempo, type Receita } from '@/presets/presets'
 
 /** Sons de apoio (SPEC §8.6): a biblioteca do time (cliques, pops, whooshes, risers, digitação), cortada e no mesmo
  *  volume, servida pelo backend. Um preset tem **momentos de som** (`receita.sons`): em cada um, qual som e com que

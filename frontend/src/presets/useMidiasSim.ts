@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { abrirProjeto, listarBanco, listarProjetos, urlArquivo, urlBancoArquivo } from '@/api'
-import type { MidiasSim } from '@/editor/Simulacao'
+import type { MidiasSim } from '@/presets/Simulacao'
 
 /** Os vídeos para as simulações: do banco, separados pela proporção, e o ator (o projeto mais recente já recortado: o
  *  proxy do bruto e só a pessoa; um projeto novo, sem pessoa recortada, não vira o ator da simulação). */

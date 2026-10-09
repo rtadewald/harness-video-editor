@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useCatalogoSons, useSonsNoTempo } from "@/editor/sons";
 import { eventosDoMotion, guardarMarcas, marcasDe, marcasGuardadas, type EscolhaSom, type Marca } from "./sons";
-import Fundo from "@/editor/Fundo";
+import Fundo from "@/inserts/Fundo";
 import { cn } from "@/lib/utils";
 
 type Janela = Window & { __ir?: (t: number) => Promise<void> };

@@ -361,7 +361,7 @@ export function formatarTempo(s: number) {
   return `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`
 }
 
-import type { AjusteAtor } from '@/editor/ator'
+import type { AjusteAtor } from '@/ator/ator'
 
 // ---------------------------------------------------------------- Inserts e banco (SPEC §8.3)
 

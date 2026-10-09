@@ -174,7 +174,7 @@ padrão Normal), com a prévia mudando na hora.
 - Dados: `projeto.look = { lut: 'casa' | 'natural' | 'frio' | null, intensidade: 0..1, vinheta: 'sem' | 'leve' | 'normal' | 'forte' }`.
 
 💡 Implementado (P1, out/2026): `look.py` (catálogo, máscara, filtros), `ferramentas/luts.py` (os 3 `.cube`), rotas
-`GET /api/look`, `GET /api/look/{lut}.cube`, `GET/PUT /api/projetos/{id}/look`; no front, `editor/look.ts`,
+`GET /api/look`, `GET /api/look/{lut}.cube`, `GET/PUT /api/projetos/{id}/look`; no front, `preprocessamento/look.ts`,
 `CanvasLook.tsx` (WebGL2: o LUT como textura 3D trilinear, `RGB16F`) e `PainelLook.tsx` (com "Segure para ver sem o
 look"). A vinheta: força Leve 0,25 · Normal 0,40 · Forte 0,55 (o canto do quadro fica a ~64% com Normal), elipse com
 centro em 45% da altura. Na exportação, o look entra logo depois da escala do ator, em RGB (`gbrp`), e a máscara é uma

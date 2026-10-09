@@ -97,7 +97,7 @@ def retomar_interrompidas() -> None:
             shutil.rmtree(parte, ignore_errors=True) if parte.is_dir() else parte.unlink(missing_ok=True)
 
 
-JANELA = {'y0': 0.72, 'escala': 0.55, 'raio': 0.07}  # o ator no "insert atrás" (igual a editor/divisao.ts; raio em fração da largura do ator encolhido)
+JANELA = {'y0': 0.72, 'escala': 0.55, 'raio': 0.07}  # o ator no "insert atrás" (igual a presets/divisao.ts; raio em fração da largura do ator encolhido)
 
 
 def acelerar(vel: float) -> tuple[str, str]:
@@ -116,7 +116,7 @@ def _ator(clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, 
     dos inserts sobre [topo_in] → [topo]: o ator na janela do "insert atrás" e a pessoa recortada saindo da área dele.
     `com_look`: o ator escalado sai em [ator_cru] e o look (`look.filtros`, ligado em `comando_final`) faz o [ator]."""
     n = len(clipes)
-    # a geometria do ator (P5, `editor/ator.ts`): quando a página de render a manda, o ator é posto por ela
+    # a geometria do ator (P5, `ator/ator.ts`): quando a página de render a manda, o ator é posto por ela
     geometria = any(d.get('ator') for _, _, d in divisoes)
     if geometria:
         usa_mascara = mascara and any((d.get('ator') or {}).get('modo') in ('janela', 'recortado') for _, _, d in divisoes)
@@ -209,7 +209,7 @@ def _desde(a: float, fps: int) -> str:
 
 def _ator_na_geometria(partes: list[str], divisoes: list[tuple[float, float, dict]], w: int, h: int, fps: int, duracao: float,
                        usa_mascara: bool) -> list[str]:
-    """O ator posto pela geometria de cada trecho dividido (P5; `editor/ator.ts`): `{modo, s, tx, ty, topo?, raio?}` —
+    """O ator posto pela geometria de cada trecho dividido (P5; `ator/ator.ts`): `{modo, s, tx, ty, topo?, raio?}` —
     o quadro do ator com o canto de cima à esquerda em (tx, ty) e a escala s, em frações do quadro.
     - `metade` (tela dividida): o ator inteiro, ampliado e deslocado pelo rosto, embaixo dos inserts ([base]);
     - `janela`, `canto`: o ator encolhido por cima dos inserts — a janela (só de `topo` para baixo) ou o quadro inteiro,

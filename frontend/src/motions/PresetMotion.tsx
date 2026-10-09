@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { urlBancoMiniatura } from "@/api";
-import SeletorBanco from "@/editor/SeletorBanco";
-import { FUNDOS } from "@/editor/Fundo";
+import SeletorBanco from "@/inserts/SeletorBanco";
+import { FUNDOS } from "@/inserts/Fundo";
 import { cn } from "@/lib/utils";
 import MotionNoLugar from "./MotionNoLugar";
 import EscolhaSons from "@/editor/EscolhaSons";

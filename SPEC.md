@@ -110,8 +110,13 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 │   └── pyproject.toml
 ├── frontend/src/
 │   ├── paginas/       # Projetos, Editor, Banco, Calibragem, RevisaoReferencia, Referencias, Heuristica, Presets, Transicoes, Configuracoes, NovoProjeto, Render
-│   ├── editor/        # as etapas (etapas.ts), o player, a prévia; editor/inserts/: a etapa Inserts
-│   ├── presets/       # a página Presets (card com o modal, avaliação, recomendados)
+│   ├── editor/        # o comum às etapas: a lista (etapas.ts), os sons de apoio, a linha do tempo base, exportar
+│   ├── player/        # o player e a prévia: usePlayer, a sequência (bruto → saída), a montagem no palco
+│   ├── preprocessamento/ # a etapa 1: a timeline vertical dos cortes, o look, o enquadramento, a velocidade
+│   ├── direcao/       # a etapa Direção visual
+│   ├── inserts/       # a etapa Inserts: o insert no lugar, o banco, a captura de site, o editor de vídeo, o comentário
+│   ├── ator/          # o ator nas áreas que sobram da tela dividida (P5)
+│   ├── presets/       # os presets de enriquecimento (receitas, divisão da tela, ajustes, curvas) e a página Presets
 │   ├── motions/       # os motions (grade, edição, página, sons)
 │   ├── referencias/   # timeline de direção, edição, detalhe, painel da Calibragem
 │   ├── transicoes/    # as transições entre planos (motor, etapa, página, efeito no palco)

@@ -148,7 +148,7 @@ AJUSTES = ('corte', 'preset', 'divisao', 'ajustes', 'ator')  # preset: o id de u
 # o ator no insert (P5, docs/rosto.md): no "ator embaixo", o modo (a janela, só a pessoa recortada, ou encolhido num canto)
 # com o centro e o tamanho (frações do quadro; arrastado e redimensionado no vídeo); na tela dividida, o ajuste manual do
 # enquadramento pelo rosto (deslocamento e zoom). Sem um campo, o automático. O zoom é um fator sobre o automático, para
-# mais ou para menos (até 1/1,6: de um automático ampliado de volta ao "cobrir a área"; `editor/ator.ts` ZOOM)
+# mais ou para menos (até 1/1,6: de um automático ampliado de volta ao "cobrir a área"; `ator/ator.ts` ZOOM)
 MODOS_ATOR = ('janela', 'recortado', 'canto')
 _LIMITES_ATOR = {'x': (0, 1), 'y': (0, 1), 'escala': (0.15, 1), 'dx': (-0.5, 0.5), 'dy': (-0.5, 0.5), 'zoom': (0.625, 1.6)}
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import CenaPreset from '@/editor/CenaPreset'
-import type { Receita } from '@/editor/presets'
+import CenaPreset from '@/presets/CenaPreset'
+import type { Receita } from '@/presets/presets'
 
 type Pedido = { receita: Receita; dur: number; midias: string[]; fundo?: string }
 type Janela = Window & { __preset?: Pedido; __ir?: (t: number) => Promise<void> }

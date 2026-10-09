@@ -3,8 +3,8 @@ import { Star } from 'lucide-react'
 import { urlAmostraPreset } from '@/api'
 import Modal from '@/components/Modal'
 import { cn } from '@/lib/utils'
-import Simulacao, { TELAS, type Sim } from '@/editor/Simulacao'
-import { comRecomendados, definirOrdem, N_RECOMENDADOS, PROPORCOES_USO, serve, situacao, type ProporcaoSituacao, useOrdem, usosDe, type Preset } from '@/editor/presets'
+import Simulacao, { TELAS, type Sim } from '@/presets/Simulacao'
+import { comRecomendados, definirOrdem, N_RECOMENDADOS, PROPORCOES_USO, serve, situacao, type ProporcaoSituacao, useOrdem, usosDe, type Preset } from '@/presets/presets'
 import { chip, versao } from './comum'
 
 /** Uma imagem vazia para o arrastar do navegador (sem o fantasma do card). */

@@ -14,7 +14,7 @@ import {
 import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { FUNDOS } from './Fundo'
+import { FUNDOS } from '@/inserts/Fundo'
 
 /** Exportação do vídeo final (SPEC §13): o botão do topo abre o modal com resolução, fps, codec e nome; a exportação roda
  *  em segundo plano (o botão mostra o andamento e dá para trocar de etapa ou de projeto) e, ao terminar, um aviso oferece
