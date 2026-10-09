@@ -143,7 +143,7 @@ export function receitaParaInsert(r: Receita, d: Divisao | null, aspectos: numbe
  *  — fica com a largura do desenho (só limitado pela altura, numa mídia alta), preso pela borda do desenho, a entrada
  *  cresce a partir dela e o deslize anda `DESLIZE` (o da referência) sem passar do que transborda, qualquer que seja a
  *  proporção da mídia. `null`: não é esse caso. */
-const DESLIZE = 23 // % da área
+export const DESLIZE = 23 // % da área (o da referência)
 function deslizeTransbordando(c: CardReceita, a: number, areaAsp: number, atras: boolean): CardReceita | null {
   const dx = c.saida?.para.dx ?? 0
   if (atras || c.repouso.w <= 100 || Math.abs(dx) < 5 || (c.saida?.para.escala ?? 1) > 1.05) return null
@@ -162,7 +162,7 @@ function deslizeTransbordando(c: CardReceita, a: number, areaAsp: number, atras:
   // o deslize anda o que a referência anda (medido no Cresce e desliza: ~23% da tela, devagar e reto até o corte), sem
   // passar do que transborda: nunca abre margem do lado que estava para fora
   const sobra = esq ? cx + w / 2 - 100 : -(cx - w / 2)
-  const deslize = (esq ? -1 : 1) * Math.max(Math.min(DESLIZE, sobra), 0)
+  const deslize = (esq ? -1 : 1) * Math.max(Math.min(c.deslize ?? DESLIZE, sobra), 0)
   const e = c.entrada
   // a entrada que cresce: começa no mesmo lado preso (o centro desloca metade do que falta crescer)
   const entrada = e && e.de.escala < 0.98 ? { ...e, de: { ...e.de, dx: ((esq ? -1 : 1) * (w / 2) * (1 - e.de.escala)) } } : e

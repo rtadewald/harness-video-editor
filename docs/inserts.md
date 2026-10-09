@@ -107,3 +107,6 @@ esquerda, e anda ~23% devagar até o corte), sem passar do que transborda. Na re
 o deslize **linear** (o zoom de entrada continua com a curva que freia) e sem o som do deslize. Antes, ele era limitado a 96% da largura: o
 zoom ficava bem menor que o da referência e o deslize abria uma margem à direita. Um card maior que a área que não
 desliza (o Corte seco) continua encolhendo para caber, no meio do pedaço que aparecia.
+✅ **Ajuste rápido "Até onde desliza"** (pedido de Rodrigo, out/2026), nos presets com esse card (aparece primeiro entre os
+ajustes): **Pouco** (anda 12% da área), **Como na referência** (23%, o padrão) e **Até a borda** (anda até a outra borda
+do card encostar na borda da tela). Fica no insert (`enriquecimento.ajustes.deslize`), como os outros ajustes rápidos.
