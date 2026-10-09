@@ -1,25 +1,25 @@
-"""Rotas dos presets de enriquecimento (SPEC §8.4) e das transições globais dos inserts."""
+"""Rotas dos presets de enriquecimento (SPEC §8.4), das entradas e saídas globais dos inserts e dos sons de apoio."""
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from . import presets, sons, transicoes
+from . import entradas, presets, sons
 from .rotas_comum import Campos, ler_projeto
 
 rotas = APIRouter()
 
 
-# ---------------------------------------------------------------- transições globais (entrada e saída dos inserts)
+# ---------------------------------------------------------------- entradas e saídas globais dos inserts
 
-@rotas.get('/api/transicoes')
-def ler_transicoes():
+@rotas.get('/api/entradas')
+def ler_entradas():
     """A configuração global de cada entrada e saída dos inserts."""
-    return transicoes.ler()
+    return entradas.ler()
 
 
-@rotas.put('/api/transicoes/{lado}/{tipo}')
-def definir_transicao_global(lado: str, tipo: str, c: Campos):
+@rotas.put('/api/entradas/{lado}/{tipo}')
+def definir_entrada_global(lado: str, tipo: str, c: Campos):
     try:
-        return transicoes.definir(lado, tipo, c.campos)
+        return entradas.definir(lado, tipo, c.campos)
     except ValueError as e:
         raise HTTPException(422, str(e))
 

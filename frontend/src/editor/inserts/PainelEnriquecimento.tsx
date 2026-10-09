@@ -9,7 +9,7 @@ import { comRecomendados, ordemDoInsert, presetsPara, useOrdem, usePresets } fro
 import { aspectosDe, divisaoDe, receitaParaInsert } from '../divisao'
 import { presetDe } from '../InsertNoLugar'
 import type { Qual } from '../enriquecimento'
-import { type Lado, type Transicoes } from '../transicoes'
+import { type Lado, type Entradas } from '../entradas'
 import { BOTAO, NOME_TIPO, type Pedido } from './comum'
 
 export default function PainelEnriquecimento(p: {
@@ -19,7 +19,7 @@ export default function PainelEnriquecimento(p: {
   aplicarAoTipo: () => void
   /** Toca a entrada ou a saída de uma mídia (o "▶ Ver" da engrenagem). */
   ver: (lado: Lado, qual: Qual) => void
-  trans: Transicoes | null
+  entradas: Entradas | null
   /** O preset com a engrenagem aberta (o editor fica na coluna ao lado do vídeo) e como abrir/fechar. */
   presetAberto?: string | null
   abrirPreset?: (id: string | null) => void

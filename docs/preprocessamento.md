@@ -20,6 +20,17 @@ projetos antigos.
 💡 `projeto.formato = 'reels'`. Os outros formatos, quando existirem, mudam as regras de cada etapa (duração, ritmo,
 legenda); por ora o valor só é guardado.
 
+💡 Feito na F0 (out/2026): `NovoProjeto.tsx` pede Nome, Motor, Formato (Reels marcado; Anúncio e Aula visíveis,
+desativados, "em breve") e o vídeo. `POST /api/projetos` aceita `formato` (padrão `reels`; `anuncio` e `aula` dão 422
+"em breve") e continua aceitando `briefing_texto`, `briefing_audio` e `apoios` de clientes antigos. Projetos sem
+`formato` são lidos como Reels.
+
+## Na tela
+
+💡 A etapa (id `cortes`, o de antes) tem no topo as abas **Cortes · Enquadramento · Look**. Cortes é a tela de sempre
+([cortes.md](cortes.md)); Enquadramento e Look mostram, por ora, a prévia e o que virá (num vídeo vertical, o
+Enquadramento avisa que não se aplica). Os atalhos dos Cortes (←/→ no bruto, E, B) valem só na aba Cortes.
+
 ## Enquadramento: de 16:9 para 9:16 pelo rosto
 
 ✅ Se o bruto é horizontal, o app gera um **bruto 9:16** e todo o resto (proxy, transcrição, cortes, recorte do ator…)

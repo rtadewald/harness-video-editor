@@ -10,7 +10,11 @@ from . import comum
 
 RAIZ = Path(__file__).resolve().parents[2] / 'projetos'
 SAIDA = {'largura': 1080, 'altura': 1920}
-ETAPAS = ['cortes', 'direcao', 'inserts', 'enriquecimento', 'motion', 'audio', 'legenda']
+# as etapas do editor (SPEC §1); `cortes` é o Pré-processamento (o id ficou), `enriquecimento` e `motion` são antigas
+# (hoje dentro de Inserts) e ficam pelos dados dos projetos
+ETAPAS = ['cortes', 'direcao', 'inserts', 'enriquecimento', 'motion', 'transicoes', 'audio', 'legenda']
+# os formatos de vídeo (SPEC §1); só o Reels está ativo, os outros aparecem como "em breve"
+FORMATOS = {'reels': True, 'anuncio': False, 'aula': False}
 _trava = threading.Lock()  # o pipeline roda em outra thread e também grava o projeto.json
 
 # Motores de transcrição. `familia` agrupa os que compartilham o MESMO texto (e IDs de palavra): trocar entre eles só muda
@@ -94,7 +98,7 @@ def novo_id(nome: str) -> str:
     return id
 
 
-def criar(id: str, nome: str, fontes: list[dict], briefing: dict, motor: str | None = None) -> dict:
+def criar(id: str, nome: str, fontes: list[dict], briefing: dict, motor: str | None = None, formato: str = 'reels') -> dict:
     motor = motor or ler_config()['motor_padrao']
     projeto = {
         'id': id,
@@ -102,7 +106,8 @@ def criar(id: str, nome: str, fontes: list[dict], briefing: dict, motor: str | N
         'criado_em': datetime.now().isoformat(timespec='seconds'),
         'saida': SAIDA,
         'fontes': fontes,
-        'briefing': briefing,
+        'briefing': briefing,  # não vem mais da criação (F0); fica para os projetos antigos
+        'formato': formato,
         'enquadramento': {'x': 0.5},
         'timeline': {'V1': []},
         'etapas': {e: 'pendente' for e in ETAPAS},
@@ -210,7 +215,8 @@ def ler(id: str) -> dict:
             d['pedido']['de'] += 1
         espelhar_direcao(d)
         salvar(p)
-    if any(e not in p['etapas'] for e in ETAPAS):  # etapa criada depois do projeto (ex.: Direção visual)
+    p.setdefault('formato', 'reels')  # projetos de antes dos formatos eram todos Reels
+    if any(e not in p['etapas'] for e in ETAPAS):  # etapa criada depois do projeto (ex.: Direção visual, Transições)
         p['etapas'] = {e: p['etapas'].get(e, 'pendente') for e in ETAPAS}
         p['chats'] = {e: p['chats'].get(e, []) for e in ETAPAS}
         salvar(p)

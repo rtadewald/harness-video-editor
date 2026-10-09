@@ -1,19 +1,20 @@
 import type { Etapa } from '@/api'
 
-export const ETAPAS: { id: Etapa; nome: string; trilha: 'V1' | 'V2' | 'V3' | 'LEG'; titulo: string }[] = [
-  { id: 'cortes', nome: 'Cortes', trilha: 'V1', titulo: 'O texto final.' },
-  { id: 'direcao', nome: 'Direção visual', trilha: 'V2', titulo: 'O que aparece na tela.' },
-  { id: 'inserts', nome: 'Inserts', trilha: 'V2', titulo: 'Os inserts: mídias, motions e enriquecimento.' },
-  { id: 'audio', nome: 'Transições e Áudio', trilha: 'V1', titulo: 'As transições entre os planos e os efeitos sonoros.' },
-  { id: 'legenda', nome: 'Legenda', trilha: 'LEG', titulo: 'As legendas.' },
+/** A barra das etapas (SPEC §1, §7), nesta ordem. O Pré-processamento guarda o id antigo, `cortes` (os dados dos projetos e
+ *  a última etapa lembrada neste navegador continuam valendo); `transicoes` e `audio` eram uma etapa só até a F0. */
+export const ETAPAS: { id: Etapa; nome: string }[] = [
+  { id: 'cortes', nome: 'Pré-processamento' },
+  { id: 'direcao', nome: 'Direção visual' },
+  { id: 'inserts', nome: 'Inserts' },
+  { id: 'transicoes', nome: 'Transições' },
+  { id: 'audio', nome: 'Áudio' },
+  { id: 'legenda', nome: 'Legenda' },
 ]
 
-export const SUGESTOES: Record<Etapa, string[]> = {
-  cortes: ['Volta a primeira tentativa da abertura', 'Deixa um respiro maior antes do "Olha só"', 'Corta mais seco no final'],
-  direcao: ['Mostra o site em tela cheia quando eu cito', 'Põe um lettering na palavra-chave'],
-  inserts: ['Usa o site com processo no segundo exemplo', 'Mostra o insert em tela cheia'],
-  enriquecimento: ['Põe os sites num card sobre o degradê', 'Zoom leve na segunda dobra'],
-  motion: ['Cria um motion para "processo de design"', 'Deixa o comparativo mais curto'],
-  audio: ['Whoosh na entrada dos inserts', 'Clique quando o botão aparece'],
-  legenda: ['Destaca as palavras-chave em amarelo', 'Legendas de 3 palavras no máximo'],
-}
+/** As partes do Pré-processamento (SPEC §8.1), em abas no topo da tela dele. */
+export const ABAS_PRE = [
+  { id: 'cortes', nome: 'Cortes' },
+  { id: 'enquadramento', nome: 'Enquadramento' },
+  { id: 'look', nome: 'Look' },
+] as const
+export type AbaPre = (typeof ABAS_PRE)[number]['id']

@@ -25,8 +25,11 @@ export type Transcricao = {
 type Passo = { status: 'pendente' | 'rodando' | 'pronto' | 'erro'; segundos?: number; progresso?: number; aviso?: string; pulado?: boolean }
 type Pipeline = { passos: Partial<Record<'proxy' | 'transcricao' | 'alinhamento' | 'silencios' | 'cortes' | 'variantes', Passo>>; erro: string | null }
 
-export type Etapa = 'cortes' | 'direcao' | 'inserts' | 'enriquecimento' | 'motion' | 'audio' | 'legenda'
+/** As etapas do editor (SPEC §1). `cortes` é o Pré-processamento (o id ficou); `enriquecimento` e `motion` são antigas
+ *  (hoje dentro de Inserts) e só existem nos dados dos projetos. */
+export type Etapa = 'cortes' | 'direcao' | 'inserts' | 'enriquecimento' | 'motion' | 'transicoes' | 'audio' | 'legenda'
 
+/** Uma mensagem do chat do agente (SPEC §11, futuro): os históricos ficam no projeto, por etapa. */
 export type Mensagem = {
   autor: 'criador' | 'agente'
   texto: string
@@ -42,7 +45,12 @@ export type Projeto = {
   fontes: Fonte[]
   /** O recorte do ator (a pessoa sem o fundo), para a divisão da tela. */
   recorte?: { estado: 'fila' | 'rodando' | 'pronto' | 'erro'; progresso?: number; erro?: string | null }
+  /** A medida do rosto do ator (SPEC §8.7): `midia/rosto/<bruto>.json`, ~6 amostras por segundo. */
+  rosto?: { estado: 'fila' | 'rodando' | 'pronto' | 'erro'; progresso?: number; erro?: string | null; amostras?: number; achados?: number }
+  /** Só nos projetos antigos: a criação não pede mais briefing (F0). */
   briefing: { texto: string; audio: string | null }
+  /** O formato do vídeo (SPEC §1): só Reels por ora. */
+  formato?: 'reels' | 'anuncio' | 'aula'
   enquadramento: { x: number }
   etapas: Record<Etapa, string>
   chats: Record<Etapa, Mensagem[]>
@@ -113,10 +121,9 @@ type Duvida = { ini: string; fim: string; motivo: string }
 export type Ancora = { palavra_ini: string; palavra_fim: string }
 /** `auto` existe só se o criador mexeu numa borda: guarda o que a IA tinha decidido. */
 export type Clipe = Ancora & { id: string; fonte: string; inicio: number; fim: number; auto?: { inicio: number; fim: number } }
-export type Item = Ancora & { id: string; rotulo: string }
-type Legenda = Ancora & { id: string; texto: string }
-/** Item (mock) da Direção visual: um plano-base ou um elemento sobreposto, preso às palavras. */
-export type Timeline = { V1: Clipe[]; V2: Item[]; V3: Item[]; LEG: Legenda[] }
+/** A timeline do editor: a V1 (os clipes do bruto). Os planos, inserts, motions, transições e a legenda têm os dados de
+ *  cada área (SPEC §9), presos às palavras. */
+export type Timeline = { V1: Clipe[] }
 
 export type DadosEditor = { projeto: Projeto; palavras: Palavra[]; silencios: Silencio[]; timeline: Timeline; duvidas: Duvida[] }
 export type Picos = { por_segundo: number; picos: number[] }
@@ -131,12 +138,6 @@ export async function json<T>(r: Response): Promise<T> {
 export const listarProjetos = () => fetch('/api/projetos').then(json<ResumoProjeto[]>)
 export const abrirProjeto = (id: string) => fetch(`/api/projetos/${id}`).then(json<Projeto>)
 export const abrirEditor = (id: string) => fetch(`/api/projetos/${id}/editor`).then(json<DadosEditor>)
-export const enviarMensagem = (id: string, etapa: Etapa, texto: string) =>
-  fetch(`/api/projetos/${id}/chat/${etapa}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ texto }),
-  }).then(json<Mensagem[]>)
 const post = <T,>(url: string) => fetch(url, { method: 'POST' }).then(json<T>)
 export const processar = (id: string) => post<Projeto>(`/api/projetos/${id}/processar`)
 export const renomearProjeto = (id: string, nome: string) =>

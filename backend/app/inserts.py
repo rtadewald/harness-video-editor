@@ -115,7 +115,7 @@ OPCOES_ENRIQUECIMENTO = {
     # como 2 mídias convivem (decisão de Rodrigo, out/2026); 3 ou mais ficam em sequência, divididas igualmente
     'entre': ('sequencia', 'empilhadas', 'lado_a_lado'),  # cascata e picture-in-picture saíram (Rodrigo, out/2026)
     'movimento': ('parado', 'zoom_lento', 'zoom_ponto', 'rolagem'),
-    'saida': ('corte', 'sumir', 'deslizar', 'voo_3d', 'zoom_borrado'),  # a configuração de cada uma é global (transicoes.py)
+    'saida': ('corte', 'sumir', 'deslizar', 'voo_3d', 'zoom_borrado'),  # a configuração de cada uma é global (entradas.py)
     'saida_2': ('corte', 'sumir', 'deslizar', 'voo_3d', 'zoom_borrado'),
 }
 ESTILO = {
@@ -125,7 +125,7 @@ ESTILO = {
 
 
 # onde a 2ª mídia começa, em fração do insert (0 a 0,95; padrão: no meio; 0 = junto com a 1ª, nos layouts juntos). A curva,
-# a duração e os detalhes de cada entrada e saída não são mais por insert: são globais, por tipo (transicoes.py)
+# a duração e os detalhes de cada entrada e saída não são mais por insert: são globais, por tipo (entradas.py)
 # divisão da tela (só tela dividida): automática pela mídia, fração do insert em cima (o ator embaixo) ou o insert atrás
 # com o ator numa janela embaixo
 DIVISOES = ('auto', '50', '56', '42', '32', 'atras')

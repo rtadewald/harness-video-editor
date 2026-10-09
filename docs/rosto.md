@@ -13,6 +13,26 @@ para cada instante, a caixa do rosto (centro, largura, altura, em fração do qu
 `midia/rosto/<bruto>.json`. Roda em segundo plano depois do proxy (como o recorte do ator); os buracos (rosto não achado,
 virado) são preenchidos com o vizinho. Num 16:9, roda antes, sobre o original reduzido, e guia o enquadramento.
 
+💡 Feito na F0 (out/2026), em `backend/app/rosto.py`:
+- O modelo é o BlazeFace de curta distância (`blaze_face_short_range.tflite`, ~230 KB), baixado na primeira vez para
+  `modelos/` (fora do git, como o do recorte do ator). Os quadros saem do proxy pelo ffmpeg (`fps=6`, já com a rotação),
+  confiança mínima 0,5; com mais de um rosto, vale o maior.
+- O arquivo: `{por_segundo: 6, largura, altura, amostras: [{t, cx, cy, w, h, conf}]}` (t em s do bruto; o resto em fração
+  do quadro). Um buraco recebe a caixa da medida mais próxima no tempo (empate: a anterior) com `conf: 0`; sem rosto
+  nenhum no vídeo, `amostras` fica vazia. Um vídeo que o ffmpeg não lê inteiro (truncado, corrompido: código de saída
+  diferente de 0, ou menos da metade dos quadros que a duração pede) levanta erro em `medir` e o estado vira `erro`,
+  para não se passar por "vídeo sem rosto" (que fica `pronto` e não é refeito).
+- Estado no projeto: `rosto: {estado: fila|rodando|pronto|erro, progresso, erro, bruto, amostras, achados}`. Pedido pelo
+  pipeline logo depois do proxy (como o recorte; a checagem do estado e a marcação `fila` vão juntas, então dois pedidos
+  ao mesmo tempo não põem duas medidas na fila); o que estava na fila ou rodando recomeça quando o servidor sobe. Rotas:
+  `GET /api/projetos/{id}/rosto` (o estado; `{estado: 'nenhum'}` se nunca rodou) e `POST …/rosto` (mede de novo).
+  Projetos criados antes da F0 não têm a medida até alguém pedir (o POST).
+- Para as outras áreas: `rosto.medir(video)` (a P1 usa no original reduzido) e `rosto.rosto_mediano(id, ini, fim)` (a P5:
+  a mediana de cx, cy, w, h nas amostras de um intervalo do bruto — as medidas de verdade, senão as preenchidas, senão a
+  amostra mais próxima; `None` sem medida).
+- Medido no vídeo de teste (2:02, proxy 720×1280): ~10 s de trabalho, 732 amostras, rosto achado em todas (confiança
+  0,78–0,96); centro mediano em x 0,48 e y 0,39 (centro-alto do quadro), largura mediana 0,53 do quadro.
+
 ## O ator nas áreas que sobram
 
 ✅ Na **tela dividida** e na janela do **"ator embaixo"**, o rosto fica sempre bem posicionado no espaço que sobra para

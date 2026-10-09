@@ -1,25 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { History, PanelLeftClose, PanelLeftOpen, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
-import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, gerarDirecao, motoresRodando, recalcularCortes, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Mensagem, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
+import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, gerarDirecao, motoresRodando, recalcularCortes, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
 import { abrirAba } from '@/components/abasProjetos'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
 import { cn } from '@/lib/utils'
-import Chat from '@/editor/Chat'
 import EtapaDirecao from '@/editor/EtapaDirecao'
 import EtapaInserts from '@/editor/EtapaInserts'
 import Exportar from '@/editor/Exportar'
-import { ETAPAS } from '@/editor/etapas'
+import EtapaEmConstrucao from '@/editor/EmConstrucao'
+import { RESUMOS, type Resumo } from '@/editor/resumos'
+import { ABAS_PRE, ETAPAS, type AbaPre } from '@/editor/etapas'
 import { calcularCortes, trechoDaEmenda, type Corte, type Selecao } from '@/editor/cortes'
 import LinhaVertical from '@/editor/LinhaVertical'
-import Painel from '@/editor/Painel'
 import { Detalhe } from '@/editor/DetalheCorte'
 import Preview from '@/editor/Preview'
 import Processamento from '@/editor/Processamento'
 import Configuracoes from '@/paginas/Configuracoes'
 import { montarSequencia } from '@/editor/sequencia'
-import Timeline from '@/editor/Timeline'
 import { usePlayer } from '@/editor/usePlayer'
 
 export default function Editor() {
@@ -39,6 +38,23 @@ export default function Editor() {
     setEtapaBruta(e)
     try {
       localStorage.setItem(`editor.etapa.${id}`, e)
+    } catch {
+      /* sem armazenamento: vale só nesta sessão */
+    }
+  }
+  // a aba aberta no Pré-processamento (Cortes · Enquadramento · Look), lembrada neste navegador
+  const [abaPre, setAbaPreBruta] = useState<AbaPre>(() => {
+    try {
+      const a = localStorage.getItem('editor.preprocessamento.aba')
+      return ABAS_PRE.find((x) => x.id === a)?.id ?? 'cortes'
+    } catch {
+      return 'cortes'
+    }
+  })
+  const setAbaPre = (a: AbaPre) => {
+    setAbaPreBruta(a)
+    try {
+      localStorage.setItem('editor.preprocessamento.aba', a)
     } catch {
       /* sem armazenamento: vale só nesta sessão */
     }
@@ -70,6 +86,12 @@ export default function Editor() {
   const [repetir, setRepetir] = useState(false)
   const bruto = dados?.projeto.fontes.find((f) => f.papel === 'bruto')
   const cortes = useMemo(() => (dados && bruto ? calcularCortes(dados.timeline.V1, dados.palavras, bruto.duracao) : []), [dados, bruto])
+  // a tela dos Cortes (a timeline vertical do bruto); as outras abas do Pré-processamento e as etapas novas estão em construção
+  const vertical = etapa === 'cortes' && abaPre === 'cortes'
+  const direcaoReal = etapa === 'direcao'
+  const insertsReal = etapa === 'inserts'
+  const resumo: Resumo | null =
+    etapa === 'cortes' ? (abaPre === 'cortes' ? null : RESUMOS[abaPre]) : etapa === 'transicoes' || etapa === 'audio' || etapa === 'legenda' ? RESUMOS[etapa] : null
 
   useEffect(() => {
     abrirEditor(id).then(setDados).catch((e) => setErro(e.message))
@@ -182,36 +204,28 @@ export default function Editor() {
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.preventDefault()
         const d = (e.altKey ? 0.01 : e.shiftKey ? 5 : 0.5) * (e.key === 'ArrowLeft' ? -1 : 1)
-        if (etapa === 'cortes') player.buscarBruto(player.bruto + d)
+        if (vertical) player.buscarBruto(player.bruto + d)
         else player.buscar(player.tempo + d)
-      } else if (etapa === 'cortes' && e.key.toLowerCase() === 'e' && cortes.length) {
+      } else if (vertical && e.key.toLowerCase() === 'e' && cortes.length) {
         const c = cortes.find((x) => x.fim > player.bruto + 0.05) ?? cortes[cortes.length - 1]
         ouvirEmenda(c)
-      } else if (etapa === 'cortes' && e.key.toLowerCase() === 'b') {
+      } else if (vertical && e.key.toLowerCase() === 'b') {
         player.setPular(!player.pular)
       }
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [player, etapa, cortes, ouvirEmenda])
+  }, [player, vertical, cortes, ouvirEmenda])
 
-  const vertical = etapa === 'cortes'
-  const direcaoReal = etapa === 'direcao'
-  const insertsReal = etapa === 'inserts'
   useEffect(() => {
-    if ((direcaoReal || insertsReal) && !player.pular) player.setPular(true) // direção e inserts são sempre sobre o vídeo cortado
-  }, [direcaoReal, insertsReal, player])
+    if (!vertical && !player.pular) player.setPular(true) // fora dos Cortes, a prévia é sempre o vídeo cortado
+  }, [vertical, player])
 
   if (erro) return <p className="p-12 text-destructive">{erro}</p>
   if (!dados || !seq) return <div className="h-svh bg-deep" />
 
   const { projeto, timeline } = dados
   if (!bruto) return null
-  const sob = <T extends { palavra_ini: string; palavra_fim: string }>(itens: T[]) =>
-    itens.find((i) => {
-      const r = seq.intervalo(i)
-      return r && player.tempo >= r.ini && player.tempo < r.fim
-    })
   const refazerComIA = () => {
     const n = timeline.V1.filter((c) => c.auto).length
     if (n && !window.confirm(`Refazer os cortes com a IA descarta ${n} trecho(s) com ajuste manual. Continuar?`)) return
@@ -228,8 +242,23 @@ export default function Editor() {
     if (!window.confirm(aviso)) return
     void gerarDirecao(projeto.id).then((p) => setDados({ ...dados, projeto: p })).catch((e) => window.alert((e as Error).message))
   }
-  const receber = (novas: Mensagem[]) =>
-    setDados({ ...dados, projeto: { ...projeto, chats: { ...projeto.chats, [etapa]: [...projeto.chats[etapa], ...novas] } } })
+  const src = urlArquivo(projeto.id, bruto.proxy ?? bruto.arquivo)
+  // a prévia das telas em construção: o vídeo do ator já cortado
+  const previa = (
+    <Preview
+      videoRef={player.ref}
+      src={src}
+      enquadramentoX={projeto.enquadramento.x}
+      tempo={player.tempo}
+      duracao={seq.duracao}
+      tocando={player.tocando}
+      alternar={player.alternar}
+      velocidade={player.velocidade}
+      setVelocidade={player.setVelocidade}
+      buscar={player.buscar}
+    />
+  )
+  const horizontal = (bruto.largura ?? 0) > (bruto.altura ?? 0)
 
   return (
     <div className="grid h-svh grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-deep text-cream">
@@ -270,12 +299,14 @@ export default function Editor() {
             </button>
           )}
         </div>
-        <span
-          className="shrink-0 rounded-full bg-yellow px-3 py-1 text-[9px] font-semibold tracking-[0.12em] whitespace-nowrap text-ink"
-          title="Enriquecimento (só aproximado na prévia), motion, áudio e legenda ainda são simulados"
-        >
-          SIMULADOS
-        </span>
+        {resumo && (
+          <span
+            className="shrink-0 rounded-full bg-yellow px-3 py-1 text-[9px] font-semibold tracking-[0.12em] whitespace-nowrap text-ink"
+            title={`${resumo.titulo}: ainda em construção (${resumo.fase})`}
+          >
+            EM CONSTRUÇÃO
+          </span>
+        )}
         {seq && <Exportar projeto={projeto} duracao={seq.duracao} />}
       </header>
 
@@ -285,15 +316,7 @@ export default function Editor() {
       <div
         className="grid min-h-0"
         style={{
-          gridTemplateColumns: `${recolhida ? '58px' : '232px'} ${
-            vertical
-              ? 'clamp(460px,46vw,820px) minmax(0,1fr)'
-              : direcaoReal
-                ? 'minmax(440px,560px) minmax(0,1fr) minmax(320px,380px)'
-                : insertsReal
-                  ? 'minmax(0,1fr)'
-                  : 'minmax(0,1fr) clamp(290px,25vw,380px)'
-          }`,
+          gridTemplateColumns: `${recolhida ? '58px' : '232px'} ${direcaoReal ? 'minmax(440px,560px) minmax(0,1fr) minmax(320px,380px)' : 'minmax(0,1fr)'}`,
         }}
       >
         <nav className={cn('flex min-h-0 flex-col gap-1 border-r border-line-dark py-6', recolhida ? 'items-center px-1.5' : 'px-3')}>
@@ -337,110 +360,101 @@ export default function Editor() {
           </div>
         </nav>
 
-        {vertical && (
-          <LinhaVertical
-            duracao={bruto.duracao}
-            clipes={timeline.V1}
-            palavras={dados.palavras}
-            cortes={cortes}
-            picos={picos?.picos ?? null}
-            picosPorSegundo={picos?.por_segundo ?? 200}
-            bruto={player.bruto}
-            tocando={player.tocando}
-            pular={player.pular}
-            setPular={player.setPular}
-            selecao={selecao}
-            selecionar={setSelecao}
-            buscarBruto={player.buscarBruto}
-            silencios={dados.silencios}
-            transcricoes={projeto.transcricoes}
-            ativa={projeto.transcricao_ativa}
-            aoAtivar={aoAtivar}
-            comparar={comparar}
-            setComparar={setComparar}
-            comparacao={comparacao}
-            tentarMotor={tentarMotor}
-            ajustar={ajustar}
-            editarFaixa={alterarFaixa}
-            aoRecalcular={() => {
-              const n = timeline.V1.filter((c) => c.auto).length
-              if (n && !window.confirm(`Recalcular as margens descarta ${n} trecho(s) com ajuste manual de borda. Continuar?`)) return
-              void recalcularCortes(projeto.id).then(recarregar).catch((e) => window.alert((e as Error).message))
-            }}
-          />
-        )}
-
-        {insertsReal ? (
-          <EtapaInserts dados={dados} seq={seq} player={player} src={urlArquivo(projeto.id, bruto.proxy ?? bruto.arquivo)} enquadramentoX={projeto.enquadramento.x} aoMudarProjeto={(p) => setDados((d) => d && { ...d, projeto: p })} />
+        {etapa === 'cortes' ? (
+          <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]">
+            <div className="flex items-center gap-2 border-b border-line-dark px-6 py-2.5" role="tablist" aria-label="Partes do Pré-processamento">
+              {ABAS_PRE.map((a) => (
+                <button
+                  key={a.id}
+                  role="tab"
+                  aria-selected={abaPre === a.id}
+                  onClick={() => setAbaPre(a.id)}
+                  className={cn(
+                    'flex h-8 items-center gap-1.5 rounded-full border px-3.5 text-[12px] font-semibold transition-colors duration-300',
+                    abaPre === a.id ? 'border-cream bg-cream text-ink' : 'border-line-dark text-fog hover:border-cream/50 hover:text-cream',
+                  )}
+                >
+                  {a.nome}
+                  {a.id !== 'cortes' && <span className="size-1.5 rounded-full bg-yellow" title="Em construção" />}
+                </button>
+              ))}
+            </div>
+            {vertical ? (
+              <div className="grid min-h-0 min-w-0" style={{ gridTemplateColumns: 'clamp(460px,46vw,820px) minmax(0,1fr)' }}>
+              <LinhaVertical
+                duracao={bruto.duracao}
+                clipes={timeline.V1}
+                palavras={dados.palavras}
+                cortes={cortes}
+                picos={picos?.picos ?? null}
+                picosPorSegundo={picos?.por_segundo ?? 200}
+                bruto={player.bruto}
+                tocando={player.tocando}
+                pular={player.pular}
+                setPular={player.setPular}
+                selecao={selecao}
+                selecionar={setSelecao}
+                buscarBruto={player.buscarBruto}
+                silencios={dados.silencios}
+                transcricoes={projeto.transcricoes}
+                ativa={projeto.transcricao_ativa}
+                aoAtivar={aoAtivar}
+                comparar={comparar}
+                setComparar={setComparar}
+                comparacao={comparacao}
+                tentarMotor={tentarMotor}
+                ajustar={ajustar}
+                editarFaixa={alterarFaixa}
+                aoRecalcular={() => {
+                  const n = timeline.V1.filter((c) => c.auto).length
+                  if (n && !window.confirm(`Recalcular as margens descarta ${n} trecho(s) com ajuste manual de borda. Continuar?`)) return
+                  void recalcularCortes(projeto.id).then(recarregar).catch((e) => window.alert((e as Error).message))
+                }}
+              />
+                <div className="grid min-h-0 min-w-0 grid-cols-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden">
+                  <div className="min-h-0 px-6 pt-6 pb-3">
+                    <Preview
+                      videoRef={player.ref}
+                      src={src}
+                      enquadramentoX={projeto.enquadramento.x}
+                      tempo={player.tempo}
+                      duracao={seq.duracao}
+                      tocando={player.tocando}
+                      alternar={player.alternar}
+                      velocidade={player.velocidade}
+                      setVelocidade={player.setVelocidade}
+                      buscar={player.buscar}
+                      bruto={player.bruto}
+                    />
+                  </div>
+                  <div className="max-h-[38vh] overflow-y-auto px-6 pb-4 text-cream">
+                    <Detalhe dados={dados} cortes={cortes} selecao={selecao} ouvirPalavra={ouvirPalavra} ouvirEmenda={ouvirEmenda} loop={repetir} setLoop={setRepetir} restaurar={restaurar} devolver={(ini, fim) => alterarFaixa(ini, fim, true)} comparacao={comparacao} />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              resumo && (
+                <EtapaEmConstrucao
+                  resumo={resumo}
+                  aviso={abaPre === 'enquadramento' && !horizontal ? 'Este vídeo já é vertical (9:16): o enquadramento só vale para vídeos horizontais.' : undefined}
+                  previa={previa}
+                />
+              )
+            )}
+          </div>
+        ) : insertsReal ? (
+          <EtapaInserts dados={dados} seq={seq} player={player} src={src} enquadramentoX={projeto.enquadramento.x} aoMudarProjeto={(p) => setDados((d) => d && { ...d, projeto: p })} />
         ) : direcaoReal ? (
           <EtapaDirecao
             dados={dados}
             seq={seq}
             player={player}
-            src={urlArquivo(projeto.id, bruto.proxy ?? bruto.arquivo)}
+            src={src}
             enquadramentoX={projeto.enquadramento.x}
             aoMudarProjeto={(p) => setDados((d) => d && { ...d, projeto: p })}
           />
-        ) : vertical ? (
-          <div className="grid min-h-0 min-w-0 grid-cols-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden">
-            <div className="min-h-0 px-6 pt-6 pb-3">
-              <Preview
-                videoRef={player.ref}
-                src={urlArquivo(projeto.id, bruto.proxy ?? bruto.arquivo)}
-                enquadramentoX={projeto.enquadramento.x}
-                tempo={player.tempo}
-                duracao={seq.duracao}
-                tocando={player.tocando}
-                alternar={player.alternar}
-                velocidade={player.velocidade}
-                setVelocidade={player.setVelocidade}
-                buscar={player.buscar}
-                bruto={player.bruto}
-              />
-            </div>
-            <div className="max-h-[38vh] overflow-y-auto px-6 pb-4 text-cream">
-              <Detalhe dados={dados} cortes={cortes} selecao={selecao} ouvirPalavra={ouvirPalavra} ouvirEmenda={ouvirEmenda} loop={repetir} setLoop={setRepetir} restaurar={restaurar} devolver={(ini, fim) => alterarFaixa(ini, fim, true)} comparacao={comparacao} />
-            </div>
-          </div>
         ) : (
-        <div className="grid min-h-0 min-w-0 grid-cols-1 overflow-hidden" style={{ gridTemplateRows: `minmax(0,1fr) 266px` }}>
-          <div className="grid min-h-0 grid-cols-[minmax(220px,1fr)_minmax(140px,0.75fr)] gap-6 px-6 pt-6 pb-4">
-            <Painel etapa={etapa} dados={dados} seq={seq} tempo={player.tempo} buscar={player.buscar} />
-            <Preview
-              videoRef={player.ref}
-              src={urlArquivo(projeto.id, bruto.proxy ?? bruto.arquivo)}
-              enquadramentoX={projeto.enquadramento.x}
-              tempo={player.tempo}
-              duracao={seq.duracao}
-              tocando={player.tocando}
-              alternar={player.alternar}
-                velocidade={player.velocidade}
-                setVelocidade={player.setVelocidade}
-              buscar={player.buscar}
-              insert={sob(timeline.V2)}
-              motion={sob(timeline.V3)}
-              legenda={sob(timeline.LEG)?.texto}
-            />
-          </div>
-          <Timeline
-            seq={seq}
-            duracaoBruto={bruto.duracao}
-            timeline={timeline}
-            palavras={dados.palavras}
-            tempo={player.tempo}
-            tocando={player.tocando}
-            ativa={ETAPAS.find((e) => e.id === etapa)!.trilha}
-            buscar={player.buscar}
-            refazendo={rodando}
-            aoRefazer={() => refazerCortes(projeto.id).then((p) => setDados({ ...dados, projeto: p }))}
-          />
-        </div>
-        )}
-
-        {!vertical && !direcaoReal && !insertsReal && (
-          <div className="min-h-0 border-l border-line-dark">
-            <Chat projetoId={projeto.id} etapa={etapa} mensagens={projeto.chats[etapa]} aoReceber={receber} />
-          </div>
+          resumo && <EtapaEmConstrucao resumo={resumo} previa={previa} />
         )}
       </div>
       )}

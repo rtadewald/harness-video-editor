@@ -11,7 +11,7 @@ import { carregarCatalogoSons, eventosDaReceita, type EventoSom } from '@/editor
 import { divisaoDe, posicaoDoComentario, type Divisao } from '@/editor/divisao'
 import MotionNoLugar from '@/motions/MotionNoLugar'
 import { usePresets } from '@/editor/presets'
-import { useTransicoes } from '@/editor/transicoes'
+import { useEntradas } from '@/editor/entradas'
 import { montarSequencia } from '@/editor/sequencia'
 
 /** Páginas abertas pelo navegador escondido do backend (nunca pelo criador). */
@@ -31,7 +31,18 @@ declare global {
   interface Window {
     /** `ir(t)` responde com a chave do quadro quando ele fica igual aos seguintes (insert parado: o backend reaproveita a foto). */
     /** `sons()`: os sons de apoio dos presets (SPEC §8.6), no tempo do vídeo final, para o ffmpeg misturar com a voz. */
-    __render?: { duracao: number; trechos: Trecho[]; ir: (t: number) => Promise<string | null>; sons: () => Promise<EventoSom[]> }
+    /** Ganchos das camadas que ainda não existem (SPEC §13; cada área acrescenta o seu campo, como valor ou função
+     *  assíncrona, e o backend lê em `exportacao._trechos` se existir — por ora sem efeito):
+     *  - `transicoes` (P2, §8.8): as transições entre planos no tempo do vídeo final (o corte, o efeito, o som);
+     *  - `legenda` (P4, §8.10): os blocos da legenda no tempo do vídeo final e o estilo, para o ASS. */
+    __render?: {
+      duracao: number
+      trechos: Trecho[]
+      ir: (t: number) => Promise<string | null>
+      sons: () => Promise<EventoSom[]>
+      transicoes?: unknown[] | (() => Promise<unknown[]>)
+      legenda?: unknown | (() => Promise<unknown>)
+    }
   }
 }
 
@@ -59,7 +70,7 @@ export function RenderProjeto() {
   const [ins, setIns] = useState<InsertsProjeto | null>(null)
   const [banco, setBanco] = useState<Map<string, ItemBanco> | null>(null)
   const [motions, setMotions] = useState<Record<string, MotionPlano> | null>(null)
-  const trans = useTransicoes()
+  const entradas = useEntradas()
   const presets = usePresets()
   const [pedido, setPedido] = useState({ t: -1, n: 0 }) // n: cada pedido responde, mesmo repetindo o instante
   const tempo = pedido.t
@@ -90,7 +101,7 @@ export function RenderProjeto() {
 
   // a página avisa o backend que está pronta e responde a cada instante pedido depois de tudo pintado
   useEffect(() => {
-    if (!pedidos || !banco || !trans || !motions || !presets) return
+    if (!pedidos || !banco || !entradas || !motions || !presets) return
     window.__render = {
       duracao: pedidos.duracao,
       trechos: [
@@ -123,7 +134,7 @@ export function RenderProjeto() {
           setPedido((x) => ({ t, n: x.n + 1 }))
         }),
     }
-  }, [id, pedidos, banco, trans, motions, presets])
+  }, [id, pedidos, banco, entradas, motions, presets])
   useEffect(() => {
     if (!chegou.current) return
     const ok = chegou.current
@@ -134,7 +145,7 @@ export function RenderProjeto() {
   const atual = pedidos?.lista.find((x) => tempo >= x.t.inicio && tempo < x.t.fim)
   const motion = pedidos?.motions.find((m) => tempo >= m.ini && tempo < m.fim)
   // parado: sem vídeo na tela (checado depois de pintar) e sem entrada nem saída andando (motion nunca é parado)
-  chave.current = atual && !motion ? chaveParada(atual, tempo - atual.t.inicio, trans, presets) : null
+  chave.current = atual && !motion ? chaveParada(atual, tempo - atual.t.inicio, entradas, presets) : null
   if (motion && motions?.[motion.plano])
     return (
       <RelogioRender.Provider value={tempo}>
@@ -153,7 +164,7 @@ export function RenderProjeto() {
   return (
     <RelogioRender.Provider value={tempo}>
       <div className="fixed inset-0 overflow-hidden">
-        <InsertNoLugar pedido={atual} banco={banco} tempo={tempo} tocando={false} fundo={ins?.fundo ?? 'gradiente'} trans={trans} />
+        <InsertNoLugar pedido={atual} banco={banco} tempo={tempo} tocando={false} fundo={ins?.fundo ?? 'gradiente'} entradas={entradas} />
         {atual.tipo === 'comentario_insert_ator' && <CardComentario c={c} texto={c.texto ?? atual.texto ?? ''} />}
       </div>
     </RelogioRender.Provider>

@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Pause, Play, SkipBack } from 'lucide-react'
-import { formatarTempo, type Item } from '@/api'
-import { Marca } from '@/components/Marca'
+import { formatarTempo } from '@/api'
 
 type Props = {
   videoRef: RefObject<HTMLVideoElement | null>
@@ -16,9 +15,6 @@ type Props = {
   buscar: (s: number) => void
   /** Etapa de Cortes: mostra também a posição no arquivo original. */
   bruto?: number
-  insert?: Item
-  motion?: Item
-  legenda?: string
   /** Desenho por cima do vídeo (ex.: o esboço do layout da Direção visual). */
   sobreposicao?: ReactNode
 }
@@ -57,28 +53,7 @@ export default function Preview(p: Props) {
             style={{ objectPosition: `${p.enquadramentoX * 100}% 50%` }}
           />
 
-          {p.insert && (
-            <div className="absolute inset-x-0 top-0 flex h-1/2 flex-col justify-between bg-blue p-4 text-cream">
-              <span className="eyebrow opacity-80">Insert · V2 · simulado</span>
-              <span className="text-[22px] leading-tight tracking-[-0.04em] break-all">{p.insert.rotulo}</span>
-              <span className="self-start bg-cream px-2.5 py-1.5 text-[9px] font-semibold tracking-[0.1em] text-ink">
-                TELA DIVIDIDA ↗
-              </span>
-            </div>
-          )}
-          {p.motion && (
-            <div className="absolute inset-x-5 top-[14%] rotate-[-3deg] rounded-[6px] bg-yellow p-4 text-ink shadow-[0_8px_30px_#0004]">
-              <Marca className="mb-2 size-6 animate-[otto-spin_6s_linear_infinite] text-coral" />
-              <span className="eyebrow block opacity-70">Motion · V3 · simulado</span>
-              <span className="mt-1 block text-[20px] leading-tight font-semibold tracking-[-0.04em]">{p.motion.rotulo}</span>
-            </div>
-          )}
           {p.sobreposicao}
-          {p.legenda && (
-            <p className="absolute inset-x-4 bottom-[18%] text-center text-[22px] leading-tight font-extrabold tracking-[-0.03em] text-cream [text-shadow:0_2px_12px_#000a]">
-              {p.legenda}
-            </p>
-          )}
         </div>
       </div>
 

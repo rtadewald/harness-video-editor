@@ -7,7 +7,7 @@ import CenaPreset from './CenaPreset'
 import { mexendo, noFormato, serve, usePresets, type Preset, type Receita } from './presets'
 import { areaDoInsert, aspectosDe, divisaoDe, receitaParaInsert } from './divisao'
 import { ajustesEfetivos, comAjustes } from './ajustes'
-import { duracaoEntrada, duracaoSaida, estiloTransicao, type Transicoes } from './transicoes'
+import { duracaoEntrada, duracaoSaida, estiloEntrada, type Entradas } from './entradas'
 
 /** O insert desenhado por cima do ator, igual na prévia da etapa Inserts e na exportação (a página de render). */
 export type PedidoNoTempo = PedidoInsert & { t: { inicio: number; fim: number } }
@@ -28,7 +28,7 @@ function tempos(x: PedidoNoTempo): { ini: number; dur: number; qual: Qual }[] {
 /** A chave do quadro quando o insert está parado no instante `rel` (s desde o começo): sem entrada nem saída andando (e
  *  sem o zoom contínuo). Quadros com a mesma chave são iguais — a exportação reaproveita a foto. Inclui quais mídias estão
  *  na tela (com 2, o insert fica parado antes e depois de a 2ª entrar). `null` = está mexendo. */
-export function chaveParada(x: PedidoNoTempo, rel: number, t: Transicoes | null, presets: Preset[] | null): string | null {
+export function chaveParada(x: PedidoNoTempo, rel: number, t: Entradas | null, presets: Preset[] | null): string | null {
   if (!t) return null
   const e = enriquecimentoDe(x)
   const pr = presetDe(x, presets)
@@ -69,8 +69,8 @@ function VideoNoTempo({ item, rel, tocando, topo }: { item: ItemBanco; rel: numb
 }
 
 /** As mídias do insert do momento por cima do vídeo, com o enriquecimento: layout, entrada e saída de cada mídia (a
- *  configuração de cada tipo é global, `trans`) e, com 2 mídias, como elas convivem (sequência, empilhadas, lado a lado). */
-export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<string, ItemBanco>; tempo: number; tocando: boolean; fundo: string; trans: Transicoes | null }) {
+ *  configuração de cada tipo é global, `entradas`) e, com 2 mídias, como elas convivem (sequência, empilhadas, lado a lado). */
+export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<string, ItemBanco>; tempo: number; tocando: boolean; fundo: string; entradas: Entradas | null }) {
   const { banco, tempo, tocando } = p
   const presets = usePresets()
   // a divisão da tela (pelo preset e pela proporção da mídia): a área do insert e o card na proporção da mídia
@@ -82,7 +82,7 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
   const receita = receitaDoInsert(pedido, banco, presets)
   // entrada e saída de uma mídia (sem a configuração carregada ainda, parada)
   const anim = (qual: Qual, relM: number, durM: number): React.CSSProperties =>
-    p.trans ? estiloTransicao(entradaDe(e, qual), saidaDe(e, qual), p.trans, relM, durM) : {}
+    p.entradas ? estiloEntrada(entradaDe(e, qual), saidaDe(e, qual), p.entradas, relM, durM) : {}
   const n = pedido.midias.length
   const dur = Math.max(pedido.t.fim - pedido.t.inicio, 0.01)
   const rel = Math.max(tempo - pedido.t.inicio, 0)

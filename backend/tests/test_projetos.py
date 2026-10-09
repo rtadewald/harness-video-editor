@@ -26,6 +26,32 @@ def test_criar_listar_abrir_e_enfileirar(cliente, video, enfileirados):
     assert cliente.get(f"/api/projetos/{p['id']}/arquivos/{bruto['arquivo']}").status_code == 200
 
 
+def test_criar_com_formato_so_reels_por_ora(cliente, video, enfileirados):
+    """A criação (SPEC §6): nome, motor, formato e o vídeo. Reels é o padrão e o único ativo; Anúncio e Aula, em breve."""
+    with video.open('rb') as b:
+        p = cliente.post('/api/projetos', data={'nome': 'Novo', 'motor': 'parakeet', 'formato': 'reels'},
+                         files={'bruto': ('b.mp4', b, 'video/mp4')}).json()
+    assert (p['formato'], p['transcricao_ativa'], p['briefing']) == ('reels', 'parakeet', {'texto': '', 'audio': None})
+    assert [f['papel'] for f in p['fontes']] == ['bruto'] and not (projeto.RAIZ / 'novo' / 'briefing').exists()
+    assert _criar(cliente, video, 'Sem formato')['formato'] == 'reels'  # sem o campo, Reels
+    for formato, msg in (('anuncio', 'em breve'), ('aula', 'em breve'), ('podcast', 'desconhecido')):
+        with video.open('rb') as b:
+            r = cliente.post('/api/projetos', data={'nome': f'X {formato}', 'formato': formato}, files={'bruto': ('b.mp4', b, 'video/mp4')})
+        assert r.status_code == 422 and msg in r.json()['detail']
+    assert {x['id'] for x in cliente.get('/api/projetos').json()} == {'novo', 'sem-formato'}  # o recusado não deixa pasta
+
+
+def test_projeto_antigo_sem_formato_e_reels_e_ganha_a_etapa_transicoes(cliente, video):
+    id = _criar(cliente, video)['id']
+    arq = projeto.RAIZ / id / 'projeto.json'
+    p = json.loads(arq.read_text())
+    del p['formato'], p['etapas']['transicoes'], p['chats']['transicoes']
+    arq.write_text(json.dumps(p))
+    p = projeto.ler(id)
+    assert p['formato'] == 'reels' and p['etapas']['transicoes'] == 'pendente' and p['chats']['transicoes'] == []
+    assert list(p['etapas']) == projeto.ETAPAS
+
+
 def test_nome_repetido_ganha_sufixo(cliente, video):
     _criar(cliente, video, 'Teste')
     assert _criar(cliente, video, 'Teste')['id'] == 'teste-2'
@@ -52,18 +78,18 @@ def test_nao_sai_da_pasta_do_projeto(cliente, video):
     assert cliente.get('/api/projetos/..%2F..').status_code == 404
 
 
-def test_chat_guarda_historico_por_etapa(cliente, video):
+def test_historico_antigo_do_chat_e_migrado_e_o_chat_simulado_saiu(cliente, video):
+    """O chat simulado saiu (F0); os históricos ficam no projeto para o agente (SPEC §11) e os antigos, com o nome de
+    quem usava como autor, continuam sendo migrados para `criador`."""
     _criar(cliente, video)
-    r = cliente.post('/api/projetos/e/chat/cortes', json={'texto': 'volta a primeira tentativa'})
-    assert [m['autor'] for m in r.json()] == ['criador', 'agente']
     arq = projeto.RAIZ / 'e' / 'projeto.json'
     p = json.loads(arq.read_text())
-    p['chats']['cortes'][0]['autor'] = 'fulano'  # histórico antigo, com o nome de quem usava
+    p['chats']['cortes'] = [{'autor': 'fulano', 'texto': 'volta a primeira tentativa', 'ferramentas': [], 'mock': False, 'criado_em': ''}]
     arq.write_text(json.dumps(p))
     assert projeto.ler('e')['chats']['cortes'][0]['autor'] == 'criador'
     p = cliente.get('/api/projetos/e').json()
-    assert len(p['chats']['cortes']) == 2 and p['chats']['inserts'] == []
-    assert cliente.post('/api/projetos/e/chat/xpto', json={'texto': 'oi'}).status_code == 404
+    assert len(p['chats']['cortes']) == 1 and p['chats']['inserts'] == [] and set(p['chats']) == set(projeto.ETAPAS)
+    assert cliente.post('/api/projetos/e/chat/cortes', json={'texto': 'oi'}).status_code in (404, 405)
 
 
 def test_miniatura(cliente, video):
@@ -648,8 +674,7 @@ def test_pipeline_completo_com_whisper_e_llm_falsos(cliente, video, monkeypatch)
     assert 'silencios' in cliente.get('/api/projetos/e/editor').json()
     e = cliente.get('/api/projetos/e/editor').json()
     assert [w['mantida'] for w in e['palavras']] == [True, False, True, True]
-    mantidas = {w['id'] for w in e['palavras'] if w['mantida']}
-    assert all(i['palavra_ini'] in mantidas for t in ('V2', 'V3', 'LEG') for i in e['timeline'][t])
+    assert list(e['timeline']) == ['V1']  # as trilhas simuladas (V2, V3, LEG) saíram
 
 
 def test_erro_num_passo_fica_registrado(cliente, video, monkeypatch):
@@ -1319,17 +1344,56 @@ def test_enriquecimento_de_2_midias(cliente, video, monkeypatch):
 
 def test_entrada_e_saida_globais(cliente):
     """A configuração de cada entrada e saída é global (vale para todos os inserts): curva, duração e os detalhes."""
-    from app import transicoes
-    t = cliente.get('/api/transicoes').json()
-    assert t['entrada']['subir'] == transicoes.PADRAO['entrada']['subir'] and t['saida']['deslizar']['direcao'] == 'baixo'
-    r = cliente.put('/api/transicoes/entrada/subir', json={'campos': {'direcao': 'esquerda', 'distancia': 999, 'duracao': 1.1, 'fade': False}}).json()
+    from app import entradas
+    t = cliente.get('/api/entradas').json()
+    assert t['entrada']['subir'] == entradas.PADRAO['entrada']['subir'] and t['saida']['deslizar']['direcao'] == 'baixo'
+    r = cliente.put('/api/entradas/entrada/subir', json={'campos': {'direcao': 'esquerda', 'distancia': 999, 'duracao': 1.1, 'fade': False}}).json()
     assert {k: r['entrada']['subir'][k] for k in ('direcao', 'distancia', 'duracao', 'fade')} == {'direcao': 'esquerda', 'distancia': 150, 'duracao': 1.0, 'fade': False}
-    assert cliente.get('/api/transicoes').json()['entrada']['subir']['direcao'] == 'esquerda'  # fica salvo
-    r = cliente.put('/api/transicoes/entrada/subir', json={'campos': {'direcao': None}}).json()
+    assert cliente.get('/api/entradas').json()['entrada']['subir']['direcao'] == 'esquerda'  # fica salvo
+    r = cliente.put('/api/entradas/entrada/subir', json={'campos': {'direcao': None}}).json()
     assert r['entrada']['subir']['direcao'] == 'cima'  # None volta ao padrão de fábrica
-    assert cliente.put('/api/transicoes/entrada/subir', json={'campos': {'direcao': 'diagonal'}}).status_code == 422
-    assert cliente.put('/api/transicoes/saida/girar', json={'campos': {}}).status_code == 422
-    assert cliente.put('/api/transicoes/saida/sumir', json={'campos': {'escala': 120}}).status_code == 422  # campo que o sumir não tem
+    assert cliente.put('/api/entradas/entrada/subir', json={'campos': {'direcao': 'diagonal'}}).status_code == 422
+    assert cliente.put('/api/entradas/saida/girar', json={'campos': {}}).status_code == 422
+    assert cliente.put('/api/entradas/saida/sumir', json={'campos': {'escala': 120}}).status_code == 422  # campo que o sumir não tem
+    assert cliente.get('/api/transicoes').status_code == 404  # o nome ficou para as transições entre planos (SPEC §8.8)
+
+
+def test_entradas_leem_a_configuracao_antiga_e_passam_a_gravar_na_nova(cliente):
+    """Até out/2026 a configuração ficava em `transicoes` nas Configurações: continua valendo e, na primeira mudança,
+    passa para `entradas` (o nome `transicoes` fica livre para as transições entre planos)."""
+    projeto.salvar_config({**projeto.ler_config(), 'transicoes': {'entrada': {'surgir': {'escala': 80}}, 'saida': {'sumir': {'duracao': 1.5}}}})
+    t = cliente.get('/api/entradas').json()
+    assert t['entrada']['surgir']['escala'] == 80 and t['saida']['sumir']['duracao'] == 1.5
+    cliente.put('/api/entradas/entrada/subir', json={'campos': {'distancia': 60}})
+    config = projeto.ler_config()
+    assert 'transicoes' not in config
+    assert config['entradas'] == {'entrada': {'surgir': {'escala': 80}, 'subir': {'distancia': 60.0}}, 'saida': {'sumir': {'duracao': 1.5}}}
+    t = cliente.get('/api/entradas').json()
+    assert (t['entrada']['surgir']['escala'], t['entrada']['subir']['distancia'], t['saida']['sumir']['duracao']) == (80, 60, 1.5)
+    # outra coisa com o nome `transicoes` (a P2) não é confundida com a configuração antiga
+    projeto.salvar_config({'motor_padrao': 'whisper-stable', 'transicoes': {'favoritas': {'a>b': ['x']}}})
+    assert cliente.get('/api/entradas').json()['entrada']['surgir']['escala'] == 94
+
+
+def test_entradas_migram_quando_o_servidor_sobe(cliente):
+    """A chave antiga passa para `entradas` já no boot, sem esperar a primeira mudança: assim, quando a P2 gravar em
+    `transicoes`, as curvas salvas do criador já não estão lá."""
+    from fastapi.testclient import TestClient
+
+    from app import entradas, main
+    antiga = {'entrada': {'subir': {'curva': [0.0, 0.7, 0.3, 0.9]}}, 'saida': {'deslizar': {'direcao': 'cima'}}}
+    projeto.salvar_config({**projeto.ler_config(), 'transicoes': antiga})
+    with TestClient(main.app):  # o ciclo de vida (lifespan) roda ao abrir
+        pass
+    config = projeto.ler_config()
+    assert config['entradas'] == antiga and 'transicoes' not in config
+    assert entradas.migrar() is False  # só uma vez
+    # a P2 grava o que for dela em `transicoes`: as entradas do criador continuam
+    config['transicoes'] = {'favoritas': {'a>b': ['x']}}
+    projeto.salvar_config(config)
+    t = cliente.get('/api/entradas').json()
+    assert t['entrada']['subir']['curva'] == [0.0, 0.7, 0.3, 0.9] and t['saida']['deslizar']['direcao'] == 'cima'
+    assert entradas.migrar() is False and projeto.ler_config()['transicoes'] == {'favoritas': {'a>b': ['x']}}
 
 
 def test_entradas_que_sairam_voltam_ao_estilo(cliente, video, monkeypatch):

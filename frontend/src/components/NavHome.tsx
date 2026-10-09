@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { BookOpenText, Clapperboard, Film, FolderOpen, Images, Layers, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
+import { Blend, BookOpenText, Clapperboard, Film, FolderOpen, Images, Layers, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fecharAba, useAbasProjetos } from './abasProjetos'
 
 /** A barra de cima de todas as telas, nas pílulas `.tab` do Otto: primeiro os projetos abertos como abas (× fecha; dois
  *  cliques no nome da aba ativa renomeiam, quando a tela permite), depois Projetos, Banco (vídeos e imagens dos inserts),
- *  Referências (galeria dos planos), Presets (de enriquecimento) e Motions (galeria dos presets de motion), juntos; à
+ *  Referências (galeria dos planos), Presets (de enriquecimento), Motions (galeria dos presets de motion) e Transições
+ *  (entre os planos), juntos; à
  *  direita, a Calibragem (vídeos que treinam a Direção visual) e a Heurística da direção. */
 const PILULA = 'shrink-0 rounded-full border text-[12px] font-semibold tracking-[-0.01em] transition-colors duration-300'
 const ATIVA = 'border-cream bg-cream text-ink'
@@ -18,6 +19,7 @@ const LINKS: Link[] = [
   { para: '/referencias', nome: 'Referências', icone: Film },
   { para: '/presets', nome: 'Presets', icone: Layers },
   { para: '/motions', nome: 'Motions', icone: Clapperboard },
+  { para: '/transicoes', nome: 'Transições', icone: Blend },
 ]
 // o treino da Direção visual, alinhado à direita
 const TREINO: Link[] = [
@@ -29,9 +31,12 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
   const local = useLocation()
   const ir = useNavigate()
   const aba = ({ isActive }: { isActive: boolean }) => cn(PILULA, 'flex items-center gap-1.5 px-3.5 py-[7px]', isActive ? ATIVA : INATIVA)
+  // os rótulos somem pelo espaço que sobra para os links (container query em `links`), não pela largura da janela: no
+  // editor a barra divide o espaço com os botões da etapa e o Exportar, e as abas abertas também ocupam (até 40%, depois
+  // rolam); se nem só com os ícones couber (a busca do Banco), os links rolam em vez de passar por cima do que vem depois
   return (
-    <nav className="flex min-w-0 flex-1 items-center gap-1.5">
-      <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
+    <nav className="flex w-0 min-w-0 flex-1 items-center gap-1.5">
+      <div className="flex max-w-[40%] shrink-0 items-center gap-1.5 overflow-x-auto">
         {abas.map((a) => {
           const ativa = local.pathname === `/p/${a.id}`
           return (
@@ -49,20 +54,22 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
           )
         })}
       </div>
-      {abas.length > 0 && <span className="mx-1.5 h-5 w-px shrink-0 bg-line-dark" />}
-      {LINKS.map((l) => (
-        <NavLink key={l.para} to={l.para} end={l.exato} className={aba}>
-          <l.icone className="size-3.5 opacity-80" aria-hidden />
-          {l.nome}
-        </NavLink>
-      ))}
-      <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-3">
-        {TREINO.map((l) => (
-          <NavLink key={l.para} to={l.para} end={l.exato} className={aba}>
+      <div className="@container/links flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
+        {abas.length > 0 && <span className="mx-1.5 h-5 w-px shrink-0 bg-line-dark" />}
+        {LINKS.map((l) => (
+          <NavLink key={l.para} to={l.para} end={l.exato} className={aba} title={l.nome} aria-label={l.nome}>
             <l.icone className="size-3.5 opacity-80" aria-hidden />
-            {l.nome}
+            <span className="@max-[760px]/links:hidden">{l.nome}</span>
           </NavLink>
         ))}
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-3">
+          {TREINO.map((l) => (
+            <NavLink key={l.para} to={l.para} end={l.exato} className={aba} title={l.nome} aria-label={l.nome}>
+              <l.icone className="size-3.5 opacity-80" aria-hidden />
+              <span className="@max-[960px]/links:hidden">{l.nome}</span>
+            </NavLink>
+          ))}
+        </div>
       </div>
     </nav>
   )

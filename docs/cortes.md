@@ -15,7 +15,7 @@ Legenda de status: ✅ aprovado por Rodrigo · 💡 proposta técnica · ⏳ em 
 - 💡 Bordas: o silêncio mais próximo da borda da palavra, dentro de 0,5 s antes e 0,35 s depois, vira o ponto de corte (o Whisper erra ~0,2 s).
 
 ✅ **Tela de Cortes: navegar e inspecionar** (3b-1, decidido com Rodrigo; ele usa isso para apontar erros e iterar o algoritmo de corte):
-- **Timeline no bruto inteiro**, só a trilha do bruto (V2, V3 e LEG só aparecem nas suas etapas, no tempo do vídeo final): forma de onda **real** com zoom até milissegundos; trechos mantidos em menta e removidos em coral listrado; cortes numerados (✂ 1, ✂ 2…); ao aproximar, as palavras aparecem sobre a onda com início e fim.
+- **Timeline no bruto inteiro**, só a trilha do bruto (inserts, transições, áudio e legenda aparecem nas suas etapas, no tempo do vídeo final): forma de onda **real** com zoom até milissegundos; trechos mantidos em menta e removidos em coral listrado; cortes numerados (✂ 1, ✂ 2…); ao aproximar, as palavras aparecem sobre a onda com início e fim.
 - **Nada é renderizado em Cortes.** O player toca o proxy do bruto pulando os trechos removidos; o vídeo final só sai na exportação (fase 4), depois de Rodrigo aprovar. Um botão alterna entre "tocar o resultado" e "tocar o bruto sem pular". Limitação: o pulo é um *seek* do navegador e pode ter um pequeno tranco que o render final não terá.
 - **Texto:** em cada fronteira de corte, uma marca inline com os tempos exatos no bruto e o que foi removido (`✂ 3 · 27,512 → 31,260 · −3,75 s`); tempo de cada palavra ao passar o mouse e num painel de detalhe.
 - ✅ **Timeline vertical (adotada; começou como experimento numa branch):** na etapa de Cortes a timeline fica **vertical**, entre a sidebar e o vídeo: o tempo corre de cima para baixo, com régua, forma de onda, barras de tempo exato e cada palavra ao lado do seu instante (se dois rótulos colidem, o de baixo desce e uma linha o liga ao seu tempo). O vídeo ocupa a coluna central, com o detalhe embaixo. Os controles (Resultado/Bruto, ✂ Cortar trecho, Recalcular, Expandir tudo, zoom) ficam no topo da timeline. **Refazer cortes com IA** é um botão de destaque na barra do topo, à direita da engrenagem de Configurações (só na etapa de Cortes).
@@ -43,7 +43,7 @@ Legenda de status: ✅ aprovado por Rodrigo · 💡 proposta técnica · ⏳ em 
 ✅ **Como Rodrigo corrige** (3b-2). Feito: alças nas bordas, cortar e excluir trechos, restaurar da IA, recalcular. Falta: ligar/desligar palavras pelo texto, travas manuais, desfazer/refazer e versões. São três formas, sempre sincronizadas: mudar em uma atualiza as outras.
 1. **Texto:** transcrição com as palavras cortadas riscadas. Clicar ou selecionar liga e desliga o corte, o que permite escolher outra tentativa da mesma frase.
 2. **Timeline:** clipes com waveform, alças para arrastar as bordas, ajuste fino quadro a quadro pelo teclado e aumento ou redução de respiros.
-3. **Chat:** pedidos em linguagem natural ("volta a primeira tentativa da abertura", "corta mais seco entre 0:12 e 0:20"). ✅ **Adiado para bem depois** (o chat segue simulado).
+3. **Chat:** pedidos em linguagem natural ("volta a primeira tentativa da abertura", "corta mais seco entre 0:12 e 0:20"). ✅ **Adiado para bem depois** (o chat simulado saiu na F0, SPEC §11).
 
 ✅ **Reenquadramento:** a saída é sempre 9:16. Um bruto horizontal vira 9:16 ao criar o projeto, com a câmera seguindo o rosto ([preprocessamento.md](preprocessamento.md)); os cortes já trabalham sobre o 9:16. (Antes: um recorte parado arrastado na prévia, que valia para o vídeo inteiro.)
 

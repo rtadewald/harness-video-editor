@@ -156,9 +156,10 @@ def _proxy(id, base: Path, video: Path, bruto: dict):
     def registrar(p):
         next(f for f in p['fontes'] if f['id'] == bruto['id'])['proxy'] = str(destino.relative_to(base))
     projeto.atualizar(id, registrar)
-    if bruto.get('papel') == 'bruto':  # o recorte do ator (para a divisão da tela) sai do proxy, em segundo plano
-        from . import recorte_ator
+    if bruto.get('papel') == 'bruto':  # o recorte e o rosto do ator (divisão da tela) saem do proxy, em segundo plano
+        from . import recorte_ator, rosto
         recorte_ator.pedir(id)
+        rosto.pedir(id)
 
 
 def _silencios(id, base: Path, video: Path, bruto: dict):

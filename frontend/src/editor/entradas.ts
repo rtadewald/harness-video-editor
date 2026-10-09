@@ -3,10 +3,10 @@ import { bezier, limite01 } from './curvas'
 import { criarLoja } from './loja'
 import type { Curva } from './enriquecimento'
 
-/** Entradas e saídas dos inserts (SPEC §8.4): a configuração de cada tipo é global (`transicoes.py` no backend) — curva,
+/** Entradas e saídas dos inserts (SPEC §8.4): a configuração de cada tipo é global (`entradas.py` no backend) — curva,
  *  duração e os detalhes do movimento. Configurou uma vez, vale para todos os inserts que usam aquele tipo. */
 type Direcao = 'cima' | 'baixo' | 'esquerda' | 'direita'
-type ConfigTransicao = {
+type ConfigEntrada = {
   curva: Curva
   duracao?: number
   escala?: number
@@ -20,25 +20,25 @@ type ConfigTransicao = {
   zoom?: number
 }
 export type Lado = 'entrada' | 'saida'
-export type Transicoes = Record<Lado, Record<string, ConfigTransicao>>
+export type Entradas = Record<Lado, Record<string, ConfigEntrada>>
 
 // a configuração vem do servidor uma vez e é compartilhada; mudar avisa quem está usando
-const loja = criarLoja(() => fetch('/api/transicoes').then(json<Transicoes>))
-export const useTransicoes = loja.use
+const loja = criarLoja(() => fetch('/api/entradas').then(json<Entradas>))
+export const useEntradas = loja.use
 
 const limite = limite01
 /** Quanto a entrada dura (s), dentro de uma mídia de `dur` s ("seca + zoom" dura a mídia toda). */
-export const duracaoEntrada = (tipo: string, t: Transicoes, dur: number) =>
+export const duracaoEntrada = (tipo: string, t: Entradas, dur: number) =>
   tipo === 'sem' ? 0 : tipo === 'seco_zoom' ? dur : Math.min(t.entrada[tipo]?.duracao ?? 0.75, dur)
 /** Quanto a saída dura (s); nunca mais que metade da mídia. */
-export const duracaoSaida = (tipo: string, t: Transicoes, dur: number) => (tipo === 'corte' ? 0 : Math.min(t.saida[tipo]?.duracao ?? 0.5, dur / 2))
+export const duracaoSaida = (tipo: string, t: Entradas, dur: number) => (tipo === 'corte' ? 0 : Math.min(t.saida[tipo]?.duracao ?? 0.5, dur / 2))
 
 // a direção do deslize (para onde o movimento vai), em % do próprio elemento: na entrada ele vem do lado oposto
 const vetor = (d: Direcao | undefined): [number, number] => (d === 'baixo' ? [0, 1] : d === 'esquerda' ? [-1, 0] : d === 'direita' ? [1, 0] : [0, -1])
 
 /** O estilo de uma mídia do insert no instante `rel` (s desde que ela começou) de `dur` s: a entrada e a saída dela.
  *  As saídas usam as mesmas curvas espelhadas (aceleram ao sair). */
-export function estiloTransicao(entrada: string, saida: string, t: Transicoes, rel: number, dur: number): React.CSSProperties {
+export function estiloEntrada(entrada: string, saida: string, t: Entradas, rel: number, dur: number): React.CSSProperties {
   const tr: string[] = []
   let opacidade = 1
   let blur = 0

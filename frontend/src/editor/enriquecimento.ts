@@ -3,7 +3,7 @@
 type Categoria = 'layout' | 'entrada' | 'entrada_2' | 'saida' | 'saida_2' | 'entre' | 'movimento'
 export type Curva = [number, number, number, number]
 /** As categorias e, com 2 mídias, onde a 2ª começa (`corte`, fração do insert). A curva, a duração e os detalhes de cada
- *  entrada e saída são globais, por tipo (`transicoes.ts`). */
+ *  entrada e saída são globais, por tipo (`entradas.ts`). */
 export type Enriquecimento = Record<Categoria, string> & { corte?: number }
 /** Qual mídia: 1 (a 1ª, ou a única) ou 2 (a 2ª, num insert com duas). */
 export type Qual = 1 | 2
