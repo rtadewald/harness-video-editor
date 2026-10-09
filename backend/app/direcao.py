@@ -471,13 +471,22 @@ NÃO descreva o layout do plano (tela dividida, apresentador embaixo, conteúdo 
 O bloco tem {duracao:.1f} s."""
 
 
+MIN_VIDEO_INSERT = 1.0  # abaixo disso o Gemini recusa o vídeo ("Provider returned error"; um bloco de 0,45 s no 46_grill_me)
+
+
 def analisar_insert(base: Path, bloco: dict, config: dict) -> str:
-    """Assiste um bloco de insert de uma referência e devolve a marcação: o que acontece nele."""
+    """Assiste um bloco de insert de uma referência e devolve a marcação: o que acontece nele. Um bloco curto demais
+    para vídeo vai como o quadro do meio (é praticamente uma imagem parada)."""
     video = base / 'proxy.mp4' if (base / 'proxy.mp4').exists() else base / 'video.mp4'
     with tempfile.TemporaryDirectory() as tmp:
-        clipe = _clipe(video, bloco['inicio'], bloco['fim'], Path(tmp) / 'bloco.mp4')
+        if bloco['fim'] - bloco['inicio'] < MIN_VIDEO_INSERT:
+            quadro = Path(tmp) / 'bloco.jpg'
+            midia.ffmpeg('-ss', f"{(bloco['inicio'] + bloco['fim']) / 2:.3f}", '-i', str(video), '-frames:v', '1', '-vf', 'scale=-2:640', '-q:v', '4', str(quadro))
+            visto = comum.imagem(quadro)
+        else:
+            visto = comum.video(_clipe(video, bloco['inicio'], bloco['fim'], Path(tmp) / 'bloco.mp4'))
         conteudo = [{'type': 'text', 'text': f"Bloco: {PLANOS.get(bloco['tipo'], bloco['tipo'])}. Marcação de antes, vista em pedaços: {bloco.get('descricao') or '—'}"},
-                    comum.video(clipe)]
+                    visto]
         llm = comum.chat(config['modelo_direcao'], timeout_s=120, max_tokens=2000, raciocinio='low')
         r = llm.with_structured_output(InsertVisto, method='json_schema').invoke(
             [('system', PROMPT_INSERT.format(duracao=bloco['fim'] - bloco['inicio'])), ('human', conteudo)])
@@ -486,13 +495,26 @@ def analisar_insert(base: Path, bloco: dict, config: dict) -> str:
 
 def _inserts(id: str, base: Path):
     """Etapa "inserts": cada plano com insert é assistido inteiro (a análise vê só pedaços entre cortes de cena) e ganha a
-    marcação do que acontece nele (3 por vez)."""
+    marcação do que acontece nele (3 por vez). Um bloco que falha fica com a marcação que já tinha (a da análise em
+    pedaços), sem derrubar a referência; só a falta de crédito para tudo."""
     comum.carregar_env()
     config = projeto.ler_config()
     dados = comum.ler_json(base / 'direcao.json')
     blocos = [i for i in dados['itens'] if i['camada'] == 'plano' and tem_insert(i['tipo'], i.get('conteudo'))]
+    falhas: list[str] = []
+
+    def um(b: dict) -> tuple[str, str | None]:
+        try:
+            return b['id'], analisar_insert(base, b, config)
+        except Exception as e:
+            if _falta_credito(e):
+                raise
+            traceback.print_exc()
+            falhas.append(b['id'])
+            return b['id'], None
+
     with ThreadPoolExecutor(max_workers=3) as ex:
-        feitos = dict(ex.map(lambda b: (b['id'], analisar_insert(base, b, config)), blocos))
+        feitos = dict(ex.map(um, blocos))
     with _trava_inserts:
         dados = comum.ler_json(base / 'direcao.json')
         for i in dados['itens']:
@@ -501,7 +523,7 @@ def _inserts(id: str, base: Path):
             for velho in ('captura', 'insert', 'como_gerar'):  # formatos anteriores (como capturar, mídias pedidas, receita)
                 i.pop(velho, None)
         comum.salvar_json(base / 'direcao.json', dados)
-    return {'blocos': len(feitos)}
+    return {'blocos': len(feitos), **({'falhas': falhas} if falhas else {})}
 
 
 _trava_inserts = threading.Lock()
