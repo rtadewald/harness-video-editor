@@ -1,40 +1,56 @@
 # Harness Video Editor
 
-Editor de vídeo local onde a **IA faz cada etapa da edição** e você corrige numa interface no estilo Premiere.
+Editor de vídeo local onde a **IA faz cada etapa da edição** e você corrige numa interface no estilo Premiere. Feito para Reels (9:16): você sobe o vídeo bruto, com erros, pausas e várias tentativas da mesma fala, e sai com o MP4 pronto, com inserts, motions, transições, trilha e legenda.
 
 ![Linha do tempo vertical da etapa de Cortes](docs/img/demo.gif)
 
-Você sobe o vídeo bruto e a IA propõe a edição, etapa por etapa: **Pré-processamento → Direção visual → Inserts → Transições → Áudio → Legenda**. Cada etapa tem controles manuais para corrigir o que a IA decidiu, e o render final só acontece depois que os cortes são aprovados.
+## As seis etapas
 
-> **Estado atual:** os **Cortes** (no Pré-processamento), a **Direção visual**, os **Inserts** (mídias, presets, motions, sons) e a **exportação** são reais. A direção aprende com os seus vídeos editados na **Calibragem**. Look e Enquadramento (no Pré-processamento), Transições, Áudio e Legenda também são reais (cada um com o seu doc em `docs/`). O agente de chat ainda não foi feito.
+Cada projeto passa por seis etapas, nesta ordem. Em todas, a IA faz a primeira versão e você corrige. A prévia mostra o resultado ao vivo, igual ao MP4.
 
-## O que a etapa de Cortes faz
+1. **Pré-processamento.** O vídeo do ator:
+   - **Cortes:** a IA escolhe quais palavras ficam (tira erros, retomadas e esperas), e o código cola cada corte num silêncio real. Você revisa numa linha do tempo vertical, com a onda e cada palavra no seu milissegundo.
+   - **Enquadramento:** num vídeo 16:9, a câmera segue o rosto e gera o 9:16.
+   - **Look:** LUT e vinheta.
+   - **Velocidade:** acelera a fala de 1× a 1,5×.
+2. **Direção visual.** O que aparece na tela em cada momento:
+   - os planos: Full ator, tela dividida, insert ou motion em tela cheia, comentário;
+   - os elementos: lettering, prints, palavras.
+   Ela aprende com os seus vídeos já editados, na **Calibragem**.
+3. **Inserts.** As mídias de cada insert, que vêm do **Banco**, de um upload ou de uma captura de site. Também:
+   - os **presets** de como elas aparecem, com sons de apoio;
+   - os **motions**;
+   - o ator bem posicionado no que sobra da tela;
+   - os **presets do Full ator**: zoom lento ou zoom seco.
+4. **Transições.** Em cada troca de plano, uma transição com som (corte seco, clique, câmera, riser, luz, brilho, zoom), pelo par de grupos: de onde sai e para onde vai.
+5. **Áudio.** A voz limpa, com timbre e compressor, a faixa de fundo com o volume caindo na fala, o mixer das trilhas e −14 LUFS no final.
+6. **Legenda.** Palavra a palavra ou por frase, no estilo medido nas referências, com edição dos blocos.
 
-1. Gera um proxy 720p do vídeo, detecta silêncios e desenha a forma de onda.
-2. Transcreve o áudio com timestamps por palavra. O motor padrão é o **ElevenLabs Scribe v2**, e dá para trocar em Configurações. Os outros motores (Whisper + stable-ts, Qwen3-ASR, Parakeet, entre outros) rodam em segundo plano e dá para comparar dois lado a lado.
-3. Um LLM (via OpenRouter) decide **quais palavras ficam**, tirando retomadas, erros e falsos começos. O código calcula os tempos exatos e cola o corte dentro de uma pausa real do áudio.
-4. Você revisa numa **linha do tempo vertical**, com a onda e cada palavra no seu milissegundo:
-   - arrastar a borda de um corte, com ímã nas palavras e pausas;
-   - **✂ Cortar trecho** para criar um corte à mão e **✕** para excluir um corte;
-   - Resultado ou Bruto, velocidade de play de 0,25× a 2×, e Expandir ou Compactar tudo;
-   - **Refazer** (pede nova seleção à IA) e **Recalcular** (refaz os trechos com as margens atuais, sem chamar a IA).
-5. **Configurações → Cortes** (salvas na hora como padrão): motor de transcrição, margens antes e depois do corte, e a partir de quantos segundos uma pausa dentro de um trecho mantido é encurtada.
+O **Exportar** fica no topo de qualquer etapa e gera o MP4 do projeto inteiro (até 4K), em segundo plano.
+
+O passo a passo de cada etapa (o que a IA faz, o que você vê e pode corrigir, o que fica gravado e o que vai para o vídeo final) está no [SPEC.md](SPEC.md). O detalhe técnico de cada área está em [`docs/`](docs).
+
+## As páginas de apoio
+
+| Página | Para que serve |
+|---|---|
+| **Projetos** | Criar, abrir e apagar projetos. Um projeto apagado vai para a lixeira, de onde dá para recuperar. |
+| **Banco** | As mídias dos inserts, de todos os projetos. A IA descreve cada uma, e dá para cortar trechos de vídeo. |
+| **Motions** | As animações prontas (HTML + GSAP) para os planos de motion. |
+| **Referências** | Todos os planos dos seus vídeos editados, por categoria, para assistir e favoritar. |
+| **Presets** | Os presets de enriquecimento (como as mídias entram e saem), para aprovar e ordenar. |
+| **Transições** | A biblioteca de transições, a referência ao lado da recriação, e as favoritas de cada par de grupos. |
+| **Calibragem** | Sobe os seus Reels editados. A IA analisa cada um e você revisa. |
+| **Heurística da direção** | As regras do criador, as regras sugeridas pela IA e os roteiros de exemplo que guiam a direção. |
+| **Configurações** (engrenagem) | Sobre o criador, motor de transcrição, margens dos cortes, pausas longas e modelos de IA. Abre na aba da etapa em que você está. |
 
 | Projetos | Configurações |
 |---|---|
 | ![Tela de projetos](docs/img/projetos.png) | ![Configurações](docs/img/configuracoes.png) |
 
-## Calibragem e Referências (a Direção visual aprende com os seus vídeos)
-
-Na aba **Calibragem** você sobe Reels já editados (vários de uma vez). Cada um é analisado em segundo plano: o detector de cena acha os cortes, a fala é transcrita e um modelo multimodal (Gemini via OpenRouter) assiste a cada trecho e diz qual **plano-base** está na tela (Full ator, Full ator com lettering, Insert tela cheia, Motion tela cheia, Tela dividida, Comentário + insert + ator), quais **elementos** aparecem por cima, o que aparece, o texto exato e **como gerar** cada insert. Cada bloco também recebe a **função da fala** (gancho, cita ferramenta, explica conceito, CTA…). Você revisa numa timeline vertical; os **indicadores** (que fala pede que plano, o que vem depois, durações, abertura e fechamento) viram uma **heurística** editável que guia a direção dos projetos.
-
-Na aba **Referências** ficam todos os planos identificados, por categoria, para assistir um a um e favoritar.
-
-Dentro do projeto, a etapa **Direção visual** propõe o que mostrar em cada momento do vídeo cortado, seguindo as suas regras, a heurística e os exemplos.
-
 ## Como rodar
 
-**Requisitos:** macOS com Apple Silicon (o proxy usa VideoToolbox e os modelos locais usam MLX), [uv](https://docs.astral.sh/uv/), Node 20+ e `ffmpeg` (com `ffprobe`) no PATH.
+**Requisitos:** macOS com Apple Silicon (o proxy e a exportação usam o VideoToolbox, e os modelos locais usam MLX), [uv](https://docs.astral.sh/uv/), Node 20+, `ffmpeg` (com `ffprobe`) no PATH e o Google Chrome (a exportação fotografa a camada dos inserts em navegadores escondidos).
 
 ```bash
 git clone https://github.com/rtadewald/harness-video-editor.git
@@ -44,12 +60,12 @@ cd harness-video-editor
 Crie `backend/.env` com as chaves (o arquivo é ignorado pelo git):
 
 ```env
-OPENROUTER_API_KEY=...        # obrigatória: o LLM que escolhe o que fica
+OPENROUTER_API_KEY=...        # obrigatória: cortes, direção, análise das referências, descrição do banco
 OPENROUTER_MODEL=google/gemini-3.8-flash
-ELEVENLABS_API_KEY=...        # opcional: motor de transcrição padrão
+ELEVENLABS_API_KEY=...        # opcional: o motor de transcrição padrão e o isolamento de voz
 ```
 
-Sem `ELEVENLABS_API_KEY` o app usa Whisper + stable-ts localmente e avisa o motivo. O ElevenLabs envia o áudio da sua voz a um serviço externo.
+Sem a `ELEVENLABS_API_KEY`, o app usa Whisper + stable-ts localmente e avisa o motivo. O ElevenLabs envia o áudio da sua voz a um serviço externo.
 
 Suba tudo com um comando:
 
@@ -60,23 +76,28 @@ Suba tudo com um comando:
 - Interface: http://localhost:5173
 - API: http://localhost:8000 (FastAPI)
 
-Na primeira vez os modelos locais baixam sozinhos, o que demora um pouco. Os projetos ficam em `dados/projetos/` (ignorada pelo git).
+Na primeira vez os modelos locais baixam sozinhos, o que demora um pouco.
+
+Tudo o que o app guarda fica em `dados/`, fora do git: projetos, referências, banco, presets, sons, transições, trilhas e os modelos de visão. Para rodar duas cópias ao mesmo tempo (`git worktree`), ponha portas próprias num `.dev.env` (`HARNESS_API_PORT`, `HARNESS_FRONT_PORT`) e faça de `dados/` um link para a pasta da cópia principal.
 
 ### Testes
 
 ```bash
 cd backend && uv run pytest -q     # não usa chaves nem rede
 cd frontend && npm run build       # checa os tipos e gera o bundle
+uv run --with playwright python ferramentas/e2e_sons_transicoes.py   # com o app no ar: os sons das transições no player, no navegador
 ```
 
 ## Estrutura
 
+```text
+backend/app/        FastAPI: pipeline, IA, vídeo e áudio (um módulo por área; as rotas em app/rotas/)
+frontend/src/       React + Vite + Tailwind, uma pasta por área:
+                      preprocessamento/ direcao/ inserts/ presets/ ator/ motions/ transicoes/ audio/ legenda/
+                      player/ (a prévia), editor/ (o comum às etapas), paginas/, referencias/, components/
+ferramentas/        scripts de apoio (montar presets, sons, LUTs, transições, trilhas, o teste de ponta a ponta dos sons)
+dados/              os dados do app (fora do git)
+docs/               o detalhe técnico de cada área
+SPEC.md             a especificação: visão, cada etapa passo a passo, arquitetura, exportação, regras dos cortes
+AGENTS.md           regras de trabalho do projeto
 ```
-backend/    FastAPI + pipeline (proxy, silêncios, transcrição, cortes por LLM)
-frontend/   React + Vite + Tailwind (linha do tempo vertical, player, configurações)
-SPEC.md     especificação completa e aprendizados medidos de cada motor
-AGENTS.md   regras de trabalho do projeto
-docs/img/   prints e GIF deste README
-```
-
-A especificação detalhada, incluindo as regras editoriais de corte (§14) e a comparação medida entre motores de transcrição (§16), está em [SPEC.md](SPEC.md).
