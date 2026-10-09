@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PanelRightClose, PanelRightOpen, Captions, Clapperboard, Images, Scissors, Search, Wand2 } from 'lucide-react'
-import { definirMidias, configurarComentario, definirFundo, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, salvarDirecaoProjeto, type DadosEditor, type Projeto, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
+import { definirMidias, configurarComentario, definirFundo, definirMovimentoAtor, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, salvarDirecaoProjeto, type DadosEditor, type Projeto, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
 import { useLembrado } from '@/lib/useLembrado'
 import { paraAncora, paraTempo, palavrasNaSaida } from '@/direcao/direcaoProjeto'
 import { dividirPlano, editar } from '@/referencias/edicao'
@@ -31,7 +31,8 @@ import { TEM_MOTION, type NovaMidia, type Pedido } from '@/inserts/comum'
 import DetalheInsert from '@/inserts/DetalheInsert'
 import { Alca, Cabecalho, Recolhivel, useTamanhos } from '@/inserts/layout'
 import PainelEnriquecimento from '@/inserts/PainelEnriquecimento'
-import { Categoria, EditorPresetAberto, EscolhaFundo, ResumoFundo, SemInsert, SugestaoIA } from '@/inserts/pecas'
+import { Categoria, EditorPresetAberto, EscolhaFundo, PresetsDoAtor, ResumoFundo, SemInsert, SugestaoIA } from '@/inserts/pecas'
+import { ehFullAtor, type Movimento } from '@/ator/movimento'
 import { emCampoDeTexto, modalAberto } from '@/lib/atalhos'
 
 type Props = {
@@ -128,6 +129,17 @@ export default function EtapaInserts(p: Props) {
   usePreCarregarMarcas(projeto.id, planos, motions, saida)
   const presetsTodos = usePresets()
 
+  // o preset de um plano de Full ator (o movimento de câmera no ator): a prévia muda na hora
+  const mudarMovimento = (plano: string, m: Movimento | null) => {
+    setIns((i) => {
+      if (!i) return i
+      const ator_planos = { ...i.ator_planos }
+      if (m) ator_planos[plano] = m
+      else delete ator_planos[plano]
+      return { ...i, ator_planos }
+    })
+    void definirMovimentoAtor(projeto.id, plano, m).then(setIns).catch(falhar)
+  }
   const salvar = (pid: string, midias: NovaMidia[]) => definirMidias(projeto.id, pid, midias as MidiaLigada[]).then(setIns).catch(falhar)
   /** Sobe arquivos para o banco e liga ao insert, no fim da lista. Devolve os itens novos (os vídeos abrem no editor). */
   const subirELigar = async (x: Pedido, arquivos: File[]): Promise<ItemBanco[]> => {
@@ -421,6 +433,7 @@ export default function EtapaInserts(p: Props) {
                 banco={banco}
                 fundo={ins?.fundo ?? 'gradiente'}
                 motions={motions}
+                movimentos={ins?.ator_planos}
                 tempo={tempo}
                 tocando={player.tocando}
                 velocidade={player.velocidade}
@@ -543,7 +556,11 @@ export default function EtapaInserts(p: Props) {
                 entradas={entradas}
               />
             ) : (
-              <p className="text-[12.5px] leading-[1.7] text-fog">{planoSel ? 'Este plano não tem insert nem motion.' : 'Escolha um insert ou um motion na linha do tempo.'}</p>
+              planoSel && ehFullAtor(planoSel.tipo) ? (
+                <PresetsDoAtor atual={ins?.ator_planos?.[planoSel.id] ?? null} mudar={(m) => mudarMovimento(planoSel.id, m)} />
+              ) : (
+                <p className="text-[12.5px] leading-[1.7] text-fog">{planoSel ? 'Este plano não tem insert nem motion.' : 'Escolha um insert ou um motion na linha do tempo.'}</p>
+              )
             )}
           </div>
         </aside>

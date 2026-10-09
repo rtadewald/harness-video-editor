@@ -122,6 +122,20 @@ class FundoInserts(BaseModel):
     fundo: str = Field(max_length=40)
 
 
+class MovimentoAtor(BaseModel):
+    movimento: str | None = Field(default=None, max_length=40)
+
+
+@rotas.put('/api/projetos/{id}/inserts/ator/{plano}')
+def definir_movimento_ator(id: str, plano: str, m: MovimentoAtor):
+    """O preset de um plano de Full ator: o movimento de câmera no ator (zoom lento, zoom seco ou nenhum)."""
+    _ler(id)
+    try:
+        return inserts.definir_movimento_ator(id, plano, m.movimento)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
 @rotas.put('/api/projetos/{id}/inserts/fundo')
 def definir_fundo(id: str, f: FundoInserts):
     """O fundo atrás dos inserts com moldura, para o vídeo todo."""

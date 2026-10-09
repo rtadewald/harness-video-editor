@@ -36,6 +36,14 @@ Legenda de status: ✅ aprovado por Rodrigo · 💡 proposta técnica · ⏳ em 
 
 ## 8.4 Enriquecimento (presets)
 
+✅ **Presets do Full ator** (pedido de Rodrigo, out/2026): num plano de Full ator (com ou sem lettering), o
+Enriquecimento mostra três presets de movimento de câmera no ator: **Nada** (o padrão), **Zoom in lento** (+3% por
+segundo, no máximo +15% no plano; metade linear, metade suavizada: sai e chega andando, nunca para) e **Zoom seco** (+18%
+de uma vez no começo do plano, até o fim). O centro do zoom é o rosto do plano (`useRosto`; sem medida, um pouco acima do
+meio). Fica em `inserts.ator_planos[plano]` (`PUT /api/projetos/{id}/inserts/ator/{plano} {movimento}`). A conta é uma
+só: `ator/movimento.ts` na prévia (um `scale` no vídeo do ator) e `exportacao._movimentos` no MP4 (escala no tempo +
+recorte com o rosto parado, no ator antes do look, então a vinheta não aproxima junto), via `__render.movimentos`.
+
 ✅ Visão (Rodrigo, out/2026): define a moldura de cada insert (card arredondado com sombra sobre degradê, ou tela inteira), o zoom (se, onde e como: curva, intensidade), a rolagem na pós sobre as imagens de página inteira (com easing), entradas ("sobe e assenta") e transições entre as mídias (corte seco, chicote com borrão). Referência: os favoritos mostram o site num card de ~90% da largura sobre degradê, entrada subindo e crescendo de ~85% a 100% em 0,4–0,8 s, zoom de até ~3%. Inspirado também num editor de um colega (layouts e animações de entrada em grade, com presets "do estilo").
 
 ✅ **Por número de mídias (decisão de Rodrigo, out/2026):** o enriquecimento muda conforme o insert tem 1, 2 ou mais mídias. **1 mídia:** o painel mostra **Layout** e **Entrada**, e a prévia aplica só esses dois (movimento parado, saída em corte seco).

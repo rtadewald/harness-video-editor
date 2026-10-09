@@ -362,6 +362,7 @@ export function formatarTempo(s: number) {
 }
 
 import type { AjusteAtor } from '@/ator/ator'
+import type { Movimento } from '@/ator/movimento'
 
 // ---------------------------------------------------------------- Inserts e banco (SPEC §8.3)
 
@@ -408,6 +409,8 @@ export type InsertsProjeto = {
   /** A transição em cada troca de plano (seca, zoom com desfoque, piscada), para o vídeo todo. */
   transicao?: string
   /** A curva e a duração da entrada que valem para o vídeo todo (inserts sem curva própria). */
+  /** Os presets dos planos de Full ator: o movimento de câmera de cada um (sem chave = nada). */
+  ator_planos?: Record<string, Movimento>
 }
 /** Uma mídia do banco global. */
 export type ItemBanco = {
@@ -466,6 +469,8 @@ export const capturarSite = (id: string, pid: string, c: { url: string; proporca
 export const enriquecerInsert = (id: string, pid: string, campos: Record<string, string | number | number[] | null>) =>
   enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/${pid}/enriquecimento`, { campos })
 export const definirFundo = (id: string, fundo: string) => enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/fundo`, { fundo })
+export const definirMovimentoAtor = (id: string, plano: string, movimento: Movimento | null) =>
+  enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/ator/${plano}`, { movimento })
 export const configurarComentario = (id: string, pid: string, campos: Record<string, unknown>) =>
   enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/${pid}/comentario`, { campos })
 export const enriquecerTipo = (id: string, pid: string) => enviar<InsertsProjeto>('POST', `/api/projetos/${id}/inserts/${pid}/enriquecimento/tipo`)

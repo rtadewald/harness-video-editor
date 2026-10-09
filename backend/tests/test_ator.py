@@ -6,6 +6,7 @@ import sys
 import numpy as np
 import pytest
 
+from apoio import criar_projeto
 from app import exportacao, inserts
 
 W, H = 180, 320
@@ -103,3 +104,35 @@ def test_insert_tardio_nao_guarda_o_ator_na_memoria(tmp_path, modo):
     cedo, tarde = pico(1.0), pico(27.0)
     # 26 s de quadros 360×640 guardados seriam ~200 MB a mais
     assert tarde < cedo * 1.25, (cedo, tarde)
+
+
+def _media_central(arq, t):
+    """O brilho médio do miolo do quadro (um zoom no centro de testsrc2 muda o miolo)."""
+    q = _quadro(arq, t)
+    return q[H // 3: 2 * H // 3, W // 3: 2 * W // 3]
+
+
+@pytest.mark.parametrize('tipo', ['zoom_seco', 'zoom_lento'])
+def test_presets_do_full_ator_no_ffmpeg(videos, tmp_path, tipo):
+    """O zoom no ator só dentro do plano (1 a 2,6 s), com o centro no rosto; fora dele, o ator como foi gravado. O seco é
+    o mesmo em todo o plano; o lento cresce ao longo dele."""
+    clipes = [{'inicio': 0.0, 'fim': 3.0}]
+    mov = [{'ini': 1.0, 'fim': 2.6, 'tipo': tipo, 'cx': 0.5, 'cy': 0.45}]
+    com, sem = tmp_path / 'c.mp4', tmp_path / 's.mp4'
+    r = subprocess.run(exportacao.comando_final(videos / 'v.mp4', clipes, False, 0.5, W, H, 24, [], [], 'h264', 3.0, com, movimentos=mov), capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr[-500:]
+    subprocess.run(exportacao.comando_final(videos / 'v.mp4', clipes, False, 0.5, W, H, 24, [], [], 'h264', 3.0, sem), check=True, capture_output=True)
+    dif = lambda t: np.abs(_media_central(com, t) - _media_central(sem, t)).mean()
+    assert dif(0.5) < 3 and dif(2.85) < 3  # fora do plano: igual
+    assert dif(2.4) > 8  # dentro: mexeu
+    if tipo == 'zoom_lento':
+        assert dif(1.1) < dif(2.4)  # começa quase sem zoom e vai aproximando
+
+
+def test_rota_do_movimento_do_ator(cliente, video):
+    pid = criar_projeto(cliente, video)['id']
+    r = cliente.put(f'/api/projetos/{pid}/inserts/ator/p3', json={'movimento': 'zoom_lento'})
+    assert r.status_code == 200 and r.json()['ator_planos'] == {'p3': 'zoom_lento'}
+    assert cliente.put(f'/api/projetos/{pid}/inserts/ator/p3', json={'movimento': None}).json()['ator_planos'] == {}
+    assert cliente.put(f'/api/projetos/{pid}/inserts/ator/p3', json={'movimento': 'girar'}).status_code == 422
+    assert exportacao._movimentos([], W, H, 'a', 'b') == '[a]null[b]'

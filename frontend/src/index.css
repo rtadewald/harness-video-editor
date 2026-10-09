@@ -137,3 +137,14 @@
     transform: rotate(360deg);
   }
 }
+
+/* as demonstrações dos presets do Full ator (inserts/pecas.tsx PresetsDoAtor) */
+@keyframes zoomLento {
+  0% { transform: scale(1); }
+  85% { transform: scale(1.45); }
+  100% { transform: scale(1.45); }
+}
+@keyframes zoomSeco {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.55); }
+}

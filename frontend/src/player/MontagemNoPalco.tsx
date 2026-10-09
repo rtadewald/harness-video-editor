@@ -16,6 +16,7 @@ import InsertNoLugar, { pedidosNoTempo, presetDe } from '@/inserts/InsertNoLugar
 import type { Pedido } from '@/inserts/comum'
 import { usePresets } from '@/presets/presets'
 import { precarregarSons } from '@/editor/sons'
+import { centroDoMovimento, ehFullAtor, escalaDoMovimento, type Movimento } from '@/ator/movimento'
 
 /** O quadro montado por cima do ator (SPEC §13, camada 2): o insert sob o cursor no lugar (com a entrada, o fundo, o
  *  card do comentário), o ator descendo ou encolhendo na tela dividida, a pessoa recortada por cima, ou o motion do
@@ -29,6 +30,8 @@ export default function MontagemNoPalco(p: {
   banco: Map<string, ItemBanco>
   fundo: string
   motions: Record<string, MotionPlano>
+  /** Os presets dos planos de Full ator (o movimento de câmera no ator, por plano). */
+  movimentos?: Record<string, Movimento>
   tempo: number
   tocando: boolean
   /** A velocidade da prévia (0,5× a 2×): as mídias dos inserts andam junto. */
@@ -71,7 +74,15 @@ export default function MontagemNoPalco(p: {
   const rosto = noCursor && p.rostoEm ? p.rostoEm(noCursor.t.inicio, noCursor.t.fim) : motionNoCursor && p.rostoEm ? p.rostoEm(motionNoCursor.inicio, motionNoCursor.fim) : null
   const ajuste = (noCursor?.enriquecimento as { ator?: AjusteAtor } | undefined)?.ator
   const g = geometriaDoAtor(divisao, ajuste, rosto)
-  const estiloAtor = JSON.stringify(g?.modo === 'metade' ? estiloDoQuadro(g) : {})
+  // o preset do Full ator: o zoom no ator, com o centro no rosto (a mesma conta da exportação, `ator/movimento.ts`)
+  const mov = planoNoCursor && ehFullAtor(planoNoCursor.tipo) ? p.movimentos?.[planoNoCursor.id] : undefined
+  const zoomAtor = (() => {
+    if (!mov || !planoNoCursor) return null
+    const c = centroDoMovimento(p.rostoEm?.(planoNoCursor.inicio, planoNoCursor.fim))
+    const s = escalaDoMovimento(mov, tempo - planoNoCursor.inicio, planoNoCursor.fim - planoNoCursor.inicio)
+    return { transform: `scale(${s.toFixed(4)})`, transformOrigin: `${(c.x * 100).toFixed(2)}% ${(c.y * 100).toFixed(2)}%` }
+  })()
+  const estiloAtor = JSON.stringify(g?.modo === 'metade' ? estiloDoQuadro(g) : (zoomAtor ?? {}))
   const { videoRef } = p
   useEffect(() => {
     const v = videoRef.current
@@ -158,5 +169,5 @@ export function MontagemDoProjeto(p: {
   const pedidos = useMemo(() => pedidosNoTempo(ins?.pedidos ?? [], p.planos), [ins, p.planos])
   // as marcas de som dos motions, de antemão: na 1ª passagem por um motion, o som já entra no tempo
   usePreCarregarMarcas(id, p.planos, motions, p.saida)
-  return <MontagemNoPalco {...p} pedidos={pedidos} banco={banco} fundo={ins?.fundo ?? 'gradiente'} motions={motions} />
+  return <MontagemNoPalco {...p} pedidos={pedidos} banco={banco} fundo={ins?.fundo ?? 'gradiente'} motions={motions} movimentos={ins?.ator_planos} />
 }
