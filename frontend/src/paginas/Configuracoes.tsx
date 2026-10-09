@@ -22,8 +22,9 @@ const CATEGORIAS: { id: string; nome: string; render: (c: Contexto) => ReactNode
   { id: 'direcao', nome: 'Direção visual', render: (c) => <AbaDirecao {...c} /> },
 ]
 
-/** Preferências do app. Cada mudança é gravada no ato (projetos/_config.json) e vale para os próximos cálculos e projetos. */
-export default function Configuracoes({ aberto, aoFechar }: { aberto: boolean; aoFechar: () => void }) {
+/** Preferências do app. Cada mudança é gravada no ato (dados/projetos/_config.json) e vale para os próximos cálculos e
+ *  projetos. `aba`: a etapa em que se está (o id dela); abre na aba dela, se tiver uma, senão em Geral. */
+export default function Configuracoes({ aberto, aoFechar, aba: abaInicial }: { aberto: boolean; aoFechar: () => void; aba?: string }) {
   const [config, setConfig] = useState<Config | null>(null)
   const [erro, setErro] = useState('')
   const [salvo, setSalvo] = useState(false)
@@ -31,10 +32,11 @@ export default function Configuracoes({ aberto, aoFechar }: { aberto: boolean; a
 
   useEffect(() => {
     if (!aberto) return
+    setAba(CATEGORIAS.some((c) => c.id === abaInicial) ? abaInicial! : CATEGORIAS[0].id)
     setSalvo(false)
     setErro('')
     lerConfig().then(setConfig).catch((e) => setErro(e.message))
-  }, [aberto])
+  }, [aberto]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function salvar(mudancas: Parameters<typeof salvarConfig>[0]) {
     setErro('')

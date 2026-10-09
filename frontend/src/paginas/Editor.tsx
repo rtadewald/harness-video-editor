@@ -608,7 +608,7 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
         )}
       </div>
       )}
-      <Configuracoes aberto={configAberta} aoFechar={() => setConfigAberta(false)} />
+      <Configuracoes aberto={configAberta} aoFechar={() => setConfigAberta(false)} aba={etapa} />
     </div>
     </TransicoesDoVideo.Provider>
     </FatorSom.Provider>
