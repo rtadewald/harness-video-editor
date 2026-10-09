@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useRef } from 'react'
 import { json } from '@/api'
 import { criarLoja } from './loja'
+import { bezier } from './curvas'
+import type { Curva } from './enriquecimento'
 import { janela, noTempo, type Receita } from './presets'
 
 /** Sons de apoio (SPEC §8.6): a biblioteca do time (cliques, pops, whooshes, risers, digitação), cortada e no mesmo
@@ -75,6 +77,16 @@ const RABO = 0.15
 /** Quanto um som pode desacelerar ou acelerar para abranger um movimento (além disso, o tom mudaria demais). */
 const VEL: [number, number] = [0.65, 1.6]
 
+/** Quando (fração da duração) um movimento com a curva `curva` parece parado: chegou a 95% do caminho. Uma curva que
+ *  freia no fim leva o último pedaço quase sem se mexer (no Mergulho, 22% do tempo para os últimos 5%), e o golpe do
+ *  som que acompanha o movimento tem de cair quando ele para aos olhos — senão o som segue crescendo com o zoom parado. */
+export function paradoAos(curva: Curva | undefined, alvo = 0.95): number {
+  if (!curva) return 1
+  const f = bezier(...curva)
+  for (let k = 1; k <= 100; k++) if (f(k / 100) >= alvo) return k / 100
+  return 1
+}
+
 /** Os sons de uma receita num insert de `dur` s (a receita já com as mídias, o formato e os ajustes): o instante de cada
  *  momento, card a card. Sons iguais no mesmo instante (cards que entram juntos) tocam uma vez só. */
 export function eventosDaReceita(receita: Receita, dur: number, cat: Catalogo | null): EventoSom[] {
@@ -95,10 +107,15 @@ export function eventosDaReceita(receita: Receita, dur: number, cat: Catalogo | 
       if (c.saida.para.escala > 1.05 && temMergulho) {
         const atraso = c.saida.atraso?.escala ?? 0
         const d = c.saida.dur?.escala ?? c.saida.duracao - atraso
-        quando.mergulho.push([fim - c.saida.duracao + atraso + d, d])
+        // o golpe quando o zoom para aos olhos (a curva freia no fim), não no fim da conta
+        const visto = d * paradoAos(c.saida.curvas.escala ?? c.saida.curvas.pos)
+        quando.mergulho.push([fim - c.saida.duracao + atraso + visto, visto])
       } else quando.saida.push([fim - c.saida.duracao])
     }
-    if (c.zoom) quando.zoom.push([ini + c.zoom.inicio + c.zoom.duracao, c.zoom.duracao])
+    if (c.zoom) {
+      const visto = c.zoom.duracao * paradoAos(c.zoom.curva)
+      quando.zoom.push([ini + c.zoom.inicio + visto, visto])
+    }
   })
   const out: EventoSom[] = []
   for (const s of r.sons ?? [])
