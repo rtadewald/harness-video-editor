@@ -53,6 +53,9 @@ export function usePlayer(seq: Sequencia | null) {
     let tocandoAgora = false
     let ondeEstava = 0
     let retomar: { t: number; tocar: boolean } | null = null
+    // o vídeo trocado por outro elemento (cada etapa monta o seu Preview): o novo nasce no 0 e parado; o player leva ele
+    // ao instante do anterior e retoma o play se tocava (visto no último quadro: tirar o elemento da página o pausa antes)
+    let noQuadro: { t: number; tocar: boolean } | null = null
     let agendado: { fim: number; timer: number } | null = null
     const cancelarAgendado = () => {
       if (agendado) clearTimeout(agendado.timer)
@@ -107,6 +110,10 @@ export function usePlayer(seq: Sequencia | null) {
       v.playbackRate = velocidadeRef.current
       tocandoAgora = !v.paused
       setTocando(!v.paused)
+      if (noQuadro) {
+        retomar = noQuadro
+        if (v.readyState >= 1) carregou() // já carregado (o mesmo arquivo em cache): leva agora
+      }
     }
     const passo = () => {
       const v = ref.current
@@ -122,6 +129,7 @@ export function usePlayer(seq: Sequencia | null) {
         return
       }
       ondeEstava = t
+      if (!retomar) noQuadro = { t, tocar: !v.paused }
       const agora = performance.now()
       if (t !== ultimoT || v.paused || v.seeking) {
         ultimoT = t

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Play } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import EditorCurva from './EditorCurva'
@@ -282,6 +282,13 @@ function Secao(p: { titulo: string; children: React.ReactNode }) {
 function Slider(p: { f: Faixa; v: number; mudar: (v: number, salvar: boolean) => void }) {
   const [v, setV] = useState(p.v)
   useEffect(() => setV(p.v), [p.v])
+  // mexeu desde a última vez que salvou? (a prévia já põe o valor novo em `p.v`: comparar com ele nunca salvaria)
+  const mexeu = useRef(false)
+  const soltar = () => {
+    if (!mexeu.current) return
+    mexeu.current = false
+    p.mudar(v, true)
+  }
   return (
     <label className="grid gap-0.5">
       <span className="flex items-baseline justify-between text-[11px]">
@@ -297,10 +304,12 @@ function Slider(p: { f: Faixa; v: number; mudar: (v: number, salvar: boolean) =>
         onChange={(e) => {
           const n = Number(e.target.value)
           setV(n)
+          mexeu.current = true
           p.mudar(n, false)
         }}
-        onPointerUp={() => v !== p.v && p.mudar(v, true)}
-        onKeyUp={() => v !== p.v && p.mudar(v, true)}
+        onPointerUp={soltar}
+        onKeyUp={soltar}
+        onBlur={soltar}
         className="accent-coral"
       />
     </label>

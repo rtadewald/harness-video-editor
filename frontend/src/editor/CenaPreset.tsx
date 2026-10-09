@@ -20,7 +20,8 @@ export default function CenaPreset(p: {
 }) {
   const r = noTempo(p.receita, p.dur)
   const catalogo = useCatalogoSons()
-  const eventos = useMemo(() => (p.sons ? eventosDaReceita(p.receita, p.dur, catalogo) : []), [p.sons, p.receita, p.dur, catalogo])
+  // os eventos também parado: os arquivos dos sons já baixam (o 1º play sai inteiro)
+  const eventos = useMemo(() => eventosDaReceita(p.receita, p.dur, catalogo), [p.receita, p.dur, catalogo])
   useSonsNoTempo(eventos, p.rel, !!p.sons)
   // o tamanho da área em px: os cards guiados pelos cantos (`quadros`) precisam de px para a matrix3d
   const caixa = useRef<HTMLDivElement>(null)

@@ -8,6 +8,7 @@ const NOMES = {
   proxy: 'Preparando o vídeo para o player',
   silencios: 'Encontrando as pausas reais',
   transcricao: 'Transcrevendo o áudio, palavra por palavra',
+  alinhamento: 'Ajustando o tempo de cada palavra ao áudio',
   cortes: 'Escolhendo o texto final com IA',
 } as const
 
@@ -17,6 +18,15 @@ export default function Processamento({ projeto, aoMudar }: { projeto: Projeto; 
   const erro = projeto.pipeline?.erro
   const bruto = projeto.fontes.find((f) => f.papel === 'bruto')
   const veioHorizontal = !!projeto.enquadramento?.original || (bruto?.largura ?? 0) > (bruto?.altura ?? 0)
+  // o alinhamento só roda quando o motor ativo é um alinhador do Whisper (stable-ts, Qwen3, CTC); nos outros, é pulado
+  const ativo = projeto.transcricoes?.[projeto.transcricao_ativa]
+  const alinha = ativo?.familia === 'whisper' && projeto.transcricao_ativa !== 'whisper'
+  const aparece = (k: keyof typeof NOMES) => {
+    const s = passos[k]
+    if (k === 'enquadramento') return veioHorizontal && !!s && !s.pulado
+    if (k === 'alinhamento') return !s?.pulado && (alinha || (!!s && s.status !== 'pendente'))
+    return true
+  }
 
   return (
     <div className="grid h-full place-items-center px-6">
@@ -27,7 +37,7 @@ export default function Processamento({ projeto, aoMudar }: { projeto: Projeto; 
 
         <ul className="mt-8 grid gap-3.5 border-t border-line-dark pt-6">
           {/* o enquadramento só aparece num vídeo que chegou horizontal (nem como pendente num vertical) */}
-          {(Object.keys(NOMES) as (keyof typeof NOMES)[]).filter((k) => k !== 'enquadramento' || (veioHorizontal && !!passos.enquadramento && !passos.enquadramento.pulado)).map((k) => {
+          {(Object.keys(NOMES) as (keyof typeof NOMES)[]).filter(aparece).map((k) => {
             const s = passos[k] ?? { status: 'pendente' }
             return (
               <li key={k} className={cn('flex items-center gap-3 text-[13px]', s.status === 'pendente' ? 'text-fog/60' : 'text-cream')}>

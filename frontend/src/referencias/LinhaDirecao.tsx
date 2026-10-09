@@ -183,7 +183,7 @@ export default function LinhaDirecao(p: Props) {
   const largura = p.comentarios ? xComentarios + L_COMENTARIOS : fimElementos
 
   return (
-    <div ref={rolagem} className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden" data-alca>
+    <div ref={rolagem} className="relative min-h-0 flex-1 overflow-auto">
       <div
         className="relative"
         style={{ height: total + 40, width: Math.max(largura, 100) }}

@@ -74,8 +74,12 @@ export default function Projetos() {
                     className="size-full object-cover"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0b1714e6] via-transparent to-transparent" />
-                  <span className="absolute top-2.5 right-2.5 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
-                    {formatarDuracao(p.duracao)}
+                  {/* o tamanho do vídeo editado; antes dos cortes, o do bruto (dito na dica) */}
+                  <span
+                    className="absolute top-2.5 right-2.5 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums"
+                    title={p.duracao_final != null ? `Vídeo editado ${formatarDuracao(p.duracao_final)} · bruto ${formatarDuracao(p.duracao)}` : `Bruto ${formatarDuracao(p.duracao)} (ainda sem cortes)`}
+                  >
+                    {formatarDuracao(p.duracao_final ?? p.duracao)}
                   </span>
                   <Progresso etapas={p.etapas} />
                 </div>
@@ -100,17 +104,25 @@ export default function Projetos() {
   )
 }
 
-/** Uma barrinha por etapa, na base da miniatura: menta quando pronta. */
+// as etapas que ainda não marcam quando ficam prontas (sem um critério definido): a barrinha diz isso, em vez de "pendente"
+const SEM_CRITERIO = new Set(['transicoes', 'audio', 'legenda'])
+const ESTADO: Record<string, string> = { pronta: 'pronta', andamento: 'em andamento', pendente: 'pendente' }
+
+/** Uma barrinha por etapa, na base da miniatura: menta quando pronta, amarela em andamento (os Inserts com mídia em parte). */
 function Progresso({ etapas }: { etapas: ResumoProjeto['etapas'] }) {
   return (
     <div className="absolute inset-x-2.5 bottom-2.5 grid gap-1" style={{ gridTemplateColumns: `repeat(${ETAPAS.length}, minmax(0, 1fr))` }}>
-      {ETAPAS.map((e) => (
-        <span
-          key={e.id}
-          title={`${e.nome}: ${etapas[e.id]}`}
-          className={cn('h-1 rounded-full', etapas[e.id] === 'pronta' ? 'bg-mint' : 'bg-cream/25')}
-        />
-      ))}
+      {ETAPAS.map((e) => {
+        const estado = etapas[e.id]
+        const semCriterio = SEM_CRITERIO.has(e.id) && estado !== 'pronta'
+        return (
+          <span
+            key={e.id}
+            title={`${e.nome}: ${semCriterio ? 'ainda sem marcação de pronta' : (ESTADO[estado] ?? estado)}`}
+            className={cn('h-1 rounded-full', estado === 'pronta' ? 'bg-mint' : estado === 'andamento' ? 'bg-yellow/80' : 'bg-cream/25')}
+          />
+        )
+      })}
     </div>
   )
 }

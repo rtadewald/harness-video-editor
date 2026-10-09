@@ -1,4 +1,4 @@
-import type { CardReceita, Movimento, Preset, Receita } from './presets'
+import { comRepouso, type CardReceita, type Movimento, type Preset, type Receita } from './presets'
 
 /** Ajustes rápidos de um preset (SPEC §8.4): poucos controles de 3 opções, valendo só para o insert em que são escolhidos
  *  (o preset continua igual para os outros; "Salvar como padrão do preset" grava no preset). Cada preset tem o seu
@@ -98,13 +98,7 @@ export const AJUSTES: Ajuste[] = [
     padrao: (r) => (r.cards.every(cheio) ? 1 : 0),
     // tela toda: a mídia ocupa a área (na tela cheia, só as em pé; ver receitaParaInsert); card: centrado, com cantos e sombra
     aplicar: (r, i) =>
-      cards(r, (c) => ({
-        ...c,
-        repouso:
-          i === 1
-            ? { ...c.repouso, cx: 50, cy: 50, w: 100, h: 100, raio: 0, sombra: false }
-            : { ...c.repouso, cx: 50, cy: 50, w: 88, h: 70, raio: 2.2, sombra: true },
-      })),
+      cards(r, (c) => comRepouso(c, i === 1 ? { cx: 50, cy: 50, w: 100, h: 100, raio: 0, sombra: false } : { cx: 50, cy: 50, w: 88, h: 70, raio: 2.2, sombra: true })),
   },
   {
     id: 'camera',
@@ -134,7 +128,7 @@ export const AJUSTES: Ajuste[] = [
     fase: 'depois',
     aplicar: (r, i) => {
       const k = i === 0 ? 0.86 : 1.12
-      return cards(r, (c) => (c.repouso.w >= 99 && c.repouso.h >= 99 ? c : { ...c, repouso: { ...c.repouso, w: c.repouso.w * k, h: c.repouso.h * k } }))
+      return cards(r, (c) => (c.repouso.w >= 99 && c.repouso.h >= 99 ? c : comRepouso(c, { w: c.repouso.w * k, h: c.repouso.h * k })))
     },
   },
   {
@@ -154,9 +148,17 @@ export const AJUSTES: Ajuste[] = [
     nome: 'Quando o próximo entra',
     opcoes: ['Antes', 'Normal', 'Depois'],
     fase: 'depois',
+    // numa sequência, o anterior sai quando o próximo entra (termina na fração em que ele começa): a saída vai junto, para
+    // não ficar um vão vazio (Depois) nem o próximo por cima do anterior parado (Antes)
     aplicar: (r, i) => {
       const k = i === 0 ? 0.75 : 1.25
-      return cards(r, (c, j) => (j === 0 ? c : { ...c, inicio_frac: Math.min(c.inicio_frac * k, 0.9) }))
+      const novo = (j: number) => (j === 0 ? r.cards[0].inicio_frac : Math.min(r.cards[j].inicio_frac * k, 0.9))
+      return cards(r, (c, j) => {
+        const prox = r.cards[j + 1]
+        // (nos tempos medidos na referência, o próximo entra junto com o fim do anterior, a menos de 2% do insert)
+        const passa = prox && c.fim_frac != null && Math.abs(c.fim_frac - prox.inicio_frac) < 0.02
+        return { ...c, inicio_frac: novo(j), ...(passa ? { fim_frac: novo(j + 1) } : {}) }
+      })
     },
   },
 ]
@@ -185,6 +187,15 @@ export const rapidosDe = (p: Preset) => {
   return p.receita.sons?.some((s) => s.som) ? [...ids, 'som'] : ids
 }
 
+/** Os ajustes do insert que continuam ao trocar para o preset `p`: os que aparecem no card dele (e os dois sliders, que
+ *  todo preset tem); os outros cairiam escondidos, valendo sem controle para ver ou desfazer. Sem preset, nenhum. */
+export function ajustesAoTrocar(p: Preset | null | undefined, a: Ajustes | undefined): Ajustes | null {
+  if (!p || !a) return null
+  const ids = new Set([...rapidosDe(p), 'y', 'largura'])
+  const fica = Object.fromEntries(Object.entries(a).filter(([id]) => ids.has(id)))
+  return Object.keys(fica).length ? fica : null
+}
+
 /** Os ajustes que valem de fato: os escolhidos e, sem forma escolhida, "Tela toda" quando o preset pede isso para
  *  mídias em pé e todas são 9:16. */
 export function ajustesEfetivos(p: Preset | null | undefined, ajustes: Ajustes | undefined, aspectos: number[]): Ajustes | undefined {
@@ -202,7 +213,7 @@ function livres(r: Receita, ajustes: Ajustes): Receita {
   const y = Number(ajustes.y ?? 0)
   const k = Number(ajustes.largura ?? 1)
   if (!y && k === 1) return r
-  return cards(r, (c) => (cheio(c) ? c : { ...c, repouso: { ...c.repouso, cy: c.repouso.cy + y, w: c.repouso.w * k, h: c.repouso.h * k } }))
+  return cards(r, (c) => (cheio(c) ? c : comRepouso(c, { cy: c.repouso.cy + y, w: c.repouso.w * k, h: c.repouso.h * k })))
 }
 
 export function comAjustes(r: Receita, ajustes: Ajustes | undefined, fase: 'antes' | 'depois'): Receita {

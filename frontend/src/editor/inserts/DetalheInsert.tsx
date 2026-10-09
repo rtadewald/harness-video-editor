@@ -51,7 +51,7 @@ export default function DetalheInsert(p: {
   }
   return (
     <div
-      className={cn('grid gap-4 rounded-[6px]', arrastando && 'ring-2 ring-coral ring-offset-4 ring-offset-transparent')}
+      className={cn('grid grid-cols-[minmax(0,1fr)] gap-4 rounded-[6px]', arrastando && 'ring-2 ring-coral ring-offset-4 ring-offset-transparent')}
       onDragOver={(e) => {
         e.preventDefault()
         setArrastando(true)
@@ -118,7 +118,8 @@ export default function DetalheInsert(p: {
           />
         ))}
         {!x.midias.length && <p className="text-[11.5px] text-fog">Nenhuma ainda. Arraste arquivos para este painel, ou use os botões.</p>}
-        <div className="flex gap-2 text-[11px]">
+        {/* numa coluna estreita, os botões descem de linha em vez de empurrar a coluna (e cortar o que vem à direita) */}
+        <div className="flex flex-wrap gap-2 text-[11px] [&>button]:whitespace-nowrap">
           <button onClick={() => entrada.current?.click()} disabled={p.subindo} className="flex items-center gap-1 rounded-full bg-coral px-3 py-1 font-semibold text-cream hover:bg-coral/90 disabled:opacity-50">
             <Upload className="size-3" /> {x.midias.length ? '+ outra mídia' : 'Subir mídia'}
           </button>
@@ -130,7 +131,7 @@ export default function DetalheInsert(p: {
           </button>
         </div>
         {capturas.map((c) => (
-          <p key={c.id} className={cn('text-[11.5px]', c.status === 'erro' ? 'text-coral' : c.status === 'pronto' ? 'text-mint' : 'text-yellow')}>
+          <p key={c.id} className={cn('text-[11.5px] [overflow-wrap:anywhere]', c.status === 'erro' ? 'text-coral' : c.status === 'pronto' ? 'text-mint' : 'text-yellow')}>
             {c.status === 'fila'
               ? `Na fila: ${semHttp(c.url)}`
               : c.status === 'rodando'

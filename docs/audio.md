@@ -92,7 +92,10 @@ reinício do servidor, as locais interrompidas voltam à fila; o isolamento inte
 Enquanto uma limpeza nova é feita, a prévia continua com a voz que já tocava (o player não recarrega à toa); com erro,
 volta à voz do bruto, como o MP4. Quando o src muda (a limpeza nova fica pronta), o player continua do mesmo ponto,
 tocando se tocava. Ao ficar pronta, os proxies com a voz das outras limpezas são apagados (~50 MB cada para 2 min; se a
-escolha voltar, o proxy é refeito em segundos a partir do wav, que fica).
+escolha voltar, o proxy é refeito em segundos a partir do wav, que fica). 💡 O mesmo vale ao voltar para uma limpeza que
+já estava pronta (sem job novo) ou para "Sem limpeza": os proxies que a escolha não usa saem 10 s depois (a prévia ainda
+toca o anterior). Uma limpeza que termina depois de o criador ter escolhido outra (já pronta) apaga o próprio proxy, e a
+escolhida nunca é apagada; enquanto a escolhida ainda roda, nada é apagado.
 
 💡 **Reenquadrar**: o Reenquadrar tira o proxy do bruto enquanto o refaz (o arquivo velho fica até o novo o substituir).
 A limpeza não monta o proxy com a voz nesse intervalo, e uma que estava rodando confere a versão do vídeo no fim e
@@ -164,7 +167,8 @@ faders verticais de −12 a +6 dB, duplo clique volta a 0; o fundo com "mudo"); 
 sons das transições e a curva do nível do fundo. A cadeia da voz e os faders valem em todas as etapas; o fundo toca nas
 etapas com o vídeo montado (fora do Pré-processamento). 💡 Com erro na limpeza, "Tentar de novo" ao lado da mensagem;
 desligar o isolamento volta à limpeza de antes dele (ou à Leve); com "Sem fundo", o fader do Fundo e o mudo ficam
-apagados.
+apagados. 💡 Rodada 2 da QA: o ▶ de uma faixa a toca sozinha de verdade — com a prévia tocando, ela pausa (antes
+seguiam a voz, o fundo escolhido e a faixa ouvida juntos) — e dar play na prévia para a faixa que se estava ouvindo.
 
 💡 **Dados** (`projeto.audio`): `voz {limpeza, timbre}`, `fundo` (id da faixa ou null), `fundo_mudo`, `niveis {ator,
 presets, transicoes, fundo}` (dB) — as escolhas; e o que o app grava: `limpezas.<nível> = {estado: fila | rodando |

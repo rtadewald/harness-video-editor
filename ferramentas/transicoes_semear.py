@@ -59,14 +59,17 @@ def _de_efeito(c: dict, efeitos: dict[str, list[tuple[str, float]]]) -> str | No
 
 def main(refazer: bool = False) -> None:
     pares = json.loads((transicoes.RAIZ / 'pares.json').read_text())
-    # de onde vem cada transição de som: os cortes com aquele som
+    efeitos = {t['id']: [(f['ref'], f['t']) for f in t.get('fontes', [])] for t in BIBLIOTECA}
+    # de onde vem cada transição de som: os cortes com aquele som, menos os que são fonte de uma transição com efeito
+    # (esses contam para ela, como na contagem abaixo; senão a página mostraria a luz colorida como o "corte com clique")
     fontes = collections.defaultdict(list)
     for p in pares.values():
         for c in p['cortes']:
+            if _de_efeito(c, efeitos):
+                continue
             for s in c['sons']:
                 if s in DO_SOM:
                     fontes[DO_SOM[s]].append({'ref': c['ref'], 't': c['t']})
-    efeitos = {t['id']: [(f['ref'], f['t']) for f in t.get('fontes', [])] for t in BIBLIOTECA}
     for t in BIBLIOTECA:
         antigo = transicoes.ler(t['id']) if transicoes.existe(t['id']) and not refazer else {}
         guardado = {k: antigo[k] for k in ('nome', 'som') if k in antigo}  # o que se muda na página Transições

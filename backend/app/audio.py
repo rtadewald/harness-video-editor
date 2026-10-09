@@ -221,6 +221,8 @@ def pedir_voz(id: str, refazer: bool = False) -> dict:
         if refazer and e['estado'] == 'erro':
             _esquecer(id, e['limpeza'])
             e = estado_voz(id)
+        if e['estado'] in ('pronta', 'sem'):
+            _apagar_depois(id)  # voltou a uma limpeza já pronta (ou a nenhuma): os proxies das outras sobram
         if e['estado'] != 'falta':
             return e
         p = projeto.ler(id)
@@ -296,35 +298,59 @@ def _limpar(id: str, limpeza: str) -> None:
             destino.unlink(missing_ok=True)
             return _esquecer(id, limpeza)
         _marcar(id, limpeza, estado='pronta', progresso=1, erro=None)
-        # os proxies das outras limpezas, um pouco depois: a prévia ainda toca o anterior até ver esta pronta
-        if APAGAR_DEPOIS:
-            t = threading.Timer(APAGAR_DEPOIS, _apagar_outros, (id, limpeza))
-            t.daemon = True
-            t.start()
-        else:
-            _apagar_outros(id, limpeza)
+        _apagar_depois(id)
     except Exception as e:  # noqa: BLE001 — o erro vai para a tela
         traceback.print_exc()
         _marcar(id, limpeza, estado='erro', erro=str(e)[:300])
 
 
-def _apagar_outros(id: str, limpeza: str) -> None:
-    """Apaga os proxies com a voz das outras limpezas e versões do vídeo (~50 MB cada para 2 min; refeitos em segundos
-    se a escolha voltar, o wav fica) — só se `limpeza` ainda é a escolhida e está pronta: uma limpeza que terminou
-    depois de o criador voltar para outra não apaga o vídeo que a prévia está tocando."""
+_agendados: set[str] = set()  # os projetos com uma limpeza dos proxies já marcada (o GET da tela repete o pedido)
+
+
+def _apagar_depois(id: str) -> None:
+    """Apaga os proxies com a voz que a escolha atual não usa, um pouco depois (`APAGAR_DEPOIS`): a prévia ainda toca o
+    anterior até ver a escolha pronta. Vale ao terminar uma limpeza e ao voltar para uma que já estava pronta (ou para
+    nenhuma); só marca se há algo a apagar, e uma vez por projeto."""
+    if not _sobras(id):
+        return
+    with _trava:
+        if id in _agendados:
+            return
+        _agendados.add(id)
+
+    def apagar():
+        with _trava:
+            _agendados.discard(id)
+        _apagar_outros(id)
+    if APAGAR_DEPOIS:
+        t = threading.Timer(APAGAR_DEPOIS, apagar)
+        t.daemon = True
+        t.start()
+    else:
+        apagar()
+
+
+def _sobras(id: str) -> list[Path]:
+    """Os proxies com a voz que a escolha atual não usa (todos, sem limpeza): os das outras limpezas e versões do vídeo
+    (~50 MB cada para 2 min; refeitos em segundos se a escolha voltar, o wav fica). Nenhum enquanto a escolha não está
+    pronta: a prévia ainda toca um deles."""
     try:
         p = projeto.ler(id)
-        if do_projeto(p)['voz']['limpeza'] != limpeza:
-            return
         e = estado_voz(id)
-        if e.get('estado') != 'pronta':
-            return
-        destino = projeto.pasta(id) / e['proxy']
-        for velho in destino.parent.glob(f'{_bruto(p)["id"]}_voz_*.mp4'):
-            if velho != destino and not velho.name.endswith('.parte.mp4'):
-                velho.unlink(missing_ok=True)
+        if e['estado'] not in ('pronta', 'sem'):
+            return []
+        usado = projeto.pasta(id) / e['proxy'] if e['estado'] == 'pronta' else None
+        pasta = projeto.pasta(id) / 'midia' / 'proxy'
+        return [x for x in pasta.glob(f'{_bruto(p)["id"]}_voz_*.mp4') if x != usado and not x.name.endswith('.parte.mp4')]
     except (FileNotFoundError, ValueError, KeyError, StopIteration):
-        pass  # o projeto sumiu (ou não tem bruto): nada a apagar
+        return []  # o projeto sumiu (ou não tem bruto): nada a apagar
+
+
+def _apagar_outros(id: str) -> None:
+    """Apaga as sobras da escolha de agora (lida na hora: uma limpeza que terminou depois de o criador voltar para outra
+    não apaga o vídeo que a prévia está tocando, só o dela)."""
+    for velho in _sobras(id):
+        velho.unlink(missing_ok=True)
 
 
 def _deepfilter(entrada: Path, saida: Path, limite: float) -> None:

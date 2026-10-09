@@ -96,7 +96,10 @@ export default function Simulacao(p: {
       id = requestAnimationFrame(passo)
     }
     id = requestAnimationFrame(passo)
-    return () => cancelAnimationFrame(id)
+    return () => {
+      cancelAnimationFrame(id)
+      setTSim(0) // o próximo play sai do zero (e os sons não tomam o último quadro do play anterior pelo ponto do play)
+    }
   }, [p.tocando, durSim, p.reinicio])
   const t = p.tocando ? tSim : p.t
   const dur = p.tocando ? durSim : p.dur

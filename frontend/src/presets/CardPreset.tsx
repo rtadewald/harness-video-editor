@@ -27,6 +27,9 @@ export default function CardPreset({ p, aberto, abrir, tocando, tocar, midiasSim
   const video = useRef<HTMLVideoElement>(null)
   const linha = useRef<HTMLElement>(null)
   const [t, setT] = useState(0)
+  // o loop já andou um quadro: os sons ligam aí, com o relógio no começo do trecho (no clique, `t` ainda é o repouso, e
+  // o play "no meio" faria um som que já passou entrar adiantado — o riser do Sobe e mergulha tocava duas vezes)
+  const [rodando, setRodando] = useState(false)
   const [carregando, setCarregando] = useState(false)
   // fora da tela, para e solta o vídeo: o navegador abre poucas conexões por servidor, e vídeos baixando fora da tela
   // seguram as dos que estão à vista (o play travava no começo do trecho)
@@ -82,6 +85,7 @@ export default function CardPreset({ p, aberto, abrir, tocando, tocar, midiasSim
     const v = video.current
     if (!tocando || !visivel || !v || !fonte) {
       setT(repouso) // parado: a recriação no repouso, junto da foto da referência
+      setRodando(false)
       if (tocando && !visivel) tocar(false)
       return
     }
@@ -94,6 +98,7 @@ export default function CardPreset({ p, aberto, abrir, tocando, tocar, midiasSim
         if (simulando.current) document.querySelectorAll<HTMLVideoElement>('.fixed video').forEach((x) => x !== v && (x.currentTime = 0))
       }
       setT(Math.max(v.currentTime - fonte.inicio, 0))
+      setRodando(true)
       id = requestAnimationFrame(passo)
     }
     v.currentTime = fonte.inicio
@@ -102,6 +107,7 @@ export default function CardPreset({ p, aberto, abrir, tocando, tocar, midiasSim
     return () => {
       cancelAnimationFrame(id)
       v.pause()
+      setRodando(false)
     }
   }, [fonte?.ref, fonte?.inicio, fonte?.fim, tocando, visivel, repouso]) // eslint-disable-line react-hooks/exhaustive-deps
   const area = p.formato === 'vertical' ? 'aspect-[9/16]' : 'aspect-[9/8]'
@@ -138,17 +144,19 @@ export default function CardPreset({ p, aberto, abrir, tocando, tocar, midiasSim
             ) : (
             <div className={cn('absolute inset-x-0 top-0', area)}>
               <CenaPreset
-                receita={paraMidias(p.receita, Math.max(p.recortes?.length ?? 0, 2))}
+                // uma mídia por recorte: quantas a referência mostra no trecho (nem mais, nem menos)
+                receita={paraMidias(p.receita, Math.max(p.recortes?.length ?? 0, 1))}
                 rel={t}
                 dur={dur}
-                sons={tocando}
+                sons={tocando && rodando}
                 fundo="gradiente"
                 className="inset-0"
                 midia={(j, _rel, topo) => {
-                  const rc = p.recortes?.[j]
+                  const a = j % Math.max(p.recortes?.length ?? 1, 1) // um card além dos recortes repete as amostras
+                  const rc = p.recortes?.[a]
                   // tocando: a mídia é o próprio vídeo da referência, recortado onde o card está (o conteúdo anda como lá)
                   if (tocando && fonte && url && rc?.quad && !cresce(p.receita.cards[j] ?? p.receita.cards[0])) return <MidiaDaReferencia src={url} quad={rc.quad} t0={fonte.inicio + rc.t} agora={fonte.inicio + t} />
-                  return <img src={urlAmostraPreset(p.id, j, versao(p, j))} alt="" className={cn('size-full object-cover', topo && 'object-top')} />
+                  return <img src={urlAmostraPreset(p.id, a, versao(p, a))} alt="" className={cn('size-full object-cover', topo && 'object-top')} />
                 }}
               />
             </div>
@@ -330,7 +338,10 @@ function NomeEditavel({ preset }: { preset: Preset }) {
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') e.currentTarget.blur()
-        if (e.key === 'Escape') setEditando(false)
+        if (e.key === 'Escape') {
+          e.preventDefault() // só sai da edição do nome; o modal continua aberto
+          setEditando(false)
+        }
       }}
       className="w-[420px] rounded-[4px] border border-cream/30 bg-transparent px-1.5 text-[16px] font-semibold text-cream outline-none"
     />

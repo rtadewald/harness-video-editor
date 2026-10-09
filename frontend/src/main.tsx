@@ -14,25 +14,31 @@ import Presets from './paginas/Presets'
 import PaginaMotions from './motions/PaginaMotions'
 import RenderPreset from './paginas/RenderPreset'
 import Transicoes from './paginas/Transicoes'
+import NaoEncontrada from './paginas/NaoEncontrada'
+import FalhaNaTela from './components/FalhaNaTela'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Projetos />} />
-        <Route path="/p/:id" element={<Editor />} />
-        <Route path="/referencias" element={<Referencias />} />
-        <Route path="/calibragem" element={<Calibragem />} />
-        <Route path="/calibragem/:id" element={<RevisaoReferencia />} />
-        <Route path="/heuristica" element={<Heuristica />} />
-        <Route path="/banco" element={<Banco />} />
-        <Route path="/presets" element={<Presets />} />
-        <Route path="/motions" element={<PaginaMotions />} />
-        <Route path="/transicoes" element={<Transicoes />} />
-        <Route path="/render/chuva" element={<RenderChuva />} />
-        <Route path="/render/p/:id" element={<RenderProjeto />} />
-        <Route path="/render/preset" element={<RenderPreset />} />
-      </Routes>
+      {/* um erro numa tela mostra um aviso com "Recarregar", não a página em branco */}
+      <FalhaNaTela>
+        <Routes>
+          <Route path="/" element={<Projetos />} />
+          <Route path="/p/:id" element={<Editor />} />
+          <Route path="/referencias" element={<Referencias />} />
+          <Route path="/calibragem" element={<Calibragem />} />
+          <Route path="/calibragem/:id" element={<RevisaoReferencia />} />
+          <Route path="/heuristica" element={<Heuristica />} />
+          <Route path="/banco" element={<Banco />} />
+          <Route path="/presets" element={<Presets />} />
+          <Route path="/motions" element={<PaginaMotions />} />
+          <Route path="/transicoes" element={<Transicoes />} />
+          <Route path="/render/chuva" element={<RenderChuva />} />
+          <Route path="/render/p/:id" element={<RenderProjeto />} />
+          <Route path="/render/preset" element={<RenderPreset />} />
+          <Route path="*" element={<NaoEncontrada texto="Este endereço não leva a nenhuma tela do app." />} />
+        </Routes>
+      </FalhaNaTela>
     </BrowserRouter>
   </StrictMode>,
 )

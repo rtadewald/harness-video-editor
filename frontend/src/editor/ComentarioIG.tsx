@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { noQuadro } from './divisao'
 
 /** O card de comentário do Instagram (plano Comentário + insert + ator; SPEC §8.3): foto, usuário e tempo borrados,
  *  o texto, "Responder" e "Ver tradução". Fonte do sistema da Apple (a que o Instagram usa no iPhone). */
@@ -29,7 +30,7 @@ function Avatar({ n, borrado = true, className, tamanho }: { n: number; borrado?
 }
 
 /** O card na prévia (centro em `x`, `y` %; largura 75% × escala). Editável no próprio vídeo: clicar seleciona, arrastar
- *  move, a alça do canto muda o tamanho; clicar fora tira a seleção. */
+ *  move, a alça do canto muda o tamanho; clicar fora tira a seleção. O card fica sempre inteiro no quadro (`divisao.noQuadro`). */
 export function CardComentario({ c, texto, mudar }: { c: Comentario; texto: string; mudar?: (campos: Partial<Comentario>) => void }) {
   const caixa = useRef<HTMLDivElement>(null)
   const card = useRef<HTMLDivElement>(null)
@@ -56,12 +57,7 @@ export function CardComentario({ c, texto, mudar }: { c: Comentario; texto: stri
     const r = caixa.current!.getBoundingClientRect()
     const dx = e.clientX - (r.left + (c.x / 100) * r.width)
     const dy = e.clientY - (r.top + (c.y / 100) * r.height)
-    segue((ev) =>
-      mudar({
-        x: Math.round(Math.max(5, Math.min(95, ((ev.clientX - dx - r.left) / r.width) * 100))),
-        y: Math.round(Math.max(5, Math.min(95, ((ev.clientY - dy - r.top) / r.height) * 100))),
-      }),
-    )
+    segue((ev) => mudar(noQuadro({ ...c, x: ((ev.clientX - dx - r.left) / r.width) * 100, y: ((ev.clientY - dy - r.top) / r.height) * 100 }, texto)))
   }
   const redimensionar = (e: React.PointerEvent) => {
     if (!mudar) return
@@ -70,8 +66,14 @@ export function CardComentario({ c, texto, mudar }: { c: Comentario; texto: stri
     const r = caixa.current!.getBoundingClientRect()
     const centro = r.left + (c.x / 100) * r.width
     // a largura acompanha a distância do mouse ao centro do card (75% da tela = tamanho 100%)
-    segue((ev) => mudar({ escala: Math.round(Math.max(0.6, Math.min(1.3, (Math.abs(ev.clientX - centro) * 2) / (r.width * 0.75))) * 100) / 100 }))
+    segue((ev) => {
+      const escala = Math.round(Math.max(0.6, Math.min(1.3, (Math.abs(ev.clientX - centro) * 2) / (r.width * 0.75))) * 100) / 100
+      // encostado na borda, o card cresce para dentro (o centro anda): a alça continua à vista
+      const pos = noQuadro({ ...c, escala }, texto)
+      mudar({ escala, ...(pos.x !== c.x || pos.y !== c.y ? pos : {}) })
+    })
   }
+  const pos = noQuadro(c, texto)
   const u = (v: number) => `${v * c.escala}cqw` // medidas proporcionais à largura do vídeo
   return (
     <div ref={caixa} className="pointer-events-none absolute inset-0 z-10" style={{ containerType: 'size' }}>
@@ -84,7 +86,7 @@ export function CardComentario({ c, texto, mudar }: { c: Comentario; texto: stri
           mudar && 'pointer-events-auto cursor-move',
           sel && 'outline-2 outline-offset-2 outline-yellow',
         )}
-        style={{ left: `${c.x}%`, top: `${c.y}%`, fontFamily: FONTE_IG, gap: u(2.6), padding: `${u(2.6)} ${u(3.2)}`, borderRadius: u(3), width: `${Math.min(75 * c.escala, 96)}%` }}
+        style={{ left: `${pos.x}%`, top: `${pos.y}%`, fontFamily: FONTE_IG, gap: u(2.6), padding: `${u(2.6)} ${u(3.2)}`, borderRadius: u(3), width: `${Math.min(75 * c.escala, 96)}%` }}
         title={mudar ? 'Arraste para mover; a alça do canto muda o tamanho' : undefined}
       >
         <Avatar n={c.avatar} className="shrink-0" tamanho={u(8.2)} />

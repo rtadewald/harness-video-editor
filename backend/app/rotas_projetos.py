@@ -2,6 +2,7 @@
 import json
 import os
 import shutil
+import traceback
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -110,8 +111,13 @@ def criar(
         fontes = []
         destino = base / 'midia' / f'bruto{_extensao(bruto)}'
         _guardar(bruto, destino)
+        info = midia.inspecionar(destino)
+        if 'largura' not in info:
+            raise HTTPException(422, 'Este arquivo não tem imagem: escolha um vídeo.')
+        if not info['tem_audio']:
+            raise HTTPException(422, 'Este vídeo não tem áudio: o editor precisa da fala para transcrever e cortar.')
         fontes.append({'id': 'f1', 'papel': 'bruto', 'arquivo': str(destino.relative_to(base)),
-                       'nome_original': bruto.filename, **midia.inspecionar(destino)})
+                       'nome_original': bruto.filename, **info})
 
         for i, apoio in enumerate(apoios, 1):
             destino = base / 'midia' / 'apoio' / f'a{i}{_extensao(apoio)}'
@@ -133,7 +139,10 @@ def criar(
         shutil.rmtree(base, ignore_errors=True)
         if isinstance(e, HTTPException):
             raise
-        raise HTTPException(422, f'Não consegui ler um dos arquivos: {e}')
+        if isinstance(e, midia.ErroMidia):
+            raise HTTPException(422, str(e))
+        traceback.print_exc()
+        raise HTTPException(422, f'Não consegui ler um dos arquivos: {midia.legivel(e)}')
     pipeline.enfileirar(id)
     return projeto.ler(novo['id'])
 

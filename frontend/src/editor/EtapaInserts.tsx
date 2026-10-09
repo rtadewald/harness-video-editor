@@ -2,23 +2,22 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PanelRightClose, PanelRightOpen, Captions, Clapperboard, Images, Scissors, Search, Wand2 } from 'lucide-react'
 import { definirMidias, configurarComentario, definirFundo, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, salvarDirecaoProjeto, type DadosEditor, type Projeto, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
-import { falaDoPlano, urlPaginaMotionPlano } from '@/motions/api'
 import { useLembrado } from '@/lib/useLembrado'
 import { paraAncora, paraTempo, palavrasNaSaida } from './direcaoProjeto'
 import { dividirPlano, editar } from '@/referencias/edicao'
 import { CATEGORIAS } from './EtapaDirecao'
 import { PainelComentario, comentarioDe, type Comentario } from './ComentarioIG'
 import BuscarReferencias from './BuscarReferencias'
-import { usePresets } from './presets'
+import { usePresets, vidasDasMidias } from './presets'
 import CardAjustes from './CardAjustes'
 import { aspectosDe, telaTodaPermitida } from './divisao'
 import MontagemNoPalco from './MontagemNoPalco'
 import { useRosto, type AjusteAtor } from './ator'
 import PainelMotion from '@/motions/PainelMotion'
 import { EdicaoPreset } from '@/motions/PresetMotion'
-import { preCarregarMarcas } from '@/motions/sons'
+import { usePreCarregarMarcas } from '@/motions/sons'
 import { useMotionsDoProjeto } from '@/motions/useMotionsDoProjeto'
-import { pedidosNoTempo, presetDe } from './InsertNoLugar'
+import { pedidosNoTempo, presetDe, receitaDoInsert } from './InsertNoLugar'
 import LinhaInserts from './LinhaInserts'
 import { corteDe, enriquecimentoDe, entradaDe, saidaDe, type Qual } from './enriquecimento'
 import { duracaoEntrada, duracaoSaida, useEntradas, type Lado } from './entradas'
@@ -33,6 +32,7 @@ import DetalheInsert from './inserts/DetalheInsert'
 import { Alca, Cabecalho, Campo, Recolhivel, useTamanhos } from './inserts/layout'
 import PainelEnriquecimento from './inserts/PainelEnriquecimento'
 import { Categoria, EditorPresetAberto, EscolhaFundo, ResumoFundo, SemInsert } from './inserts/pecas'
+import { emCampoDeTexto, modalAberto } from '@/lib/atalhos'
 
 type Props = {
   dados: DadosEditor
@@ -49,6 +49,9 @@ type Props = {
 /** Etapa 03 (SPEC §8.3): a pós-produção dos planos da direção, em três trabalhos — as MÍDIAS de cada insert (subir,
  *  escolher do banco, capturar site), os MOTIONS (em construção) e o ENRIQUECIMENTO (como cada insert aparece, mock).
  *  A timeline é a da Direção, só de leitura, com uma coluna de mídias. */
+/** A largura mínima do vídeo na prévia, com os controles do player embaixo. */
+const VIDEO_MIN = 300
+
 export default function EtapaInserts(p: Props) {
   const { dados, seq, player } = p
   const projeto = dados.projeto
@@ -122,15 +125,7 @@ export default function EtapaInserts(p: Props) {
   }, [planoNoCursor?.id])
 
   // as marcas de som dos motions, lidas de antemão (uma página por vez): o som da digitação começa junto com as letras
-  useEffect(() => {
-    let fila = Promise.resolve()
-    for (const pl of planos) {
-      const m = motions[pl.id]
-      if (m?.tipo !== 'preset') continue
-      const src = urlPaginaMotionPlano(projeto.id, pl.id, m, pl.fim - pl.inicio, falaDoPlano(saida, pl.inicio, pl.fim))
-      fila = fila.then(() => preCarregarMarcas(src, m.formato).then(() => {}))
-    }
-  }, [planos, motions, saida, projeto.id])
+  usePreCarregarMarcas(projeto.id, planos, motions, saida)
   const presetsTodos = usePresets()
 
   const salvar = (pid: string, midias: NovaMidia[]) => definirMidias(projeto.id, pid, midias as MidiaLigada[]).then(setIns).catch(falhar)
@@ -233,7 +228,7 @@ export default function EtapaInserts(p: Props) {
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== 'd' || e.metaKey || e.ctrlKey || e.altKey) return
-      if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return
+      if (emCampoDeTexto(e.target) || modalAberto()) return
       e.preventDefault()
       cortarNoCursor()
     }
@@ -244,7 +239,7 @@ export default function EtapaInserts(p: Props) {
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== 'r' || e.metaKey || e.ctrlKey || e.altKey) return
-      if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return
+      if (emCampoDeTexto(e.target) || modalAberto()) return
       // o plano sob o cursor (o trecho tocado para um quadro antes do fim, então o cursor fica nele); se o cursor parou
       // exatamente no fim do último tocado, ele de novo
       const naBorda = ultimoR.current && Math.abs(tempo - ultimoR.current.fim) < 0.2 ? planos.find((x) => x.id === ultimoR.current!.id) : null
@@ -274,18 +269,36 @@ export default function EtapaInserts(p: Props) {
     player.tocarTrecho(seq.saidaParaFonte(a), seq.saidaParaFonte(Math.max(b - 0.01, a)), { pular: true, loop: false })
   }
   const pedidosPorPlano = useMemo(() => new Map(pedidos.map((x) => [x.plano, x])), [pedidos])
+  // com preset e várias mídias, o preset manda em quando cada uma está na tela: a trilha Mídias desenha por ele
+  const vidasPreset = useMemo(() => {
+    const m = new Map<string, ReturnType<typeof vidasDasMidias>>()
+    for (const x of pedidos) {
+      if (x.midias.length < 2) continue
+      const r = receitaDoInsert(x, banco, presetsTodos)
+      if (r) m.set(x.plano, vidasDasMidias(r, Math.max(x.t.fim - x.t.inicio, 0.01), x.midias.length))
+    }
+    return m
+  }, [pedidos, banco, presetsTodos])
   const planosLinha = useMemo(() => planos.map((pl, k) => ({ ...pl, n: k + 1 })), [planos])
   const elementos = useMemo(() => itens.filter((i) => i.camada === 'elemento'), [itens])
   const nomes = { ...CATEGORIAS.planos, ...CATEGORIAS.elementos }
   const [tam, arrastarBorda] = useTamanhos()
   const [coluna, setColuna] = useLembrado('inserts.colunaAberta', true)
+  // aberta à mão numa janela em que ela não cabe (vale enquanto a tela está aberta; a preferência acima não muda)
+  const [colunaForcada, setColunaForcada] = useState(false)
+  const abrirColuna = () => {
+    setColuna(true)
+    setColunaForcada(true)
+  }
   const [verLegenda, setVerLegenda] = useLembrado('inserts.verLegenda', true)
   const lg = p.legenda
   const blocosLegenda = useMemo(
     () => (lg?.ligada && verLegenda ? blocosDaLegenda(saida, planos, lg, dados.palavras, zonasDaLegenda(pedidos, banco, presetsTodos)) : []),
     [lg, verLegenda, saida, planos, dados.palavras, pedidos, banco, presetsTodos],
   )
-  // a janela pode não comportar as larguras escolhidas: os cards encolhem juntos, e o vídeo fica com 300 px no mínimo
+  // a janela pode não comportar as larguras escolhidas: o centro guarda 300 px para o vídeo (com os controles) e, ao lado,
+  // a coluna do preset e do fundo (268 px) ou a faixa dela recolhida; os cards encolhem juntos com o que sobra. Se a coluna
+  // só coubesse apertando os cards a menos de 80%, ela fica recolhida sozinha (a faixa a abre mesmo assim)
   const area = useRef<HTMLDivElement>(null)
   const [largura, setLargura] = useState(0)
   useEffect(() => {
@@ -295,7 +308,11 @@ export default function EtapaInserts(p: Props) {
     obs.observe(el)
     return () => obs.disconnect()
   }, [])
-  const cabe = largura ? Math.min(1, Math.max(largura - 300, 0) / (tam.esq + tam.dir)) : 1
+  const centroComColuna = VIDEO_MIN + 48 + 20 + 268 // o vídeo, o px-6 da seção, o espaço e a coluna
+  const centroSemColuna = VIDEO_MIN + 48 + 20 + 36 - 24 // a faixa recolhida (36 px) encosta na borda (-mr-6)
+  const apertado = largura > 0 && largura - centroComColuna < (tam.esq + tam.dir) * 0.8
+  const colunaVisivel = coluna && (!apertado || colunaForcada)
+  const cabe = largura ? Math.min(1, Math.max(largura - (colunaVisivel ? centroComColuna : centroSemColuna), 0) / (tam.esq + tam.dir)) : 1
   const esq = Math.round(tam.esq * cabe)
   const dir = Math.round(tam.dir * cabe)
 
@@ -395,6 +412,8 @@ export default function EtapaInserts(p: Props) {
                 motions={motions}
                 tempo={tempo}
                 tocando={player.tocando}
+                velocidade={player.velocidade}
+                avisoSemMidia
                 videoRef={player.ref}
                 src={p.src}
                 enquadramentoX={p.enquadramentoX}
@@ -409,7 +428,7 @@ export default function EtapaInserts(p: Props) {
           </div>
           {/* o espaço livre ao lado do vídeo: o fundo (do vídeo todo) e, nos comentários, o card do Instagram; a coluna
               inteira recolhe para o lado, numa faixa encostada no Enriquecimento */}
-          {coluna ? (
+          {colunaVisivel ? (
             <div className="-mx-1 flex min-h-0 w-[268px] shrink-0 flex-col gap-3 overflow-y-auto px-1 py-0.5">
               <div className="flex items-center justify-end gap-1">
                 {lg?.ligada && (
@@ -422,7 +441,7 @@ export default function EtapaInserts(p: Props) {
                   </button>
                 )}
                 <button
-                  onClick={() => setColuna(false)}
+                  onClick={() => (apertado ? setColunaForcada(false) : setColuna(false))}
                   className="flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] text-fog hover:text-cream"
                   title="Recolher para o lado"
                 >
@@ -437,7 +456,7 @@ export default function EtapaInserts(p: Props) {
               )}
               {sel && presetDoSel && (
                 <Recolhivel chave="ajustes" titulo="Preset" resumo={<span className="truncate text-[11.5px] text-fog">{presetDoSel.nome}</span>}>
-                  <CardAjustes preset={presetDoSel} ajustes={sel.enriquecimento?.ajustes} aspectos={aspectosDe(sel.midias, banco)} telaToda={telaTodaPermitida(sel.formato, sel.enriquecimento?.divisao === 'atras', aspectosDe(sel.midias, banco))} mudar={(a) => mudarEnriquecimento(sel.id, { ajustes: a })} />
+                  <CardAjustes preset={presetDoSel} ajustes={sel.enriquecimento?.ajustes} aspectos={aspectosDe(sel.midias, banco)} telaToda={telaTodaPermitida(sel.formato, sel.enriquecimento?.divisao === 'atras', aspectosDe(sel.midias, banco))} receita={receitaDoInsert(sel, banco, presetsTodos)} mudar={(a) => mudarEnriquecimento(sel.id, { ajustes: a })} />
                 </Recolhivel>
               )}
               {motionPreset && planoSel && (
@@ -456,14 +475,14 @@ export default function EtapaInserts(p: Props) {
             </div>
           ) : (
             <div className="-mr-6 -mt-5 -mb-3 flex w-9 shrink-0 flex-col items-center gap-1.5 border-l border-line-dark py-3">
-              <button onClick={() => setColuna(true)} className="mb-1 grid size-7 place-items-center rounded-full text-fog hover:bg-cream/8 hover:text-cream" title="Abrir">
+              <button onClick={abrirColuna} className="mb-1 grid size-7 place-items-center rounded-full text-fog hover:bg-cream/8 hover:text-cream" title="Abrir">
                 <PanelRightOpen className="size-4" />
               </button>
               {/* recolhidos, os cards viram abas em pé (como os painéis recolhidos do Photoshop) */}
               {[...(presetAberto || presetDoSel ? ['Preset'] : []), ...(motionPreset ? ['Motion'] : []), 'Fundo', ...(sel?.tipo === 'comentario_insert_ator' ? ['Comentário'] : [])].map((nome) => (
                 <button
                   key={nome}
-                  onClick={() => setColuna(true)}
+                  onClick={abrirColuna}
                   className="rounded-[6px] px-1.5 py-3 text-[10px] font-semibold tracking-[0.14em] text-fog uppercase ring-1 ring-line-dark transition-colors hover:text-cream hover:ring-cream/40"
                   style={{ writingMode: 'vertical-rl' }}
                 >
@@ -490,7 +509,7 @@ export default function EtapaInserts(p: Props) {
                 presetAberto={presetAberto}
                 abrirPreset={(id) => {
                   setPresetAberto(id)
-                  if (id) setColuna(true)
+                  if (id) abrirColuna()
                 }}
                 fundo={ins?.fundo ?? 'gradiente'}
               />
@@ -536,6 +555,7 @@ export default function EtapaInserts(p: Props) {
           selecionar={(id) => escolher(id)}
           escolherMidia={(id) => selPlano !== id && escolher(id)}
           ajustarCorte={ajustarCorte}
+          vidas={vidasPreset}
           motions={motions}
           ferramentas={
             <button

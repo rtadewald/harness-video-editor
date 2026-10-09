@@ -32,7 +32,8 @@ def do_projeto(p: dict) -> dict:
 
 def validar(campos: dict, atual: dict) -> dict:
     """As escolhas novas por cima das atuais. `ajustes`: {id da palavra que começa o bloco: {fim?: id da última palavra,
-    texto?: str ('' esconde o bloco)} | null (volta ao automático)}. Levanta ValueError se a forma estiver errada."""
+    texto?: str ('' esconde o bloco), modo?: o modo em que uma presilha (só o `fim`) vale} | null (volta ao automático)}.
+    Levanta ValueError se a forma estiver errada."""
     novo = {**atual, 'ajustes': dict(atual['ajustes'])}
     if 'ligada' in campos:
         novo['ligada'] = bool(campos['ligada'])
@@ -57,6 +58,12 @@ def validar(campos: dict, atual: dict) -> dict:
             a['fim'] = str(v['fim'])
         if v.get('texto') is not None:
             a['texto'] = str(v['texto'])[:200]
+        # a presilha do Separar no Frase curta só vale naquele modo; um texto corrigido vale nos dois
+        if v.get('modo') is not None:
+            if v['modo'] not in MODOS:
+                raise ValueError('Modo desconhecido')
+            if 'fim' in a and 'texto' not in a:
+                a['modo'] = v['modo']
         if a:
             novo['ajustes'][k] = a
         else:

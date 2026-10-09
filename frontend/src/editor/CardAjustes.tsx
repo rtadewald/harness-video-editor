@@ -2,17 +2,26 @@ import { useEffect, useState } from 'react'
 import { Save } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AJUSTES, ajustesEfetivos, comAjustes, padraoDe, rapidosDe, type Ajustes } from './ajustes'
-import { editarPreset, type Preset } from './presets'
+import { editarPreset, type Preset, type Receita } from './presets'
 
 /** Os ajustes rápidos do preset do insert selecionado (SPEC §8.4): poucos controles de 3 opções, só para este insert.
  *  "Salvar como padrão" grava as escolhas no preset (vale para os outros inserts) e limpa as deste. */
-export default function CardAjustes(p: { preset: Preset; ajustes: Ajustes | undefined; mudar: (a: Ajustes | null) => void; aspectos?: number[]; telaToda?: boolean }) {
-  const ids = rapidosDe(p.preset)
+/** `receita`: a que o insert toca (com as mídias e os ajustes); com ela, somem os controles que não mudariam nada ali
+ *  ("Quando o próximo entra" com um card só; "Tamanho do card" e os sliders Posição e Largura com todos ocupando a área,
+ *  a tela toda), a não ser que já tenham uma escolha (para dar para desfazer). */
+export default function CardAjustes(p: { preset: Preset; ajustes: Ajustes | undefined; mudar: (a: Ajustes | null) => void; aspectos?: number[]; telaToda?: boolean; receita?: Receita | null }) {
   const atual = p.ajustes ?? {}
+  const semEfeito = (id: string) =>
+    !!p.receita &&
+    atual[id] == null &&
+    ((id === 'proximo' && p.receita.cards.length < 2) || (['tamanho', 'y', 'largura'].includes(id) && p.receita.cards.every((c) => c.repouso.w >= 99 && c.repouso.h >= 99)))
+  const ids = rapidosDe(p.preset).filter((id) => !semEfeito(id))
   const efetivo = ajustesEfetivos(p.preset, p.ajustes, p.aspectos ?? []) ?? {}
-  // a opção que vale sem escolha no insert: a automática (ex.: "Tela toda" com mídias 9:16) ou a do preset
+  // a opção que vale sem escolha no insert: a automática (ex.: "Tela toda" com mídias 9:16) ou a do preset; sem a tela
+  // toda permitida, a forma é "Card" (a que aparece marcada: escolhê-la não muda nada nem conta como ajuste)
   const semEscolha = (id: string) => {
     const aj = AJUSTES.find((x) => x.id === id)!
+    if (id === 'forma' && p.telaToda === false) return 'Card'
     const { [id]: _, ...resto } = atual
     return (ajustesEfetivos(p.preset, resto, p.aspectos ?? []) ?? {})[id] ?? aj.opcoes[padraoDe(aj, p.preset.receita)]
   }
@@ -74,14 +83,15 @@ export default function CardAjustes(p: { preset: Preset; ajustes: Ajustes | unde
           </div>
         )
       })}
-      {/* subir/descer e a largura dos cards, numa linha */}
+      {/* subir/descer e a largura dos cards, numa linha (na tela toda, sem efeito: somem) */}
+      {!(semEfeito('y') && semEfeito('largura')) && (
       <div className="grid grid-cols-2 gap-4">
         {(
           [
-            ['y', 'Posição', -25, 25, 0.5, 0, (v: number) => `${v > 0 ? '↓' : v < 0 ? '↑' : ''}${Math.abs(v).toFixed(0)}`],
+            ['y', 'Posição', -25, 25, 0.5, 0, (v: number) => `${v > 0 ? '↓' : v < 0 ? '↑' : ''}${Math.abs(v).toFixed(Number.isInteger(v) ? 0 : 1).replace('.', ',')}`],
             ['largura', 'Largura', 0.7, 1.3, 0.01, 1, (v: number) => `${Math.round(v * 100)}%`],
           ] as const
-        ).map(([id, nome, min, max, passo, neutro, fmt]) => {
+        ).filter(([id]) => !semEfeito(id)).map(([id, nome, min, max, passo, neutro, fmt]) => {
           const salvo = Number(atual[id] ?? neutro)
           const gravar = (n: number) => {
             const novo = { ...atual }
@@ -92,6 +102,7 @@ export default function CardAjustes(p: { preset: Preset; ajustes: Ajustes | unde
           return <SliderLivre key={id} nome={nome} min={min} max={max} passo={passo} salvo={salvo} fmt={fmt} gravar={gravar} voltar={() => gravar(neutro)} />
         })}
       </div>
+      )}
       {!ids.length && <p className="text-[11.5px] text-fog">Este preset não tem ajustes rápidos.</p>}
       <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
         <button

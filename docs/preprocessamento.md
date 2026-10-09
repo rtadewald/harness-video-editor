@@ -17,6 +17,21 @@ Legenda de status: ✅ aprovado por Rodrigo · 💡 proposta técnica · ⏳ em 
 ✅ O briefing e os vídeos de apoio saem da criação (não eram usados pela direção). O campo `briefing` continua aceito em
 projetos antigos.
 
+💡 **Recusas na criação, em texto legível** (SPEC §4): um vídeo **sem áudio** ("o editor precisa da fala para transcrever
+e cortar") e um arquivo que o ffprobe não lê ("formato não suportado ou arquivo corrompido") voltam no próprio diálogo, sem
+criar a pasta. Os erros de ffmpeg/ffprobe (`midia.ErroMidia`, `midia.legivel`) não mostram a linha de comando, nem na
+criação nem no processamento; ela fica no log do servidor.
+
+💡 **Tela do processamento parado:** continua acompanhando o projeto enquanto um passo paralelo ainda roda (o proxy), para
+ele chegar ao ✓; sem transcrição, o editor não pede os inserts e o "Refazer cortes" fica desligado.
+
+💡 **Cada passo tem a sua linha, inclusive o alinhamento** ("Ajustando o tempo de cada palavra ao áudio"), que só aparece
+quando o motor ativo é um alinhador do Whisper (stable-ts, Qwen3, CTC) e some quando é pulado. Um erro que não vem do
+ffmpeg (uma biblioteca, em inglês) chega como a frase do passo que parou (`pipeline.FALHA`, ex.: "Não consegui ajustar o
+tempo de cada palavra ao áudio") com o detalhe curto entre parênteses, sem os caminhos do servidor; o traceback fica no
+log. Uma transcrição **sem nenhuma palavra** para ali ("Não encontrei fala neste vídeo"), antes do alinhamento e da IA dos
+cortes, que seria chamada à toa.
+
 💡 `projeto.formato = 'reels'`. Os outros formatos, quando existirem, mudam as regras de cada etapa (duração, ritmo,
 legenda); por ora o valor só é guardado.
 
@@ -31,7 +46,16 @@ desativados, "em breve") e o vídeo. `POST /api/projetos` aceita `formato` (padr
 `cortes`, o de antes) tem três colunas: a linha vertical dos Cortes ([cortes.md](cortes.md)), a prévia com o detalhe da
 seleção e, **à direita, sempre à vista, o Look e o Enquadramento** (os filtros do ator), descritos abaixo (num vídeo
 vertical, o Enquadramento só avisa que não se aplica). Os atalhos dos Cortes (←/→ no bruto, E, B) valem na etapa
-inteira.
+inteira. 💡 Colunas: `minmax(300px,min(38vw,720px)) · minmax(300px,1fr) · clamp(280px,24vw,380px)` (a prévia tem um
+mínimo; abaixo de 1300 px a barra das etapas começa recolhida). Rodada 2 da QA: com `minmax` (antes `clamp(340px,38vw,…)`),
+numa janela de 1024 px a linha vertical cede o que falta e a coluna do Look não sai 3 px pela borda; de 1100 px para
+cima, igual a antes. O tempo da cabeça de reprodução (o chip "0,000") fica logo abaixo da linha quando ela está no topo
+(no começo do bruto), em vez de cortado pela metade.
+
+💡 **Linha vertical sem textos sobrepostos (out/2026):** o nome de cada motor e o aviso "Aproxime…" ficam numa faixa
+acima da rolagem, fora das linhas. Um rótulo de palavra empurrado para baixo (palavras próximas demais) nunca passa
+por cima de um corte compactado: o que não cabe até ele fica só com a barra, e o último rótulo que coube mostra **+N**
+(aproximar os revela). As durações dos cortes usam vírgula, como o resto da etapa.
 
 ## Enquadramento: de 16:9 para 9:16 pelo rosto
 
@@ -163,6 +187,13 @@ recebe 0,4 s depois que ele para.
 💡 **Projetos sem `look`** (todos os de antes da P1) usam o padrão: Casa a 100% com a vinheta Normal. Um vídeo já
 exportado antes, se exportado de novo, sai com essa cor e essa vinheta; para sair como antes, escolha "Sem LUT" e a
 vinheta "Sem" no Look.
+
+💡 **Um caminho de cor só na prévia (out/2026):** o `<video>` puro sai ~8–10 níveis de 255 mais claro que o mesmo
+quadro passado pelo WebGL (o navegador trata a cor do elemento de vídeo por outro caminho). Por isso, no editor, o
+canvas desenha sempre, mesmo com um look que não muda nada: "Segure para ver sem o look" e "Sem LUT" + vinheta "Sem"
+passam pelo shader com identidade (`SEM_LOOK`), e a comparação mostra só o look. A referência que vale é o quadro do
+ffmpeg em bt709 (o que vai para o MP4): o caminho do WebGL fica a ~2 níveis dele, o `<video>` puro a ~10. Fora do
+editor (sem look), o vídeo continua puro.
 
 💡 A prévia do look não para ao trocar de etapa: o canvas WebGL não perde o contexto quando o efeito roda de
 novo no mesmo canvas (o `StrictMode` do modo de desenvolvimento roda duas vezes); só o programa, as texturas e o buffer

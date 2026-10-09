@@ -11,7 +11,7 @@ import { paraTempo, palavrasNaSaida } from '@/editor/direcaoProjeto'
 import { ChuvaAoVivo, RelogioRender } from '@/editor/Fundo'
 import InsertNoLugar, { chaveParada, pedidosNoTempo, receitaDoInsert } from '@/editor/InsertNoLugar'
 import { carregarCatalogoSons, eventosDaReceita, type EventoSom } from '@/editor/sons'
-import { divisaoDe, posicaoDoComentario, type Divisao } from '@/editor/divisao'
+import { divisaoDe, lugarDoComentario, type Divisao } from '@/editor/divisao'
 import MotionNoLugar from '@/motions/MotionNoLugar'
 import { usePresets } from '@/editor/presets'
 import { useEntradas } from '@/editor/entradas'
@@ -196,7 +196,7 @@ export function RenderProjeto() {
   if (!atual || !banco) return null
   const divisaoAtual = divisaoDe(atual, banco, presets)
   // o card desvia do ator pela geometria dele (o rosto só muda o x: a altura é a mesma da prévia)
-  const c = comentarioDe(atual, posicaoDoComentario(divisaoAtual, geometriaDoAtor(divisaoAtual, atual.enriquecimento?.ator, null)))
+  const c = comentarioDe(atual, lugarDoComentario(atual, divisaoAtual, geometriaDoAtor(divisaoAtual, atual.enriquecimento?.ator, null)))
   return (
     <RelogioRender.Provider value={tempo}>
       <div className="fixed inset-0 overflow-hidden">

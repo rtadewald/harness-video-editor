@@ -52,6 +52,10 @@ e **2 favoritas por par em cima** e **"Outras transições"** embaixo (como os r
 par**, com o som. A **etapa Transições** (separada da de Áudio) mostra a linha do tempo com cada corte marcado; clicar num
 corte abre as opções (as 2 favoritas, depois as outras, e "Corte seco"), com ▶ para ver o corte tocando.
 
+💡 Na página Transições, o cartão do **Corte seco** (que não tem cortes próprios) mostra um corte seco sem som do par;
+sem um, um corte seco do par mesmo com som (a referência toca muda, a menos que se escolha o som dela); sem nenhum seco
+no par, um seco sem som de qualquer par.
+
 💡 Dados no projeto: `transicoes = { <id do plano que entra>: { id: <id da transição> | 'seco', par: 'de>para' } }` (só
 as trocadas à mão; o resto segue o padrão do par). Os ids dos planos são de posição (`p5` é o 5º plano da direção): com
 outra direção, `p5` pode ser outro corte, por isso a escolha guarda o **par do corte** em que foi feita e só vale
@@ -101,7 +105,12 @@ seco) e a 2ª, a mais comum com efeito ou som; sem nenhuma no par, a reserva da 
 corte; insert: Corte com câmera; motion: Corte com clique). Cada corte das referências conta para a transição com efeito
 de que ele é fonte (a referência e o instante, com 0,2 s de tolerância: o corte medido quadro a quadro cai alguns
 quadros antes do da análise — o brilho em 4,43 s, o corte em 4,54 s), senão para a do som achado nele, senão para o
-corte seco. **Refazível sem perder a curadoria**: de quem já existe, guarda o nome, o som (e a intensidade) e o
+corte seco. 💡 O mesmo vale para as **fontes** (o corte que a página mostra como referência): um corte que é fonte de
+uma transição com efeito não entra nas fontes de uma de som (rodada 2 da QA: no par Full ator → Motion tela cheia, o
+"Corte com clique" mostrava o corte da Luz colorida, manychat 6,87 s, e a recriação saía tingida da luz). A página já
+pula essas fontes (`fonteDe` em `paginas/Transicoes.tsx`); os dados gravados em `transicoes/` ainda as listam (o
+`corte-clique` com o manychat 6,87 s e o `subida-ao-corte` com o cursor-free-v2 4,54 s, o corte do Brilho branco) até o
+semear ser rodado de novo — decisão de Rodrigo. **Refazível sem perder a curadoria**: de quem já existe, guarda o nome, o som (e a intensidade) e o
 "aprovado", e só grava a ordem dos pares que ainda não têm a sua em `ordem.json`; `--refazer` volta tudo ao que a
 análise diz. Nada sai aprovado: "aprovada" é a marca da revisão de Rodrigo (não muda o que entra no vídeo).
 
@@ -147,7 +156,12 @@ família ganha a sua ao mudar uma favorita.
 (as favoritas do par, as outras, ▶ Ver o corte, voltar à favorita), no meio a prévia, e embaixo a **linha do tempo**
 (`editor/LinhaBase.tsx`, a mesma base da dos Inserts) com as trilhas **Planos**, **Transições** (a janela do efeito em
 volta de cada corte; o ponto vermelho marca a escolhida à mão) e **Sons**. ▶ Ver o corte toca de 1,5 s antes a 1,5 s
-depois e para, pelo mesmo trecho do player da etapa Inserts (`tocarTrecho`; pausar o esquece).
+depois e para, pelo mesmo trecho do player da etapa Inserts (`tocarTrecho`; pausar o esquece). 💡 Rodada 2 da QA: um
+som ainda não começado nunca é pedido ao áudio com o ponto antes do início do arquivo (ele entra na hora certa, do
+começo), só um som que começou entra na lista do que para ao pausar, e parar um som que já acabou não derruba os outros;
+antes, "Ver o corte" num corte com riser (Subida até o corte, Brilho branco) ou o 2º "Ver" num corte com clique deixava a
+página em branco ao fim do trecho. E qualquer erro inesperado numa tela agora mostra um aviso com "Recarregar"
+(`components/FalhaNaTela.tsx`), não a página em branco.
 
 💡 **A prévia mostra o quadro montado**: a composição da etapa Inserts (o insert no lugar com a entrada e o fundo, o ator
 descendo ou na janela, a pessoa recortada, o card do comentário, o motion) saiu para `editor/MontagemNoPalco.tsx` e é

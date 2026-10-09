@@ -53,24 +53,30 @@ const EM_PE = 0.8
 const naProporcao = (ar: number): React.CSSProperties => ({ width: `min(100cqw, calc(100cqh * ${ar}))`, height: `min(100cqh, calc(100cqw / ${ar}))` })
 const SOMBRA_CARD = 'rounded-[18px] shadow-[0_30px_70px_-12px_rgba(0,0,0,0.45),0_12px_24px_-8px_rgba(0,0,0,0.3)]'
 
-/** Um vídeo do banco sincronizado com o tempo do plano (um trecho toca o original do início ao fim dele). */
-function VideoNoTempo({ item, rel, tocando, topo }: { item: ItemBanco; rel: number; tocando: boolean; topo?: boolean }) {
+/** Um vídeo do banco sincronizado com o tempo do plano (um trecho toca o original do início ao fim dele), na velocidade
+ *  da prévia (`velocidade`, a do player: a 2× a mídia anda a 2×, sem pular). Uma mídia mais curta que o insert fica
+ *  parada no último quadro, como na exportação (dar play num vídeo que acabou o recomeçaria). */
+function VideoNoTempo({ item, rel, tocando, topo, velocidade = 1 }: { item: ItemBanco; rel: number; tocando: boolean; topo?: boolean; velocidade?: number }) {
   const ref = useRef<HTMLVideoElement>(null)
   const exato = useContext(RelogioRender) != null // na exportação, sempre o quadro exato
   const alvo = Math.min((item.inicio ?? 0) + rel, item.fim ?? Infinity)
   useEffect(() => {
     const v = ref.current
     if (!v) return
-    if (Math.abs(v.currentTime - alvo) > (exato ? 0.001 : tocando ? 0.3 : 0.03)) v.currentTime = alvo
-    if (tocando && v.paused) void v.play().catch(() => {})
-    if (!tocando && !v.paused) v.pause()
+    const fim = Math.min(item.fim ?? Infinity, Number.isFinite(v.duration) ? v.duration : Infinity)
+    const acabou = alvo >= fim - 0.02 // o insert passou do fim da mídia: fica no último quadro
+    const destino = Math.min(alvo, fim)
+    if (Math.abs(v.currentTime - destino) > (exato ? 0.001 : tocando && !acabou ? 0.3 : 0.03)) v.currentTime = destino
+    if (v.playbackRate !== velocidade) v.playbackRate = velocidade
+    if (tocando && !acabou && v.paused) void v.play().catch(() => {})
+    if ((!tocando || acabou) && !v.paused) v.pause()
   })
   return <video ref={ref} src={exato ? urlBancoExportacao(item) : urlBancoArquivo(item.id) + versaoBanco(item)} muted playsInline preload="auto" className={cn('size-full object-cover', topo && 'object-top')} />
 }
 
 /** As mídias do insert do momento por cima do vídeo, com o enriquecimento: layout, entrada e saída de cada mídia (a
  *  configuração de cada tipo é global, `entradas`) e, com 2 mídias, como elas convivem (sequência, empilhadas, lado a lado). */
-export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<string, ItemBanco>; tempo: number; tocando: boolean; fundo: string; entradas: Entradas | null }) {
+export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<string, ItemBanco>; tempo: number; tocando: boolean; fundo: string; entradas: Entradas | null; velocidade?: number; avisoSemMidia?: boolean }) {
   const { banco, tempo, tocando } = p
   const presets = usePresets()
   // a divisão da tela (pelo preset e pela proporção da mídia): a área do insert e o card na proporção da mídia
@@ -86,13 +92,19 @@ export default function InsertNoLugar(p: { pedido: PedidoNoTempo; banco: Map<str
   const n = pedido.midias.length
   const dur = Math.max(pedido.t.fim - pedido.t.inicio, 0.01)
   const rel = Math.max(tempo - pedido.t.inicio, 0)
-  if (!n) return <div className="pointer-events-none absolute grid place-items-center bg-black/55 p-6 text-center text-[12px] text-cream/80" style={area}>Insert sem mídia</div>
+  // sem mídia, a exportação mostra o ator limpo: só a etapa Inserts avisa (um contorno discreto, sem escurecer o ator)
+  if (!n)
+    return p.avisoSemMidia ? (
+      <div className="pointer-events-none absolute grid place-items-center border border-dashed border-cream/35" style={area}>
+        <span className="rounded-full bg-black/55 px-2 py-0.5 text-[10px] text-cream/80">Insert sem mídia</span>
+      </div>
+    ) : null
 
   // a mídia; `topo`: cortada, mostra a parte de cima (mídias em pé)
   const midia = (m: MidiaLigada, relM: number, topo?: boolean) => {
     const item = banco.get(m.banco)
     return item?.tipo === 'video' ? (
-      <VideoNoTempo key={m.id} item={item} rel={relM} tocando={tocando} topo={topo} />
+      <VideoNoTempo key={m.id} item={item} rel={relM} tocando={tocando} topo={topo} velocidade={p.velocidade} />
     ) : (
       <img key={m.id} src={urlBancoArquivo(m.banco)} alt="" className={cn('size-full object-cover', topo && 'object-top')} />
     )

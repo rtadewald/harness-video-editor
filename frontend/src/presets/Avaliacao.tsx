@@ -2,7 +2,8 @@ import { PROPORCOES, TELAS, type Sim } from '@/editor/Simulacao'
 import { AJUSTES, rapidosDe } from '@/editor/ajustes'
 import EscolhaSons from '@/editor/EscolhaSons'
 import { NOME_MOMENTO, momentosDaReceita, type SomMomento } from '@/editor/sons'
-import { editarPreset, PROPORCOES_USO, usosDe, type Preset, type Proporcao, type Usos } from '@/editor/presets'
+import { cabeMidias, editarPreset, nMidias, nomeMidias, PROPORCOES_USO, usosDe, type Preset, type Proporcao, type Usos } from '@/editor/presets'
+import { cn } from '@/lib/utils'
 import { chip } from './comum'
 
 /** Simular o preset numa situação de uso: o original (a referência), o modo de tela, quantas mídias e as proporções.
@@ -40,7 +41,7 @@ export function Simulador({ preset, sim, setSim }: { preset: Preset; sim: Sim | 
       <div className="flex flex-wrap gap-1.5">
         {ns.map((n) => (
           <button key={n} onClick={() => muda({ n })} className={chip(!!sim && base.n === n)}>
-            {n === 1 ? '1 mídia' : n === 2 ? '2 mídias' : '3 ou mais'}
+            {nomeMidias(n === 1 ? '1' : n === 2 ? '2' : '2+', preset.receita)}
           </button>
         ))}
       </div>
@@ -95,11 +96,23 @@ export function OndeVale({ preset }: { preset: Preset }) {
         ))}
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {(['1', '2', '2+'] as const).map((m) => (
-          <button key={m} onClick={() => salvar({ ...u, midias: alterna(u.midias, m) })} className={chip(u.midias.includes(m))}>
-            {m === '1' ? '1 mídia' : m === '2' ? '2 mídias' : '3 ou mais'}
-          </button>
-        ))}
+        {/* numa receita que não repete, o "2+" vai só até as mídias que ela pede (com mais, alguma ficaria de fora) */}
+        {/* numa receita que não repete, só até as mídias que ela pede (com mais, alguma ficaria de fora); um número que ela
+            não comporta fica apagado (a não ser que já esteja marcado, para dar para desmarcar) */}
+        {(['1', '2', '2+'] as const).map((m) => {
+          const cabe = cabeMidias(m, preset.receita)
+          return (
+            <button
+              key={m}
+              disabled={!cabe && !u.midias.includes(m)}
+              onClick={() => salvar({ ...u, midias: alterna(u.midias, m) })}
+              className={cn(chip(u.midias.includes(m)), 'disabled:cursor-not-allowed disabled:opacity-35')}
+              title={cabe ? undefined : `A receita pede ${nMidias(preset.receita)} mídia${nMidias(preset.receita) > 1 ? 's' : ''}: com mais, alguma ficaria de fora`}
+            >
+              {nomeMidias(m, preset.receita)}
+            </button>
+          )
+        })}
       </div>
       <div className="flex flex-wrap gap-1.5">
         {PROPORCOES_USO.map((x) => {

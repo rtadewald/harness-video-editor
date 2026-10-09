@@ -246,14 +246,25 @@ def test_voz_limpa_e_rotas(cliente, video, monkeypatch, faixa, fila):
     proxies = sorted(x.name for x in (projeto.pasta(pid) / 'midia' / 'proxy').glob('*_voz_*.mp4'))
     assert proxies == [f"{audio._bruto(projeto.ler(pid))['id']}_voz_forte.mp4"]
     assert audio.arquivo_voz(pid, audio._bruto(projeto.ler(pid))['id'], 'media').exists()
-    # trocar para outra e voltar antes de ela terminar: quando ela termina, não apaga o proxy da escolhida
+    # trocar para outra e voltar antes de ela terminar: quando ela termina, não apaga o proxy da escolhida (só o dela,
+    # que ninguém toca; refeito em segundos se ela voltar a ser a escolha)
     bid = audio._bruto(projeto.ler(pid))['id']
     cliente.put(f'/api/projetos/{pid}/audio', json={'campos': {'voz': {'limpeza': 'leve'}}})
     assert cliente.put(f'/api/projetos/{pid}/audio', json={'campos': {'voz': {'limpeza': 'forte'}}}).json()['voz']['estado'] == 'pronta'
     audio._limpar(pid, 'leve')
     pasta = projeto.pasta(pid) / 'midia' / 'proxy'
-    assert (pasta / f'{bid}_voz_forte.mp4').exists() and (pasta / f'{bid}_voz_leve.mp4').exists()
+    assert (pasta / f'{bid}_voz_forte.mp4').exists() and not (pasta / f'{bid}_voz_leve.mp4').exists()
     assert cliente.get(f'/api/projetos/{pid}/audio').json()['voz']['estado'] == 'pronta'
+    # voltar para uma limpeza que já está pronta (sem job novo) também apaga os proxies das outras
+    cliente.put(f'/api/projetos/{pid}/audio', json={'campos': {'voz': {'limpeza': 'media'}}})
+    audio._limpar(pid, 'media')
+    assert sorted(x.name for x in pasta.glob('*_voz_*.mp4')) == [f'{bid}_voz_media.mp4']
+    shutil.copy(pasta / f'{bid}_voz_media.mp4', pasta / f'{bid}_voz_forte.mp4')  # como se a Forte ainda estivesse pronta
+    assert cliente.put(f'/api/projetos/{pid}/audio', json={'campos': {'voz': {'limpeza': 'forte'}}}).json()['voz']['estado'] == 'pronta'
+    assert sorted(x.name for x in pasta.glob('*_voz_*.mp4')) == [f'{bid}_voz_forte.mp4']
+    # sem limpeza, a prévia toca o proxy do bruto: nenhum proxy com voz fica
+    assert cliente.put(f'/api/projetos/{pid}/audio', json={'campos': {'voz': {'limpeza': 'sem'}}}).json()['voz']['estado'] == 'sem'
+    assert not list(pasta.glob('*_voz_*.mp4'))
 
 
 def test_limpeza_com_erro_so_volta_quando_pedida(cliente, video, fila):

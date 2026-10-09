@@ -2,6 +2,7 @@
 em segundo plano, os outros motores de transcrição. O estado de cada passo fica em projeto.json para a interface acompanhar."""
 import json
 import os
+import subprocess
 import threading
 import time
 import traceback
@@ -12,6 +13,15 @@ from . import comum, cortes, midia, motores, projeto, transcricao
 
 PRINCIPAIS = ['enquadramento', 'proxy', 'silencios', 'transcricao', 'alinhamento', 'cortes']  # pausas antes: a transcrição é feita por pedaços entre elas
 PASSOS = [*PRINCIPAIS, 'variantes']
+# o que a tela diz quando um passo para por um erro que não é do ffmpeg (SPEC §4, "erro legível"); o detalhe vai junto, curto
+FALHA = {
+    'enquadramento': 'Não consegui enquadrar o vídeo em 9:16',
+    'proxy': 'Não consegui preparar o vídeo para o player',
+    'silencios': 'Não consegui medir as pausas do áudio',
+    'transcricao': 'Não consegui transcrever o áudio',
+    'alinhamento': 'Não consegui ajustar o tempo de cada palavra ao áudio',
+    'cortes': 'A IA não conseguiu escolher o texto final',
+}
 _fila = ThreadPoolExecutor(max_workers=1)  # o que o criador está esperando
 _fila_motores = ThreadPoolExecutor(max_workers=1)  # motores extras: não atrasam os cortes
 
@@ -137,11 +147,26 @@ def _executar(id: str, passos: list[str]) -> bool:
         except Exception as e:
             traceback.print_exc()
             _passo(id, nome, status='erro')
-            msg = f'{nome}: {e}'
+            msg = _mensagem(nome, e, base)  # o passo que parou já aparece marcado na tela; a mensagem, sem linha de comando
             projeto.atualizar(id, lambda p: p['pipeline'].update(erro=msg))
             return False
         _passo(id, nome, status='pronto', segundos=round(time.perf_counter() - t0, 1), **extra)
     return True
+
+
+class SemFala(RuntimeError):
+    """A transcrição não achou nenhuma palavra: parar antes do alinhamento e da IA dos cortes (que seria paga à toa)."""
+
+
+def _mensagem(nome: str, e: Exception, base: Path) -> str:
+    """O erro de um passo para a tela: o do ffmpeg/ffprobe e o já escrito para gente passam como estão; o de uma
+    biblioteca (em inglês, com o caminho do servidor) vira a frase do passo, com o detalhe curto e sem os caminhos.
+    O traceback completo fica no log."""
+    if isinstance(e, (midia.ErroMidia, SemFala, subprocess.CalledProcessError)):
+        return midia.legivel(e)
+    detalhe = ' '.join(str(e).replace(f'{base}/', '').replace(str(projeto.RAIZ.parent) + '/', '').split()).rstrip('.')
+    detalhe = detalhe[:160] + ('…' if len(detalhe) > 160 else '')
+    return f'{FALHA.get(nome, "Este passo falhou")}' + (f' ({detalhe}).' if detalhe else '.')
 
 
 def refazer_proxy(id: str) -> bool:
@@ -190,6 +215,8 @@ def _proxy(id, base: Path, video: Path, bruto: dict):
 
 
 def _silencios(id, base: Path, video: Path, bruto: dict):
+    if bruto.get('tem_audio') is False:  # projetos de antes da recusa na criação
+        raise midia.ErroMidia('Este vídeo não tem áudio: o editor precisa da fala para transcrever e cortar.')
     midia.extrair_audio(video, base / 'audio.wav')
     s = midia.silencios(base / 'audio.wav')
     comum.salvar_json((base / 'silencios.json'), {'silencios': s})
@@ -206,16 +233,25 @@ def _transcricao(id, base: Path, video: Path, bruto: dict):
     if projeto.MOTORES[vid]['familia'] != 'whisper':
         try:
             _rodar_motor(id, vid, base)
-            return {'motor': vid, 'palavras': projeto.ler(id)['transcricoes'][vid]['palavras']}
+            n = projeto.ler(id)['transcricoes'][vid]['palavras']
         except Exception as e:
             traceback.print_exc()
             aviso = f'{projeto.MOTORES[vid]["nome"]} não funcionou ({str(e)[:140]}); segui com {projeto.MOTORES[projeto.LEGADO]["nome"]}.'
             projeto.atualizar(id, lambda p: p.update(transcricao_ativa=projeto.LEGADO))
+        else:
+            _exigir_fala(n)
+            return {'motor': vid, 'palavras': n}
     silencios = json.loads((base / 'silencios.json').read_text())['silencios']
     palavras = transcricao.transcrever(base / 'audio.wav', silencios)
     projeto.escrever_palavras(base, 'whisper', palavras)
     _variante(id, 'whisper', status='pronto', segundos=0, palavras=len(palavras))
+    _exigir_fala(len(palavras))
     return {'palavras': len(palavras), **({'aviso': aviso} if aviso else {})}
+
+
+def _exigir_fala(n: int) -> None:
+    if not n:
+        raise SemFala('Não encontrei fala neste vídeo: a transcrição não achou nenhuma palavra. O editor precisa da fala para cortar.')
 
 
 def _alinhamento(id, base: Path, video: Path, bruto: dict):

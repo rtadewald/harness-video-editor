@@ -129,7 +129,7 @@ export type Timeline = { V1: Clipe[] }
 export type DadosEditor = { projeto: Projeto; palavras: Palavra[]; silencios: Silencio[]; timeline: Timeline; duvidas: Duvida[] }
 export type Picos = { por_segundo: number; picos: number[] }
 
-export type ResumoProjeto = Pick<Projeto, 'id' | 'nome' | 'criado_em' | 'etapas'> & { duracao: number | null; apoios: number }
+export type ResumoProjeto = Pick<Projeto, 'id' | 'nome' | 'criado_em' | 'etapas'> & { duracao: number | null; duracao_final: number | null; apoios: number }
 
 export async function json<T>(r: Response): Promise<T> {
   if (!r.ok) throw new Error((await r.json().catch(() => null))?.detail ?? `Erro ${r.status}`)
@@ -159,13 +159,16 @@ export const salvarDirecaoProjeto = (id: string, itens: ItemDirecaoProjeto[]) =>
   fetch(`/api/projetos/${id}/direcao`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itens }) }).then(json<DirecaoProjeto>)
 export const refazerCortes = (id: string) => post<Projeto>(`/api/projetos/${id}/cortes/refazer`)
 
-/** O pipeline principal terminou (ou parou em erro)? Os motores extras rodam à parte e não contam. */
 /** O vídeo está sendo reenquadrado (o 9:16 e o proxy refeitos em segundo plano). */
 export const reenquadrando = (p: Projeto) => p.enquadramento?.estado === 'fila' || p.enquadramento?.estado === 'rodando'
 
+/** O pipeline principal ainda não terminou (nem parou em erro)? Os motores extras rodam à parte e não contam. */
 export const emAndamento = (p: Projeto) =>
   !p.pipeline?.erro &&
   Object.entries(p.pipeline?.passos ?? {}).some(([nome, s]) => nome !== 'variantes' && (s.status === 'pendente' || s.status === 'rodando'))
+
+/** Algum passo do pipeline ainda roda, mesmo depois de outro parar em erro (o proxy anda em paralelo): a tela acompanha. */
+export const passoRodando = (p: Projeto) => Object.entries(p.pipeline?.passos ?? {}).some(([nome, s]) => nome !== 'variantes' && s.status === 'rodando')
 
 export const abrirPicos = (id: string) => fetch(`/api/projetos/${id}/arquivos/picos.json`).then(json<Picos>)
 export const ajustarClipe = (id: string, cid: string, lado: 'inicio' | 'fim', t: number) =>

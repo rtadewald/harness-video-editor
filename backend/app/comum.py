@@ -5,6 +5,7 @@ import json
 import os
 import re
 import tempfile
+import unicodedata
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -46,6 +47,11 @@ def video(arq: Path) -> dict:
 def norm(t: str) -> str:
     """Uma palavra só com letras e números, em minúsculas: para casar textos que diferem em pontuação e caixa."""
     return re.sub(r'[^\wÀ-ÿ]', '', t.lower())
+
+
+def para_busca(t: str) -> str:
+    """Como `norm`, mas sem acentos: na busca, "animacao" acha "animação" (o `norm` da transcrição guarda os acentos)."""
+    return ''.join(c for c in unicodedata.normalize('NFD', norm(t)) if unicodedata.category(c) != 'Mn')
 
 
 def salvar_json(arq: Path, dados, indent: int | None = 1) -> None:

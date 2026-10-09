@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { History, PanelLeftClose, PanelLeftOpen, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
-import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, json, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, gerarDirecao, motoresRodando, recalcularCortes, reenquadrando, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
+import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, json, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, gerarDirecao, motoresRodando, passoRodando, recalcularCortes, reenquadrando, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
 import { abrirAba } from '@/components/abasProjetos'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
 import { cn } from '@/lib/utils'
+import { emCampoDeTexto, modalAberto, soltarFoco } from '@/lib/atalhos'
 import EtapaDirecao from '@/editor/EtapaDirecao'
 import EtapaInserts from '@/editor/EtapaInserts'
 import Exportar from '@/editor/Exportar'
@@ -16,9 +17,10 @@ import { Detalhe } from '@/editor/DetalheCorte'
 import Preview from '@/editor/Preview'
 import PainelLook from '@/editor/PainelLook'
 import PainelEnquadramento from '@/editor/PainelEnquadramento'
-import { LookAtor, useLookDoProjeto } from '@/editor/look'
+import { LookAtor, SEM_LOOK, useLookDoProjeto } from '@/editor/look'
 import Processamento from '@/editor/Processamento'
 import Configuracoes from '@/paginas/Configuracoes'
+import NaoEncontrada from '@/paginas/NaoEncontrada'
 import { montarSequencia } from '@/editor/sequencia'
 import { paraTempo, palavrasNaSaida } from '@/editor/direcaoProjeto'
 import { TransicoesDoVideo, chavePar, cortesDoVideo, useBiblioteca, useEscolhas } from '@/transicoes/transicoes'
@@ -35,10 +37,35 @@ import { sonsDasTransicoes } from '@/transicoes/transicoes'
 import { useCatalogoSons } from '@/editor/sons'
 import { usePlayer } from '@/editor/usePlayer'
 
+// colunas timeline · prévia · detalhe da Direção e do Pré-processamento. A timeline vai de 300 px até 40vw (38vw nos
+// Cortes) e o seu máximo; a prévia nunca fica abaixo de 300 px e o detalhe abaixo de 280 px. Com minmax (e não clamp),
+// numa janela de 1024 px a timeline cede o que falta e o detalhe não sai pela borda direita (a página não rola)
+const COLUNAS_DIRECAO = 'minmax(300px,min(40vw,560px)) minmax(300px,1fr) clamp(280px,24vw,380px)'
+const COLUNAS_CORTES = 'minmax(300px,min(38vw,720px)) minmax(300px,1fr) clamp(280px,24vw,380px)'
+
+/** Só monta o editor depois que o projeto abriu: as etapas leem os seus dados (legenda, áudio, look, transições…) assim
+ *  que montam, e num projeto que não existe (a aba lembrada de um apagado) cada leitura seria um 404 no console. Cada
+ *  projeto monta o seu editor (`key`): ao trocar de aba, nada do anterior (a etapa, a forma de onda, a seleção) fica. */
 export default function Editor() {
   const { id = '' } = useParams()
-  const [dados, setDados] = useState<DadosEditor | null>(null)
-  const [erro, setErro] = useState('')
+  const [aberto, setAberto] = useState<{ id: string; dados: DadosEditor | null; erro: string } | null>(null)
+  useEffect(() => {
+    let vale = true
+    abrirEditor(id).then(
+      (dados) => vale && setAberto({ id, dados, erro: '' }),
+      (e: Error) => vale && setAberto({ id, dados: null, erro: e.message }),
+    )
+    return () => {
+      vale = false
+    }
+  }, [id])
+  if (aberto?.id !== id) return <div className="h-svh bg-deep" />
+  if (!aberto.dados) return <NaoEncontrada titulo="Não consegui abrir este projeto." texto={aberto.erro} projetoId={id} />
+  return <EditorDoProjeto key={id} id={id} inicial={aberto.dados} />
+}
+
+function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) {
+  const [dados, setDados] = useState<DadosEditor | null>(inicial)
   // a última etapa aberta em cada projeto (lembrada neste navegador)
   const [etapa, setEtapaBruta] = useState<Etapa>(() => {
     try {
@@ -56,16 +83,21 @@ export default function Editor() {
       /* sem armazenamento: vale só nesta sessão */
     }
   }
-  // barra das etapas recolhida (só os números): lembrada neste navegador
-  const [recolhida, setRecolhida] = useState(() => {
+  // barra das etapas recolhida (só os números): lembrada neste navegador. Numa janela estreita (notebook), começa
+  // recolhida para sobrar espaço à prévia; o botão a abre só enquanto a janela continuar estreita.
+  const [preferida, setPreferida] = useState(() => {
     try {
       return localStorage.getItem('editor.barraRecolhida') === '1'
     } catch {
       return false
     }
   })
-  const alternarBarra = () =>
-    setRecolhida((r) => {
+  const estreita = useJanelaEstreita()
+  const [abertaNaEstreita, setAbertaNaEstreita] = useState(false)
+  const recolhida = estreita ? !abertaNaEstreita : preferida
+  const alternarBarra = () => {
+    if (estreita) return setAbertaNaEstreita((a) => !a)
+    setPreferida((r) => {
       try {
         localStorage.setItem('editor.barraRecolhida', r ? '0' : '1')
       } catch {
@@ -73,6 +105,7 @@ export default function Editor() {
       }
       return !r
     })
+  }
   const seq = useMemo(() => (dados ? montarSequencia(dados.timeline, dados.palavras) : null), [dados])
   // as transições entre planos (SPEC §8.8): os planos da direção no tempo do vídeo final e a transição de cada corte
   const biblioteca = useBiblioteca()
@@ -120,7 +153,7 @@ export default function Editor() {
   // (a altura desvia do que há na tela: a costura real de cada insert e o card do comentário — as zonas, relidas a cada
   // troca de etapa; na de Inserts, a própria etapa calcula com o que está sendo mexido)
   const [legenda, mudarLegenda] = useLegendaDoProjeto(id)
-  const zonasLegenda = useZonasDaLegenda(id, naSaida?.planos ?? null, etapa)
+  const zonasLegenda = useZonasDaLegenda(id, dados?.palavras.length ? (naSaida?.planos ?? null) : null, etapa)
   const blocosLegenda = useMemo(
     () => (naSaida && legenda && dados ? blocosDaLegenda(naSaida.saida, naSaida.planos, legenda, dados.palavras, zonasLegenda) : []),
     [naSaida, legenda, dados, zonasLegenda],
@@ -145,10 +178,6 @@ export default function Editor() {
   const [semLook, setSemLook] = useState(false)
   const direcaoReal = etapa === 'direcao'
   const insertsReal = etapa === 'inserts'
-
-  useEffect(() => {
-    abrirEditor(id).then(setDados).catch((e) => setErro(e.message))
-  }, [id])
 
   useEffect(() => {
     if (dados?.palavras.length && !picos) abrirPicos(id).then(setPicos).catch(() => undefined)
@@ -226,8 +255,10 @@ export default function Editor() {
   const rodando = dados ? emAndamento(dados.projeto) : false
   const extras = dados ? motoresRodando(dados.projeto) : false
   const enquadrando = dados ? reenquadrando(dados.projeto) : false
+  // depois de um erro, o passo que rodava em paralelo (o proxy) continua: segue acompanhando até ele terminar
+  const restante = dados ? passoRodando(dados.projeto) : false
   useEffect(() => {
-    if (!rodando && !extras && !enquadrando) return
+    if (!rodando && !extras && !enquadrando && !restante) return
     const timer = setInterval(async () => {
       const p = await abrirProjeto(id).catch(() => null)
       if (!p) return
@@ -235,7 +266,7 @@ export default function Editor() {
       else setDados((d) => d && { ...d, projeto: p })
     }, 1000)
     return () => clearInterval(timer)
-  }, [id, rodando, extras, enquadrando])
+  }, [id, rodando, extras, enquadrando, restante])
 
   // a transcrição escolhida para comparar (as barras amarelas)
   useEffect(() => {
@@ -249,15 +280,20 @@ export default function Editor() {
     }
   }, [id, comparar])
 
-  // espaço toca/pausa · ←/→ 0,5 s (Shift 5 s, Alt 10 ms) · E ouve a emenda mais próxima · B alterna resultado/bruto
+  // espaço toca/pausa · ←/→ 0,5 s (Shift 5 s, Alt 10 ms) · E ouve a emenda mais próxima · B alterna resultado/bruto.
+  // Valem também com o foco num botão, caixa ou slider (o controle solta o foco e não age); não valem num campo de
+  // texto, numa alça de corte (as setas dela a movem), nas setas de um slider (o ajuste fino é dele) nem com um modal
+  // aberto.
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [data-alca]') || e.metaKey || e.ctrlKey) return
+      if (emCampoDeTexto(e.target, e.key) || (e.target as HTMLElement | null)?.closest?.('[data-alca]') || modalAberto() || e.metaKey || e.ctrlKey) return
       if (e.code === 'Space') {
         e.preventDefault()
+        soltarFoco(e.target)
         player.alternar()
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.preventDefault()
+        soltarFoco(e.target)
         const d = (e.altKey ? 0.01 : e.shiftKey ? 5 : 0.5) * (e.key === 'ArrowLeft' ? -1 : 1)
         if (vertical) player.buscarBruto(player.bruto + d)
         else player.buscar(player.tempo + d)
@@ -276,7 +312,6 @@ export default function Editor() {
     if (!vertical && !player.pular) player.setPular(true) // fora dos Cortes, a prévia é sempre o vídeo cortado
   }, [vertical, player])
 
-  if (erro) return <p className="p-12 text-destructive">{erro}</p>
   if (!dados || !seq) return <div className="h-svh bg-deep" />
 
   const { projeto, timeline } = dados
@@ -327,6 +362,7 @@ export default function Editor() {
             saida={naSaida.saida}
             tempo={player.tempo}
             tocando={player.tocando}
+            velocidade={player.velocidade}
             videoRef={player.ref}
             src={src}
             enquadramentoX={projeto.enquadramento.x}
@@ -338,7 +374,7 @@ export default function Editor() {
   )
 
   return (
-    <LookAtor.Provider value={semLook ? null : look}>
+    <LookAtor.Provider value={semLook && look ? SEM_LOOK : look}>
     <FatorSom.Provider value={fatorSom}>
     <TransicoesDoVideo.Provider value={cortesTransicao}>
     <div className="grid h-svh grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-deep text-cream">
@@ -359,8 +395,12 @@ export default function Editor() {
           {vertical && (
             <button
               onClick={refazerComIA}
-              disabled={rodando}
-              title="Pede à IA uma nova seleção do texto final (não retranscreve). Mantém as palavras que você ligou ou desligou à mão."
+              disabled={rodando || !dados.palavras.length}
+              title={
+                dados.palavras.length
+                  ? 'Pede à IA uma nova seleção do texto final (não retranscreve). Mantém as palavras que você ligou ou desligou à mão.'
+                  : 'Sem transcrição ainda: os cortes saem dela.'
+              }
               className="ml-2 flex h-8 items-center gap-2 rounded-full border border-yellow/70 bg-yellow/10 px-3.5 text-[11px] font-semibold whitespace-nowrap text-yellow transition-colors hover:bg-yellow hover:text-ink disabled:opacity-60"
             >
               <RotateCcw className={cn('size-3.5', rodando && 'animate-[otto-spin_1s_linear_infinite] [animation-direction:reverse]')} />
@@ -388,7 +428,10 @@ export default function Editor() {
       <div
         className="grid min-h-0"
         style={{
-          gridTemplateColumns: `${recolhida ? '58px' : '232px'} ${direcaoReal ? 'minmax(440px,560px) minmax(0,1fr) minmax(320px,380px)' : 'minmax(0,1fr)'}`,
+          // a prévia (a coluna do meio) tem um mínimo; a timeline e o detalhe crescem com a janela até o seu máximo (abaixo
+          // de ~520 px, a timeline rola de lado para mostrar os elementos e os comentários). A timeline cede primeiro:
+          // abaixo de 40vw quando a soma dos mínimos não cabe (1024 px com a barra recolhida), sem cortar o detalhe
+          gridTemplateColumns: `${recolhida ? '58px' : '232px'} ${direcaoReal ? COLUNAS_DIRECAO : 'minmax(0,1fr)'}`,
         }}
       >
         <nav className={cn('flex min-h-0 flex-col gap-1 border-r border-line-dark py-6', recolhida ? 'items-center px-1.5' : 'px-3')}>
@@ -433,7 +476,7 @@ export default function Editor() {
         </nav>
 
         {etapa === 'cortes' ? (
-              <div className="grid min-h-0 min-w-0" style={{ gridTemplateColumns: 'clamp(400px,38vw,720px) minmax(0,1fr) clamp(300px,24vw,380px)' }}>
+              <div className="grid min-h-0 min-w-0" style={{ gridTemplateColumns: COLUNAS_CORTES }}>
               <LinhaVertical
                 duracao={bruto.duracao}
                 clipes={timeline.V1}
@@ -538,6 +581,7 @@ export default function Editor() {
               tempo={player.tempo}
               tocando={player.tocando}
               buscar={player.buscar}
+              pausar={() => player.tocando && player.alternar()}
             />
           ) : etapa === 'legenda' ? (
             <EtapaLegenda
@@ -573,3 +617,16 @@ function BotaoFuturo({ rotulo, children }: { rotulo: string; children: React.Rea
 }
 
 /** Nome do projeto na barra: clique para renomear (Enter ou sair do campo salva, Esc cancela). */
+
+/** A janela é estreita (um notebook, abaixo de 1300 px): o editor recolhe a barra das etapas para a prévia caber. */
+function useJanelaEstreita() {
+  const consulta = '(max-width: 1299px)'
+  const [estreita, setEstreita] = useState(() => window.matchMedia(consulta).matches)
+  useEffect(() => {
+    const m = window.matchMedia(consulta)
+    const mudou = () => setEstreita(m.matches)
+    m.addEventListener('change', mudou)
+    return () => m.removeEventListener('change', mudou)
+  }, [])
+  return estreita
+}

@@ -78,7 +78,16 @@ palavra que começa o bloco>: {fim?, texto?}}`; `texto: ''` esconde): juntar com
 esconder, voltar ao automático. Corrigir o texto ou esconder **prende também o `fim`**, para o texto ficar sempre com
 as mesmas palavras (trocar o ritmo ou mudar uma pausa não o espalha por outras; um texto antigo sem `fim` fica só na
 sua palavra). Separar divide o texto corrigido entre as partes (as últimas palavras do texto vão para o resto) e só
-deixa ajustes que mudam algo. O PUT mescla dentro da trava do projeto (dois cliques seguidos não se apagam).
+deixa ajustes que mudam algo. 💡 No Frase curta, Separar prende as duas partes (`{fim}` na 1ª palavra também): sem
+isso, o agrupamento automático juntava a 1ª palavra de volta ao bloco anterior curto, e separar de novo desfazia a
+separação de antes. 💡 Rodada 2 da QA: essas presilhas (só o `fim`) levam o modo (`{fim, modo: 'frase'}`) e só valem no
+Frase curta — no Palavra a palavra não pintam o bloco de amarelo, não contam como "mexidos à mão" e não juntam palavras
+que o criador nunca juntou ali (o resto de um bloco que ele juntou à mão continua junto nos dois modos). Corrigir,
+juntar ou esconder um bloco tira a marca: vale nos dois. "Juntar com o próximo" só grava o texto junto se um dos dois
+blocos tinha texto corrigido (o `fim` de uma presilha não conta: o texto automático das palavras juntas é o mesmo e
+acompanha um corte que tire uma delas). O texto corrigido perde os espaços das pontas e os repetidos; igual ao de
+agora, nada é gravado. 💡 "Juntar com o próximo" fica desligado quando um dos dois blocos está escondido (o texto do
+outro apareceria enquanto a palavra escondida é falada): mostre o bloco antes de juntar. O PUT mescla dentro da trava do projeto (dois cliques seguidos não se apagam).
 
 💡 **Mexer nos cortes** (SPEC §9, como os planos da direção): um ajuste cuja 1ª palavra saiu passa à 1ª que sobrou entre
 ela e o `fim` (e o `fim` à última que sobrou); se nenhuma sobrou, ele fica **órfão**: a etapa lista os órfãos (o texto
@@ -93,7 +102,9 @@ os ajustes que valem.
   encolhido (0,755 — no peito, como no Full ator); desde a P5, pela geometria do ator no modo e na posição em que ele
   estiver (no recortado também no peito; no canto, logo acima da caixa; [rosto.md](rosto.md));
 - **card do comentário**: logo **acima** do card (ou abaixo, se não couber), com a altura do card estimada pelo texto e
-  pela escala (no melhor-ia-design: a legenda termina em 0,466 e o card começa em 0,481).
+  pela escala (no melhor-ia-design: a legenda termina em 0,466 e o card começa em 0,481). 💡 Como o bloco entra 0,17 s
+  antes da fala, a 1ª palavra de um plano aparece ainda no anterior: ela desvia também do card de comentário que está
+  na tela nesse tempo (antes, "cara" aparecia por cima do card no fim do plano 1).
 
 💡 **Prévia**: uma camada HTML por cima do palco, fora do efeito das transições (como no MP4), em unidades do quadro
 (`cqh`). **Exportação**: a página de render manda os blocos visíveis em `__render.legenda`; `legenda.py` escreve o ASS

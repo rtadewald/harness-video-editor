@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Blend, BookOpenText, Clapperboard, Film, FolderOpen, Images, Layers, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
+import { Blend, BookOpenText, ChevronLeft, ChevronRight, Clapperboard, Film, FolderOpen, Images, Layers, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fecharAba, useAbasProjetos } from './abasProjetos'
 
@@ -23,7 +23,7 @@ const LINKS: Link[] = [
 ]
 // o treino da Direção visual, alinhado à direita
 const TREINO: Link[] = [
-  { para: '/calibragem', nome: 'Calibragem', icone: SlidersHorizontal, exato: true },
+  { para: '/calibragem', nome: 'Calibragem', icone: SlidersHorizontal }, // acesa também na revisão de uma referência
   { para: '/heuristica', nome: 'Heurística da direção', icone: BookOpenText },
 ]
 export default function NavHome({ renomear }: { renomear?: (id: string, nome: string) => Promise<unknown> }) {
@@ -32,11 +32,14 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
   const ir = useNavigate()
   const aba = ({ isActive }: { isActive: boolean }) => cn(PILULA, 'flex items-center gap-1.5 px-3.5 py-[7px]', isActive ? ATIVA : INATIVA)
   // os rótulos somem pelo espaço que sobra para os links (container query em `links`), não pela largura da janela: no
-  // editor a barra divide o espaço com os botões da etapa e o Exportar, e as abas abertas também ocupam (até 40%, depois
-  // rolam); se nem só com os ícones couber (a busca do Banco), os links rolam em vez de passar por cima do que vem depois
+  // editor a barra divide o espaço com os botões da etapa e o Exportar, e as abas abertas também ocupam (até 40%: primeiro
+  // encolhem, com o nome cortado; depois rolam, com a ativa sempre à vista); se nem só com os ícones couber (a busca do
+  // Banco), os links rolam em vez de passar por cima do que vem depois. O que fica fora da vista ganha um degradê e uma
+  // seta no lado (clicar rola)
   return (
     <nav className="flex w-0 min-w-0 flex-1 items-center gap-1.5">
-      <div className="flex max-w-[40%] shrink-0 items-center gap-1.5 overflow-x-auto">
+      {/* com duas abas ou mais, cabe sempre uma aba inteira (mín. 120 px) entre as duas setas (36 px cada): a ativa, com o × */}
+      <Rolavel className={cn('max-w-[40%] shrink-0', abas.length > 1 && 'min-w-[192px]')}>
         {abas.map((a) => {
           const ativa = local.pathname === `/p/${a.id}`
           return (
@@ -53,8 +56,8 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
             />
           )
         })}
-      </div>
-      <div className="@container/links flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
+      </Rolavel>
+      <Rolavel className="@container/links flex-1">
         {abas.length > 0 && <span className="mx-1.5 h-5 w-px shrink-0 bg-line-dark" />}
         {LINKS.map((l) => (
           <NavLink key={l.para} to={l.para} end={l.exato} className={aba} title={l.nome} aria-label={l.nome}>
@@ -70,12 +73,80 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
             </NavLink>
           ))}
         </div>
-      </div>
+      </Rolavel>
     </nav>
   )
 }
 
+/** Uma faixa que rola de lado sem barra de rolagem: quando há o que ver fora dela, um degradê e uma seta naquele lado. */
+function Rolavel({ className, children }: { className?: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [fora, setFora] = useState({ esq: false, dir: false })
+  const medir = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    const esq = el.scrollLeft > 1
+    const dir = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+    setFora((f) => (f.esq === esq && f.dir === dir ? f : { esq, dir }))
+  }, [])
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    // a faixa e cada item (as abas abrem e fecham, os rótulos somem e voltam): qualquer mudança de tamanho remede
+    const tamanhos = new ResizeObserver(medir)
+    const observar = () => {
+      tamanhos.disconnect()
+      tamanhos.observe(el)
+      for (const c of el.children) tamanhos.observe(c)
+      medir()
+    }
+    const itens = new MutationObserver(observar)
+    itens.observe(el, { childList: true })
+    observar()
+    return () => {
+      tamanhos.disconnect()
+      itens.disconnect()
+    }
+  }, [medir])
+  const rolar = (sentido: 1 | -1) => {
+    const el = ref.current
+    if (el) el.scrollBy({ left: sentido * Math.max(el.clientWidth * 0.7, 80), behavior: 'smooth' })
+  }
+  return (
+    <div className={cn('relative flex min-w-0', className)}>
+      {/* scroll-px: um item trazido à vista (a aba ativa) para antes da seta (w-9), sem ficar embaixo do degradê */}
+      <div ref={ref} onScroll={medir} className="flex min-w-0 flex-1 scroll-px-10 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {children}
+      </div>
+      {fora.esq && <Seta lado="esq" rolar={() => rolar(-1)} />}
+      {fora.dir && <Seta lado="dir" rolar={() => rolar(1)} />}
+    </div>
+  )
+}
+
+function Seta({ lado, rolar }: { lado: 'esq' | 'dir'; rolar: () => void }) {
+  return (
+    <button
+      onClick={rolar}
+      tabIndex={-1}
+      aria-label={lado === 'esq' ? 'Ver os da esquerda' : 'Ver mais'}
+      title={lado === 'esq' ? 'Ver os da esquerda' : 'Ver mais'}
+      className={cn(
+        'absolute inset-y-0 z-10 flex w-9 items-center text-fog hover:text-cream',
+        lado === 'esq' ? 'left-0 justify-start bg-gradient-to-r from-ink from-40% to-transparent' : 'right-0 justify-end bg-gradient-to-l from-ink from-40% to-transparent',
+      )}
+    >
+      {lado === 'esq' ? <ChevronLeft className="size-4" /> : <ChevronRight className="size-4" />}
+    </button>
+  )
+}
+
 function AbaDeProjeto(p: { nome: string; ativa: boolean; abrir: () => void; fechar: () => void; renomear?: (nome: string) => Promise<unknown> }) {
+  const ref = useRef<HTMLDivElement>(null)
+  // a aba ativa nunca fica escondida na rolagem das abas
+  useEffect(() => {
+    if (p.ativa) ref.current?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
+  }, [p.ativa])
   const [editando, setEditando] = useState(false)
   const [valor, setValor] = useState(p.nome)
   const confirmar = async () => {
@@ -90,7 +161,7 @@ function AbaDeProjeto(p: { nome: string; ativa: boolean; abrir: () => void; fech
     }
   }
   return (
-    <div className={cn(PILULA, 'flex max-w-[230px] items-center gap-2 py-[3px] pr-1 pl-3.5', p.ativa ? ATIVA : INATIVA)}>
+    <div ref={ref} className={cn(PILULA, 'flex max-w-[230px] min-w-[120px] shrink items-center gap-2 py-[3px] pr-1 pl-3.5', p.ativa ? ATIVA : INATIVA)}>
       <span className={cn('size-1.5 shrink-0 rounded-full', p.ativa ? 'bg-[#c4502f]' : 'bg-coral/70')} />
       {editando ? (
         <input

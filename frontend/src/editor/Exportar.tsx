@@ -79,19 +79,25 @@ export default function Exportar({ projeto, duracao }: { projeto: Projeto; durac
   }, [rodando, projeto.id])
 
   const pct = Math.round((atual?.progresso ?? 0) * 100)
+  // sem cortes (o processamento parado ou ainda rodando) não há vídeo final: a exportação recusaria
+  const semCortes = duracao <= 0
   return (
     <>
-      <Button
-        variant="coral"
-        size="sm"
-        onClick={() => setAberto(true)}
-        className={cn('relative h-9 shrink-0 overflow-hidden px-4', rodando ? 'gap-2' : 'gap-6')}
-        title={rodando ? 'Exportando em segundo plano: clique para ver ou cancelar' : 'Exportar o vídeo final'}
-      >
-        {rodando && <span className="absolute inset-y-0 left-0 bg-ink/30 transition-[width] duration-700" style={{ width: `${pct}%` }} />}
-        <span className="relative tabular-nums">{rodando ? `Exportando ${pct}%` : 'Exportar'}</span>
-        {!rodando && <span className="seta relative">↗</span>}
-      </Button>
+      {/* o botão desligado não recebe o mouse: a dica fica no invólucro */}
+      <span className="flex shrink-0" title={semCortes && !rodando ? 'Sem cortes ainda: o vídeo final sai deles (espere o processamento terminar).' : undefined}>
+        <Button
+          variant="coral"
+          size="sm"
+          onClick={() => setAberto(true)}
+          disabled={semCortes && !rodando}
+          className={cn('relative h-9 shrink-0 overflow-hidden px-4', rodando ? 'gap-2' : 'gap-6')}
+          title={rodando ? 'Exportando em segundo plano: clique para ver ou cancelar' : 'Exportar o vídeo final'}
+        >
+          {rodando && <span className="absolute inset-y-0 left-0 bg-ink/30 transition-[width] duration-700" style={{ width: `${pct}%` }} />}
+          <span className="relative tabular-nums">{rodando ? `Exportando ${pct}%` : 'Exportar'}</span>
+          {!rodando && <span className="seta relative">↗</span>}
+        </Button>
+      </span>
 
       {aberto && (
         <ModalExportar
@@ -186,14 +192,19 @@ function ModalExportar(p: {
   const [enviando, setEnviando] = useState(false)
   const rodando = p.atual?.status === 'rodando'
 
+  // sem direção visual não há inserts (a rota recusaria): o vídeo sai só com o ator
+  const temDirecao = !!p.projeto.direcao?.itens?.length
   useEffect(() => {
-    void lerInserts(p.projeto.id).then((r) => {
-      const com = r.pedidos.filter((x) => x.midias.length)
-      const comentarios = com.filter((x) => x.tipo === 'comentario_insert_ator').length
-      const fundo = FUNDOS.find((f) => f.id === (r.fundo ?? 'gradiente'))?.nome ?? ''
-      setResumo([`${com.length} ${com.length === 1 ? 'insert' : 'inserts'}`, `fundo ${fundo}`, comentarios ? `${comentarios} ${comentarios === 1 ? 'comentário' : 'comentários'}` : null].filter(Boolean).join(' · '))
-    })
-  }, [p.projeto.id])
+    if (!temDirecao) return
+    void lerInserts(p.projeto.id)
+      .then((r) => {
+        const com = r.pedidos.filter((x) => x.midias.length)
+        const comentarios = com.filter((x) => x.tipo === 'comentario_insert_ator').length
+        const fundo = FUNDOS.find((f) => f.id === (r.fundo ?? 'gradiente'))?.nome ?? ''
+        setResumo([`${com.length} ${com.length === 1 ? 'insert' : 'inserts'}`, `fundo ${fundo}`, comentarios ? `${comentarios} ${comentarios === 1 ? 'comentário' : 'comentários'}` : null].filter(Boolean).join(' · '))
+      })
+      .catch(() => setResumo('inserts não lidos'))
+  }, [p.projeto.id, temDirecao])
 
   const mudar = (campos: Partial<OpcoesExportacao>) => {
     const novo = { ...o, ...campos }
@@ -261,7 +272,7 @@ function ModalExportar(p: {
           />
         </label>
         <p className="text-[12px] leading-[1.6] text-fog">
-          {resumo ?? '…'} · {Math.floor(p.duracao / 60)}:{String(Math.round(p.duracao % 60)).padStart(2, '0')} · ≈ {tamanho(o, p.duracao)}
+          {temDirecao ? (resumo ?? '…') : 'sem direção visual: só o ator'} · {Math.floor(p.duracao / 60)}:{String(Math.round(p.duracao % 60)).padStart(2, '0')} · ≈ {tamanho(o, p.duracao)}
           {o.fps > 24 && <span className="block">O bruto tem 24 fps: o ator repete quadros; os inserts saem fluidos em {o.fps} fps.</span>}
         </p>
         {p.atual?.status === 'pronta' && (
@@ -274,7 +285,13 @@ function ModalExportar(p: {
           <button onClick={p.fechar} className="rounded-full px-4 py-1.5 text-[12px] font-semibold text-fog hover:text-cream">
             Cancelar
           </button>
-          <Button variant="coral" size="sm" disabled={enviando || !nome.trim()} onClick={() => void exportar()} className="h-9 gap-6 px-4">
+          <Button
+            variant="coral"
+            size="sm"
+            disabled={enviando || !nome.trim() || p.duracao <= 0}
+            onClick={() => void exportar()}
+            className="h-9 gap-6 px-4"
+          >
             Exportar <span className="seta">↗</span>
           </Button>
         </div>
