@@ -5,7 +5,7 @@ import { eventoNoTempo, type Catalogo, type EventoSom, type Intensidade } from '
 
 /** As transições entre planos (SPEC §8.8; docs/transicoes.md): a biblioteca, os pares, as escolhas do projeto e o efeito
  *  no tempo. A curva do efeito é a mesma da exportação (`transicoes.py`), então a prévia sai igual ao MP4. */
-export type Efeito = { tipo: 'seco' | 'luz' | 'brilho' | 'zoom'; antes: number; depois: number; forca: number }
+type Efeito = { tipo: 'seco' | 'luz' | 'brilho' | 'zoom'; antes: number; depois: number; forca: number }
 export type Transicao = {
   id: string
   nome: string
@@ -20,7 +20,6 @@ export type Biblioteca = { transicoes: Transicao[]; pares: Record<string, Par>; 
 
 const loja = criarLoja(() => fetch('/api/transicoes').then(json<Biblioteca>))
 export const useBiblioteca = loja.use
-export const recarregarBiblioteca = loja.recarregar
 
 export async function editarTransicao(id: string, campos: Partial<Pick<Transicao, 'aprovado' | 'nome' | 'som'>>) {
   const t = await enviar<Transicao>('PATCH', `/api/transicoes/${id}`, { campos })
@@ -65,7 +64,7 @@ export function parDoGrupo(b: Biblioteca, k: string): Par {
 /** A ordem que vale para um par: a do grupo (de onde sai → para onde vai); sem ela, a do par exato (antiga). */
 export const ordemDoPar = (b: Biblioteca, de: string, para: string) => b.ordem[`familia:${familia(de)}>${familia(para)}`] ?? b.ordem[chavePar(de, para)]
 /** A transição que um corte recebe sozinho: a 1ª favorita do par (ou da família); sem nada, o corte seco. */
-export function padraoDoPar(b: Biblioteca, de: string, para: string): string {
+function padraoDoPar(b: Biblioteca, de: string, para: string): string {
   const o = ordemDoPar(b, de, para)
   const id = o && o.favoritas > 0 ? o.ids[0] : null
   return id && b.transicoes.some((t) => t.id === id) ? id : 'corte-seco'
@@ -107,7 +106,7 @@ export function sortearTransicoes(b: Biblioteca, cortes: CorteDoVideo[], modo: '
 /** Uma transição trocada à mão: a transição e o par do corte quando ela foi escolhida. Os ids dos planos são de posição
  *  (`p5`): com outra direção, `p5` pode ser outro corte, e a escolha só vale se o par ainda bater (as antigas, sem par,
  *  valem sempre). */
-export type Escolha = { id: string; par?: string }
+type Escolha = { id: string; par?: string }
 export type Escolhas = Record<string, Escolha>
 
 /** Uma troca: o plano que entra, a transição (null volta ao padrão do par) e o par do corte. */
@@ -167,7 +166,7 @@ const suave = (u: number) => {
   return x * x * (3 - 2 * x)
 }
 /** O envelope de um efeito em volta do corte (igual a `transicoes._janela`): sobe até o corte e desce depois. */
-export function envelope(e: Efeito, tCorte: number, t: number): number {
+function envelope(e: Efeito, tCorte: number, t: number): number {
   if (t < tCorte) return e.antes > 0 ? suave((t - (tCorte - e.antes)) / e.antes) : 0
   return e.depois > 0 ? 1 - suave((t - tCorte) / e.depois) : 0
 }

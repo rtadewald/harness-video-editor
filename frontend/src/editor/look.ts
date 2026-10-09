@@ -5,7 +5,7 @@ import { criarLoja } from './loja'
 /** O look do ator (docs/preprocessamento.md, "Look"): um LUT 3D com intensidade e a vinheta. A tabela (o `.cube`) e a
  *  fórmula da vinheta são as mesmas do backend (`look.py`), então a prévia (WebGL, `CanvasLook`) sai igual ao MP4. */
 export type Look = { lut: string | null; intensidade: number; vinheta: 'sem' | 'leve' | 'normal' | 'forte' }
-export type CatalogoLook = {
+type CatalogoLook = {
   luts: { id: string; nome: string }[]
   vinhetas: Record<Look['vinheta'], number>
   forma: { cy: number; rx: number; ry: number; ini: number; fim: number }

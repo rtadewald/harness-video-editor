@@ -283,7 +283,6 @@ def configurar_comentario(id: str, pid: str, campos: dict) -> dict:
 
 # ---------------------------------------------------------------- fundo (do projeto inteiro)
 FUNDOS = ('verde_claro', 'papel', 'nevoa', 'chuva', 'gradiente')
-FUNDO_PADRAO = 'gradiente'
 
 
 def definir_fundo(id: str, fundo: str) -> dict:

@@ -89,7 +89,7 @@ export function Categoria(p: { atual: string; sugestao: string | null; mudar: (t
 }
 
 /** O chip da categoria do plano, na cor do tipo (insert em tela cheia, tela dividida, motion, ator). */
-export function ChipCategoria({ tipo }: { tipo: string }) {
+function ChipCategoria({ tipo }: { tipo: string }) {
   const cor = TEM_MOTION.includes(tipo) ? 'bg-yellow text-ink' : tipo === 'insert_tela_cheia' ? 'bg-blue text-cream' : tipo.includes('insert') ? 'bg-mint text-ink' : 'bg-cream/10 text-cream'
   return <span className={cn('shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold', cor)}>{NOME_TIPO[tipo] ?? CATEGORIAS.planos[tipo] ?? tipo}</span>
 }

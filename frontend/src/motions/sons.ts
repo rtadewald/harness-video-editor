@@ -57,7 +57,7 @@ const pedidas = new Map<string, Promise<Marca[]>>();
 export const marcasGuardadas = (src: string) => lidas.get(src);
 export const guardarMarcas = (src: string, m: Marca[]) => void lidas.set(src, m);
 /** Lê de antemão as marcas de uma página (uma vez por URL). */
-export function preCarregarMarcas(src: string, formato: Formato): Promise<Marca[]> {
+function preCarregarMarcas(src: string, formato: Formato): Promise<Marca[]> {
   if (!pedidas.has(src)) pedidas.set(src, marcasDaPagina(src, formato).then((m) => (lidas.set(src, m), m)));
   return pedidas.get(src)!;
 }

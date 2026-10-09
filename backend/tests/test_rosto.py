@@ -40,7 +40,7 @@ def test_buracos_preenchidos_pelo_vizinho_mais_proximo():
     assert rosto.preencher([vazio(0), vazio(1)]) == []  # sem rosto nenhum
 
 
-def test_rodar_grava_o_arquivo_e_o_estado_e_rosto_mediano(cliente, video, monkeypatch):
+def test_rodar_grava_o_arquivo_e_o_estado(cliente, video, monkeypatch):
     id = criar_projeto(cliente, video)['id']
     # o proxy: o próprio vídeo de teste
     proxy = projeto.pasta(id) / 'midia' / 'proxy' / 'f1.mp4'
@@ -48,7 +48,7 @@ def test_rodar_grava_o_arquivo_e_o_estado_e_rosto_mediano(cliente, video, monkey
     proxy.write_bytes(video.read_bytes())
     projeto.atualizar(id, lambda p: p['fontes'][0].update(proxy='midia/proxy/f1.mp4'))
     assert cliente.get(f'/api/projetos/{id}/rosto').json() == {'estado': 'nenhum'}
-    assert rosto.rosto_mediano(id, 0, 3) is None  # ainda não medido
+    assert rosto.ler(id) is None  # ainda não medido
 
     # rosto à esquerda no 1º segundo, sumido no 2º, à direita no 3º
     def rostos(ms):
@@ -65,11 +65,10 @@ def test_rodar_grava_o_arquivo_e_o_estado_e_rosto_mediano(cliente, video, monkey
     assert (e['estado'], e['progresso'], e['erro'], e['amostras'], e['achados'], e['bruto']) == ('pronto', 1, None, 18, 12, 'f1')
     m = rosto.ler(id)
     assert (projeto.pasta(id) / 'midia' / 'rosto' / 'f1.json').exists() and len(m['amostras']) == 18
-    assert rosto.rosto_mediano(id, 0, 0.9) == {'cx': 0.2, 'cy': 0.2, 'w': 0.2, 'h': 0.2}
-    assert rosto.rosto_mediano(id, 2.0, 3.0)['cx'] == 0.8
-    assert rosto.rosto_mediano(id, 1.2, 1.4)['cx'] == 0.2  # só buracos: o preenchido (o vizinho de antes)
-    assert rosto.rosto_mediano(id, 0, 3)['cx'] == 0.5  # mediana de 6 à esquerda e 6 à direita
-    assert rosto.rosto_mediano(id, 10, 12)['cx'] == 0.8  # fora do vídeo: a amostra mais próxima
+    def caixas(a, b, medidas=True):
+        return {(x['cx'], x['cy'], x['w'], x['h']) for x in m['amostras'] if a <= x['t'] <= b and (x['conf'] > 0) == medidas}
+    assert caixas(0, 0.9) == {(0.2, 0.2, 0.2, 0.2)} and {c[0] for c in caixas(2.0, 3.0)} == {0.8}
+    assert {c[0] for c in caixas(1.2, 1.4, medidas=False)} == {0.2}  # só buracos: o preenchido (o vizinho de antes)
 
     # pronto: pedir de novo pela rota mede de novo; pelo pipeline (rosto.pedir), não
     assert rosto.pedir(id)['estado'] == 'pronto' and len(rodou) == 1
@@ -100,7 +99,7 @@ def test_o_pipeline_pede_o_rosto_depois_do_proxy(cliente, video, monkeypatch):
     assert pedidos == [id]
 
 
-def test_sem_rosto_no_video_rosto_mediano_e_none(cliente, video, monkeypatch):
+def test_sem_rosto_no_video_nenhuma_amostra(cliente, video, monkeypatch):
     id = criar_projeto(cliente, video)['id']
     proxy = projeto.pasta(id) / 'midia' / 'proxy' / 'f1.mp4'
     proxy.parent.mkdir(parents=True)
@@ -110,7 +109,7 @@ def test_sem_rosto_no_video_rosto_mediano_e_none(cliente, video, monkeypatch):
     monkeypatch.setattr(rosto, 'detector_mediapipe', abrir)
     rosto.pedir(id)
     rosto._rodar(id)
-    assert rosto.estado(id)['achados'] == 0 and rosto.rosto_mediano(id, 0, 1) is None
+    assert rosto.estado(id)['achados'] == 0 and not (rosto.ler(id) or {}).get('amostras')
 
 
 def test_video_truncado_vira_erro_e_nao_video_sem_rosto(cliente, video, tmp_path, monkeypatch):

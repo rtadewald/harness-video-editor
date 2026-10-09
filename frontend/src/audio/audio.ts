@@ -12,7 +12,7 @@ export type Limpeza = 'sem' | 'leve' | 'media' | 'forte' | 'isolamento'
 export type Timbre = 'natural' | 'quente' | 'clara'
 export type Escolhas = { voz: { limpeza: Limpeza; timbre: Timbre }; fundo: string | null; fundo_mudo: boolean; niveis: Record<Trilha, number> }
 /** `versao`: a do vídeo (o Reenquadrar) com que o proxy com a voz foi feito. */
-export type EstadoVoz = {
+type EstadoVoz = {
   estado: 'sem' | 'pronta' | 'fila' | 'rodando' | 'erro' | 'falta'
   limpeza: Limpeza
   progresso?: number
@@ -32,7 +32,7 @@ export type AudioDoProjeto = {
 }
 /** A voz que a prévia toca: `proxy` com a voz limpa (null: o proxy do bruto), a `versao` do vídeo dele e a sonoridade. */
 export type VozTocada = { proxy: string | null; versao: number | null; lufs: number | null }
-export type Faixa = { id: string; nome: string; clima?: string; bpm?: number; duracao?: number; descricao?: string }
+type Faixa = { id: string; nome: string; clima?: string; bpm?: number; duracao?: number; descricao?: string }
 export type Catalogo = {
   trilhas: Faixa[]
   timbres: Record<Timbre, { f: number; g: number; q: number }[]>
@@ -52,7 +52,7 @@ export type Catalogo = {
 const loja = criarLoja(() => fetch('/api/audio').then(json<Catalogo>))
 export const useCatalogoAudio = loja.use
 export const urlFaixa = (id: string) => `/api/audio/trilhas/${id}.m4a`
-export const ganho = (db: number) => 10 ** (db / 20)
+const ganho = (db: number) => 10 ** (db / 20)
 
 /** A voz que a prévia toca depois de uma resposta: a limpa quando pronta; sem limpeza ou se ela falhou, a do bruto (como
  *  a exportação); enquanto uma nova é feita, a que já tocava (o player não recarrega à toa). */
@@ -141,7 +141,7 @@ const db = (x: number) => 20 * Math.log10(x)
  *  Chromium (`DynamicsCompressorKernel`), com a mesma curva do joelho —, que o `acompressor` do ffmpeg não aplica: a
  *  prévia o desfaz, para a voz soar na mesma relação com o fundo e os sons que no MP4 (−20 dB, 2,5:1, joelho 6: 2,04×,
  *  +6,2 dB). */
-export function makeupDoCompressor(c: Catalogo['compressor']) {
+function makeupDoCompressor(c: Catalogo['compressor']) {
   const lim = ganho(c.limiar)
   const joelho = (x: number, k: number) => (x < lim ? x : lim + (1 - Math.exp(-k * (x - lim))) / k)
   const inclinacao = (x: number, k: number) => {
@@ -240,7 +240,7 @@ export function useCadeiaNaPrevia(video: RefObject<HTMLVideoElement | null>, cat
  *  volta do 0 até o fim do laço e as outras dentro dele, cada uma entrando com um crossfade de potência constante de
  *  `cruza` s. Um ou dois pedaços (no crossfade), cada um com o elemento de áudio (as voltas alternam entre dois), a
  *  posição na faixa e o ganho. Sem laço, a faixa do começo. */
-export function pedacosDoFundo(t: number, laco: { ini: number; fim: number } | null, cruza: number): { el: 0 | 1; pos: number; ganho: number }[] {
+function pedacosDoFundo(t: number, laco: { ini: number; fim: number } | null, cruza: number): { el: 0 | 1; pos: number; ganho: number }[] {
   if (!laco) return [{ el: 0, pos: t, ganho: 1 }]
   const { ini, fim } = laco
   const x = Math.min(cruza, (fim - ini) / 2)

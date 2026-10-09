@@ -30,7 +30,7 @@ type Pipeline = { passos: Partial<Record<'enquadramento' | 'proxy' | 'transcrica
 export type Etapa = 'cortes' | 'direcao' | 'inserts' | 'enriquecimento' | 'motion' | 'transicoes' | 'audio' | 'legenda'
 
 /** Uma mensagem do chat do agente (SPEC §11, futuro): os históricos ficam no projeto, por etapa. */
-export type Mensagem = {
+type Mensagem = {
   autor: 'criador' | 'agente'
   texto: string
   ferramentas: string[]
@@ -355,7 +355,6 @@ export function formatarDuracao(s: number | null | undefined) {
 /** 27,512 — segundos com milissegundos, no formato brasileiro. */
 export const ms3 = (s: number) => s.toFixed(3).replace('.', ',')
 /** 1:05,3 — minutos e segundos com uma casa, vírgula decimal. */
-export const tempoBR = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0').replace('.', ',')}`
 
 /** 0:12.4 — para a timeline e o player. */
 export function formatarTempo(s: number) {

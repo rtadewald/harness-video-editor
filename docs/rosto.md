@@ -27,10 +27,10 @@ virado) são preenchidos com o vizinho. Num 16:9, roda antes, sobre o original r
   ao mesmo tempo não põem duas medidas na fila); o que estava na fila ou rodando recomeça quando o servidor sobe. Rotas:
   `GET /api/projetos/{id}/rosto` (o estado; `{estado: 'nenhum'}` se nunca rodou) e `POST …/rosto` (mede de novo).
   Projetos criados antes da F0 não têm a medida até alguém pedir (o POST).
-- Para as outras áreas: `rosto.medir(video)` (a P1 usa no original reduzido) e `rosto.rosto_mediano(id, ini, fim)` (a
-  mediana de cx, cy, w, h nas amostras de um intervalo do bruto — as medidas de verdade, senão as preenchidas, senão a
-  amostra mais próxima; `None` sem medida). A P5 acabou não usando `rosto_mediano`: a mesma mediana é calculada no
-  navegador (`editor/ator.ts` `useRosto`), que já tem a sequência para levar o tempo da saída ao do bruto.
+- Para as outras áreas: `rosto.medir(video)` (a P1 usa no original reduzido). A mediana de cx, cy, w, h num trecho
+  (as medidas de verdade, senão as preenchidas, senão a amostra mais próxima) é calculada no navegador
+  (`editor/ator.ts` `useRosto`), que já tem a sequência para levar o tempo da saída ao do bruto; o `rosto_mediano` do
+  backend, que a P5 acabou não usando, saiu na limpeza de out/2026.
 - 💡 Na P1 (out/2026): `_quadros` reduz o vídeo para o lado maior de até 1280 px antes de passar ao detector (as medidas
   saem em fração do quadro; um 4K não passa ~25 MB por quadro pelo cano). A medida do original 16:9, que guia o
   enquadramento, fica em `midia/rosto/original.json` (não é apagada num Reenquadrar; a do proxy, `<bruto>.json`, é).
