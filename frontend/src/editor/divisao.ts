@@ -108,6 +108,8 @@ export function receitaParaInsert(r: Receita, d: Divisao | null, aspectos: numbe
     const emPe = a < 0.9 && c.repouso.w > c.repouso.h
     // no "ator embaixo", o espaço acima da janela é largo e baixo: o card vai quase até as bordas e um pouco acima do meio
     const atras = d?.modo === 'atras'
+    const desliza = deslizeTransbordando(c, a, areaAsp, atras)
+    if (desliza) return desliza
     const bw = atras ? 96 : Math.min(c.repouso.w, 96)
     const bh = emPe ? Math.max(Math.min(c.repouso.h, 96), 84) : Math.min(c.repouso.h, 96)
     let w = bw
@@ -134,6 +136,36 @@ export function receitaParaInsert(r: Receita, d: Divisao | null, aspectos: numbe
     return { ...comRepouso(c, { w, h, cy, cx }), continuo, ajuste: 'cover' as const }
   })
   return { ...r, cards }
+}
+
+/** Um card desenhado maior que a área que DESLIZA na horizontal (o "Cresce e desliza": cresce preso por um lado,
+ *  transbordando pelo outro, e desliza revelando o resto): o transbordo é o efeito, então o card não encolhe para caber
+ *  — fica com a largura do desenho (só limitado pela altura, numa mídia alta), preso pela borda do desenho, a entrada
+ *  cresce a partir dela e o deslize termina com a outra borda do card ainda um pouco além da área (`TRANSBORDO_NO_FIM`),
+ *  qualquer que seja a proporção da mídia. `null`: não é esse caso. */
+const TRANSBORDO_NO_FIM = 16 // % da área
+function deslizeTransbordando(c: CardReceita, a: number, areaAsp: number, atras: boolean): CardReceita | null {
+  const dx = c.saida?.para.dx ?? 0
+  if (atras || c.repouso.w <= 100 || Math.abs(dx) < 5 || (c.saida?.para.escala ?? 1) > 1.05) return null
+  let w = c.repouso.w
+  let h = (w * areaAsp) / a
+  const hMax = Math.min(c.repouso.h, 96)
+  if (h > hMax) {
+    h = hMax
+    w = (h * a) / areaAsp
+  }
+  if (w <= 100) return null // a mídia alta não transborda mais: o card comum
+  // preso pela borda oposta ao deslize (desliza para a esquerda: preso à esquerda e revela a direita)
+  const esq = dx < 0
+  const borda = esq ? c.repouso.cx - c.repouso.w / 2 : c.repouso.cx + c.repouso.w / 2
+  const cx = esq ? borda + w / 2 : borda - w / 2
+  // o deslize termina com a outra borda ainda 16% além da área, como na referência (medido no Cresce e desliza: o card
+  // anda ~23% da tela e a borda direita fica a ~116%) — nunca abre margem do lado que estava transbordando
+  const deslize = esq ? Math.min(100 + TRANSBORDO_NO_FIM - (cx + w / 2), 0) : Math.max(-TRANSBORDO_NO_FIM - (cx - w / 2), 0)
+  const e = c.entrada
+  // a entrada que cresce: começa no mesmo lado preso (o centro desloca metade do que falta crescer)
+  const entrada = e && e.de.escala < 0.98 ? { ...e, de: { ...e.de, dx: ((esq ? -1 : 1) * (w / 2) * (1 - e.de.escala)) } } : e
+  return { ...c, repouso: { ...c.repouso, w, h, cx }, entrada, saida: c.saida && { ...c.saida, para: { ...c.saida.para, dx: deslize } }, ajuste: 'cover' as const }
 }
 
 /** A saída de um card que ocupa a área toda, sem descobrir o fundo (a tela toda continua toda):
