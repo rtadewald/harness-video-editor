@@ -110,3 +110,8 @@ desliza (o Corte seco) continua encolhendo para caber, no meio do pedaço que ap
 ✅ **Ajuste rápido "Até onde desliza"** (pedido de Rodrigo, out/2026), nos presets com esse card (aparece primeiro entre os
 ajustes): **Pouco** (anda 12% da área), **Como na referência** (23%, o padrão) e **Até a borda** (anda até a outra borda
 do card encostar na borda da tela). Fica no insert (`enriquecimento.ajustes.deslize`), como os outros ajustes rápidos.
+
+💡 **Cards em sequência ficam centrados** (bug achado por Rodrigo, out/2026, no "Empurra a próxima de baixo"): a regra
+que prende um card que encolheu pela borda virada para o meio (para manter o vão entre cards **empilhados**) só vale
+para cards empilhados de verdade — longe do meio e sem `repete`. Numa sequência (um card substitui o outro no mesmo
+lugar), ela jogava o 1º card para a costura (95% da altura da área) e o 2º para cima.

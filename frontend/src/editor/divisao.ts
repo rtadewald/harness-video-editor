@@ -123,7 +123,10 @@ export function receitaParaInsert(r: Receita, d: Divisao | null, aspectos: numbe
     // na proporção da folga que sobrou, para ele não correr para fora do topo
     // com vários cards, o que encolhe na altura fica preso pela borda virada para o meio da área: o vão entre eles continua
     // o do desenho (em vez de crescer)
-    const junto = r.cards.length > 1 ? Math.sign(50 - c.repouso.cy) * Math.max(0, c.repouso.h - h) / 2 : 0
+    // (só cards empilhados de verdade: longe do meio; numa sequência — um card substitui o outro no mesmo lugar, como no
+    // "Empurra a próxima de baixo" — cada um fica centrado no seu lugar, senão o 1º descia até a costura)
+    const empilhado = r.cards.length > 1 && !r.repete && Math.abs(c.repouso.cy - 50) > 10
+    const junto = empilhado ? Math.sign(50 - c.repouso.cy) * Math.max(0, c.repouso.h - h) / 2 : 0
     const cy = emPe ? 50 : atras ? Math.max(h / 2 + 3, 44) : c.repouso.cy + junto
     const folga = emPe ? Math.max(0, 98 - h) / Math.max(1, 98 - Math.min(c.repouso.h, 96)) : 1
     const continuo = c.continuo && folga < 1 ? { ...c.continuo, dy: c.continuo.dy * folga } : c.continuo
