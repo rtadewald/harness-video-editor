@@ -1,24 +1,26 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Check, Pause, Play, Star, Volume2 } from 'lucide-react'
-import { urlArquivoReferencia } from '@/api'
+import { Check, Pause, Play, Settings2, Star, Volume2 } from 'lucide-react'
+import { formatarTempo, urlArquivoReferencia } from '@/api'
+import Modal from '@/components/Modal'
+import { CATEGORIAS } from '@/editor/EtapaDirecao'
 import { NOME_INTENSIDADE, eventoNoTempo, useCatalogoSons, type Intensidade } from '@/editor/sons'
 import { cn } from '@/lib/utils'
 import EfeitoNoPalco from './EfeitoNoPalco'
-import { LUZ, editarTransicao, type CorteDoVideo, type Transicao } from './transicoes'
+import { LUZ, editarTransicao, useBiblioteca, type Biblioteca, type CorteDoVideo, type Transicao } from './transicoes'
 
 const DEPOIS = 1.5 // quanto o trecho mostra depois do corte
 const quadro = (ref: string, t: number) => `/api/presets/quadro/${encodeURIComponent(ref)}?t=${Math.max(t, 0).toFixed(2)}`
 
-/** Uma transição na página Transições (SPEC §8.8): a referência (o corte de onde ela veio, tocando com o som dela) e a
- *  recriação ao lado (o quadro de antes e o de depois do corte, com o efeito e o som do motor, no mesmo relógio). `som`:
- *  de qual lado sai o som. Embaixo, a estrela de favorita do par, o som (qual e a intensidade) e aprovar. */
-export default function CardTransicao(p: {
+/** A prévia de uma transição (SPEC §8.8): a referência (o corte de onde ela veio, tocando com o som dela) e a
+ *  recriação ao lado (o quadro de antes e o de depois do corte, com o efeito e o som do motor, no mesmo relógio), de
+ *  borda a borda, como nos presets. `som`: de qual lado sai o som. Serve ao card e ao modal da transição. */
+function Miniatura(p: {
   t: Transicao
   fonte: { ref: string; t: number } | null
   tocando: boolean
   tocar: (sim: boolean) => void
   som: 'referencia' | 'recriacao'
-  favorita?: { ligada: boolean; primeira: boolean; alternar: () => void; tornarPrimeira: () => void }
+  favorita?: { ligada: boolean; primeira: boolean }
 }) {
   const { t, fonte } = p
   const cat = useCatalogoSons()
@@ -62,11 +64,7 @@ export default function CardTransicao(p: {
     return () => obs.disconnect()
   }, [])
 
-  const icone = 'grid size-8 shrink-0 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream'
-  const efeito = { seco: 'Corte seco', luz: 'Luz', brilho: 'Brilho', zoom: 'Zoom' }[e.tipo]
   return (
-    <section className="flex min-w-0 flex-col">
-      {/* a miniatura, como nos presets: a referência e a recriação lado a lado, de borda a borda */}
       <div
         role="button"
         tabIndex={0}
@@ -117,21 +115,39 @@ export default function CardTransicao(p: {
           </div>
         )}
       </div>
+  )
+}
+
+const EFEITO = { seco: 'Corte seco', luz: 'Luz colorida', brilho: 'Brilho', zoom: 'Zoom com desfoque' }
+
+/** Uma transição na página Transições: a prévia (clicar toca a referência e a recriação juntas), o nome, a estrela de
+ *  favorita do par, aprovar e a engrenagem, que abre o modal com o som e os cortes das referências onde ela aparece. */
+export default function CardTransicao(p: {
+  t: Transicao
+  fonte: { ref: string; t: number } | null
+  tocando: boolean
+  tocar: (sim: boolean) => void
+  som: 'referencia' | 'recriacao'
+  favorita?: { ligada: boolean; primeira: boolean; alternar: () => void; tornarPrimeira: () => void }
+}) {
+  const { t } = p
+  const [aberto, setAberto] = useState(false)
+  const icone = 'grid size-8 shrink-0 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream'
+  const abrir = () => {
+    p.tocar(false)
+    setAberto(true)
+  }
+  return (
+    <section className="flex min-w-0 flex-col">
+      <Miniatura t={t} fonte={p.fonte} tocando={p.tocando} tocar={p.tocar} som={p.som} favorita={p.favorita} />
       <div className="mt-3 flex items-start gap-1">
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-[15px] font-semibold tracking-[-0.02em]" title={t.descricao || t.nome}>
-            {t.nome}
-          </h3>
+        <button onClick={abrir} className="min-w-0 flex-1 text-left" title={t.descricao || t.nome}>
+          <h3 className="truncate text-[15px] font-semibold tracking-[-0.02em] hover:underline">{t.nome}</h3>
           <p className="mt-0.5 truncate text-[12px] text-fog">
-            {efeito}
+            {EFEITO[t.efeito.tipo]}
             {t.som ? ' · com som' : ''}
-            {p.favorita?.ligada && !p.favorita.primeira && (
-              <button onClick={p.favorita.tornarPrimeira} className="ml-1.5 text-cream/80 underline-offset-2 hover:text-cream hover:underline">
-                · tornar o padrão
-              </button>
-            )}
           </p>
-        </div>
+        </button>
         {p.favorita && (
           <button
             onClick={p.favorita.alternar}
@@ -150,11 +166,133 @@ export default function CardTransicao(p: {
         >
           <Check className="size-4" />
         </button>
+        <button onClick={abrir} className={cn(icone, aberto && 'bg-coral text-cream hover:bg-coral')} title="Ajustar o som e ver onde aparece" aria-label="Ajustar">
+          <Settings2 className="size-4" />
+        </button>
       </div>
-      <div className="mt-2.5">
-        <Som t={t} />
-      </div>
+      {p.favorita?.ligada && !p.favorita.primeira && (
+        <button onClick={p.favorita.tornarPrimeira} className="mt-1 w-fit text-[11.5px] text-fog underline-offset-2 hover:text-cream hover:underline">
+          Tornar o padrão do par
+        </button>
+      )}
+      {aberto && <DetalheTransicao t={t} fonte={p.fonte} fechar={() => setAberto(false)} />}
     </section>
+  )
+}
+
+type Uso = { ref: string; t: number; par?: string }
+const nomeCat = (c: string) => CATEGORIAS.planos[c] ?? c
+const nomePar = (k: string) => {
+  const [de, para] = k.replace(/^familia:/, '').split('>')
+  return `${nomeCat(de)} → ${nomeCat(para)}`
+}
+/** Os cortes das referências onde a transição aparece: os de onde ela foi recriada e, nas de som, os cortes em que esse
+ *  som cai (no corte seco, os secos sem som), com o par de cada um. */
+function usosDe(b: Biblioteca, t: Transicao): Uso[] {
+  const out: Uso[] = []
+  const tem = (u: Uso) => out.some((x) => x.ref === u.ref && Math.abs(x.t - u.t) < 0.2)
+  const parDe = (u: { ref: string; t: number }) => Object.entries(b.pares).find(([, p]) => p.cortes.some((c) => c.ref === u.ref && Math.abs(c.t - u.t) < 0.2))?.[0]
+  for (const f of t.fontes) if (!tem(f)) out.push({ ...f, par: parDe(f) })
+  for (const [k, p] of Object.entries(b.pares))
+    for (const c of p.cortes) {
+      const casa = t.efeito.tipo !== 'seco' ? false : t.som ? c.sons.includes(t.som.som) : c.classe === 'seco' && !c.sons.length
+      if (casa && !tem(c)) out.push({ ref: c.ref, t: c.t, par: k })
+    }
+  return out
+}
+
+/** O modal da transição: a prévia grande (num corte das referências que se escolhe na lista), o som (qual e a
+ *  intensidade), o efeito e os cortes das referências onde ela aparece; os pares em que é favorita. */
+function DetalheTransicao(p: { t: Transicao; fonte: { ref: string; t: number } | null; fechar: () => void }) {
+  const b = useBiblioteca()
+  const [fonte, setFonte] = useState(p.fonte)
+  const [tocando, setTocando] = useState(false)
+  const [som, setSom] = useState<'referencia' | 'recriacao'>('recriacao')
+  const t = b?.transicoes.find((x) => x.id === p.t.id) ?? p.t
+  const usos = useMemo(() => (b ? usosDe(b, t) : []), [b, t])
+  const favoritaEm = b ? Object.entries(b.ordem).filter(([, o]) => o.ids.slice(0, o.favoritas).includes(t.id)).map(([k]) => k) : []
+  const e = t.efeito
+  const s1 = (v: number) => v.toFixed(2).replace('.', ',')
+  return (
+    <Modal titulo={t.nome} fechar={p.fechar} tamanho="largo">
+      <div className="flex min-h-0 flex-1 gap-8">
+        <div className="grid w-[420px] shrink-0 content-start gap-3">
+          <Miniatura t={t} fonte={fonte} tocando={tocando} tocar={setTocando} som={som} />
+          <div className="flex items-center gap-1 text-[11.5px]">
+            <Volume2 className="mr-1 size-3.5 text-fog" />
+            {(['referencia', 'recriacao'] as const).map((x) => (
+              <button
+                key={x}
+                onClick={() => setSom(x)}
+                className={cn('h-7 rounded-full border px-3 font-semibold', som === x ? 'border-cream bg-cream text-ink' : 'border-line-dark text-fog hover:text-cream')}
+              >
+                Som da {x === 'referencia' ? 'referência' : 'recriação'}
+              </button>
+            ))}
+          </div>
+          <p className="text-[12px] leading-[1.6] text-fog">{t.descricao}</p>
+        </div>
+        <div className="grid min-h-0 min-w-0 flex-1 content-start gap-6 overflow-y-auto pr-1">
+          <section className="grid gap-2">
+            <p className="eyebrow text-sage">Som</p>
+            <Som t={t} />
+            <p className="text-[11.5px] leading-[1.6] text-fog">O golpe do som cai no corte. Vale para todos os cortes que usam esta transição.</p>
+          </section>
+          <section className="grid gap-1.5">
+            <p className="eyebrow text-sage">Efeito</p>
+            <p className="text-[12.5px]">
+              {EFEITO[e.tipo]}
+              {e.tipo !== 'seco' && (
+                <span className="text-fog">
+                  {' '}
+                  · começa {s1(e.antes)} s antes do corte e acaba {s1(e.depois)} s depois · força {Math.round(e.forca * 100)}%
+                </span>
+              )}
+            </p>
+          </section>
+          {favoritaEm.length > 0 && (
+            <section className="grid gap-1.5">
+              <p className="eyebrow text-yellow">Favorita em</p>
+              <div className="flex flex-wrap gap-1.5">
+                {favoritaEm.map((k) => (
+                  <span key={k} className="rounded-full px-2.5 py-1 text-[11px] text-cream ring-1 ring-line-dark">
+                    {k.startsWith('familia:') ? 'Família ' : ''}
+                    {nomePar(k)}
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
+          <section className="grid gap-2">
+            <p className="eyebrow text-sage">Onde aparece nas referências · {usos.length}</p>
+            {!usos.length && <p className="text-[12px] text-fog">Nenhum corte das referências ligado a esta transição.</p>}
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2">
+              {usos.map((u) => {
+                const atual = fonte && fonte.ref === u.ref && Math.abs(fonte.t - u.t) < 0.05
+                return (
+                  <button
+                    key={`${u.ref}@${u.t}`}
+                    onClick={() => {
+                      setFonte({ ref: u.ref, t: u.t })
+                      setTocando(true)
+                    }}
+                    className={cn('grid gap-1 rounded-[6px] p-1.5 text-left ring-1', atual ? 'bg-cream/10 ring-cream/50' : 'ring-line-dark hover:bg-cream/[0.05]')}
+                    title="Ver este corte na prévia"
+                  >
+                    <img src={quadro(u.ref, u.t - 0.3)} alt="" loading="lazy" className="aspect-[9/16] w-full rounded-[4px] bg-black object-cover" />
+                    <span className="truncate text-[11px] font-semibold">{u.ref}</span>
+                    <span className="truncate text-[10.5px] text-fog">
+                      {formatarTempo(u.t)}
+                      {u.par ? ` · ${nomePar(u.par)}` : ''}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
