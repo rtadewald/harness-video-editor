@@ -122,7 +122,7 @@ export default function EtapaTransicoes(p: {
             )}
           </div>
         </aside>
-        <section className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_200px] gap-5 px-6 pt-5 pb-3">
+        <section className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_170px] gap-5 px-6 pt-5 pb-3">
           <div className="flex min-h-0 min-w-0 flex-col">{p.previa}</div>
           {b && cortes.length > 0 && (
             <Sorteio
@@ -231,8 +231,9 @@ function Opcoes(p: { corte: CorteDoVideo; b: Biblioteca; escolher: (tid: string 
             pararSons()
             setDemo(sim ? t.id : null)
           }}
-          som="recriacao"
+          som="referencia"
           semSelo
+          soReferencia
         />
         <button
           onClick={() => p.escolher(t.id)}
@@ -271,11 +272,11 @@ function Opcoes(p: { corte: CorteDoVideo; b: Biblioteca; escolher: (tid: string 
       </div>
       <div className="grid gap-2">
         <p className="eyebrow text-yellow">Favoritas do par</p>
-        <div className="grid grid-cols-3 gap-x-3 gap-y-4">{lista.filter((t) => fav.has(t.id)).map(card)}</div>
+        <div className="grid grid-cols-4 gap-x-2 gap-y-3">{lista.filter((t) => fav.has(t.id)).map(card)}</div>
       </div>
       <div className="grid gap-2">
         <p className="eyebrow text-fog">Outras transições</p>
-        <div className="grid grid-cols-3 gap-x-3 gap-y-4">{lista.filter((t) => !fav.has(t.id)).map(card)}</div>
+        <div className="grid grid-cols-4 gap-x-2 gap-y-3">{lista.filter((t) => !fav.has(t.id)).map(card)}</div>
       </div>
     </div>
   )
@@ -285,26 +286,25 @@ function Opcoes(p: { corte: CorteDoVideo; b: Biblioteca; escolher: (tid: string 
  *  favoritas) ou voltar às favoritas (tira as escolhas à mão). Cada clique sorteia de novo. */
 function Sorteio(p: { manuais: number; aplicar: (modo: 'favoritas' | 'todas' | 'limpar') => void }) {
   const botao = (modo: 'favoritas' | 'todas', icone: ReactNode, nome: string, dica: string) => (
-    <button onClick={() => p.aplicar(modo)} className="grid gap-1 rounded-[8px] px-3 py-2.5 text-left ring-1 ring-line-dark hover:bg-cream/[0.05] hover:ring-cream/40">
-      <span className="flex items-center gap-1.5 text-[12px] font-semibold text-cream">
-        {icone}
-        {nome}
-      </span>
-      <span className="text-[11px] leading-[1.5] text-fog">{dica}</span>
+    <button
+      onClick={() => p.aplicar(modo)}
+      title={dica}
+      className="flex h-9 items-center gap-2 rounded-full bg-cream/[0.06] px-3.5 text-[12px] font-semibold text-cream transition-colors hover:bg-cream/[0.12]"
+    >
+      {icone}
+      {nome}
     </button>
   )
   return (
-    <aside className="grid content-start gap-2 self-start rounded-[10px] border border-line-dark p-3">
-      <p className="eyebrow text-sage">Todos os cortes</p>
-      {botao('favoritas', <Star className="size-3.5 text-yellow" />, 'Variar favoritas', 'Cada corte com uma das 2 favoritas do par, meio a meio.')}
-      {botao('todas', <Dices className="size-3.5 text-coral" />, 'Sortear todas', 'Metade das vezes uma favorita, metade uma das outras.')}
-      <button
-        onClick={() => p.aplicar('limpar')}
-        disabled={!p.manuais}
-        className="mt-1 flex items-center gap-1.5 px-1 text-left text-[11px] text-fog hover:text-cream disabled:opacity-40 disabled:hover:text-fog"
-      >
-        <RotateCcw className="size-3" /> Voltar às favoritas{p.manuais ? ` (${p.manuais} à mão)` : ''}
-      </button>
+    <aside className="grid content-start gap-2 self-start pt-1">
+      <p className="eyebrow px-1 pb-1 text-fog">Todos os cortes</p>
+      {botao('favoritas', <Star className="size-3.5 fill-yellow text-yellow" />, 'Variar favoritas', 'Cada corte com uma das 2 favoritas do par, meio a meio (cada clique sorteia de novo)')}
+      {botao('todas', <Dices className="size-3.5 text-coral" />, 'Sortear todas', 'Metade das vezes uma favorita do par, metade uma das outras (cada clique sorteia de novo)')}
+      {p.manuais > 0 && (
+        <button onClick={() => p.aplicar('limpar')} className="flex items-center gap-1.5 px-3.5 pt-1 text-left text-[11px] text-fog hover:text-cream" title="Tira as escolhas à mão: cada corte volta à favorita do par">
+          <RotateCcw className="size-3" /> Voltar às favoritas · {p.manuais}
+        </button>
+      )}
     </aside>
   )
 }
