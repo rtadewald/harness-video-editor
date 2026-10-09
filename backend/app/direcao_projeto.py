@@ -508,6 +508,8 @@ def _rodar(id: str) -> None:
             d = p['direcao']
             anteriores = d.get('versoes', []) if pedido['tipo'] == 'corrigir' else []
             p['direcao'] = d = {'status': 'pronto', 'erro': None, 'versoes': [*anteriores, versao], 'ativa': versao['n']}
+            if pedido['tipo'] != 'corrigir':
+                p.pop('transicoes', None)  # do zero, os planos são outros: as transições trocadas à mão (presas ao id do plano) não valem mais
             projeto.espelhar_direcao(d)
             p['etapas']['direcao'] = 'pronta'
         projeto.atualizar(id, salvar)

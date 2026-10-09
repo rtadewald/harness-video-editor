@@ -2,17 +2,6 @@
 export type Resumo = { fase: string; titulo: string; frase: string; itens: string[]; doc: string }
 
 export const RESUMOS = {
-  transicoes: {
-    fase: 'P2',
-    titulo: 'Transições',
-    frase: 'Como o vídeo passa de um plano para o outro, com o som.',
-    itens: [
-      'Cada corte entre planos recebe sozinho a 1ª favorita do seu par (por exemplo, Full ator → Tela dividida).',
-      'A linha do tempo com cada corte marcado; clicar num corte abre as 2 favoritas, as outras e o Corte seco, com ▶.',
-      'Efeitos modelados das referências: brilho, zoom de impacto, desfoque, deslize… e o som de cada um.',
-    ],
-    doc: 'docs/transicoes.md',
-  },
   audio: {
     fase: 'P3',
     titulo: 'Áudio',

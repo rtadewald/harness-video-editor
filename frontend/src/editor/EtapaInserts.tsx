@@ -1,25 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PanelRightClose, PanelRightOpen, Clapperboard, Images, Scissors, Search, Wand2 } from 'lucide-react'
-import { json, definirMidias, configurarComentario, definirFundo, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, urlArquivo, salvarDirecaoProjeto, type DadosEditor, type Projeto, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
-import { falaDoPlano, fundoDoMotion, urlPaginaMotionPlano } from '@/motions/api'
+import { definirMidias, configurarComentario, definirFundo, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, salvarDirecaoProjeto, type DadosEditor, type Projeto, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
+import { falaDoPlano, urlPaginaMotionPlano } from '@/motions/api'
 import { useLembrado } from '@/lib/useLembrado'
 import { paraAncora, paraTempo, palavrasNaSaida } from './direcaoProjeto'
 import { dividirPlano, editar } from '@/referencias/edicao'
 import { CATEGORIAS } from './EtapaDirecao'
-import { CardComentario, PainelComentario, comentarioDe, type Comentario } from './ComentarioIG'
+import { PainelComentario, comentarioDe, type Comentario } from './ComentarioIG'
 import BuscarReferencias from './BuscarReferencias'
-import { FatorSom } from './sons'
 import { usePresets } from './presets'
 import CardAjustes from './CardAjustes'
-import { aspectosDe, divisaoDe, telaTodaPermitida, estiloDaPessoa, estiloDoAtor, posicaoDoComentario, type Divisao } from './divisao'
-import AtorRecortado from './AtorRecortado'
-import MotionNoLugar from '@/motions/MotionNoLugar'
+import { aspectosDe, telaTodaPermitida } from './divisao'
+import MontagemNoPalco from './MontagemNoPalco'
 import PainelMotion from '@/motions/PainelMotion'
-import { EdicaoPreset, usePresets as usePresetsMotion } from '@/motions/PresetMotion'
-import { escolhasDeSom, preCarregarMarcas } from '@/motions/sons'
+import { EdicaoPreset } from '@/motions/PresetMotion'
+import { preCarregarMarcas } from '@/motions/sons'
 import { useMotionsDoProjeto } from '@/motions/useMotionsDoProjeto'
-import InsertNoLugar, { pedidosNoTempo, presetDe } from './InsertNoLugar'
+import { pedidosNoTempo, presetDe } from './InsertNoLugar'
 import LinhaInserts from './LinhaInserts'
 import { corteDe, enriquecimentoDe, entradaDe, saidaDe, type Qual } from './enriquecimento'
 import { duracaoEntrada, duracaoSaida, useEntradas, type Lado } from './entradas'
@@ -55,15 +53,6 @@ export default function EtapaInserts(p: Props) {
   const [buscandoRefs, setBuscandoRefs] = useState(false)
   // motions (SPEC §8.5): o de cada plano (um preset ou um vídeo do banco)
   const { motions, recarregar: recarregarMotions } = useMotionsDoProjeto(projeto.id)
-  const presetsMotion = usePresetsMotion()
-  // os sons da prévia na mesma relação com a voz deste vídeo que na exportação (SPEC §8.6)
-  const [fatorSom, setFatorSom] = useState(1)
-  useEffect(() => {
-    void fetch(`/api/projetos/${projeto.id}/sons/fator`)
-      .then(json<{ fator: number }>)
-      .then((r) => setFatorSom(r.fator))
-      .catch(() => {})
-  }, [projeto.id])
   const falhar = (e: unknown) => window.alert((e as Error).message)
 
   // o mapa tem os originais e os trechos (um trecho toca o arquivo do original, do início ao fim dele)
@@ -118,7 +107,6 @@ export default function EtapaInserts(p: Props) {
   const palavrasTimeline = useMemo(() => saida.map((w) => ({ ...w, inicio: w.saida_ini, fim: w.saida_fim })), [saida])
   const pedidos: Pedido[] = useMemo(() => pedidosNoTempo(ins?.pedidos ?? [], planos), [ins, planos])
   const tempo = player.tempo
-  const noCursor = pedidos.find((x) => tempo >= x.t.inicio && tempo < x.t.fim) ?? null
   const planoNoCursor = planos.find((pl) => tempo >= pl.inicio && tempo < pl.fim) ?? null
 
   // a seleção é o plano sob o cursor da linha do tempo (tocando, parado ou arrastando): os cards mostram onde se está
@@ -126,8 +114,6 @@ export default function EtapaInserts(p: Props) {
     if (planoNoCursor) setSelPlano(planoNoCursor.id)
   }, [planoNoCursor?.id])
 
-  // tela dividida com mídia: o ator desce para a metade de baixo (o centro do quadro no meio da metade de baixo)
-  const motionNoCursor = planoNoCursor && motions[planoNoCursor.id] ? planoNoCursor : null
   // as marcas de som dos motions, lidas de antemão (uma página por vez): o som da digitação começa junto com as letras
   useEffect(() => {
     let fila = Promise.resolve()
@@ -139,25 +125,6 @@ export default function EtapaInserts(p: Props) {
     }
   }, [planos, motions, saida, projeto.id])
   const presetsTodos = usePresets()
-  // a divisão do insert sob o cursor: onde o ator fica (desce, ou encolhe numa janela) e se a pessoa recortada sai por cima
-  const divisao: Divisao | null =
-    noCursor && noCursor.midias.length > 0 ? divisaoDe(noCursor, banco, presetsTodos) : motionNoCursor?.tipo === 'tela_dividida_motion' ? { modo: 'metade', tipo: 'area', f: 0.5 } : null
-  // no "insert atrás" o ator vai por cima do insert (uma cópia sincronizada, abaixo); o vídeo principal fica como está
-  const estiloAtor = JSON.stringify(divisao?.modo === 'atras' ? {} : estiloDoAtor(divisao))
-  useEffect(() => {
-    const v = player.ref.current
-    if (!v) return
-    const e = JSON.parse(estiloAtor) as React.CSSProperties
-    v.style.transform = (e.transform as string) ?? ''
-    v.style.transformOrigin = (e.transformOrigin as string) ?? ''
-    v.style.clipPath = (e.clipPath as string) ?? ''
-    return () => {
-      v.style.transform = v.style.transformOrigin = v.style.clipPath = ''
-    }
-  }, [estiloAtor, player.ref])
-  const estiloPessoa = estiloDaPessoa(divisao)
-  const bruto = projeto.fontes.find((f) => f.papel === 'bruto')
-  const urlPessoa = projeto.recorte?.estado === 'pronto' && bruto ? urlArquivo(projeto.id, `midia/recorte/${bruto.id}_pessoa.webm`) : null
 
   const salvar = (pid: string, midias: NovaMidia[]) => definirMidias(projeto.id, pid, midias as MidiaLigada[]).then(setIns).catch(falhar)
   /** Sobe arquivos para o banco e liga ao insert, no fim da lista. Devolve os itens novos (os vídeos abrem no editor). */
@@ -314,7 +281,6 @@ export default function EtapaInserts(p: Props) {
   const dir = Math.round(tam.dir * cabe)
 
   return (
-    <FatorSom.Provider value={fatorSom}>
     <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)]" style={{ gridTemplateRows: `minmax(0,1fr) ${tam.linha}px` }}>
       <div ref={area} className="relative grid min-h-0 min-w-0" style={{ gridTemplateColumns: `${esq}px minmax(0, 1fr) ${dir}px` }}>
         <Alca lado="esq" pos={esq} arrastar={arrastarBorda} />
@@ -400,29 +366,23 @@ export default function EtapaInserts(p: Props) {
             setVelocidade={player.setVelocidade}
             buscar={player.buscar}
             sobreposicao={
-              motionNoCursor ? (
-                <MotionNoLugar
-                  src={urlPaginaMotionPlano(projeto.id, motionNoCursor.id, motions[motionNoCursor.id], motionNoCursor.fim - motionNoCursor.inicio, falaDoPlano(saida, motionNoCursor.inicio, motionNoCursor.fim))}
-                  formato={motions[motionNoCursor.id].formato}
-                  fundo={fundoDoMotion(motions[motionNoCursor.id])}
-                  rel={tempo - motionNoCursor.inicio}
-                  sons={{ ativo: player.tocando, escolhas: escolhasDeSom(presetsMotion, motions[motionNoCursor.id]) }}
-                />
-              ) : noCursor && (
-                <>
-                  <InsertNoLugar pedido={noCursor} banco={banco} tempo={tempo} tocando={player.tocando} fundo={ins?.fundo ?? 'gradiente'} entradas={entradas} />
-                  {divisao?.modo === 'atras' && <AtorRecortado fonte={player.ref} src={p.src} estilo={estiloDoAtor(divisao)} enquadramentoX={p.enquadramentoX} />}
-                  {estiloPessoa && urlPessoa && <AtorRecortado fonte={player.ref} src={urlPessoa} estilo={estiloPessoa} enquadramentoX={p.enquadramentoX} />}
-                  {noCursor.tipo === 'comentario_insert_ator' && (
-                    <CardComentario
-                      c={comentarioDe(noCursor, posicaoDoComentario(divisao))}
-                      texto={comentarioDe(noCursor).texto ?? noCursor.texto ?? ''}
-                      mudar={(campos) => mudarComentario(noCursor.id, campos)}
-                    />
-                  )}
-                </>
-              )
+              <MontagemNoPalco
+                projeto={projeto}
+                planos={planos}
+                saida={saida}
+                pedidos={pedidos}
+                banco={banco}
+                fundo={ins?.fundo ?? 'gradiente'}
+                motions={motions}
+                tempo={tempo}
+                tocando={player.tocando}
+                videoRef={player.ref}
+                src={p.src}
+                enquadramentoX={p.enquadramentoX}
+                mudarComentario={mudarComentario}
+              />
             }
+            transicoes
           />
           </div>
           {/* o espaço livre ao lado do vídeo: o fundo (do vídeo todo) e, nos comentários, o card do Instagram; a coluna
@@ -556,6 +516,5 @@ export default function EtapaInserts(p: Props) {
         />
       </div>
     </div>
-    </FatorSom.Provider>
   )
 }

@@ -10,11 +10,3 @@ export const ETAPAS: { id: Etapa; nome: string }[] = [
   { id: 'audio', nome: 'Áudio' },
   { id: 'legenda', nome: 'Legenda' },
 ]
-
-/** As partes do Pré-processamento (SPEC §8.1), em abas no topo da tela dele. */
-export const ABAS_PRE = [
-  { id: 'cortes', nome: 'Cortes' },
-  { id: 'enquadramento', nome: 'Enquadramento' },
-  { id: 'look', nome: 'Look' },
-] as const
-export type AbaPre = (typeof ABAS_PRE)[number]['id']

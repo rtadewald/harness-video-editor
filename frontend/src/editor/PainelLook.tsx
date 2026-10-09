@@ -1,14 +1,13 @@
-import { useRef, type ReactNode } from 'react'
+import { useRef } from 'react'
 import { Eye } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCatalogoLook, type Look } from './look'
 
 const NOME_VINHETA: Record<Look['vinheta'], string> = { sem: 'Sem', leve: 'Leve', normal: 'Normal', forte: 'Forte' }
 
-/** A aba Look do Pré-processamento (docs/preprocessamento.md): o LUT (ou nenhum), a intensidade e a vinheta, com a
- *  prévia mudando na hora; segurar "Ver sem o look" mostra o vídeo como foi gravado, para comparar. */
+/** O Look do Pré-processamento (docs/preprocessamento.md), na coluna da direita: o LUT (ou nenhum), a intensidade e a
+ *  vinheta, com a prévia mudando na hora; segurar "Ver sem o look" mostra o vídeo como foi gravado, para comparar. */
 export default function PainelLook(p: {
-  previa: ReactNode
   look: Look | null
   mudar: (c: Partial<Look>) => void
   ver: (c: Partial<Look>) => void
@@ -24,9 +23,7 @@ export default function PainelLook(p: {
     salvar.current = window.setTimeout(() => p.mudar({ intensidade: k }), 400)
   }
   return (
-    <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_clamp(320px,28vw,420px)] gap-6 overflow-hidden px-6 py-6">
-      <div className="min-h-0">{p.previa}</div>
-      <section className="grid content-start gap-5 overflow-y-auto rounded-[8px] bg-cream/[0.03] p-5 ring-1 ring-line-dark">
+    <section className="grid content-start gap-5 rounded-[8px] bg-cream/[0.03] p-4 ring-1 ring-line-dark">
         <div className="grid gap-1">
           <p className="eyebrow text-sage">Look do ator</p>
           <p className="text-[12px] leading-[1.6] text-fog">Vale para o vídeo inteiro, só no ator (os inserts e os motions ficam como são). A prévia mostra igual ao MP4.</p>
@@ -89,7 +86,6 @@ export default function PainelLook(p: {
             </button>
           </>
         )}
-      </section>
-    </div>
+    </section>
   )
 }

@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import look as look_mod
+from . import transicoes as transicoes_mod
 from . import banco, comum, midia, projeto, render_quadros, sons
 
 RESOLUCOES = {'720p': (720, 1280), '1080p': (1080, 1920), '4k': (2160, 3840)}
@@ -181,11 +182,15 @@ def _inserts(camadas: list[tuple[Path, float]], primeira_entrada: int, rotulo_in
     return entradas, filtros
 
 
-def _transicoes(transicoes: list[dict] | None, rotulo_in: str) -> tuple[list[str], str]:
-    """Camada 4 (SPEC §13, §8.8; a P2): as transições entre planos, sobre o quadro já montado (escala, `gblur` e véu por
-    expressões de tempo, só nos trechos delas). Recebe `__render.transicoes`. Por ora não faz nada. Devolve (filtros,
-    rótulo de saída)."""
-    return [], rotulo_in
+def _transicoes(transicoes: list[dict] | None, rotulo_in: str, w: int, h: int, primeira_entrada: int,
+                fps: int = 30) -> tuple[list[str], list[str], str]:
+    """Camada 4 (SPEC §13, §8.8): as transições entre planos, sobre o quadro já montado (`transicoes.filtros`: zoom com
+    desfoque, brilho e a luz colorida, só nas janelas delas). Recebe `__render.transicoes`. Devolve (entradas, filtros,
+    rótulo de saída); sem transições com efeito, nada."""
+    if not any(x.get('tipo') in ('luz', 'brilho', 'zoom') for x in transicoes or []):
+        return [], [], rotulo_in
+    entradas, f = transicoes_mod.filtros(transicoes, rotulo_in, 'tr', w, h, primeira_entrada, fps)
+    return entradas, f, 'tr'
 
 
 def _legenda(legenda: dict | None, rotulo_in: str) -> tuple[list[str], str]:
@@ -194,18 +199,20 @@ def _legenda(legenda: dict | None, rotulo_in: str) -> tuple[list[str], str]:
     return [], rotulo_in
 
 
-def _pos_montagem(transicoes: list[dict] | None, legenda: dict | None, rotulo_in: str, saida: str) -> list[str]:
+def _pos_montagem(transicoes: list[dict] | None, legenda: dict | None, rotulo_in: str, saida: str, w: int, h: int,
+                  primeira_entrada: int, fps: int = 30) -> tuple[list[str], list[str]]:
     """O que age sobre o quadro inteiro já montado: as transições e, por cima de tudo, a legenda; no fim, o formato de
-    saída."""
-    filtros, atual = _transicoes(transicoes, rotulo_in)
+    saída. Devolve (entradas, filtros)."""
+    entradas, filtros, atual = _transicoes(transicoes, rotulo_in, w, h, primeira_entrada, fps)
     f_leg, atual = _legenda(legenda, atual)
-    return [*filtros, *f_leg, f'[{atual}]format=yuv420p[{saida}]']
+    return entradas, [*filtros, *f_leg, f'[{atual}]format=yuv420p[{saida}]']
 
 
 def _audio(eventos_som: list[dict] | None, primeira_entrada: int, rotulo_voz: str, saida: str) -> tuple[list[str], list[str]]:
-    """Camada A (SPEC §13, §8.6, §8.9): a voz do bruto (já cortada, [`rotulo_voz`]) com os sons de apoio dos presets
-    somados. Aqui entram, com a P3, a voz limpa (limpeza → timbre → compressor), os sons das transições, a faixa de fundo
-    com ducking e o volume final (−14 LUFS). Devolve (entradas, filtros), com a mistura em [`saida`]."""
+    """Camada A (SPEC §13, §8.6, §8.8, §8.9): a voz do bruto (já cortada, [`rotulo_voz`]) com os sons somados — os de
+    apoio dos presets e os das transições (os dois vêm em `__render.sons`). Aqui entram, com a P3, a voz limpa (limpeza →
+    timbre → compressor), a faixa de fundo com ducking e o volume final (−14 LUFS). Devolve (entradas, filtros), com a
+    mistura em [`saida`]."""
     return sons.filtro_mistura(eventos_som or [], primeira_entrada, rotulo_voz, saida)
 
 
@@ -234,7 +241,9 @@ def comando_final(bruto: Path, clipes: list[dict], horizontal: bool, enquadramen
             idx_vinheta = base_idx + len(camadas) + ent_som.count('-i')
             entradas += ['-loop', '1', '-i', str(mascara_vinheta)]
         partes += look_mod.filtros(look, 'ator_cru', 'ator', idx_vinheta)
-    partes += f_ins + f_som + topo + _pos_montagem(transicoes, legenda, 'topo', 'v')
+    ent_pos, f_pos = _pos_montagem(transicoes, legenda, 'topo', 'v', w, h, 1 + entradas.count('-i'), fps)
+    entradas += ent_pos
+    partes += f_ins + f_som + topo + f_pos
     cv = ['-c:v', 'hevc_videotoolbox', '-q:v', '65', '-tag:v', 'hvc1'] if codec == 'hevc' else ['-c:v', 'h264_videotoolbox', '-q:v', '65']
     return ['ffmpeg', '-y', '-loglevel', 'error', '-progress', 'pipe:1', '-nostats', '-hwaccel', 'videotoolbox', '-i', str(bruto),
             *entradas, '-filter_complex', ';'.join(partes), '-map', '[v]', '-map', '[am]', *cv, '-pix_fmt', 'yuv420p',

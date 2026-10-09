@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Crosshair, Loader2 } from 'lucide-react'
 import { enviar, json, urlArquivo } from '@/api'
 import { cn } from '@/lib/utils'
@@ -23,12 +23,12 @@ const SUAVIDADES: { id: Estado['suavidade']; nome: string }[] = [
   { id: 'agil', nome: 'Ágil' },
 ]
 
-/** A aba Enquadramento do Pré-processamento (docs/preprocessamento.md): num vídeo que veio 16:9, o original com o recorte
+/** O Enquadramento do Pré-processamento, na coluna da direita (docs/preprocessamento.md): num vídeo que veio 16:9, o original com o recorte
  *  9:16 andando sobre ele (o caminho da câmera, que segue o rosto) no mesmo instante do player, a suavidade, um
  *  deslocamento fixo e "Reenquadrar" (refaz o bruto 9:16; os cortes continuam). Num projeto de antes do enquadramento
  *  ainda horizontal, oferece converter. Num vídeo vertical, só avisa. `aoReenquadrar`: o Reenquadrar começou (o editor
- *  passa a acompanhar e recarrega o player quando o 9:16 e o proxy novos ficam prontos, em qualquer aba). */
-export default function PainelEnquadramento(p: { projetoId: string; previa: ReactNode; bruto: number; tocando: boolean; aoReenquadrar: () => void }) {
+ *  passa a acompanhar e recarrega o player quando o 9:16 e o proxy novos ficam prontos, em qualquer etapa). */
+export default function PainelEnquadramento(p: { projetoId: string; bruto: number; tocando: boolean; aoReenquadrar: () => void }) {
   const [e, setE] = useState<Estado | null>(null)
   const [suav, setSuav] = useState<Estado['suavidade']>('normal')
   const [desloca, setDesloca] = useState(0)
@@ -81,9 +81,7 @@ export default function PainelEnquadramento(p: { projetoId: string; previa: Reac
       .catch((x) => window.alert((x as Error).message))
 
   return (
-    <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_clamp(360px,34vw,560px)] gap-6 overflow-hidden px-6 py-6">
-      <div className="min-h-0">{p.previa}</div>
-      <section className="grid content-start gap-5 overflow-y-auto rounded-[8px] bg-cream/[0.03] p-5 ring-1 ring-line-dark">
+    <section className="grid content-start gap-5 rounded-[8px] bg-cream/[0.03] p-4 ring-1 ring-line-dark">
         <div className="grid gap-1">
           <p className="eyebrow flex items-center gap-1.5 text-sage">
             <Crosshair className="size-3.5" /> Enquadramento
@@ -140,7 +138,6 @@ export default function PainelEnquadramento(p: { projetoId: string; previa: Reac
             {e.estado === 'erro' && <p className="text-[12px] text-coral">Não deu para reenquadrar: {e.erro}</p>}
           </>
         )}
-      </section>
-    </div>
+    </section>
   )
 }
