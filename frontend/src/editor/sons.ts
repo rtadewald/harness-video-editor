@@ -15,7 +15,7 @@ export type Catalogo = { sons: SomCatalogo[]; intensidades: Record<Intensidade, 
 /** Um som no tempo: começa em `t` (s, no relógio de quem toca), tocando o arquivo a partir de `desde` (s do arquivo), com
  *  `ganho`; opcional, por no máximo `dur` s (com um fade curto) e na velocidade `vel` (o som esticado ou encolhido para
  *  abranger um movimento; como numa fita, o tom acompanha). */
-export type EventoSom = { t: number; som: string; ganho: number; desde: number; dur?: number; vel?: number }
+export type EventoSom = { t: number; som: string; ganho: number; desde: number; dur?: number; vel?: number; grupo?: 'transicoes' }
 
 export const NOME_MOMENTO: Record<Momento, string> = {
   entrada: 'Entrada de cada card',
@@ -101,7 +101,19 @@ export function eventosDaReceita(receita: Receita, dur: number, cat: Catalogo | 
 let ctx: AudioContext | null = null
 const tocando = new Set<AudioBufferSourceNode>() // os sons soando agora (para poder parar todos)
 const buffers = new Map<string, Promise<AudioBuffer | null>>()
-const contexto = () => (ctx ??= new AudioContext())
+/** O contexto de áudio da prévia (um só: os sons, a voz e o fundo passam pelo mesmo mixer). */
+export const contexto = () => (ctx ??= new AudioContext())
+/** Os faders dos sons na prévia (docs/audio.md): os de apoio dos presets e os das transições, cada grupo no seu ganho. */
+const barramentos = new Map<'presets' | 'transicoes', GainNode>()
+export function barramento(grupo: 'presets' | 'transicoes') {
+  let g = barramentos.get(grupo)
+  if (!g) {
+    g = contexto().createGain()
+    g.connect(contexto().destination)
+    barramentos.set(grupo, g)
+  }
+  return g
+}
 function buffer(id: string) {
   if (!buffers.has(id))
     buffers.set(
@@ -135,7 +147,7 @@ export async function tocarEvento(e: EventoSom, atrasado = 0) {
     g.gain.setValueAtTime(e.ganho, Math.max(fim - Math.min(0.12, e.dur / 2), c.currentTime)) // o fade: no máximo metade do som
     g.gain.linearRampToValueAtTime(0, fim)
   }
-  fonte.connect(g).connect(c.destination)
+  fonte.connect(g).connect(barramento(e.grupo === 'transicoes' ? 'transicoes' : 'presets'))
   tocando.add(fonte)
   fonte.onended = () => tocando.delete(fonte)
   fonte.start(0, desde, e.dur != null ? (e.dur - atrasado) * vel : undefined)

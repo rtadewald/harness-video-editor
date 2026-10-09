@@ -17,9 +17,9 @@ Editor de vídeo local, controlado por interface web, em que cada etapa da ediç
 | Motions | [motions.md](docs/motions.md) | **Real** |
 | Rosto do ator (enquadramento nas áreas que sobram) | [rosto.md](docs/rosto.md) | A medida **real** (F0); o enquadramento, **especificado** |
 | Transições entre planos | [transicoes.md](docs/transicoes.md) | **Real** (P2: a biblioteca, a página, a etapa, a prévia e o MP4) |
-| Áudio: voz, faixa de fundo, mixer | [audio.md](docs/audio.md) | **Especificado** (etapa em construção) |
+| Áudio: voz, faixa de fundo, mixer | [audio.md](docs/audio.md) | **Real** (P3: limpeza, timbre, faixas geradas, mixer, −14 LUFS) |
 | Legenda | [legenda.md](docs/legenda.md) | **Especificado** (etapa em construção) |
-| Prévia e exportação | [exportacao.md](docs/exportacao.md) | **Real** (ator, inserts, motions, sons), montada por camadas |
+| Prévia e exportação | [exportacao.md](docs/exportacao.md) | **Real** (ator, inserts, motions, sons, transições, áudio), montada por camadas |
 
 O agente do chat e o desfazer/versões do editor ainda não foram feitos (§10, §11); o chat simulado saiu na F0.
 
@@ -178,7 +178,8 @@ projetos/<slug>/
   "inserts": { "versao": 1, "pedidos": [] },                                 // §8.3–8.7
   "motions": {},                                                             // §8.5
   "transicoes": {},                                                          // §8.8: as trocadas à mão
-  "audio": { "voz": {}, "fundo": null, "niveis": {} },                       // §8.9
+  "audio": { "voz": {}, "fundo": null, "fundo_mudo": false, "niveis": {},  // §8.9 (💡 campos em docs/audio.md, "Dados")
+             "limpezas": {}, "voz_lufs": {} },                               // 💡 o estado de cada limpeza e a sonoridade medida
   "legenda": { "ligada": true, "blocos": [] },                               // §8.10
   "rosto": { "estado": "pronto", "progresso": 1, "amostras": 732, "achados": 732 },   // §8.7: a medida em midia/rosto/
   "etapas": { "cortes": "pronta", "direcao": "pronta", … },   // ids: cortes (o Pré-processamento), direcao, inserts, transicoes, audio, legenda
@@ -208,7 +209,7 @@ projetos/<slug>/
 
 💡 O app:
 - **Barra de cima** (todas as telas): os **projetos abertos como abas** (o × fecha; dois cliques no nome renomeiam), depois **Projetos · Banco · Referências · Presets · Motions · Transições** e, à direita, **Calibragem** e **Heurística da direção**.
-- **Barra das etapas** (à esquerda, recolhível): Pré-processamento · Direção visual · Inserts · Transições · Áudio · Legenda. Cada projeto reabre na última etapa usada. 💡 O Pré-processamento guarda o id `cortes` (dados e etapa lembrada continuam valendo) e mostra tudo numa tela só, sem abas: os Cortes, a prévia e, à direita, o Look e o Enquadramento (P1; [preprocessamento.md](docs/preprocessamento.md)). A etapa Transições segue o arranjo da de Inserts (P2; [transicoes.md](docs/transicoes.md)). As telas ainda não feitas (Áudio e Legenda) mostram a prévia do vídeo cortado e um cartão "em construção" com o que virá (`editor/EmConstrucao.tsx`, textos em `editor/resumos.ts`); no topo, o selo EM CONSTRUÇÃO. Em janelas estreitas, os links da barra de cima ficam só com o ícone (💡 pelo espaço que sobra para os links, não pela largura da janela — uma container query: as abas dos projetos abertos ocupam até 40% da barra e rolam; a Calibragem e a Heurística perdem o rótulo primeiro; se nem os ícones couberem, os links rolam).
+- **Barra das etapas** (à esquerda, recolhível): Pré-processamento · Direção visual · Inserts · Transições · Áudio · Legenda. Cada projeto reabre na última etapa usada. 💡 O Pré-processamento guarda o id `cortes` (dados e etapa lembrada continuam valendo) e mostra tudo numa tela só, sem abas: os Cortes, a prévia e, à direita, o Look e o Enquadramento (P1; [preprocessamento.md](docs/preprocessamento.md)). A etapa Transições segue o arranjo da de Inserts (P2; [transicoes.md](docs/transicoes.md)). A etapa Áudio também (P3; [audio.md](docs/audio.md)). A tela ainda não feita (Legenda) mostra a prévia do vídeo cortado e um cartão "em construção" com o que virá (`editor/EmConstrucao.tsx`, textos em `editor/resumos.ts`); no topo, o selo EM CONSTRUÇÃO. Em janelas estreitas, os links da barra de cima ficam só com o ícone (💡 pelo espaço que sobra para os links, não pela largura da janela — uma container query: as abas dos projetos abertos ocupam até 40% da barra e rolam; a Calibragem e a Heurística perdem o rótulo primeiro; se nem os ícones couberem, os links rolam).
 - **Topo do editor:** Configurações, o botão especial da etapa (ex.: "Refazer cortes com IA") e **Exportar**.
 - **Cada etapa** tem a sua tela: a timeline do jeito que serve a ela (vertical nos Cortes e na Direção, horizontal nas outras), o vídeo no centro com o resultado no lugar e os cards de trabalho ao lado.
 
@@ -319,7 +320,7 @@ projetos/<slug>/
 | 3 | **Pessoa recortada** (cabeça por cima do insert, no "ator embaixo") | vídeo com alfa | máscara sobre o bruto | §8.4 |
 | 4 | **Transições** (sobre o quadro já montado) | transformações e véu no palco | escala, `gblur` e véu por expressões de tempo | §8.8 |
 | 5 | **Legenda** (por cima de tudo) | camada HTML | ASS desenhado pelo libass | §8.10 |
-| A | **Áudio**: voz limpa → timbre → compressor; sons dos presets; sons das transições; fundo com ducking; −14 LUFS | Web Audio, um ganho por trilha | grafo do ffmpeg (`amix`, `sidechaincompress`, `loudnorm`) | §8.6, §8.9 |
+| A | **Áudio**: voz limpa → timbre → compressor; sons dos presets; sons das transições; fundo com ducking; −14 LUFS | Web Audio, um ganho por trilha | grafo do ffmpeg (`amix`, `acrossfade` nas voltas do fundo, ducking por `volume` com `eval=frame`, ganho medido + `alimiter`) | §8.6, §8.9 |
 
 💡 A página de render (`/render/p/<id>`) entrega ao backend tudo o que é calculado no front (`window.__render`): os trechos dos inserts, a divisão da tela, os eventos de som e, quando existirem, as transições e os blocos da legenda. Cada área acrescenta o seu campo (os ganchos `transicoes` e `legenda` já existem, opcionais e sem efeito); o backend monta a passada do ffmpeg por partes, uma função por camada em `exportacao.py`: `_ator` (1 e 3), `_inserts` (2), `_pos_montagem` → `_transicoes` (4) e `_legenda` (5), `_audio` (A) — ver [exportacao.md](docs/exportacao.md).
 
@@ -361,7 +362,7 @@ Uma correção pontual num vídeo vale só para aquele vídeo, a menos que o cri
 | F0 | **Fundação das novas etapas:** as etapas renomeadas (Pré-processamento, Transições, Áudio, Legenda, cada uma com a sua tela vazia), o novo projeto (nome, motor, formato), o `rosto.py` (a medida do rosto, usada por duas áreas) e a exportação separada por camadas (§13), com os ganchos de cada área | O app abre nas etapas novas e exporta igual a hoje |
 | P1 ✅ (à espera da avaliação) | **Pré-processamento:** 16:9 → 9:16 pelo rosto e o look (LUTs + vinheta) | Um vídeo 16:9 vira 9:16 seguindo o rosto; o look igual na prévia e no MP4 |
 | P2 ✅ (à espera da avaliação) | **Transições:** análise das referências, transições recriadas, página e etapa | Os cortes do vídeo de teste com as transições favoritas, aprovadas por Rodrigo |
-| P3 | **Áudio:** faixas de fundo geradas, limpeza da voz, timbre, mixer, −14 LUFS | O MP4 com a voz limpa, a faixa de fundo e os níveis certos, aprovados no ouvido |
+| P3 ✅ (à espera da avaliação) | **Áudio:** faixas de fundo geradas, limpeza da voz, timbre, mixer, −14 LUFS | O MP4 com a voz limpa, a faixa de fundo e os níveis certos, aprovados no ouvido |
 | P4 | **Legenda:** o estilo da casa medido, a geração e a edição, o ASS | As legendas do vídeo de teste iguais às das referências |
 | P5 | **Rosto nos inserts:** o enquadramento do ator na tela dividida e no "ator embaixo" | O rosto bem posicionado em todos os planos divididos do vídeo de teste |
 

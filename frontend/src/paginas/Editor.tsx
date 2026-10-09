@@ -27,6 +27,10 @@ import { TransicoesDoVideo, chavePar, cortesDoVideo, useBiblioteca, useEscolhas 
 import { FatorSom } from '@/editor/sons'
 import { MontagemDoProjeto } from '@/editor/MontagemNoPalco'
 import EtapaTransicoes from '@/transicoes/EtapaTransicoes'
+import EtapaAudio from '@/audio/EtapaAudio'
+import { falas as falasDoVideo, useAudioDoProjeto, useCadeiaNaPrevia, useCatalogoAudio, useFundoNaPrevia } from '@/audio/audio'
+import { sonsDasTransicoes } from '@/transicoes/transicoes'
+import { useCatalogoSons } from '@/editor/sons'
 import { usePlayer } from '@/editor/usePlayer'
 
 export default function Editor() {
@@ -91,6 +95,27 @@ export default function Editor() {
       .catch(() => {})
   }, [id])
   const player = usePlayer(seq)
+  // o áudio (SPEC §8.9): a voz limpa no player, a cadeia da voz e os faders em todas as etapas, o fundo nas etapas com o
+  // vídeo montado (fora do Pré-processamento)
+  const catAudio = useCatalogoAudio()
+  // relê o áudio quando o vídeo do player muda (o proxy fica pronto, um Reenquadrar termina)
+  const proxyDoBruto = dados?.projeto.fontes.find((f) => f.papel === 'bruto')?.proxy
+  const [audio, mudarAudio, vozTocada] = useAudioDoProjeto(id, `${dados?.projeto.enquadramento.versao ?? 0}:${proxyDoBruto ?? ''}`)
+  const falas = useMemo(() => (naSaida && catAudio ? falasDoVideo(naSaida.saida, catAudio.junta) : []), [naSaida, catAudio])
+  useCadeiaNaPrevia(player.ref, catAudio, audio?.escolhas ?? null, player.tocando)
+  useFundoNaPrevia({
+    cat: catAudio,
+    a: audio,
+    lufs: vozTocada?.lufs ?? null,
+    trechos: falas,
+    tempo: player.tempo,
+    duracao: seq?.duracao ?? 0,
+    tocando: player.tocando,
+    velocidade: player.velocidade,
+    ativo: etapa !== 'cortes',
+  })
+  const catSons = useCatalogoSons()
+  const sonsTransicao = useMemo(() => (cortesTransicao ? sonsDasTransicoes(cortesTransicao, catSons) : []), [cortesTransicao, catSons])
   const [picos, setPicos] = useState<Picos | null>(null)
   const [comparar, setComparar] = useState<string | null>(null)
   const [configAberta, setConfigAberta] = useState(false)
@@ -107,7 +132,7 @@ export default function Editor() {
   const direcaoReal = etapa === 'direcao'
   const insertsReal = etapa === 'inserts'
   // Áudio e Legenda ainda estão em construção
-  const resumo: Resumo | null = etapa === 'audio' || etapa === 'legenda' ? RESUMOS[etapa] : null
+  const resumo: Resumo | null = etapa === 'legenda' ? RESUMOS[etapa] : null
 
   useEffect(() => {
     abrirEditor(id).then(setDados).catch((e) => setErro(e.message))
@@ -262,7 +287,11 @@ export default function Editor() {
   }
   // a cada Reenquadrar o proxy é refeito no mesmo caminho: a versão no endereço faz o player carregar o novo
   const versao = projeto.enquadramento.versao
-  const src = urlArquivo(projeto.id, bruto.proxy ?? bruto.arquivo) + (versao ? `?v=${versao}` : '')
+  // com a voz limpa pronta, o proxy com ela (o mesmo vídeo; a voz trocada) — só se for do vídeo de agora: depois de um
+  // Reenquadrar, o do bruto até o com a voz ser refeito
+  const vozProxy = vozTocada?.proxy && vozTocada.versao === (versao ?? null) ? vozTocada.proxy : null
+  const proxy = vozProxy ?? bruto.proxy
+  const src = urlArquivo(projeto.id, proxy ?? bruto.arquivo) + (versao ? `?v=${versao}` : '')
   // a prévia das telas em construção: o vídeo do ator já cortado
   const previa = (
     <Preview
@@ -276,6 +305,37 @@ export default function Editor() {
       velocidade={player.velocidade}
       setVelocidade={player.setVelocidade}
       buscar={player.buscar}
+    />
+  )
+
+  // o quadro inteiro montado (o ator, os inserts e os motions), para as etapas Transições e Áudio
+  const previaMontada = (
+    <Preview
+      videoRef={player.ref}
+      src={src}
+      enquadramentoX={projeto.enquadramento.x}
+      tempo={player.tempo}
+      duracao={seq.duracao}
+      tocando={player.tocando}
+      alternar={player.alternar}
+      velocidade={player.velocidade}
+      setVelocidade={player.setVelocidade}
+      buscar={player.buscar}
+      transicoes
+      sobreposicao={
+        naSaida && (
+          <MontagemDoProjeto
+            projeto={projeto}
+            planos={naSaida.planos}
+            saida={naSaida.saida}
+            tempo={player.tempo}
+            tocando={player.tocando}
+            videoRef={player.ref}
+            src={src}
+            enquadramentoX={projeto.enquadramento.x}
+          />
+        )
+      }
     />
   )
 
@@ -459,36 +519,7 @@ export default function Editor() {
         ) : (
           etapa === 'transicoes' ? (
             <EtapaTransicoes
-              previa={
-                // o quadro inteiro montado (o ator, os inserts e os motions), como na etapa Inserts: a transição age sobre ele
-                <Preview
-                  videoRef={player.ref}
-                  src={src}
-                  enquadramentoX={projeto.enquadramento.x}
-                  tempo={player.tempo}
-                  duracao={seq.duracao}
-                  tocando={player.tocando}
-                  alternar={player.alternar}
-                  velocidade={player.velocidade}
-                  setVelocidade={player.setVelocidade}
-                  buscar={player.buscar}
-                  transicoes
-                  sobreposicao={
-                    naSaida && (
-                      <MontagemDoProjeto
-                        projeto={projeto}
-                        planos={naSaida.planos}
-                        saida={naSaida.saida}
-                        tempo={player.tempo}
-                        tocando={player.tocando}
-                        videoRef={player.ref}
-                        src={src}
-                        enquadramentoX={projeto.enquadramento.x}
-                      />
-                    )
-                  }
-                />
-              }
+              previa={previaMontada}
               planos={planosSaida ?? []}
               duracao={seq.duracao}
               tempo={player.tempo}
@@ -496,6 +527,19 @@ export default function Editor() {
               tocando={player.tocando}
               tocarTrecho={(de, ate) => player.tocarTrecho(seq.saidaParaFonte(de), seq.saidaParaFonte(Math.max(ate - 0.01, de)), { pular: true, loop: false })}
               escolher={(c, tid) => escolherTransicao(c.plano, tid, chavePar(c.de, c.para))}
+            />
+          ) : etapa === 'audio' ? (
+            <EtapaAudio
+              previa={previaMontada}
+              a={audio}
+              cat={catAudio}
+              mudar={mudarAudio}
+              falas={falas}
+              sons={sonsTransicao}
+              duracao={seq.duracao}
+              tempo={player.tempo}
+              tocando={player.tocando}
+              buscar={player.buscar}
             />
           ) : (
             resumo && <EtapaEmConstrucao resumo={resumo} previa={previa} />
