@@ -35,7 +35,7 @@ export const ESTILO = {
   sombra: { y: 3 / 1920, blur: 12 / 1920, cor: 'rgba(0,0,0,0.67)' },
   margem: 0.06,
 }
-export const ALTURA_POR_PLANO: Record<string, number> = {
+const ALTURA_POR_PLANO: Record<string, number> = {
   full_ator: 0.554,
   full_ator_zoom: 0.554,
   full_ator_lettering: 0.524,
@@ -108,7 +108,7 @@ export function useZonasDaLegenda(id: string, planos: ItemRef[] | null, versao: 
  *  do Full ator dentro do ator encolhido (na janela ou no recortado, onde ele estiver; no canto, logo acima da caixa);
  *  e, se houver um card de comentário ali, logo acima dele (ou abaixo, se não couber). Inserts em tela cheia e motions não são lidos (o conteúdo é desenhado na hora): fica a
  *  altura medida. */
-export function alturaDaLegenda(tipo: string | undefined, z: Zona | null): number {
+function alturaDaLegenda(tipo: string | undefined, z: Zona | null): number {
   let y = ALTURA_POR_PLANO[tipo ?? ''] ?? ALTURA_PADRAO
   const d = z?.divisao
   if (d?.modo === 'metade') y = Math.min(Math.max(d.f, 0.3), 0.7)

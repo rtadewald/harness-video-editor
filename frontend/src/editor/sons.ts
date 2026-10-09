@@ -80,7 +80,7 @@ const VEL: [number, number] = [0.65, 1.6]
 /** Quando (fração da duração) um movimento com a curva `curva` parece parado: chegou a 95% do caminho. Uma curva que
  *  freia no fim leva o último pedaço quase sem se mexer (no Mergulho, 22% do tempo para os últimos 5%), e o golpe do
  *  som que acompanha o movimento tem de cair quando ele para aos olhos — senão o som segue crescendo com o zoom parado. */
-export function paradoAos(curva: Curva | undefined, alvo = 0.95): number {
+function paradoAos(curva: Curva | undefined, alvo = 0.95): number {
   if (!curva) return 1
   const f = bezier(...curva)
   for (let k = 1; k <= 100; k++) if (f(k / 100) >= alvo) return k / 100

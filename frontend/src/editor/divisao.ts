@@ -14,7 +14,7 @@ export type Divisao = { modo: 'metade' | 'atras'; tipo: TipoDivisao; f: number; 
 
 /** A janela do ator no "insert atrás": o ator encolhido a `escala`, apoiado embaixo e centrado; a janela começa em `y0`
  *  (% do quadro) e tem cantos redondos (`raio`, % da largura do ator encolhido). Igual em exportacao.py. */
-export const JANELA = { escala: 0.55, y0: 72, raio: 7 }
+const JANELA = { escala: 0.55, y0: 72, raio: 7 }
 /** Onde fica o alto da cabeça do ator no "ator embaixo" (% do quadro): o ator encolhido começa em 100 − 55 = 45%, e a
  *  cabeça costuma estar a ~10% do topo do quadro dele. */
 const TOPO_CABECA = 100 - JANELA.escala * 100 + JANELA.escala * 10
@@ -146,7 +146,7 @@ export function receitaParaInsert(r: Receita, d: Divisao | null, aspectos: numbe
  *  — fica com a largura do desenho (só limitado pela altura, numa mídia alta), preso pela borda do desenho, a entrada
  *  cresce a partir dela e o deslize anda `DESLIZE` (o da referência) sem passar do que transborda, qualquer que seja a
  *  proporção da mídia. `null`: não é esse caso. */
-export const DESLIZE = 23 // % da área (o da referência)
+const DESLIZE = 23 // % da área (o da referência)
 function deslizeTransbordando(c: CardReceita, a: number, areaAsp: number, atras: boolean): CardReceita | null {
   const dx = c.saida?.para.dx ?? 0
   if (atras || c.repouso.w <= 100 || Math.abs(dx) < 5 || (c.saida?.para.escala ?? 1) > 1.05) return null
@@ -178,7 +178,7 @@ function deslizeTransbordando(c: CardReceita, a: number, areaAsp: number, atras:
  *  - uma saída que só desliza um pouco (até 1/4 da área, sem sumir nem mudar de tamanho: no desenho, um card maior que a
  *    tela correndo de lado) amplia junto, na mesma curva, o bastante para continuar cobrindo — a câmera corre e aproxima.
  *  As que somem, encolhem ou saem de cena mostram o fundo de propósito e ficam como estão. */
-export function saidaCobrindo(s: CardReceita['saida']): CardReceita['saida'] {
+function saidaCobrindo(s: CardReceita['saida']): CardReceita['saida'] {
   if (!s || s.para.opacidade < 0.99) return s
   const { dx, dy, escala } = s.para
   if (escala > 1.05) {
@@ -208,7 +208,7 @@ export const areaDoInsert = (d: Divisao | null): React.CSSProperties => (!d ? { 
 /** Onde a caixinha do comentário fica sozinha (centro, % do quadro): na costura do insert com o ator. `g`: a geometria
  *  do ator (`ator.geometriaDoAtor`, a P5), para desviar dele no modo e na posição em que estiver; `h`: a altura do card
  *  (fração do quadro, `alturaDoComentario`), para a borda de baixo dele, e não só o centro, ficar acima do ator. */
-export function posicaoDoComentario(d: Divisao | null, g?: Geometria | null, h = 0): { x: number; y: number } {
+function posicaoDoComentario(d: Divisao | null, g?: Geometria | null, h = 0): { x: number; y: number } {
   if (!d) return { x: 50, y: 50 }
   // no "ator embaixo", acima da cabeça (que sai da janela, ou do recortado; no canto, acima da caixa), ou na borda de
   // baixo do card se ela estiver mais acima. Na exportação, o ator vai por cima do card: aqui ele não cobre o texto

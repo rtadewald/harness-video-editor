@@ -3,8 +3,7 @@ de curta distância, local, sem serviço pago) roda sobre o proxy a ~6 quadros p
 caixa do rosto (centro, largura e altura, em fração do quadro) e a confiança, em `midia/rosto/<bruto>.json`. Os buracos
 (rosto não achado, virado) são preenchidos com a medida vizinha (com confiança 0). Roda uma vez por projeto, em segundo
 plano, depois do proxy (como o recorte do ator). Serve a duas áreas: o enquadramento 16:9 → 9:16 (P1, que mede o
-original reduzido com `medir`) e o ator nas áreas que sobram da tela dividida (P5, com `rosto_mediano`)."""
-import statistics
+original reduzido com `medir`) e o ator nas áreas que sobram da tela dividida (P5: o front lê as amostras, `editor/ator.ts`)."""
 import subprocess
 import tempfile
 import threading
@@ -222,14 +221,3 @@ def ler(id: str) -> dict | None:
     return comum.ler_json(arq) if arq.exists() else None
 
 
-def rosto_mediano(id: str, ini: float, fim: float) -> dict | None:
-    """A caixa típica do rosto num intervalo do bruto (s): a mediana de cada medida (cx, cy, w, h) nas amostras de
-    dentro dele — as medidas de verdade; se não houver, as preenchidas; num intervalo sem amostra, a mais próxima.
-    None se o rosto ainda não foi medido ou não aparece no vídeo."""
-    m = ler(id)
-    amostras = (m or {}).get('amostras') or []
-    if not amostras:
-        return None
-    dentro = [a for a in amostras if ini <= a['t'] <= fim]
-    escolha = [a for a in dentro if a['conf'] > 0] or dentro or [min(amostras, key=lambda a: abs(a['t'] - (ini + fim) / 2))]
-    return {k: round(statistics.median(a[k] for a in escolha), 4) for k in ('cx', 'cy', 'w', 'h')}

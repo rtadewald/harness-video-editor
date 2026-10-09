@@ -24,7 +24,7 @@ export type Geometria = { modo: 'metade' | ModoAtor; s: number; tx: number; ty: 
 export const NOME_MODO: Record<ModoAtor, string> = { janela: 'Janela', recortado: 'Recortado', canto: 'Canto' }
 /** As posições de fábrica de cada modo (centro e tamanho, frações do quadro). A janela é a de antes da P5: o ator a 55%,
  *  apoiado embaixo, com a janela começando em 72% do quadro. */
-export const PADRAO_MODO: Record<ModoAtor, { x: number; y: number; escala: number }> = {
+const PADRAO_MODO: Record<ModoAtor, { x: number; y: number; escala: number }> = {
   janela: { x: 0.5, y: 1 - 0.55 / 2, escala: 0.55 },
   recortado: { x: 0.5, y: 1 - 0.62 / 2, escala: 0.62 },
   canto: { x: 1 - 0.34 / 2 - 0.04, y: 1 - 0.34 / 2 - 0.035, escala: 0.34 },
@@ -37,7 +37,7 @@ export const ZOOM = { min: 1 / REGRA.zoomMax, max: REGRA.zoomMax }
 const limite = (v: number, a: number, b: number) => Math.min(Math.max(v, a), b)
 
 /** O enquadramento automático da tela dividida: o ator cobre a área de baixo (de `f` a 1) e o rosto fica bem posto. */
-export function enquadrar(f: number, r: Rosto | null): { s: number; tx: number; ty: number } {
+function enquadrar(f: number, r: Rosto | null): { s: number; tx: number; ty: number } {
   if (!r || r.h <= 0) return { s: 1, tx: 0, ty: f / 2 } // sem rosto medido: como antes (o ator desce metade do insert)
   const area = 1 - f
   const s = limite((REGRA.rosto * area) / r.h, 1, REGRA.zoomMax)
@@ -136,7 +136,7 @@ const mediana = (xs: number[]) => {
 }
 export type RostoEm = (ini: number, fim: number) => Rosto | null
 
-/** O rosto típico num trecho do vídeo final (a mediana das medidas, como `rosto.rosto_mediano`), lido uma vez de
+/** O rosto típico num trecho do vídeo final (a mediana das medidas), lido uma vez de
  *  `midia/rosto/<bruto>.json`. Devolve a função (ini, fim no tempo da saída) → rosto; `null` sem medida (a medida não
  *  ficou pronta, o vídeo não tem rosto nenhum, ou o arquivo não carregou: o enquadramento de antes); `undefined`
  *  enquanto a medida pronta ainda está sendo lida (a página de render espera só isso).
