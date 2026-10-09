@@ -567,7 +567,8 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
               buscar={player.buscar}
               tocando={player.tocando}
               tocarTrecho={(de, ate) => player.tocarTrecho(seq.saidaParaFonte(de), seq.saidaParaFonte(Math.max(ate - 0.01, de)), { pular: true, loop: false })}
-              escolher={(c, tid) => escolherTransicao(c.plano, tid, chavePar(c.de, c.para))}
+              escolher={(c, tid) => escolherTransicao([{ plano: c.plano, tid, par: chavePar(c.de, c.para) }])}
+              escolherVarios={escolherTransicao}
             />
           ) : etapa === 'audio' ? (
             <EtapaAudio

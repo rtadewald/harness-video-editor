@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, Play, Shuffle, Star, Volume2 } from 'lucide-react'
+import { Check, Dices, Play, RotateCcw, Shuffle, Star, Volume2 } from 'lucide-react'
 import { formatarTempo, type ItemRef } from '@/api'
 import { CATEGORIAS } from '@/editor/EtapaDirecao'
 import LinhaBase, { type Trilha } from '@/editor/LinhaBase'
@@ -19,11 +19,13 @@ import {
   ordemDoPar,
   parDoGrupo,
   sonsDasTransicoes,
+  sortearTransicoes,
   useBiblioteca,
   type Biblioteca,
   type CorteDoVideo,
   type Grupo,
   type Transicao,
+  type Troca,
 } from './transicoes'
 
 const nomeCat = (c: string) => CATEGORIAS.planos[c] ?? c
@@ -49,6 +51,7 @@ export default function EtapaTransicoes(p: {
   /** Toca um trecho do vídeo final (s de saída) e para no fim dele (o mesmo da etapa Inserts). */
   tocarTrecho: (de: number, ate: number) => void
   escolher: (corte: CorteDoVideo, tid: string | null) => void
+  escolherVarios: (trocas: Troca[]) => void
 }) {
   const cortes = useContext(TransicoesDoVideo) ?? VAZIO
   const b = useBiblioteca()
@@ -119,7 +122,18 @@ export default function EtapaTransicoes(p: {
             )}
           </div>
         </aside>
-        <section className="flex min-h-0 min-w-0 flex-col px-6 pt-5 pb-3">{p.previa}</section>
+        <section className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_200px] gap-5 px-6 pt-5 pb-3">
+          <div className="flex min-h-0 min-w-0 flex-col">{p.previa}</div>
+          {b && cortes.length > 0 && (
+            <Sorteio
+              manuais={cortes.filter((c) => c.manual).length}
+              aplicar={(modo) => {
+                pararSons()
+                p.escolherVarios(modo === 'limpar' ? cortes.filter((c) => c.manual).map((c) => ({ plano: c.plano, tid: null, par: `${c.de}>${c.para}` })) : sortearTransicoes(b, cortes, modo))
+              }}
+            />
+          )}
+        </section>
       </div>
 
       <div className="relative min-h-0">
@@ -264,5 +278,33 @@ function Opcoes(p: { corte: CorteDoVideo; b: Biblioteca; escolher: (tid: string 
         <div className="grid grid-cols-3 gap-x-3 gap-y-4">{lista.filter((t) => !fav.has(t.id)).map(card)}</div>
       </div>
     </div>
+  )
+}
+
+/** Aplicar a todos os cortes de uma vez: variar entre as favoritas de cada par, sortear entre todas (com peso nas
+ *  favoritas) ou voltar às favoritas (tira as escolhas à mão). Cada clique sorteia de novo. */
+function Sorteio(p: { manuais: number; aplicar: (modo: 'favoritas' | 'todas' | 'limpar') => void }) {
+  const botao = (modo: 'favoritas' | 'todas', icone: ReactNode, nome: string, dica: string) => (
+    <button onClick={() => p.aplicar(modo)} className="grid gap-1 rounded-[8px] px-3 py-2.5 text-left ring-1 ring-line-dark hover:bg-cream/[0.05] hover:ring-cream/40">
+      <span className="flex items-center gap-1.5 text-[12px] font-semibold text-cream">
+        {icone}
+        {nome}
+      </span>
+      <span className="text-[11px] leading-[1.5] text-fog">{dica}</span>
+    </button>
+  )
+  return (
+    <aside className="grid content-start gap-2 self-start rounded-[10px] border border-line-dark p-3">
+      <p className="eyebrow text-sage">Todos os cortes</p>
+      {botao('favoritas', <Star className="size-3.5 text-yellow" />, 'Variar favoritas', 'Cada corte com uma das 2 favoritas do par, meio a meio.')}
+      {botao('todas', <Dices className="size-3.5 text-coral" />, 'Sortear todas', 'Metade das vezes uma favorita, metade uma das outras.')}
+      <button
+        onClick={() => p.aplicar('limpar')}
+        disabled={!p.manuais}
+        className="mt-1 flex items-center gap-1.5 px-1 text-left text-[11px] text-fog hover:text-cream disabled:opacity-40 disabled:hover:text-fog"
+      >
+        <RotateCcw className="size-3" /> Voltar às favoritas{p.manuais ? ` (${p.manuais} à mão)` : ''}
+      </button>
+    </aside>
   )
 }
