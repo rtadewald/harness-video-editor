@@ -6,7 +6,7 @@ import NavHome from '@/components/NavHome'
 import { pararSons } from '@/editor/sons'
 import { cn } from '@/lib/utils'
 import CardTransicao from '@/transicoes/CardTransicao'
-import { GRUPOS, chaveGrupo, definirOrdem, nomeGrupoPar, parDoGrupo, useBiblioteca, type Biblioteca, type Grupo as GrupoPlano, type Par, type Transicao } from '@/transicoes/transicoes'
+import { GRUPOS, chaveGrupo, definirOrdem, fonteDaTransicao, nomeGrupoPar, parDoGrupo, useBiblioteca, type Biblioteca, type Grupo as GrupoPlano, type Par, type Transicao } from '@/transicoes/transicoes'
 
 const TODAS = '__todas' // a vista com todas as transições
 const LADOS = Object.keys(GRUPOS) as GrupoPlano[]
@@ -102,22 +102,6 @@ export default function Transicoes() {
       </div>
     </div>
   )
-}
-
-/** De qual corte mostrar cada transição: um corte dela neste par; senão, o 1º dela. O corte seco (sem fontes): um corte
- *  seco sem som do par; senão, um seco do par mesmo com som (a referência toca muda, a menos que se escolha o som dela);
- *  senão, um seco sem som de qualquer par. Um corte que é fonte de uma transição com efeito é dela, não da de som que
- *  também o lista (a luz colorida do manychat 6,9 s não aparece como o "Corte com clique"). */
-function fonteDaTransicao(b: Biblioteca, t: Transicao, parInfo?: Par) {
-  const todos = Object.values(b.pares).flatMap((x) => x.cortes)
-  const deOutroEfeito = (f: { ref: string; t: number }) =>
-    b.transicoes.some((o) => o.id !== t.id && o.efeito.tipo !== 'seco' && o.fontes.some((g) => g.ref === f.ref && Math.abs(g.t - f.t) < 0.2))
-  const proprias = t.fontes.filter((f) => !deOutroEfeito(f))
-  const noPar = proprias.find((f) => parInfo?.cortes.some((c) => c.ref === f.ref && Math.abs(c.t - f.t) < 0.2))
-  if (noPar ?? proprias[0]) return noPar ?? proprias[0]
-  const doPar = parInfo?.cortes ?? []
-  const seco = doPar.find((c) => c.classe === 'seco' && !c.sons.length) ?? doPar.find((c) => c.classe === 'seco') ?? todos.find((c) => c.classe === 'seco' && !c.sons.length)
-  return seco ? { ref: seco.ref, t: seco.t } : null
 }
 
 /** Todas as transições da biblioteca juntas (cada uma com o seu corte de referência), para ver, ouvir, trocar o som e

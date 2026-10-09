@@ -155,7 +155,9 @@ nome ou na engrenagem) toca a referência e a recriação cada uma sozinha, com 
 referências onde ela aparece.
 
 💡 **A etapa Transições** segue o arranjo da etapa Inserts (pedido de Rodrigo, out/2026): à esquerda o corte selecionado
-(as favoritas do par, as outras, ▶ Ver o corte, voltar à favorita), no meio a prévia, e embaixo a **linha do tempo**
+— **sempre o próximo a partir do cursor** (parado enquanto o vídeo toca; clicar num corte leva o cursor até ele) — com
+as favoritas do par e as outras, cada uma com a **demonstração** (a referência e a recriação lado a lado, como na
+página Transições; o nome embaixo escolhe), ▶ Ver o corte (atalho **R**) e voltar à favorita; no meio a prévia, e embaixo a **linha do tempo**
 (`editor/LinhaBase.tsx`, a mesma base da dos Inserts) com as trilhas **Planos**, **Transições** (a janela do efeito em
 volta de cada corte; o ponto vermelho marca a escolhida à mão) e **Sons**. ▶ Ver o corte toca de 1,5 s antes a 1,5 s
 depois e para, pelo mesmo trecho do player da etapa Inserts (`tocarTrecho`; pausar o esquece). 💡 Rodada 2 da QA: um
