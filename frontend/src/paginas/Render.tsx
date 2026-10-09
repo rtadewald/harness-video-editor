@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { abrirEditor, json, lerInserts, listarBanco, mapaBanco, type DadosEditor, type InsertsProjeto, type ItemBanco } from '@/api'
 import { falaDoPlano, fundoDoMotion, listarPresets as listarPresetsMotion, motionsDoProjeto, urlPaginaMotionPlano, type MotionPlano } from '@/motions/api'
 import { escolhasDeSom, eventosDoMotion, marcasDaPagina } from '@/motions/sons'
+import { blocosDaLegenda, paraExportar, zonasDaLegenda, type Legenda } from '@/legenda/legenda'
 import { cortesDoVideo, sonsDasTransicoes, type Biblioteca, type Escolhas } from '@/transicoes/transicoes'
 import { CardComentario, comentarioDe } from '@/editor/ComentarioIG'
 import { paraTempo, palavrasNaSaida } from '@/editor/direcaoProjeto'
@@ -32,10 +33,11 @@ declare global {
   interface Window {
     /** `ir(t)` responde com a chave do quadro quando ele fica igual aos seguintes (insert parado: o backend reaproveita a foto). */
     /** `sons()`: os sons de apoio dos presets (SPEC §8.6), no tempo do vídeo final, para o ffmpeg misturar com a voz. */
-    /** Ganchos das camadas que ainda não existem (SPEC §13; cada área acrescenta o seu campo, como valor ou função
-     *  assíncrona, e o backend lê em `exportacao._trechos` se existir — por ora sem efeito):
+    /** Os campos das camadas que vêm depois da montagem (SPEC §13; cada área acrescenta o seu, como valor ou função
+     *  assíncrona, e o backend lê em `exportacao._trechos`):
      *  - `transicoes` (P2, §8.8): as transições entre planos no tempo do vídeo final (o corte, o efeito, o som);
-     *  - `legenda` (P4, §8.10): os blocos da legenda no tempo do vídeo final e o estilo, para o ASS. */
+     *  - `legenda` (P4, §8.10): os blocos visíveis da legenda no tempo do vídeo final (`{blocos: [{ini, fim, texto, y}]}`,
+     *    ou null se desligada), para o ASS (`legenda.py`). */
     __render?: {
       duracao: number
       trechos: Trecho[]
@@ -97,7 +99,7 @@ export function RenderProjeto() {
     const planos = paraTempo(dados.projeto.direcao?.itens ?? [], dados.palavras, saida, seq.duracao).visiveis.filter((i) => i.camada === 'plano')
     // os motions: os planos de motion que já têm um motion escolhido
     const comMotion = planos.filter((pl) => motions?.[pl.id]).map((pl) => ({ plano: pl.id, ini: pl.inicio, fim: pl.fim, dividida: pl.tipo === 'tela_dividida_motion', fala: falaDoPlano(saida, pl.inicio, pl.fim) }))
-    return { duracao: seq.duracao, lista: pedidosNoTempo(ins.pedidos, planos).filter((x) => x.midias.length), motions: comMotion, planos }
+    return { duracao: seq.duracao, lista: pedidosNoTempo(ins.pedidos, planos).filter((x) => x.midias.length), motions: comMotion, planos, saida, palavras: dados.palavras }
   }, [dados, ins, motions])
 
   // a página avisa o backend que está pronta e responde a cada instante pedido depois de tudo pintado
@@ -133,6 +135,13 @@ export function RenderProjeto() {
           }),
         )
         return [...dosInserts, ...dosMotions.flat(), ...sonsDasTransicoes(await cortesDasTransicoes(), cat)]
+      },
+      // a legenda (SPEC §8.10): os blocos visíveis, lidos na hora (a mesma conta da prévia, com a altura pelos inserts
+      // desta página), para o ASS
+      legenda: async () => {
+        const lg = await fetch(`/api/projetos/${id}/legenda`).then(json<Legenda>)
+        const zonas = zonasDaLegenda(pedidos.lista, banco, presets)
+        return lg.ligada ? { blocos: paraExportar(blocosDaLegenda(pedidos.saida, pedidos.planos, lg, pedidos.palavras, zonas)) } : null
       },
       // as transições com efeito (o som delas vai em `sons`), para o ffmpeg desenhar depois da montagem (SPEC §8.8)
       transicoes: async () =>

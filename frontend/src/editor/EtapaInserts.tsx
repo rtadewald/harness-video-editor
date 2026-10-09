@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PanelRightClose, PanelRightOpen, Clapperboard, Images, Scissors, Search, Wand2 } from 'lucide-react'
+import { PanelRightClose, PanelRightOpen, Captions, Clapperboard, Images, Scissors, Search, Wand2 } from 'lucide-react'
 import { definirMidias, configurarComentario, definirFundo, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, salvarDirecaoProjeto, type DadosEditor, type Projeto, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
 import { falaDoPlano, urlPaginaMotionPlano } from '@/motions/api'
 import { useLembrado } from '@/lib/useLembrado'
@@ -21,7 +21,10 @@ import { pedidosNoTempo, presetDe } from './InsertNoLugar'
 import LinhaInserts from './LinhaInserts'
 import { corteDe, enriquecimentoDe, entradaDe, saidaDe, type Qual } from './enriquecimento'
 import { duracaoEntrada, duracaoSaida, useEntradas, type Lado } from './entradas'
+import { cn } from '@/lib/utils'
 import Preview from './Preview'
+import CamadaLegenda from '@/legenda/CamadaLegenda'
+import { blocosDaLegenda, zonasDaLegenda, type Legenda } from '@/legenda/legenda'
 import type { Sequencia } from './sequencia'
 import type { usePlayer } from './usePlayer'
 import { TEM_MOTION, type NovaMidia, type Pedido } from './inserts/comum'
@@ -37,6 +40,9 @@ type Props = {
   src: string
   enquadramentoX: number
   aoMudarProjeto: (p: Projeto) => void
+  /** A legenda do projeto, desenhada na prévia com os inserts como estão sendo mexidos (ela desvia da costura e do card
+   *  do comentário); dá para escondê-la aqui. */
+  legenda?: Legenda | null
 }
 
 /** Etapa 03 (SPEC §8.3): a pós-produção dos planos da direção, em três trabalhos — as MÍDIAS de cada insert (subir,
@@ -266,6 +272,12 @@ export default function EtapaInserts(p: Props) {
   const nomes = { ...CATEGORIAS.planos, ...CATEGORIAS.elementos }
   const [tam, arrastarBorda] = useTamanhos()
   const [coluna, setColuna] = useLembrado('inserts.colunaAberta', true)
+  const [verLegenda, setVerLegenda] = useLembrado('inserts.verLegenda', true)
+  const lg = p.legenda
+  const blocosLegenda = useMemo(
+    () => (lg?.ligada && verLegenda ? blocosDaLegenda(saida, planos, lg, dados.palavras, zonasDaLegenda(pedidos, banco, presetsTodos)) : []),
+    [lg, verLegenda, saida, planos, dados.palavras, pedidos, banco, presetsTodos],
+  )
   // a janela pode não comportar as larguras escolhidas: os cards encolhem juntos, e o vídeo fica com 300 px no mínimo
   const area = useRef<HTMLDivElement>(null)
   const [largura, setLargura] = useState(0)
@@ -383,19 +395,31 @@ export default function EtapaInserts(p: Props) {
               />
             }
             transicoes
+            legenda={blocosLegenda.length > 0 && <CamadaLegenda blocos={blocosLegenda} tempo={tempo} />}
           />
           </div>
           {/* o espaço livre ao lado do vídeo: o fundo (do vídeo todo) e, nos comentários, o card do Instagram; a coluna
               inteira recolhe para o lado, numa faixa encostada no Enriquecimento */}
           {coluna ? (
             <div className="-mx-1 flex min-h-0 w-[268px] shrink-0 flex-col gap-3 overflow-y-auto px-1 py-0.5">
-              <button
-                onClick={() => setColuna(false)}
-                className="flex items-center gap-1.5 self-end rounded-full px-2 py-1 text-[11px] text-fog hover:text-cream"
-                title="Recolher para o lado"
-              >
-                Recolher <PanelRightClose className="size-3.5" />
-              </button>
+              <div className="flex items-center justify-end gap-1">
+                {lg?.ligada && (
+                  <button
+                    onClick={() => setVerLegenda(!verLegenda)}
+                    className={cn('flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] hover:text-cream', verLegenda ? 'text-cream' : 'text-fog')}
+                    title={verLegenda ? 'Esconder a legenda na prévia (só aqui; ela continua no vídeo)' : 'Mostrar a legenda na prévia'}
+                  >
+                    <Captions className="size-3.5" /> {verLegenda ? 'Legenda' : 'Legenda escondida'}
+                  </button>
+                )}
+                <button
+                  onClick={() => setColuna(false)}
+                  className="flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] text-fog hover:text-cream"
+                  title="Recolher para o lado"
+                >
+                  Recolher <PanelRightClose className="size-3.5" />
+                </button>
+              </div>
               {presetAberto && presetAberto !== presetDoSel?.id && (
                 <EditorPresetAberto
                   id={presetAberto}

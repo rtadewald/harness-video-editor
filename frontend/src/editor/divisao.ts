@@ -13,7 +13,7 @@ export type Divisao = { modo: 'metade' | 'atras'; tipo: TipoDivisao; f: number; 
 
 /** A janela do ator no "insert atrás": o ator encolhido a `escala`, apoiado embaixo e centrado; a janela começa em `y0`
  *  (% do quadro) e tem cantos redondos (`raio`, % da largura do ator encolhido). Igual em exportacao.py. */
-const JANELA = { escala: 0.55, y0: 72, raio: 7 }
+export const JANELA = { escala: 0.55, y0: 72, raio: 7 }
 /** Onde fica o alto da cabeça do ator no "ator embaixo" (% do quadro): o ator encolhido começa em 100 − 55 = 45%, e a
  *  cabeça costuma estar a ~10% do topo do quadro dele. */
 const TOPO_CABECA = 100 - JANELA.escala * 100 + JANELA.escala * 10

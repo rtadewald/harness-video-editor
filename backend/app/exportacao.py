@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import audio as audio_mod
+from . import legenda as legenda_mod
 from . import look as look_mod
 from . import transicoes as transicoes_mod
 from . import banco, comum, midia, projeto, render_quadros, sons
@@ -195,9 +196,12 @@ def _transicoes(transicoes: list[dict] | None, rotulo_in: str, w: int, h: int, p
 
 
 def _legenda(legenda: dict | None, rotulo_in: str) -> tuple[list[str], str]:
-    """Camada 5 (SPEC §13, §8.10; a P4): a legenda por cima de tudo (um ASS desenhado pelo libass). Recebe
-    `__render.legenda`. Por ora não faz nada. Devolve (filtros, rótulo de saída)."""
-    return [], rotulo_in
+    """Camada 5 (SPEC §13, §8.10; a P4): a legenda por cima de tudo, um ASS (`legenda.escrever`, dos blocos de
+    `__render.legenda`) desenhado pelo libass. `legenda`: `{arquivo: Path}`; sem arquivo, nada. Devolve (filtros,
+    rótulo de saída)."""
+    if not legenda or not legenda.get('arquivo'):
+        return [], rotulo_in
+    return [f'[{rotulo_in}]{legenda_mod.filtro(legenda["arquivo"])}[leg]'], 'leg'
 
 
 def _pos_montagem(transicoes: list[dict] | None, legenda: dict | None, rotulo_in: str, saida: str, w: int, h: int,
@@ -368,6 +372,9 @@ def _gravar(id: str, e: dict, saida: Path, vivo: dict) -> bool:
         from . import recorte_ator
         mascara = recorte_ator.arquivos(id, fonte['id'])[0] if (p.get('recorte') or {}).get('estado') == 'pronto' else None
         lk = look_mod.do_projeto(p)  # o look do ator (LUT + vinheta)
+        # a legenda (P4): o ASS dos blocos que a página de render montou
+        arq_leg = legenda_mod.escrever(render.get('legenda'), w, h, tmp / 'legenda.ass')
+        leg = {'arquivo': arq_leg} if arq_leg else None
         # o áudio (P3): a voz limpa (feita agora se faltar; se falhar, a do bruto com um aviso), o fundo e o −14 LUFS,
         # medido antes só no áudio (rápido)
         if vivo['cancelar'].is_set():
@@ -381,7 +388,7 @@ def _gravar(id: str, e: dict, saida: Path, vivo: dict) -> bool:
             return True
         cmd = comando_final(projeto.pasta(id) / fonte['arquivo'], clipes, horizontal, p.get('enquadramento', {}).get('x', 0.5),
                             w, h, fps, divisoes, camadas, e['codec'], duracao, saida, mascara if mascara and mascara.exists() else None,
-                            eventos_som, render.get('transicoes'), render.get('legenda'), lk,
+                            eventos_som, render.get('transicoes'), leg, lk,
                             look_mod.mascara_vinheta(w, h, look_mod.VINHETAS[lk['vinheta']], tmp / 'vinheta.png') if look_mod.ativo(lk) else None,
                             som)
         with open(log, 'wb') as erros:

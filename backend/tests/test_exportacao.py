@@ -54,8 +54,10 @@ def test_comando_por_camadas_e_identico_ao_de_antes(tmp_path):
 
 
 @pytest.mark.parametrize('transicoes, legenda', [([{'t': 1.0, 'id': 'x'}], {'blocos': [{'texto': 'oi'}]}), ([], None)])
-def test_ganchos_de_transicoes_e_legenda_ainda_sem_efeito(tmp_path, transicoes, legenda):
-    """Os campos `transicoes` e `legenda` do `__render` já chegam ao comando; até a P2 e a P4, não mudam nada."""
+def test_ganchos_sem_nada_a_desenhar_nao_mudam_o_comando(tmp_path, transicoes, legenda):
+    """Uma transição sem efeito conhecido e uma legenda sem `arquivo` (`_legenda` só desenha o ASS gravado por
+    `legenda.escrever`; os blocos crus não bastam) deixam o comando como sem elas. O que cada camada desenha está nos
+    testes dela (test_transicoes, test_legenda)."""
     biblioteca_falsa(sons.RAIZ)
     for args, kw in casos(tmp_path).values():
         assert exportacao.comando_final(*args, **kw, transicoes=transicoes, legenda=legenda) == exportacao.comando_final(*args, **kw)
