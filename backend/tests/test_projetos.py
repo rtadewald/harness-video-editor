@@ -1667,3 +1667,14 @@ def test_insert_com_preset(cliente, video, monkeypatch, tmp_path):
     assert cliente.put(url, json={'campos': {'preset': None}}).json()['pedidos'][0]['enriquecimento'] == {}
     assert cliente.patch('/api/presets/abcdef0123', json={'campos': {'nome': 'Card que sobe'}}).json()['nome'] == 'Card que sobe'
     assert cliente.patch('/api/presets/abcdef0123', json={'campos': {'receita': {'formato': 'x'}}}).status_code == 422
+
+
+def test_pausa_partida_pelo_detector_ainda_corta_como_dois_trechos():
+    """O detector partiu um silêncio de ~2 s em dois (0,94 s + 1,04 s, separados por um ruído de 0,08 s): o vão entre as
+    palavras passa do limite, então vira dois trechos, cada borda colada no silêncio real com as margens do corte."""
+    palavras = _palavras((11.46, 11.9), (14.0, 14.5))
+    silencios = [{'inicio': 11.922, 'fim': 12.864, 'dur': 0.942}, {'inicio': 12.947, 'fim': 13.991, 'dur': 1.044}]
+    clipes = cortes.montar_clipes(palavras, [True, True], silencios, 16.0, pausa_max=1.0, folga_inicio=0, folga_fim=0)
+    assert [(c['inicio'], c['fim']) for c in clipes] == [(11.46, 11.922), (13.991, 14.5)]
+    # com o limite acima do vão, fica um trecho só
+    assert len(cortes.montar_clipes(palavras, [True, True], silencios, 16.0, pausa_max=3.0, folga_inicio=0, folga_fim=0)) == 1
