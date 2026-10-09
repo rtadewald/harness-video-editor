@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Scissors, Search, Sparkles, Trash2, X } from 'lucide-react'
+import { Plus, Scissors, Sparkles, Trash2, X } from 'lucide-react'
 import {
   NOME_TIPO_MIDIA,
   apagarItemBanco,
@@ -37,12 +37,10 @@ const FILTROS: [TipoMidia | null, string][] = [
 const seg = (t: number) => `${t.toFixed(1).replace('.', ',')} s`
 const CAMPO = 'w-full rounded-[3px] border border-line-dark bg-deeper px-2.5 py-2 text-[12.5px] text-cream outline-none focus:border-cream/60'
 
-/** O banco de mídias (SPEC §8.3): os vídeos e imagens que os inserts dos projetos usam. Subir (arrastando vários), buscar,
+/** O banco de mídias (SPEC §8.3): os vídeos e imagens que os inserts dos projetos usam. Subir (arrastando vários),
  *  filtrar, editar nome/descrição/palavras-chave (a IA sugere descrição e palavras em segundo plano), ver onde é usado. */
 export default function Banco() {
   const [itens, setItens] = useState<ItemBanco[] | null>(null)
-  const [total, setTotal] = useState<number | null>(null) // o banco inteiro, sem a busca (o título não muda ao buscar)
-  const [busca, setBusca] = useState('')
   const [tipo, setTipo] = useState<TipoMidia | null>(null)
   const [aberto, setAberto] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(0)
@@ -51,16 +49,12 @@ export default function Banco() {
   const entrada = useRef<HTMLInputElement>(null)
 
   const carregar = () =>
-    Promise.all([listarBanco(busca), busca.trim() ? listarBanco('') : null])
-      .then(([achados, todos]) => {
-        setItens(achados)
-        setTotal((todos ?? achados).length)
-      })
+    listarBanco('')
+      .then(setItens)
       .catch((e) => setErro((e as Error).message))
   useEffect(() => {
-    const t = setTimeout(() => void carregar(), 200)
-    return () => clearTimeout(t)
-  }, [busca]) // eslint-disable-line react-hooks/exhaustive-deps
+    void carregar()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // enquanto a IA descreve algum item (ou um original está sendo cortado), acompanha
   const descrevendo = itens?.filter((i) => i.ia.status === 'fila' || i.ia.status === 'rodando').length ?? 0
@@ -112,15 +106,6 @@ export default function Banco() {
         <Logo />
         <span className="h-5 w-px bg-line-dark" />
         <NavHome />
-        <label className="ml-6 flex h-9 w-[clamp(200px,26vw,420px)] shrink-0 items-center gap-2 rounded-full border border-line-dark px-3.5 text-fog focus-within:border-cream/50">
-          <Search className="size-3.5" />
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar no nome, na descrição ou nas palavras-chave"
-            className="w-full bg-transparent text-[12px] text-cream outline-none placeholder:text-fog/70"
-          />
-        </label>
         <Button variant="coral" size="sm" className="ml-auto h-9 gap-6 px-4" onClick={() => entrada.current?.click()} disabled={enviando > 0}>
           {enviando ? `Enviando ${enviando}…` : 'Adicionar mídias'} <span className="seta">↗</span>
         </Button>
@@ -151,7 +136,7 @@ export default function Banco() {
 
       <main className={cn('overflow-y-auto px-8 py-8 transition-colors', arrastando && 'bg-coral/10')}>
         <div className="mb-6 grid gap-3 border-b border-line-dark pb-4">
-          <p className="eyebrow text-sage">Banco{total !== null && ` · ${String(total).padStart(2, '0')} mídia${total === 1 ? '' : 's'}`}</p>
+          <p className="eyebrow text-sage">Banco{itens && ` · ${String(itens.length).padStart(2, '0')} mídia${itens.length === 1 ? '' : 's'}`}</p>
           <p className="max-w-[720px] text-[12px] leading-[1.7] text-fog">
             Os vídeos e imagens dos inserts, de todos os projetos. Arraste vários arquivos para esta tela ou use “Adicionar mídias”. A IA descreve cada um e
             sugere palavras-chave, para achar depois; na etapa Inserts, cada insert liga as mídias daqui.
@@ -159,12 +144,12 @@ export default function Banco() {
         </div>
 
         {erro && <p className="mb-4 text-coral">{erro}</p>}
-        {itens && visiveis.length === 0 && (busca.trim() || itens.length > 0) && (
-          <p className="mb-6 text-[13px] text-fog">{busca.trim() ? `Nenhuma mídia${tipo ? ' desse tipo' : ''} para “${busca.trim()}”.` : 'Nenhuma mídia com esses filtros.'}</p>
+        {itens && visiveis.length === 0 && itens.length > 0 && (
+          <p className="mb-6 text-[13px] text-fog">Nenhuma mídia com esses filtros.</p>
         )}
 
         <ul className="grid gap-x-5 gap-y-8" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))' }}>
-          {!busca && (
+          {(
             <li>
               <button
                 onClick={() => entrada.current?.click()}

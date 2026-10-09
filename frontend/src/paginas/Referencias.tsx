@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Layers, Search, Star, X } from 'lucide-react'
+import { Layers, Star, X } from 'lucide-react'
 import { listarClipes, listarFontesPresets, marcarFavorito, urlArquivoReferencia, type ClipeReferencia, type FontePreset, type OrigemClipe } from '@/api'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
-import { paraBusca } from '@/lib/busca'
 import { cn } from '@/lib/utils'
 import { useLembrado } from '@/lib/useLembrado'
 import IconeGrupo from '@/referencias/IconeGrupo'
@@ -49,7 +48,6 @@ export default function Referencias() {
   const [fontes, setFontes] = useState<FontePreset[]>([])
   const [erro, setErro] = useState('')
   const [categoria, setCategoria] = useState<string | null>(null)
-  const [busca, setBusca] = useState('')
   const [ordem, setOrdem] = useState<Ordem>('aleatorio')
   const [soRevisadas, setSoRevisadas] = useState(false)
   const [soFavoritos, setSoFavoritos] = useState(false)
@@ -97,12 +95,11 @@ export default function Referencias() {
   }, [clipes])
 
   const base = useMemo(() => {
-    const q = paraBusca(busca.trim())
     return (clipes ?? []).filter(
       (c) =>
-        (!semFullAtor || !SO_ATOR.includes(c.tipo)) && (!soRevisadas || c.revisado) && (!soFavoritos || c.favorito) && (!q || [c.descricao, c.texto ?? '', c.fala, c.ref_nome].some((t) => paraBusca(t).includes(q))),
+        (!semFullAtor || !SO_ATOR.includes(c.tipo)) && (!soRevisadas || c.revisado) && (!soFavoritos || c.favorito),
     )
-  }, [clipes, busca, soRevisadas, soFavoritos, semFullAtor])
+  }, [clipes, soRevisadas, soFavoritos, semFullAtor])
 
   // os grupos fixos, com as categorias que não estão neles antes do comentário
   const grupos = useMemo((): Grupo[] => {
@@ -130,15 +127,6 @@ export default function Referencias() {
         <Logo />
         <span className="h-5 w-px bg-line-dark" />
         <NavHome />
-        <label className="ml-6 flex h-9 w-[clamp(200px,26vw,420px)] shrink-0 items-center gap-2 rounded-full border border-line-dark px-3.5 text-fog focus-within:border-cream/50">
-          <Search className="size-3.5" />
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar na marcação, no texto ou na fala"
-            className="w-full bg-transparent text-[12px] text-cream outline-none placeholder:text-fog/70"
-          />
-        </label>
         <span className="ml-auto rounded-full border border-line-dark px-3 py-1 text-[11px] text-fog tabular-nums">
           {visiveis.length} clipe{visiveis.length === 1 ? '' : 's'}
         </span>
