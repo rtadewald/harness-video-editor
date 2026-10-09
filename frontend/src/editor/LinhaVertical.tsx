@@ -54,7 +54,8 @@ type Props = {
 /** Trecho que está sendo escolhido com a ferramenta de cortar: do ponto onde o mouse desceu até onde está agora. */
 type Faixa = { t0: number; t1: number; y0: number; moveu: boolean }
 
-type Arrasto = { cid: string; lado: 'inicio' | 'fim'; t: number; orig: number; min: number; max: number; y0: number; moveu: boolean }
+/** `linear`: a alça de um corte compactado anda no tempo real (px por segundo), não na faixa comprimida dele. */
+type Arrasto = { cid: string; lado: 'inicio' | 'fim'; t: number; orig: number; min: number; max: number; y0: number; moveu: boolean; linear?: boolean }
 
 /** Um pedaço do bruto na timeline: trecho mantido (proporcional ao tempo) ou corte (proporcional se expandido, linha fixa se compactado). */
 type Seg = { t0: number; t1: number; y0: number; y1: number; corte: Corte | null; compacto: boolean }
@@ -266,7 +267,7 @@ export default function LinhaVertical(p: Props) {
     if (!arrasto) return
     const dy = e.clientY - arrasto.y0
     if (!arrasto.moveu && Math.abs(dy) < ZONA_MORTA_PX) return
-    const t = m.tDe(m.yDe(arrasto.orig) + dy)
+    const t = arrasto.linear ? arrasto.orig + dy / px : m.tDe(m.yDe(arrasto.orig) + dy)
     setArrasto({ ...arrasto, moveu: true, t: Math.min(Math.max(t, arrasto.min), arrasto.max) })
   }
   const soltarBorda = async () => {
@@ -348,6 +349,44 @@ export default function LinhaVertical(p: Props) {
       .finally(() => {
         if (pendente.current?.t === alvo) pendente.current = null
       })
+  }
+
+  // pontas do corte = bordas dos trechos mantidos vizinhos; o topo move o fim do trecho de cima, a base o início do de
+  // baixo. No corte compactado também (pedido de Rodrigo, out/2026: ajustar sem expandir), andando no tempo real.
+  const alcasDo = (c: Corte, s: Seg) => {
+    const alcas = [
+      c.antes && { cid: c.antes.id, lado: 'fim' as const, t: c.ini, y: s.y0, min: c.antes.inicio + 0.05, max: c.fim - 0.02, auto: c.antes.auto?.fim },
+      c.depois && { cid: c.depois.id, lado: 'inicio' as const, t: c.fim, y: s.y1, min: c.ini + 0.02, max: c.depois.fim - 0.05, auto: c.depois.auto?.inicio },
+    ]
+    return alcas.map((a) => {
+      if (!a) return null
+      const ajustada = a.auto != null && Math.abs(a.auto - a.t) > 0.0005
+      return (
+        <div
+          key={a.lado}
+          className="group absolute inset-x-0 z-[16] flex h-3 -translate-y-1/2 cursor-row-resize touch-none items-center justify-center"
+          style={{ top: a.y }}
+          title={`Arraste para ajustar este limite (${ms3(a.t)} s).${ajustada ? ` · a IA tinha posto ${ms3(a.auto!)}` : ''}`}
+          tabIndex={0}
+          data-alca
+          onKeyDown={(e) => nudge(e, a)}
+          onPointerDown={(e) => {
+            e.stopPropagation()
+            try {
+              e.currentTarget.setPointerCapture(e.pointerId)
+            } catch {
+              /* sem ponteiro ativo (eventos sintéticos): segue sem captura */
+            }
+            setArrasto({ cid: a.cid, lado: a.lado, t: a.t, orig: a.t, min: a.min, max: a.max, y0: e.clientY, moveu: false, linear: s.compacto })
+          }}
+          onPointerMove={moverBorda}
+          onPointerUp={soltarBorda}
+        >
+          <span className={cn('h-1 w-12 rounded-full group-focus:bg-yellow', ajustada ? 'bg-yellow' : 'bg-coral/80 group-hover:bg-yellow')} />
+          <span className="pointer-events-none absolute left-2 hidden rounded-[3px] bg-deeper/95 px-1 text-[9px] font-semibold text-yellow tabular-nums group-focus:block group-hover:block">{ms3(a.t)} s · ↑↓ ajustam</span>
+        </div>
+      )
+    })
   }
 
   // régua: só nos trechos proporcionais ao tempo
@@ -547,8 +586,9 @@ export default function LinhaVertical(p: Props) {
             if (s.compacto) {
               const texto = c.removidas.map((w) => w.texto).join(' ')
               return (
+                <span key={c.n}>
+                {alcasDo(c, s)}
                 <div
-                  key={c.n}
                   className={cn('absolute inset-x-0 z-[15] flex items-center gap-2 border-y pr-1.5 pl-3 text-[11px]', escolhido ? 'border-yellow bg-yellow/10' : 'border-coral/50')}
                   style={{ top: s.y0, height: ALT_COMPACTO, backgroundImage: LISTRAS }}
                   onDoubleClick={() => alternarCorte(c.n)}
@@ -577,44 +617,12 @@ export default function LinhaVertical(p: Props) {
                     <ChevronsUpDown className="size-3.5" />
                   </button>
                 </div>
+                </span>
               )
             }
-            // pontas do corte = bordas dos trechos mantidos vizinhos; o topo move o fim do trecho de cima, a base o início do de baixo
-            const alcas = [
-              c.antes && { cid: c.antes.id, lado: 'fim' as const, t: c.ini, y: s.y0, min: c.antes.inicio + 0.05, max: c.fim - 0.02, auto: c.antes.auto?.fim },
-              c.depois && { cid: c.depois.id, lado: 'inicio' as const, t: c.fim, y: s.y1, min: c.ini + 0.02, max: c.depois.fim - 0.05, auto: c.depois.auto?.inicio },
-            ]
             return (
               <span key={c.n}>
-                {alcas.map((a) => {
-                  if (!a) return null
-                  const ajustada = a.auto != null && Math.abs(a.auto - a.t) > 0.0005
-                  return (
-                    <div
-                      key={a.lado}
-                      className="group absolute inset-x-0 z-[16] flex h-3 -translate-y-1/2 cursor-row-resize touch-none items-center justify-center"
-                      style={{ top: a.y }}
-                      title={`Arraste para ajustar este limite (${ms3(a.t)} s).${ajustada ? ` · a IA tinha posto ${ms3(a.auto!)}` : ''}`}
-                      tabIndex={0}
-                      data-alca
-                      onKeyDown={(e) => nudge(e, a)}
-                      onPointerDown={(e) => {
-                        e.stopPropagation()
-                        try {
-                          e.currentTarget.setPointerCapture(e.pointerId)
-                        } catch {
-                          /* sem ponteiro ativo (eventos sintéticos): segue sem captura */
-                        }
-                        setArrasto({ cid: a.cid, lado: a.lado, t: a.t, orig: a.t, min: a.min, max: a.max, y0: e.clientY, moveu: false })
-                      }}
-                      onPointerMove={moverBorda}
-                      onPointerUp={soltarBorda}
-                    >
-                      <span className={cn('h-1 w-12 rounded-full group-focus:bg-yellow', ajustada ? 'bg-yellow' : 'bg-coral/80 group-hover:bg-yellow')} />
-                      <span className="pointer-events-none absolute left-2 hidden rounded-[3px] bg-deeper/95 px-1 text-[9px] font-semibold text-yellow tabular-nums group-focus:block group-hover:block">{ms3(a.t)} s · ↑↓ ajustam</span>
-                    </div>
-                  )
-                })}
+                {alcasDo(c, s)}
                 {/* faixa do corte: o controle gruda no topo da janela enquanto o corte aparece, e sai junto com ele */}
                 <div className="pointer-events-none absolute right-1.5 z-10" style={{ top: s.y0, height: Math.max(s.y1 - s.y0, 1) }}>
                 <div className="pointer-events-auto sticky top-2 mt-2 flex w-fit items-center gap-1">
@@ -664,7 +672,7 @@ export default function LinhaVertical(p: Props) {
           {arrasto && (
             <>
               <div className="pointer-events-none absolute inset-x-0 z-30 border-t border-dashed border-yellow/60" style={{ top: m.yDe(arrasto.orig) }} />
-              <div className="pointer-events-none absolute inset-x-0 z-30 h-0.5 bg-yellow" style={{ top: m.yDe(arrasto.t) }}>
+              <div className="pointer-events-none absolute inset-x-0 z-30 h-0.5 bg-yellow" style={{ top: arrasto.linear ? m.yDe(arrasto.orig) + (arrasto.t - arrasto.orig) * px : m.yDe(arrasto.t) }}>
                 <span className={cn('absolute top-1 right-2 rounded-[3px] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums', ondeCai(arrasto.t).aviso ? 'bg-coral text-cream' : 'bg-yellow text-ink')}>
                   {ms3(arrasto.t)} s · {arrasto.t - arrasto.orig >= 0 ? '+' : '−'}
                   {Math.abs(Math.round((arrasto.t - arrasto.orig) * 1000))} ms · {ondeCai(arrasto.t).texto}
