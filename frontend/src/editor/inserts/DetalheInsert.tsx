@@ -1,13 +1,12 @@
 import { useRef, useState } from 'react'
 import { Globe, Library, Upload } from 'lucide-react'
-import { s1, tempoBR, type InsertsProjeto, type ItemBanco } from '@/api'
+import type { InsertsProjeto, ItemBanco } from '@/api'
 import { cn } from '@/lib/utils'
 import CapturaDeSite from '../CapturaDeSite'
 import MidiaCard from '../MidiaCard'
 import SeletorBanco from '../SeletorBanco'
 import EditorVideo from '../EditorVideo'
-import { ACEITA, BOTAO, NOME_TIPO, type NovaMidia, type Pedido } from './comum'
-import { Campo, Recolhivel } from './layout'
+import { ACEITA, BOTAO, type NovaMidia, type Pedido } from './comum'
 
 export default function DetalheInsert(p: {
   pedido: Pedido
@@ -18,7 +17,6 @@ export default function DetalheInsert(p: {
   salvar: (midias: NovaMidia[]) => Promise<unknown>
   subir: (arquivos: File[]) => Promise<ItemBanco[]>
   bancoMudou: () => void
-  ver: () => void
 }) {
   const x = p.pedido
   const [escolhendo, setEscolhendo] = useState(false)
@@ -74,33 +72,6 @@ export default function DetalheInsert(p: {
           e.target.value = ''
         }}
       />
-      <div className="flex flex-wrap items-center gap-2">
-        <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-semibold', x.formato === 'vertical' ? 'bg-blue text-cream' : 'bg-mint text-ink')}>
-          {NOME_TIPO[x.tipo] ?? x.tipo}
-        </span>
-        <span className="text-[12px] text-fog tabular-nums">
-          {tempoBR(x.t.inicio)} → {tempoBR(x.t.fim)} · {s1(x.t.fim - x.t.inicio)} s
-        </span>
-        <button onClick={p.ver} className="ml-auto rounded-full border border-line-dark px-2.5 py-1 text-[11px] text-fog hover:text-cream">
-          ▶ Ver trecho
-        </button>
-      </div>
-      {/* a sugestão da IA (a fala e o que acontece no insert): fechada, para as mídias ficarem à vista; lembrada aberta */}
-      <Recolhivel
-        chave="sugestao"
-        titulo="Sugestão da IA"
-        fechado
-        resumo={<span className="truncate text-[11.5px] text-fog">“{x.fala}”</span>}
-      >
-        <div className="grid gap-3">
-          <p className="border-l-2 border-line-dark pl-3 text-[12.5px] leading-[1.6] text-cream/90">“{x.fala}”</p>
-          {x.descricao ? (
-            <Campo rotulo="O que acontece no insert">{x.descricao}</Campo>
-          ) : (
-            <p className="text-[11.5px] text-fog">A direção não descreveu este insert.</p>
-          )}
-        </div>
-      </Recolhivel>
 
       <div className="grid gap-2">
         <p className="eyebrow text-fog">

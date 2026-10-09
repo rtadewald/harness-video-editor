@@ -53,6 +53,9 @@ def _midias_antigas(x: dict) -> list[dict]:
     return out
 
 
+GUARDADOS = 40  # quantos inserts que saíram da direção ficam guardados para voltar
+
+
 def sincronizar(id: str) -> dict:
     """Os pedidos da versão aberta da direção; os que já existiam (mesma chave) continuam com as suas mídias."""
     p = projeto.ler(id)
@@ -63,7 +66,10 @@ def sincronizar(id: str) -> dict:
     novos = pedidos_da_direcao(d['itens'], saida)
 
     def aplicar(p):
-        lista = (p.get('inserts') or {}).get('pedidos', [])
+        ins = p.get('inserts') or {}
+        lista = ins.get('pedidos', [])
+        # os que saíram antes (o plano virou uma categoria sem insert, ou um motion): guardados para voltar inteiros
+        guardados = [g for g in ins.get('guardados', []) if isinstance(g, dict) and g.get('id')]
         antigos = {x['chave']: x for x in lista}
         # sem a mesma chave (o plano mudou de categoria ou foi dividido), o do mesmo plano: as mídias continuam com ele
         por_plano = {x.get('plano'): x for x in lista}
@@ -75,12 +81,19 @@ def sincronizar(id: str) -> dict:
                 velho = por_plano.get(n['plano'])
                 if velho is not None and velho['id'] in usados:
                     velho = None
+            if velho is None:
+                # o plano volta a ter insert: o guardado com a mesma chave; senão, o das mesmas palavras
+                velho = next((g for g in guardados if g['chave'] == n['chave'] and g['id'] not in usados), None) or \
+                    next((g for g in guardados if g.get('palavra_ini') == n['palavra_ini'] and g.get('plano') == n['plano'] and g['id'] not in usados), None)
             if velho is not None:
                 usados.add(velho['id'])
             midias = (velho['midias'] if 'midias' in velho else _midias_antigas(velho)) if velho else []
             pedidos.append({'id': velho['id'] if velho else uuid.uuid4().hex[:8], **n, 'midias': midias,
                             **{k: velho[k] for k in ('capturas', 'captura', 'enriquecimento', 'comentario') if velho and velho.get(k)}})
-        p['inserts'] = {**(p.get('inserts') or {}), 'versao': d.get('ativa'), 'pedidos': pedidos}
+        # os que não voltaram e têm algo do criador (mídias, enriquecimento, card, captura) ficam guardados (os mais novos)
+        saem = [x for x in lista if x['id'] not in usados and any(x.get(k) for k in ('midias', 'enriquecimento', 'comentario', 'captura', 'capturas'))]
+        guardados = (saem + [g for g in guardados if g['id'] not in usados and all(g['id'] != x['id'] for x in saem)])[:GUARDADOS]
+        p['inserts'] = {**ins, 'versao': d.get('ativa'), 'pedidos': pedidos, 'guardados': guardados}
     return projeto.atualizar(id, aplicar)['inserts']
 
 

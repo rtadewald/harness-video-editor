@@ -1284,6 +1284,25 @@ def test_inserts_ligam_midias_do_banco_e_sobrevivem_a_versoes(cliente, video, mo
     assert [m['banco'] for m in cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]['midias']] == ['b2']
 
 
+def test_insert_volta_inteiro_quando_o_plano_volta_a_ter_insert(cliente, video, monkeypatch):
+    """O plano vira uma categoria sem insert (Full ator) e volta: as mídias, o enriquecimento e o card voltam com ele."""
+    id = _criar(cliente, video)['id']
+    monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
+    itens = [_plano_ins('p1', 'tela_dividida_insert', 0, 5), _plano_ins('p2', 'insert_tela_cheia', 6, 9)]
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': itens}))
+    p1 = cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]
+    banco.salvar_item({'id': 'b1', 'nome': 'site A', 'tipo': 'video', 'arquivo': 'original.mp4', 'proxy': 'proxy.mp4', 'largura': 1600, 'altura': 900})
+    cliente.put(f"/api/projetos/{id}/inserts/{p1['id']}/midias", json={'midias': [{'banco': 'b1'}]})
+    cliente.put(f"/api/projetos/{id}/inserts/{p1['id']}/enriquecimento", json={'campos': {'divisao': 'atras', 'ator': {'modo': 'canto'}}})
+    projeto.atualizar(id, lambda p: p['direcao'].update(itens=[{**itens[0], 'tipo': 'full_ator'}, itens[1]]))
+    assert [x['plano'] for x in cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos']] == ['p2']
+    projeto.atualizar(id, lambda p: p['direcao'].update(itens=itens))
+    x = cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]
+    assert x['id'] == p1['id'] and [m['banco'] for m in x['midias']] == ['b1']
+    assert x['enriquecimento'] == {'divisao': 'atras', 'ator': {'modo': 'canto'}}
+    assert projeto.ler(id)['inserts']['guardados'] == []  # voltou: não fica mais guardado
+
+
 def test_pedido_do_agente_antigo_vira_midias(cliente, video, monkeypatch):
     id = _criar(cliente, video)['id']
     monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
