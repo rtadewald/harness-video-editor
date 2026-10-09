@@ -3,11 +3,11 @@ import { ChevronDown, Images } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useLembrado } from '@/lib/useLembrado'
 
-type Tamanhos = { esq: number; dir: number; linha: number }
+type Tamanhos = { esq: number; dir: number; linha: number; trans: number } // trans: a coluna da etapa Transições
 
-const TAMANHOS_PADRAO: Tamanhos = { esq: 440, dir: 400, linha: 200 }
+const TAMANHOS_PADRAO: Tamanhos = { esq: 440, dir: 400, linha: 200, trans: 820 }
 
-const LIMITES: Record<keyof Tamanhos, [number, number]> = { esq: [300, 760], dir: [300, 680], linha: [150, 420] }
+const LIMITES: Record<keyof Tamanhos, [number, number]> = { esq: [300, 760], dir: [300, 680], linha: [150, 420], trans: [480, 1100] }
 
 /** Larguras dos cards e altura da linha do tempo, arrastáveis e lembradas neste navegador. */
 export function useTamanhos(): [Tamanhos, (lado: keyof Tamanhos, e: React.PointerEvent) => void] {
@@ -25,7 +25,7 @@ export function useTamanhos(): [Tamanhos, (lado: keyof Tamanhos, e: React.Pointe
     let atual = tam
     const mover = (ev: PointerEvent) => {
       const d = (lado === 'linha' ? ev.clientY : ev.clientX) - inicio
-      const v = base + (lado === 'esq' ? d : -d) // o card da direita e a linha do tempo crescem para o outro lado
+      const v = base + (lado === 'esq' || lado === 'trans' ? d : -d) // o card da direita e a linha do tempo crescem para o outro lado
       const [min, max] = LIMITES[lado]
       atual = { ...atual, [lado]: Math.round(Math.max(min, Math.min(max, v))) }
       setTam(atual)
@@ -51,7 +51,7 @@ export function useTamanhos(): [Tamanhos, (lado: keyof Tamanhos, e: React.Pointe
 export function Alca({ lado, pos, arrastar }: { lado: keyof Tamanhos; pos: number | string; arrastar: (lado: keyof Tamanhos, e: React.PointerEvent) => void }) {
   const borda = typeof pos === 'number' ? `${pos}px` : pos
   const estilo: React.CSSProperties =
-    lado === 'esq'
+    lado === 'esq' || lado === 'trans'
       ? { left: `calc(${borda} - 3px)`, top: 0, bottom: 0, width: 6 }
       : lado === 'dir'
         ? { right: `calc(${borda} - 3px)`, top: 0, bottom: 0, width: 6 }

@@ -86,8 +86,8 @@ export default function EtapaTransicoes(p: {
 
   return (
     <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)]" style={{ gridTemplateRows: `minmax(0,1fr) ${tam.linha}px` }}>
-      <div className="relative grid min-h-0 min-w-0" style={{ gridTemplateColumns: `${Math.min(tam.esq, 520)}px minmax(0, 1fr)` }}>
-        <Alca lado="esq" pos={Math.min(tam.esq, 520)} arrastar={arrastarBorda} />
+      <div className="relative grid min-h-0 min-w-0" style={{ gridTemplateColumns: `min(${tam.trans}px, 62%) minmax(0, 1fr)` }}>
+        <Alca lado="trans" pos={`min(${tam.trans}px, 62%)`} arrastar={arrastarBorda} />
         <aside className="flex min-h-0 min-w-0 flex-col border-r border-line-dark text-cream">
           <Cabecalho
             icone={Shuffle}
@@ -208,7 +208,7 @@ function Opcoes(p: { corte: CorteDoVideo; b: Biblioteca; escolher: (tid: string 
   const card = (t: Transicao) => {
     const usada = (p.corte.transicao?.id ?? 'corte-seco') === t.id
     return (
-      <div key={t.id} className={cn('grid min-w-0 gap-2 rounded-[8px] p-1.5 ring-1', usada ? 'bg-cream/[0.07] ring-2 ring-cream' : 'ring-transparent')}>
+      <div key={t.id} className={cn('grid min-w-0 content-start gap-1.5 rounded-[8px] p-1.5 ring-1', usada ? 'bg-cream/[0.07] ring-2 ring-cream' : 'ring-transparent')}>
         <Miniatura
           t={t}
           fonte={fonteDaTransicao(b, t, grupo)}
@@ -224,13 +224,13 @@ function Opcoes(p: { corte: CorteDoVideo; b: Biblioteca; escolher: (tid: string 
           onClick={() => p.escolher(t.id)}
           title={t.descricao}
           className={cn(
-            'flex min-w-0 items-center gap-1.5 rounded-[6px] px-2 py-1.5 text-left text-[11.5px] font-semibold',
-            usada ? 'bg-cream text-ink' : 'text-cream/80 ring-1 ring-line-dark hover:text-cream hover:ring-cream/40',
+            'flex min-w-0 items-center gap-1.5 px-0.5 py-1 text-left text-[12.5px] font-semibold',
+            usada ? 'text-cream' : 'text-cream/75 hover:text-cream',
           )}
         >
           {fav.has(t.id) && <Star className="size-3 shrink-0 fill-yellow text-yellow" />}
           <span className="min-w-0 flex-1 truncate">{t.nome}</span>
-          {usada ? <Check className="size-3.5 shrink-0" /> : t.som && <Volume2 className="size-3 shrink-0 opacity-60" />}
+          {usada ? <Check className="size-3.5 shrink-0 text-mint" /> : t.som && <Volume2 className="size-3 shrink-0 opacity-60" />}
         </button>
       </div>
     )
@@ -257,11 +257,11 @@ function Opcoes(p: { corte: CorteDoVideo; b: Biblioteca; escolher: (tid: string 
       </div>
       <div className="grid gap-2">
         <p className="eyebrow text-yellow">Favoritas do par</p>
-        <div className="grid grid-cols-2 gap-2">{lista.filter((t) => fav.has(t.id)).map(card)}</div>
+        <div className="grid grid-cols-3 gap-x-3 gap-y-4">{lista.filter((t) => fav.has(t.id)).map(card)}</div>
       </div>
       <div className="grid gap-2">
         <p className="eyebrow text-fog">Outras transições</p>
-        <div className="grid grid-cols-2 gap-2">{lista.filter((t) => !fav.has(t.id)).map(card)}</div>
+        <div className="grid grid-cols-3 gap-x-3 gap-y-4">{lista.filter((t) => !fav.has(t.id)).map(card)}</div>
       </div>
     </div>
   )
