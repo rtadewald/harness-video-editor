@@ -100,6 +100,35 @@ def retomar_interrompidas() -> None:
 JANELA = {'y0': 0.72, 'escala': 0.55, 'raio': 0.07}  # o ator no "insert atrás" (igual a presets/divisao.ts; raio em fração da largura do ator encolhido)
 
 
+ZOOM_LENTO = {'por_segundo': 0.03, 'maximo': 0.15}  # os presets do Full ator (iguais a `ator/movimento.ts`)
+ZOOM_SECO = 0.18
+
+
+def _movimentos(movimentos: list[dict], w: int, h: int, entrada: str, saida: str) -> str:
+    """O movimento de câmera no ator nos planos de Full ator (`__render.movimentos`: ini, fim, tipo, cx, cy): a escala no
+    tempo (o lento sai e chega andando: metade linear, metade suavizada; o seco salta de uma vez) e o recorte que deixa o
+    centro do rosto parado. A mesma conta de `escalaDoMovimento` na prévia."""
+    z, cx, cy = [], [], []
+    for m in movimentos:
+        a, b = float(m['ini']), float(m['fim'])
+        if b - a < 0.02:
+            continue
+        dentro = f'between(t,{a:.4f},{b:.4f})'
+        if m['tipo'] == 'zoom_seco':
+            z.append(f'{dentro}*{ZOOM_SECO}')
+        else:
+            amp = min(ZOOM_LENTO['por_segundo'] * (b - a), ZOOM_LENTO['maximo'])
+            u = f'clip((t-{a:.4f})/{b - a:.4f},0,1)'
+            z.append(f'{dentro}*{amp:.4f}*(0.5*{u}+0.5*{u}*{u}*(3-2*{u}))')
+        cx.append(f'{dentro}*({float(m.get("cx", 0.5)):.4f}-0.5)')
+        cy.append(f'{dentro}*({float(m.get("cy", 0.4)):.4f}-0.5)')
+    if not z:
+        return f'[{entrada}]null[{saida}]'
+    zt, xt, yt = '+'.join(z), '+'.join(cx), '+'.join(cy)
+    return (f"[{entrada}]scale=w='trunc(iw*(1+{zt})/2)*2':h='trunc(ih*(1+{zt})/2)*2':eval=frame:flags=bicubic,"
+            f"crop={w}:{h}:x='(iw-ow)*(0.5+{xt})':y='(ih-oh)*(0.5+{yt})',setsar=1[{saida}]")
+
+
 def acelerar(vel: float) -> tuple[str, str]:
     """Os filtros de um clipe acelerado: o `setpts` do vídeo e o `atempo` do áudio (com a vírgula; vazio a 1×)."""
     if abs(vel - 1) < 1e-6:
@@ -108,13 +137,15 @@ def acelerar(vel: float) -> tuple[str, str]:
 
 
 def _ator(clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, h: int, fps: int,
-          divisoes: list[tuple[float, float, dict]], duracao: float, mascara: bool, com_look: bool = False) -> tuple[list[str], list[str]]:
+          divisoes: list[tuple[float, float, dict]], duracao: float, mascara: bool, com_look: bool = False,
+          movimentos: list[dict] | None = None) -> tuple[list[str], list[str]]:
     """Os filtros do ator e do áudio (entrada 0 = bruto; 1 = a máscara da pessoa, se houver): cada clipe da V1 vira um
     par vídeo + áudio (o áudio com fade curto nas pontas) e o concat mantém os dois juntos em cada emenda; depois, recorte
     9:16, escala, fps de saída (o ator repete quadros, sem interpolar) e o ator descendo para a parte de baixo nas telas
     divididas (metade de `f` da altura). Devolve os filtros de baixo (saídas [base] e [ac]) e os de cima, aplicados depois
     dos inserts sobre [topo_in] → [topo]: o ator na janela do "insert atrás" e a pessoa recortada saindo da área dele.
-    `com_look`: o ator escalado sai em [ator_cru] e o look (`look.filtros`, ligado em `comando_final`) faz o [ator]."""
+    `com_look`: o ator escalado sai em [ator_cru] e o look (`look.filtros`, ligado em `comando_final`) faz o [ator].
+    `movimentos`: os presets do Full ator (zoom no ator, antes do look: a vinheta não aproxima junto)."""
     n = len(clipes)
     # a geometria do ator (P5, `ator/ator.ts`): quando a página de render a manda, o ator é posto por ela
     geometria = any(d.get('ator') for _, _, d in divisoes)
@@ -140,7 +171,10 @@ def _ator(clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, 
             masc += f'[cm{k}]'
     partes.append(f'{pares}concat=n={n}:v=1:a=1[vc][ac]')
     recorte = f"crop=w=trunc(ih*9/16/2)*2:h=ih:x=(iw-ow)*{enquadramento_x:.4f}," if horizontal else ''
-    partes.append(f'[vc]{recorte}scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{h},setsar=1,fps={fps}[{'ator_cru' if com_look else 'ator'}]')
+    rotulo = 'ator_cru' if com_look else 'ator'
+    partes.append(f'[vc]{recorte}scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{h},setsar=1,fps={fps}[{'ator_mv' if movimentos else rotulo}]')
+    if movimentos:
+        partes.append(_movimentos(movimentos, w, h, 'ator_mv', rotulo))
     if geometria:
         if usa_mascara:
             partes.append(f'{masc}concat=n={n}:v=1:a=0,scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},format=gray,fps={fps}[masc]')
@@ -331,7 +365,7 @@ def comando_final(bruto: Path, clipes: list[dict], horizontal: bool, enquadramen
                   divisoes: list[tuple[float, float, dict]], camadas: list[tuple[Path, float]], codec: str, duracao: float,
                   saida: Path, mascara: Path | None = None, eventos_som: list[dict] | None = None,
                   transicoes: list[dict] | None = None, legenda: dict | None = None, look: dict | None = None,
-                  mascara_vinheta: Path | None = None, audio: dict | None = None) -> list[str]:
+                  mascara_vinheta: Path | None = None, audio: dict | None = None, movimentos: list[dict] | None = None) -> list[str]:
     """Uma passada só, montada por camadas na ordem do contrato (SPEC §13; cada área mexe só na sua função): o ator e o
     áudio do bruto, decodificado pelo chip de vídeo (`_ator`); por cima, a camada dos inserts (`_inserts`); por cima
     dela, o ator na janela do "insert atrás" e a pessoa recortada (a parte de cima de `_ator`); depois, sobre o quadro
@@ -339,7 +373,7 @@ def comando_final(bruto: Path, clipes: list[dict], horizontal: bool, enquadramen
     Entradas do ffmpeg, nesta ordem: o bruto, a máscara (se usada), os clipes dos inserts, os sons e a máscara da
     vinheta do look (se houver; em loop). O look (LUT + vinheta, `look.py`) vale só para o ator, logo depois da escala."""
     com_look = look_mod.ativo(look)
-    partes, topo = _ator(clipes, horizontal, enquadramento_x, w, h, fps, divisoes, duracao, mascara is not None, com_look)
+    partes, topo = _ator(clipes, horizontal, enquadramento_x, w, h, fps, divisoes, duracao, mascara is not None, com_look, movimentos)
     usa_mascara = any('[1:v]' in x for x in partes)
     base_idx = 2 if usa_mascara else 1
     entradas: list[str] = ['-i', str(mascara)] if usa_mascara else []
@@ -409,7 +443,8 @@ def _trechos(url: str) -> dict:
             return pg.evaluate("""async () => {
                 const r = window.__render
                 const ler = async (f) => (typeof f === 'function' ? await f() : f ?? null)
-                return { trechos: r.trechos, sons: r.sons ? await r.sons() : [], transicoes: await ler(r.transicoes), legenda: await ler(r.legenda) }
+                return { trechos: r.trechos, sons: r.sons ? await r.sons() : [], transicoes: await ler(r.transicoes), legenda: await ler(r.legenda),
+                         movimentos: await ler(r.movimentos) }
             }""")
         finally:
             browser.close()
@@ -491,7 +526,7 @@ def _gravar(id: str, e: dict, saida: Path, vivo: dict) -> bool:
                             w, h, fps, divisoes, camadas, e['codec'], duracao, saida, mascara if mascara and mascara.exists() else None,
                             eventos_som, render.get('transicoes'), leg, lk,
                             look_mod.mascara_vinheta(w, h, look_mod.VINHETAS[lk['vinheta']], tmp / 'vinheta.png') if look_mod.ativo(lk) else None,
-                            som)
+                            som, render.get('movimentos'))
         with open(log, 'wb') as erros:
             ff = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=erros, text=True)
             for linha in ff.stdout:

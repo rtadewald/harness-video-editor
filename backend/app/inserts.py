@@ -295,6 +295,26 @@ def definir_fundo(id: str, fundo: str) -> dict:
     return projeto.atualizar(id, aplicar)['inserts']
 
 
+# ---------------------------------------------------------------- presets do Full ator (por plano)
+MOVIMENTOS_ATOR = ('zoom_lento', 'zoom_seco')  # e "nada", o padrão (sem chave); a conta fica em `ator/movimento.ts` e na exportação
+
+
+def definir_movimento_ator(id: str, plano: str, movimento: str | None) -> dict:
+    """O movimento de câmera no ator num plano de Full ator (`inserts.ator_planos[plano]`); None volta ao "nada"."""
+    if movimento is not None and movimento not in MOVIMENTOS_ATOR:
+        raise ValueError(f'Movimento desconhecido: {movimento}')
+    if not plano or len(plano) > 40:
+        raise ValueError('Plano inválido')
+
+    def aplicar(p):
+        m = p.setdefault('inserts', {'versao': None, 'pedidos': []}).setdefault('ator_planos', {})
+        if movimento:
+            m[plano] = movimento
+        else:
+            m.pop(plano, None)
+    return projeto.atualizar(id, aplicar)['inserts']
+
+
 # ---------------------------------------------------------------- transição entre os planos (do vídeo todo)
 TRANSICOES = ('seca', 'zoom', 'piscada')  # corte seco · zoom com desfoque (ref. "cursor free") · piscada suave
 

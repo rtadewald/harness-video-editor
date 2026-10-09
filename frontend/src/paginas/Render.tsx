@@ -16,6 +16,7 @@ import MotionNoLugar from '@/motions/MotionNoLugar'
 import { usePresets } from '@/presets/presets'
 import { useEntradas } from '@/inserts/entradas'
 import { montarSequencia } from '@/player/sequencia'
+import { centroDoMovimento, ehFullAtor } from '@/ator/movimento'
 
 /** Páginas abertas pelo navegador escondido do backend (nunca pelo criador). */
 
@@ -46,6 +47,8 @@ declare global {
       sons: () => Promise<EventoSom[]>
       transicoes?: unknown[] | (() => Promise<unknown[]>)
       legenda?: unknown | (() => Promise<unknown>)
+      /** Os presets dos planos de Full ator: o zoom no ator (`exportacao._movimentos`). */
+      movimentos?: { ini: number; fim: number; tipo: string; cx: number; cy: number }[]
     }
   }
 }
@@ -119,6 +122,12 @@ export function RenderProjeto() {
     }
     window.__render = {
       duracao: pedidos.duracao,
+      movimentos: pedidos.planos.flatMap((pl) => {
+        const tipo = ehFullAtor(pl.tipo) ? ins?.ator_planos?.[pl.id] : undefined
+        if (!tipo) return []
+        const c = centroDoMovimento(rostoEm?.(pl.inicio, pl.fim))
+        return [{ ini: pl.inicio, fim: pl.fim, tipo, cx: c.x, cy: c.y }]
+      }),
       trechos: [
         ...pedidos.lista.map((x) => {
           const divisao = divisaoDe(x, banco, presets)
@@ -168,7 +177,7 @@ export function RenderProjeto() {
           setPedido((x) => ({ t, n: x.n + 1 }))
         }),
     }
-  }, [id, pedidos, banco, entradas, motions, presets, rostoEm])
+  }, [id, pedidos, banco, entradas, motions, presets, rostoEm, ins?.ator_planos])
   useEffect(() => {
     if (!chegou.current) return
     const ok = chegou.current
