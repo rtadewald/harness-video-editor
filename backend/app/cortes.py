@@ -143,6 +143,14 @@ def montar_clipes(palavras: list[dict], fica: list[bool], silencios: list[dict],
         s = min(c, key=lambda s: abs(s['inicio'] - t))
         return min(s['inicio'] + min(folga_fim, s['dur']), s['fim'], max(lim, t))
 
+    # uma pausa longa entre duas palavras mantidas parte o trecho em dois, e as bordas seguem a mesma regra do corte de
+    # palavras removidas (pedido de Rodrigo, out/2026). Vale o vão entre as palavras ou um silêncio detectado longo entre
+    # elas: o detector às vezes parte um silêncio em dois por um ruído curto (0,94 s + 1,04 s, separados por 0,08 s)
+    def pausa_longa(k: int) -> bool:
+        p, q = palavras[k], palavras[k + 1]
+        return q['inicio'] - p['fim'] >= pausa_max or any(
+            s['dur'] >= pausa_max and s['inicio'] >= p['inicio'] and s['fim'] <= q['fim'] for s in silencios)
+
     # trechos contínuos de palavras mantidas → intervalos de tempo
     intervalos: list[list[float]] = []
     i = 0
@@ -151,7 +159,7 @@ def montar_clipes(palavras: list[dict], fica: list[bool], silencios: list[dict],
             i += 1
             continue
         j = i
-        while j + 1 < len(palavras) and fica[j + 1]:
+        while j + 1 < len(palavras) and fica[j + 1] and not pausa_longa(j):
             j += 1
         a = inicio(palavras[i]['inicio'], palavras[i - 1]['fim'] if i > 0 else 0.0)
         b = fim(palavras[j]['fim'], palavras[j + 1]['inicio'] if j + 1 < len(palavras) else duracao)
@@ -160,16 +168,7 @@ def montar_clipes(palavras: list[dict], fica: list[bool], silencios: list[dict],
         else:
             intervalos.append([a, b])
         i = j + 1
-
-    # só pausas muito longas dentro de um trecho mantido viram cortes, com as mesmas margens dos outros cortes
-    pedacos = []
-    for a, b in intervalos:
-        pontos = [a]
-        for s in silencios:
-            if s['dur'] >= pausa_max and s['inicio'] > a and s['fim'] < b:
-                pontos += [s['inicio'] + min(folga_fim, s['dur'] / 2), s['fim'] - min(folga_inicio, s['dur'] / 2)]
-        pontos.append(b)
-        pedacos += [(pontos[k], pontos[k + 1]) for k in range(0, len(pontos), 2)]
+    pedacos = intervalos
 
     clipes = []
     for a, b in pedacos:
