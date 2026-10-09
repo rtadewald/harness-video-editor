@@ -49,7 +49,10 @@ async def main():
             await pg.get_by_role('button', name='Voltar ao início').click(); await pg.wait_for_timeout(500)
             await limpar()
             await pg.get_by_role('button', name='Tocar', exact=True).click()
-            await pg.wait_for_timeout(int(dur / (1 if vel == '1×' else 2) * 1000) + 1500)
+            # até o player parar no fim (o vídeo pode atrasar carregando): no máximo o dobro do tempo
+            await pg.wait_for_timeout(int(dur / (1 if vel == '1×' else 2) * 1000))
+            await pg.get_by_role('button', name='Tocar', exact=True).wait_for(timeout=int(dur * 1000) + 5000)
+            await pg.wait_for_timeout(500)
             l = await log()
             for e in esperados:
                 n = [x for x in l if x['som'] == e['som'] and abs(x['t'] - e['t']) < 0.01]

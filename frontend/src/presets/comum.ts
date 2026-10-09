@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import type { Preset } from '@/editor/presets'
+import type { Preset } from '@/presets/presets'
 
 // o que as partes da página Presets compartilham
 

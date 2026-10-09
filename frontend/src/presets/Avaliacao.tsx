@@ -1,8 +1,8 @@
-import { PROPORCOES, TELAS, type Sim } from '@/editor/Simulacao'
-import { AJUSTES, rapidosDe } from '@/editor/ajustes'
+import { PROPORCOES, TELAS, type Sim } from '@/presets/Simulacao'
+import { AJUSTES, rapidosDe } from '@/presets/ajustes'
 import EscolhaSons from '@/editor/EscolhaSons'
 import { NOME_MOMENTO, momentosDaReceita, type SomMomento } from '@/editor/sons'
-import { cabeMidias, editarPreset, nMidias, nomeMidias, PROPORCOES_USO, usosDe, type Preset, type Proporcao, type Usos } from '@/editor/presets'
+import { cabeMidias, editarPreset, nMidias, nomeMidias, PROPORCOES_USO, usosDe, type Preset, type Proporcao, type Usos } from '@/presets/presets'
 import { cn } from '@/lib/utils'
 import { chip } from './comum'
 

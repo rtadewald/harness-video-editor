@@ -78,7 +78,7 @@ tudo): por isso é um efeito "depois da montagem".
 lados ao mesmo tempo; fica para depois, se as referências tiverem.
 
 💡 As **entradas e saídas dos inserts sem preset** (que antes também se chamavam "transições") passaram a se chamar
-**entradas** na F0 (out/2026; falta a aprovação de Rodrigo): `entradas.py`, `editor/entradas.ts`, rotas `/api/entradas…`
+**entradas** na F0 (out/2026; falta a aprovação de Rodrigo): `entradas.py`, `inserts/entradas.ts`, rotas `/api/entradas…`
 e a chave `entradas` nas Configurações (a antiga `transicoes` passa para `entradas` quando o servidor sobe,
 `entradas.migrar`, antes de esta área gravar qualquer coisa ali). O nome `transicoes` fica só para as transições entre
 planos.
@@ -177,7 +177,7 @@ página em branco ao fim do trecho. E qualquer erro inesperado numa tela agora m
 (`components/FalhaNaTela.tsx`), não a página em branco.
 
 💡 **A prévia mostra o quadro montado**: a composição da etapa Inserts (o insert no lugar com a entrada e o fundo, o ator
-descendo ou na janela, a pessoa recortada, o card do comentário, o motion) saiu para `editor/MontagemNoPalco.tsx` e é
+descendo ou na janela, a pessoa recortada, o card do comentário, o motion) saiu para `player/MontagemNoPalco.tsx` e é
 a `sobreposicao` do Preview nas duas etapas (na Transições, `MontagemDoProjeto` lê os inserts, o banco e os motions; o
 card do comentário só arrasta na Inserts). Assim "Ver o corte" mostra a troca de plano de verdade.
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AudioLines, Loader2, Pause, Play, SlidersVertical, VolumeX } from 'lucide-react'
 import LinhaBase, { type Trilha as TrilhaLinha } from '@/editor/LinhaBase'
-import { Alca, Cabecalho, useTamanhos } from '@/editor/inserts/layout'
+import { Alca, Cabecalho, useTamanhos } from '@/inserts/layout'
 import type { EventoSom } from '@/editor/sons'
 import { cn } from '@/lib/utils'
 import { ganhoDucking, urlFaixa, type AudioDoProjeto, type Catalogo, type Limpeza, type Timbre, type Trilha } from './audio'

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { enviar, json, lerInserts, listarBanco, mapaBanco, type InsertsProjeto, type ItemBanco, type ItemRef } from '@/api'
-import { comentarioDe } from '@/editor/ComentarioIG'
-import type { PalavraSaida } from '@/editor/direcaoProjeto'
-import { geometriaDoAtor, topoDoAtor, type Geometria } from '@/editor/ator'
-import { alturaDoComentario, divisaoDe, lugarDoComentario, noQuadro, type Divisao } from '@/editor/divisao'
-import { pedidosNoTempo } from '@/editor/InsertNoLugar'
-import type { Pedido } from '@/editor/inserts/comum'
-import { usePresets, type Preset } from '@/editor/presets'
+import { comentarioDe } from '@/inserts/ComentarioIG'
+import type { PalavraSaida } from '@/direcao/direcaoProjeto'
+import { geometriaDoAtor, topoDoAtor, type Geometria } from '@/ator/ator'
+import { alturaDoComentario, divisaoDe, lugarDoComentario, noQuadro, type Divisao } from '@/presets/divisao'
+import { pedidosNoTempo } from '@/inserts/InsertNoLugar'
+import type { Pedido } from '@/inserts/comum'
+import { usePresets, type Preset } from '@/presets/presets'
 
 /** A legenda (SPEC §8.10; docs/legenda.md), no estilo medido nas referências (`ferramentas/legenda_analisar.py`): a SF
  *  Pro Display em negrito, branca, com sombra difusa, centralizada, **uma palavra por vez** (o mais comum: 7 das 10
@@ -65,7 +65,7 @@ const FOLGA = 0.015
 const limpar = (t: string) => t.replace(/[,;:]+$/, '')
 
 /** O que há na tela num trecho (um insert) e muda a altura da legenda: a divisão da tela (onde fica a costura), o ator
- *  no "ator embaixo" (a geometria, `editor/ator.ts`; sem o rosto, que só muda o x) e o card do comentário (`y`: o
+ *  no "ator embaixo" (a geometria, `ator/ator.ts`; sem o rosto, que só muda o x) e o card do comentário (`y`: o
  *  centro, `h`: a altura, frações do quadro). */
 export type Zona = { ini: number; fim: number; divisao: Divisao | null; ator?: Geometria | null; card: { y: number; h: number } | null }
 
