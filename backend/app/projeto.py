@@ -129,6 +129,30 @@ def salvar(projeto: dict) -> None:
     tmp.replace(arquivo)
 
 
+VELOCIDADE = (1.0, 1.5)  # a aceleração do ator (pedido de Rodrigo, out/2026): de 1× a 1,5×
+
+
+def velocidade(p: dict) -> float:
+    """A aceleração do vídeo do ator neste projeto (1 = como foi gravado)."""
+    try:
+        v = float(p.get('velocidade') or 1)
+    except (TypeError, ValueError):
+        v = 1.0
+    return round(min(max(v, VELOCIDADE[0]), VELOCIDADE[1]), 3)
+
+
+def v1_tocada(p: dict) -> list[dict]:
+    """Os clipes da V1 em ordem, cada um com a aceleração (`vel`): é com eles que se calcula o tempo da saída
+    (`dur_saida`, `direcao_projeto.palavras_na_saida`) e que a exportação corta o ator e a voz."""
+    v = velocidade(p)
+    return [{**c, 'vel': v} for c in sorted((p.get('timeline') or {}).get('V1') or [], key=lambda c: c['inicio'])]
+
+
+def dur_saida(c: dict) -> float:
+    """Quanto um clipe da V1 dura no vídeo final (acelerado por `vel`)."""
+    return (c['fim'] - c['inicio']) / c.get('vel', 1)
+
+
 def atualizar(id: str, mudar) -> dict:
     """Lê, aplica `mudar(projeto)` e salva, sem perder gravações concorrentes."""
     with _trava:
@@ -283,7 +307,7 @@ def listar() -> list[dict]:
          'apoios': sum(f['papel'] == 'apoio' for f in p['fontes']),
          'duracao': next((f['duracao'] for f in p['fontes'] if f['papel'] == 'bruto'), None),
          # o vídeo editado (a soma da V1), que é o tamanho do Reels; sem cortes ainda, None
-         'duracao_final': round(sum(c['fim'] - c['inicio'] for c in v1), 3) if (v1 := (p.get('timeline') or {}).get('V1')) else None}
+         'duracao_final': round(sum(dur_saida(c) for c in v1), 3) if (v1 := v1_tocada(p)) else None}
         for p in projetos
     ]
     return sorted(resumo, key=lambda p: p['criado_em'], reverse=True)

@@ -39,6 +39,21 @@ def definir_look(id: str, c: Campos):
     return look.do_projeto(p)
 
 
+@rotas.put('/api/projetos/{id}/velocidade')
+def definir_velocidade(id: str, c: Campos):
+    """A aceleração do vídeo do ator (de 1× a 1,5×): muda o tempo do vídeo final inteiro (os planos, os inserts e a
+    legenda seguem as palavras)."""
+    ler_projeto(id)
+    try:
+        v = float(c.campos.get('velocidade'))
+    except (TypeError, ValueError):
+        raise HTTPException(422, 'Velocidade inválida')
+    if not projeto.VELOCIDADE[0] <= v <= projeto.VELOCIDADE[1]:
+        raise HTTPException(422, 'A velocidade vai de 1× a 1,5×')
+    p = projeto.atualizar(id, lambda x: x.__setitem__('velocidade', round(v, 3)))
+    return {'velocidade': projeto.velocidade(p)}
+
+
 @rotas.get('/api/projetos/{id}/enquadramento')
 def estado_enquadramento(id: str):
     """O enquadramento 16:9 → 9:16: a suavidade, o deslocamento, o estado e, num vídeo que veio 16:9, o caminho da câmera."""

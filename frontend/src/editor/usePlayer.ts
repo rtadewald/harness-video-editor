@@ -23,13 +23,17 @@ export function usePlayer(seq: Sequencia | null) {
   }, [])
   /** 0,25× a 2×: devagar dá para ouvir uma emenda com calma; o tom é preservado. */
   const velocidadeRef = useRef(1)
+  // o vídeo do ator toca na velocidade da prévia × a aceleração do projeto (`seq.vel`); a música e os inserts seguem o
+  // relógio da saída, só na velocidade da prévia
+  const acelRef = useRef(1)
   const setVelocidade = useCallback((v: number) => {
     velocidadeRef.current = v
     setVelocidadeEstado(v)
-    if (ref.current) ref.current.playbackRate = v
+    if (ref.current) ref.current.playbackRate = v * acelRef.current
   }, [])
   useEffect(() => {
-    if (ref.current) ref.current.playbackRate = velocidade
+    acelRef.current = seq?.vel ?? 1
+    if (ref.current) ref.current.playbackRate = velocidade * acelRef.current
   }, [velocidade, seq])
   const definirTrecho = useCallback((t: Trecho | null) => {
     trechoRef.current = t
@@ -91,7 +95,7 @@ export function usePlayer(seq: Sequencia | null) {
       const r = retomar
       retomar = null
       if (!v || !r) return
-      v.playbackRate = velocidadeRef.current
+      v.playbackRate = velocidadeRef.current * acelRef.current
       v.currentTime = r.t
       if (r.tocar) void v.play().catch(() => {})
     }
@@ -107,7 +111,7 @@ export function usePlayer(seq: Sequencia | null) {
       v.addEventListener('pause', parou)
       v.addEventListener('emptied', esvaziou)
       v.addEventListener('loadedmetadata', carregou)
-      v.playbackRate = velocidadeRef.current
+      v.playbackRate = velocidadeRef.current * acelRef.current
       tocandoAgora = !v.paused
       setTocando(!v.paused)
       if (noQuadro) {

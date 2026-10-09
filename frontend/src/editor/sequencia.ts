@@ -4,6 +4,8 @@ import type { Ancora, Clipe, Palavra, Timeline } from '@/api'
 type ClipeNaSaida = Clipe & { saida_ini: number; saida_fim: number }
 
 export type Sequencia = {
+  /** A aceleração do ator (1 a 1,5×): cada segundo do bruto dura 1/vel na saída. */
+  vel: number
   clipes: ClipeNaSaida[]
   duracao: number
   fonteParaSaida: (t: number) => number | null
@@ -14,30 +16,30 @@ export type Sequencia = {
   palavraNaSaida: (p: Palavra) => { ini: number; fim: number } | null
 }
 
-export function montarSequencia(timeline: Timeline, palavras: Palavra[]): Sequencia {
+export function montarSequencia(timeline: Timeline, palavras: Palavra[], vel = 1): Sequencia {
   let acc = 0
   const clipes = [...timeline.V1]
     .sort((a, b) => a.inicio - b.inicio)
     .map((c) => {
       const saida_ini = acc
-      acc += c.fim - c.inicio
+      acc += (c.fim - c.inicio) / vel
       return { ...c, saida_ini, saida_fim: acc }
     })
   const porId = new Map(palavras.map((p) => [p.id, p]))
 
   const fonteParaSaida = (t: number) => {
     const c = clipes.find((c) => t >= c.inicio && t < c.fim)
-    return c ? c.saida_ini + (t - c.inicio) : null
+    return c ? c.saida_ini + (t - c.inicio) / vel : null
   }
   const saidaParaFonte = (s: number) => {
     const c = clipes.find((c) => s < c.saida_fim) ?? clipes[clipes.length - 1]
-    return c ? c.inicio + Math.min(Math.max(s - c.saida_ini, 0), c.fim - c.inicio) : 0
+    return c ? c.inicio + Math.min(Math.max((s - c.saida_ini) * vel, 0), c.fim - c.inicio) : 0
   }
   // O Whisper às vezes estica a palavra para dentro de uma pausa cortada: vale o pedaço que toca.
   const palavraNaSaida = (p: Palavra) => {
     const c = clipes.find((c) => p.inicio < c.fim && p.fim > c.inicio)
     if (!c) return null
-    return { ini: c.saida_ini + Math.max(p.inicio, c.inicio) - c.inicio, fim: c.saida_ini + Math.min(p.fim, c.fim) - c.inicio }
+    return { ini: c.saida_ini + (Math.max(p.inicio, c.inicio) - c.inicio) / vel, fim: c.saida_ini + (Math.min(p.fim, c.fim) - c.inicio) / vel }
   }
 
   const intervalo = (a: Ancora) => {
@@ -48,5 +50,5 @@ export function montarSequencia(timeline: Timeline, palavras: Palavra[]): Sequen
     return s0 && s1 ? { ini: s0.ini, fim: s1.fim } : null
   }
 
-  return { clipes, duracao: acc, fonteParaSaida, saidaParaFonte, intervalo, palavraNaSaida }
+  return { vel, clipes, duracao: acc, fonteParaSaida, saidaParaFonte, intervalo, palavraNaSaida }
 }

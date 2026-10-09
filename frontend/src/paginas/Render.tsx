@@ -93,12 +93,12 @@ export function RenderProjeto() {
     void listarBanco().then((l) => setBanco(mapaBanco(l)))
   }, [id])
 
-  const seqRender = useMemo(() => (dados ? montarSequencia(dados.timeline, dados.palavras) : null), [dados])
+  const seqRender = useMemo(() => (dados ? montarSequencia(dados.timeline, dados.palavras, dados.projeto.velocidade ?? 1) : null), [dados])
   // o rosto do ator (P5): a geometria do ator em cada trecho dividido vai junto da divisão, para o ffmpeg aplicar
   const rostoEm = useRosto(dados?.projeto, seqRender)
   const pedidos = useMemo(() => {
     if (!dados || !ins) return null
-    const seq = seqRender ?? montarSequencia(dados.timeline, dados.palavras)
+    const seq = seqRender ?? montarSequencia(dados.timeline, dados.palavras, dados.projeto.velocidade ?? 1)
     const saida = palavrasNaSaida(dados.palavras, seq)
     const planos = paraTempo(dados.projeto.direcao?.itens ?? [], dados.palavras, saida, seq.duracao).visiveis.filter((i) => i.camada === 'plano')
     // os motions: os planos de motion que já têm um motion escolhido

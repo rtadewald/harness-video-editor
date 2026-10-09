@@ -10,7 +10,8 @@ export HARNESS_API_PORT="${HARNESS_API_PORT:-8000}"
 export HARNESS_FRONT_PORT="${HARNESS_FRONT_PORT:-5173}"
 export HARNESS_FRONT="http://localhost:$HARNESS_FRONT_PORT"  # a página que a exportação e os motions abrem
 [ -d frontend/node_modules ] || (cd frontend && npm install)
-(cd backend && uv run uvicorn app.main:app --reload --port "$HARNESS_API_PORT") &
+# --timeout-graceful-shutdown: no --reload, não esperar para sempre um vídeo aberto no navegador (um <video> pausado segura a resposta)
+(cd backend && uv run uvicorn app.main:app --reload --timeout-graceful-shutdown 2 --port "$HARNESS_API_PORT") &
 (cd frontend && npm run dev) &
 echo "Harness: http://localhost:$HARNESS_FRONT_PORT (API em :$HARNESS_API_PORT)"
 trap 'kill 0' EXIT

@@ -16,6 +16,7 @@ import LinhaVertical from '@/editor/LinhaVertical'
 import { Detalhe } from '@/editor/DetalheCorte'
 import Preview from '@/editor/Preview'
 import PainelLook from '@/editor/PainelLook'
+import PainelVelocidade from '@/editor/PainelVelocidade'
 import PainelEnquadramento from '@/editor/PainelEnquadramento'
 import { LookAtor, SEM_LOOK, useLookDoProjeto } from '@/editor/look'
 import Processamento from '@/editor/Processamento'
@@ -106,7 +107,7 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
       return !r
     })
   }
-  const seq = useMemo(() => (dados ? montarSequencia(dados.timeline, dados.palavras) : null), [dados])
+  const seq = useMemo(() => (dados ? montarSequencia(dados.timeline, dados.palavras, dados.projeto.velocidade ?? 1) : null), [dados])
   // as transições entre planos (SPEC §8.8): os planos da direção no tempo do vídeo final e a transição de cada corte
   const biblioteca = useBiblioteca()
   const [escolhasTransicoes, escolherTransicao] = useEscolhas(id)
@@ -479,6 +480,7 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
               <div className="grid min-h-0 min-w-0" style={{ gridTemplateColumns: COLUNAS_CORTES }}>
               <LinhaVertical
                 duracao={bruto.duracao}
+                velocidade={projeto.velocidade ?? 1}
                 clipes={timeline.V1}
                 palavras={dados.palavras}
                 cortes={cortes}
@@ -527,8 +529,13 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
                     <Detalhe dados={dados} cortes={cortes} selecao={selecao} ouvirPalavra={ouvirPalavra} ouvirEmenda={ouvirEmenda} loop={repetir} setLoop={setRepetir} restaurar={restaurar} devolver={(ini, fim) => alterarFaixa(ini, fim, true)} comparacao={comparacao} />
                   </div>
                 </div>
-                {/* à direita, sempre à vista: o look do ator e o enquadramento (SPEC §8.1) */}
+                {/* à direita, sempre à vista: a velocidade do ator, o look e o enquadramento (SPEC §8.1) */}
                 <aside className="grid min-h-0 min-w-0 content-start gap-4 overflow-y-auto border-l border-line-dark px-4 py-5 text-cream">
+                  <PainelVelocidade
+                    projetoId={projeto.id}
+                    velocidade={projeto.velocidade ?? 1}
+                    ver={(v) => setDados((d) => d && { ...d, projeto: { ...d.projeto, velocidade: v } })}
+                  />
                   <PainelLook look={look} mudar={mudarLook} ver={verLook} comparar={setSemLook} />
                   <PainelEnquadramento
                     projetoId={projeto.id}
