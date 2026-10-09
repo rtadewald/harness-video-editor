@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import CardTransicao from '@/transicoes/CardTransicao'
 import { definirOrdem, ordemDoPar, useBiblioteca, type Biblioteca, type Par, type Transicao } from '@/transicoes/transicoes'
 
+const TODAS = '__todas' // a vista com todas as transições
 const FAMILIAS: Record<string, string> = { ator: 'Ator', insert: 'Insert', motion: 'Motion' }
 const nomeLado = (c: string) => CATEGORIAS.planos[c] ?? FAMILIAS[c] ?? c
 const nomePar = (k: string) => {
@@ -28,7 +29,7 @@ export default function Transicoes() {
   useEffect(() => () => pararSons(), [])
   const vistos = b ? Object.keys(b.pares) : []
   const familias = b ? Object.keys(b.ordem).filter((k) => k.startsWith('familia:')).sort() : []
-  const par = sel ?? vistos[0] ?? null
+  const par = sel ?? TODAS
   const tocar = (id: string) => (sim: boolean) => {
     pararSons()
     setTocando(sim ? id : null)
@@ -47,6 +48,20 @@ export default function Transicoes() {
           {b && !vistos.length && !familias.length && (
             <p className="px-2 text-[12px] leading-[1.6] text-fog">Nenhuma transição ainda: o Claude analisa os cortes das referências e grava as transições (docs/transicoes.md).</p>
           )}
+          {b && b.transicoes.length > 0 && (
+            <Grupo titulo="Biblioteca">
+              <button
+                onClick={() => setSel(TODAS)}
+                className={cn('grid rounded-[6px] px-2 py-1.5 text-left ring-1', par === TODAS ? 'bg-cream/10 ring-cream/40' : 'ring-transparent hover:bg-cream/[0.05]')}
+              >
+                <span className="flex items-center gap-2 text-[12px] font-semibold">
+                  <span className="min-w-0 flex-1 truncate">Todas as transições</span>
+                  <span className="text-[11px] font-normal text-fog tabular-nums">{b.transicoes.length}</span>
+                </span>
+                <span className="truncate text-[11px] text-fog">ver, ouvir e aprovar</span>
+              </button>
+            </Grupo>
+          )}
           {vistos.length > 0 && (
             <Grupo titulo="Pares das referências">
               {vistos.map((k) => (
@@ -63,7 +78,8 @@ export default function Transicoes() {
           )}
         </aside>
         <main className="min-h-0 overflow-y-auto px-6 py-5">
-          {b && par && (
+          {b && par === TODAS && <DetalheTodas b={b} som={som} mudarSom={setSom} tocando={tocando} tocar={tocar} />}
+          {b && par && par !== TODAS && (
             <DetalhePar
               key={par}
               k={par}
@@ -76,6 +92,64 @@ export default function Transicoes() {
           )}
         </main>
       </div>
+    </div>
+  )
+}
+
+/** De qual corte mostrar cada transição: um corte dela neste par; senão, o 1º dela. O corte seco (sem fontes): um corte
+ *  seco sem som do par; senão, um seco do par mesmo com som (a referência toca muda, a menos que se escolha o som dela);
+ *  senão, um seco sem som de qualquer par. Um corte que é fonte de uma transição com efeito é dela, não da de som que
+ *  também o lista (a luz colorida do manychat 6,9 s não aparece como o "Corte com clique"). */
+function fonteDaTransicao(b: Biblioteca, t: Transicao, parInfo?: Par) {
+  const todos = Object.values(b.pares).flatMap((x) => x.cortes)
+  const deOutroEfeito = (f: { ref: string; t: number }) =>
+    b.transicoes.some((o) => o.id !== t.id && o.efeito.tipo !== 'seco' && o.fontes.some((g) => g.ref === f.ref && Math.abs(g.t - f.t) < 0.2))
+  const proprias = t.fontes.filter((f) => !deOutroEfeito(f))
+  const noPar = proprias.find((f) => parInfo?.cortes.some((c) => c.ref === f.ref && Math.abs(c.t - f.t) < 0.2))
+  if (noPar ?? proprias[0]) return noPar ?? proprias[0]
+  const doPar = parInfo?.cortes ?? []
+  const seco = doPar.find((c) => c.classe === 'seco' && !c.sons.length) ?? doPar.find((c) => c.classe === 'seco') ?? todos.find((c) => c.classe === 'seco' && !c.sons.length)
+  return seco ? { ref: seco.ref, t: seco.t } : null
+}
+
+/** Todas as transições da biblioteca juntas (cada uma com o seu corte de referência), para ver, ouvir, trocar o som e
+ *  aprovar sem passar par a par. */
+function DetalheTodas(p: { b: Biblioteca; som: 'referencia' | 'recriacao'; mudarSom: (s: 'referencia' | 'recriacao') => void; tocando: string | null; tocar: (id: string) => (sim: boolean) => void }) {
+  return (
+    <div className="grid max-w-[1400px] gap-6">
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="grid gap-1">
+          <p className="eyebrow text-sage">Biblioteca</p>
+          <h1 className="text-[22px] font-semibold">Todas as transições</h1>
+          <p className="text-[12px] leading-[1.6] text-fog">
+            {p.b.transicoes.length} transições, cada uma com um corte das referências de onde veio. As favoritas de cada par ficam nos pares, à esquerda.
+          </p>
+        </div>
+        <EscolhaSom som={p.som} mudarSom={p.mudarSom} />
+      </div>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-6 gap-y-8">
+        {p.b.transicoes.map((t) => (
+          <CardTransicao key={t.id} t={t} fonte={fonteDaTransicao(p.b, t)} som={p.som} tocando={p.tocando === t.id} tocar={p.tocar(t.id)} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** De qual lado sai o som ao tocar um card: da referência ou da recriação. */
+function EscolhaSom(p: { som: 'referencia' | 'recriacao'; mudarSom: (s: 'referencia' | 'recriacao') => void }) {
+  return (
+    <div className="ml-auto flex items-center gap-1 text-[11.5px]">
+      <Volume2 className="mr-1 size-3.5 text-fog" />
+      {(['referencia', 'recriacao'] as const).map((s) => (
+        <button
+          key={s}
+          onClick={() => p.mudarSom(s)}
+          className={cn('h-8 rounded-full border px-3 font-semibold', p.som === s ? 'border-cream bg-cream text-ink' : 'border-line-dark text-fog hover:text-cream')}
+        >
+          Som da {s === 'referencia' ? 'referência' : 'recriação'}
+        </button>
+      ))}
     </div>
   )
 }
@@ -131,22 +205,7 @@ function DetalhePar(p: {
   }
   const tornarPrimeira = (id: string) => salvar([id, ...ids.filter((x) => x !== id)], nFav)
   const parInfo: Par | undefined = familia ? undefined : b.pares[k]
-  // de qual corte mostrar cada transição: um corte dela neste par; senão, o 1º dela. O corte seco (sem fontes): um corte
-  // seco sem som do par; senão, um seco do par mesmo com som (a referência toca muda, a menos que se escolha o som dela);
-  // senão, um seco sem som de qualquer par. Um corte que é fonte de uma transição com efeito é dela, não da de som que
-  // também o lista (a luz colorida do manychat 6,9 s não aparece como o "Corte com clique")
-  const todos = Object.values(b.pares).flatMap((x) => x.cortes)
-  const deOutroEfeito = (t: Transicao, f: { ref: string; t: number }) =>
-    b.transicoes.some((o) => o.id !== t.id && o.efeito.tipo !== 'seco' && o.fontes.some((g) => g.ref === f.ref && Math.abs(g.t - f.t) < 0.2))
-  const fonteDe = (t: Transicao) => {
-    const proprias = t.fontes.filter((f) => !deOutroEfeito(t, f))
-    const noPar = proprias.find((f) => parInfo?.cortes.some((c) => c.ref === f.ref && Math.abs(c.t - f.t) < 0.2))
-    if (noPar ?? proprias[0]) return noPar ?? proprias[0]
-    const doPar = parInfo?.cortes ?? []
-    const seco =
-      doPar.find((c) => c.classe === 'seco' && !c.sons.length) ?? doPar.find((c) => c.classe === 'seco') ?? todos.find((c) => c.classe === 'seco' && !c.sons.length)
-    return seco ? { ref: seco.ref, t: seco.t } : null
-  }
+  const fonteDe = (t: Transicao) => fonteDaTransicao(b, t, parInfo)
   const card = (t: Transicao, i: number) => (
     <CardTransicao
       key={t.id}
@@ -175,27 +234,16 @@ function DetalhePar(p: {
             {herdada && ' Este par ainda segue a ordem da família; mudar uma favorita grava a dele.'}
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-1 text-[11.5px]">
-          <Volume2 className="mr-1 size-3.5 text-fog" />
-          {(['referencia', 'recriacao'] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => p.mudarSom(s)}
-              className={cn('h-8 rounded-full border px-3 font-semibold', p.som === s ? 'border-cream bg-cream text-ink' : 'border-line-dark text-fog hover:text-cream')}
-            >
-              Som da {s === 'referencia' ? 'referência' : 'recriação'}
-            </button>
-          ))}
-        </div>
+        <EscolhaSom som={p.som} mudarSom={p.mudarSom} />
       </div>
       <section className="grid gap-3">
         <p className="eyebrow text-yellow">Favoritas do par</p>
         {!nFav && <p className="text-[12px] text-fog">Nenhuma favorita: os cortes deste par ficam secos. Marque a estrela de uma transição.</p>}
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">{lista.slice(0, nFav).map(card)}</div>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-6 gap-y-8">{lista.slice(0, nFav).map(card)}</div>
       </section>
       <section className="grid gap-3">
         <p className="eyebrow text-fog">Outras transições</p>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">{lista.slice(nFav).map((t, j) => card(t, j + nFav))}</div>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-6 gap-y-8">{lista.slice(nFav).map((t, j) => card(t, j + nFav))}</div>
       </section>
       {parInfo && parInfo.cortes.length > 0 && <CortesDoPar par={parInfo} tocando={p.tocando} tocar={p.tocar} />}
     </div>
