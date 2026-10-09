@@ -218,6 +218,8 @@ export async function tocarEvento(e: EventoSom, atrasado = 0, noRelogio = true) 
     fonte.disconnect()
     return
   }
+  // o registro dos testes de ponta a ponta (só existe quando o teste o cria): o que de fato começou a soar
+  ;(window as Window & { __sonsLog?: unknown[] }).__sonsLog?.push({ som: e.som, t: e.t, atrasado: atrasado - espera, grupo: e.grupo ?? null })
   // só a fonte que começou entra na lista do que está soando (parar uma que nunca começou é um erro)
   tocando.add(fonte)
   fonte.onended = () => tocando.delete(fonte)
@@ -281,6 +283,10 @@ export function useSonsNoTempo(eventos: EventoSom[], rel: number, ativo: boolean
     // tocando, o relógio da prévia às vezes volta alguns ms (o vídeo se ressincronizando): não é voltar, e não toca de
     // novo. Parado, qualquer volta conta (um clique na régua logo antes de onde se pausou é o novo ponto do play)
     if (ativo && !comecou && a != null && rel < a && a - rel < 0.05) return
+    // um pulo com a prévia andando (clicar num corte, arrastar o cursor): entra como um play naquele ponto, com o que
+    // estaria soando ali já adiantado (antes, um riser que começa antes do ponto nunca tocava). A volta ao começo de um
+    // loop (abaixo de SALTO) segue a regra do loop
+    const pulou = ativo && !comecou && a != null && a > 0 && (rel - a > SALTO || (a - rel >= 0.05 && rel >= SALTO))
     // parado no zero (o começo do insert, um R): os sons do zero ficam para quando o relógio sair dele (senão, parado
     // ali, o "antes" virava 0 e o som do instante 0 nunca era cruzado)
     if (rel <= 0) {
@@ -291,7 +297,7 @@ export function useSonsNoTempo(eventos: EventoSom[], rel: number, ativo: boolean
     // o play com o cursor parado no meio (o 1º quadro tocando é o ponto do play): o que começou até aqui e ainda estaria
     // soando entra adiantado, como se a prévia viesse tocando (até onde o som vai, `tocarEvento` confere pelo arquivo).
     // Quem toca passa, nesse 1º quadro, o instante de onde o play sai (não o quadro parado de antes)
-    if (comecou && a != null && a > 0) {
+    if ((comecou && a != null && a > 0) || pulou) {
       for (const e of eventos) if (e.t <= rel && rel - e.t < SOANDO && (e.dur == null || rel < e.t + e.dur)) void tocarEvento({ ...e, ganho: e.ganho * fator }, rel - e.t)
       return
     }

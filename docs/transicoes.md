@@ -154,6 +154,15 @@ efeito da própria referência, com o efeito e o som do motor), o som (qual e a 
 nome ou na engrenagem) toca a referência e a recriação cada uma sozinha, com o próprio som, e mostra os cortes das
 referências onde ela aparece.
 
+✅ **Os sons no player, testados de ponta a ponta** (out/2026, Rodrigo: "não deu certo 100% das vezes";
+`ferramentas/e2e_sons_transicoes.py`, no navegador, com o registro `window.__sonsLog` do front): o vídeo inteiro a 1× e
+a 2×, o R em cada corte e clicar num corte com o vídeo tocando, com o ator a 1× e a 1,2×. Corrigido: (1) **pular com a
+prévia andando** (clicar num corte na linha do tempo, arrastar o cursor) não tocava o som que já estaria soando no
+ponto do pulo — um riser começa ~1,3 s antes do corte, e o clique leva a 0,4 s antes dele: 7 de 19 risers mudos no teste;
+agora o pulo entra como um play naquele ponto (`useSonsNoTempo`); (2) tocar um trecho (R, Ver o corte) já põe o relógio
+da saída no ponto do trecho (`tocarTrecho`), para o 1º quadro não trazer o ponto antigo; (3) trocar o corte
+selecionado na etapa não para mais os sons que estão tocando.
+
 💡 **A etapa Transições** segue o arranjo da etapa Inserts (pedido de Rodrigo, out/2026): à esquerda o corte selecionado
 — **sempre o próximo a partir do cursor** (parado enquanto o vídeo toca; clicar num corte leva o cursor até ele) — com
 as favoritas do par e as outras, cada uma com a **referência** dela (só o corte de onde veio, com o som; 4 por linha numa coluna larga, 820 px, arrastável;
