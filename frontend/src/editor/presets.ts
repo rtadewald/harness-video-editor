@@ -37,6 +37,9 @@ export type CardReceita = {
   /** Segundos além de `fim_frac` (numa sequência, o card sai enquanto o próximo entra: fica a duração da saída a mais). */
   fim_mais?: number
   zoom?: ZoomMidia | null
+  /** Num card que transborda e desliza (o "Cresce e desliza"), quanto ele anda (% da área; sem: o da referência; acima
+   *  do que transborda, até a borda). Vem do ajuste rápido "Até onde desliza". */
+  deslize?: number
   /** O card pelos 4 cantos ao longo da vida dele (medidos na referência): `f` = fração da vida do card (0 → 1), `q` =
    *  cantos sup-esq, sup-dir, inf-dir, inf-esq em % da área. Entre as chaves, uma curva suave (Catmull-Rom). Manda na
    *  posição: um movimento de câmera qualquer (torções em 3D, zooms), como na referência. */

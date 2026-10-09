@@ -33,6 +33,8 @@ const estado = (m: Movimento) => ('de' in m ? m.de : m.para)
 const comEstado = <M extends Movimento>(m: M, e: Partial<ReturnType<typeof estado>>): M =>
   ('de' in m ? { ...m, de: { ...m.de, ...e } } : { ...m, para: { ...(m as { para: object }).para, ...e } }) as M
 const cheio = (c: CardReceita) => c.repouso.w >= 99 && c.repouso.h >= 99
+/** Um card desenhado maior que a área que desliza na horizontal (`divisao.deslizeTransbordando`). */
+const deslizaTransbordando = (c: CardReceita) => c.repouso.w > 100 && Math.abs(c.saida?.para.dx ?? 0) >= 5 && (c.saida?.para.escala ?? 1) <= 1.05
 const temZoom = (c: CardReceita) => !!c.zoom || (!!c.saida && estado(c.saida).escala > 1.05)
 
 export const AJUSTES: Ajuste[] = [
@@ -49,6 +51,15 @@ export const AJUSTES: Ajuste[] = [
     opcoes: ['Lenta', 'Normal', 'Rápida'],
     fase: 'antes',
     aplicar: (r, i) => cards(r, (c) => ({ ...c, saida: escalaTempo(c.saida, i === 0 ? 1.4 : 0.7) })),
+  },
+  {
+    // num card que transborda e desliza (o "Cresce e desliza"): até onde ele anda — pouco, como na referência, ou até a
+    // outra borda do card chegar à borda da tela
+    id: 'deslize',
+    nome: 'Até onde desliza',
+    opcoes: ['Pouco', 'Como na referência', 'Até a borda'],
+    fase: 'antes',
+    aplicar: (r, i) => cards(r, (c) => (deslizaTransbordando(c) ? { ...c, deslize: i === 0 ? 12 : 1000 } : c)),
   },
   {
     id: 'zoom',
@@ -168,6 +179,7 @@ function padraoRapidos(r: Receita): string[] {
   const cs = r.cards
   // a forma (card ou tela toda) cabe em todo preset de um card (ou que repete)
   const ids = [
+    cs.some(deslizaTransbordando) && 'deslize',
     (cs.length === 1 || r.repete) && !cs.some((c) => c.quadros?.length) && 'forma',
     cs.some((c) => c.entrada) && 'entrada',
     cs.some(temZoom) && 'zoom',
