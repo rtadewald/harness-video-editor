@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 const NOMES = {
+  enquadramento: 'Enquadrando o vídeo 16:9 em 9:16, seguindo o rosto',
   proxy: 'Preparando o vídeo para o player',
   silencios: 'Encontrando as pausas reais',
   transcricao: 'Transcrevendo o áudio, palavra por palavra',
@@ -14,6 +15,8 @@ const NOMES = {
 export default function Processamento({ projeto, aoMudar }: { projeto: Projeto; aoMudar: (p: Projeto) => void }) {
   const passos = projeto.pipeline?.passos ?? {}
   const erro = projeto.pipeline?.erro
+  const bruto = projeto.fontes.find((f) => f.papel === 'bruto')
+  const veioHorizontal = !!projeto.enquadramento?.original || (bruto?.largura ?? 0) > (bruto?.altura ?? 0)
 
   return (
     <div className="grid h-full place-items-center px-6">
@@ -23,7 +26,8 @@ export default function Processamento({ projeto, aoMudar }: { projeto: Projeto; 
         <h2 className="titulo mt-3 text-[38px]">{erro ? 'O processamento parou.' : 'A IA está montando o primeiro corte.'}</h2>
 
         <ul className="mt-8 grid gap-3.5 border-t border-line-dark pt-6">
-          {(Object.keys(NOMES) as (keyof typeof NOMES)[]).map((k) => {
+          {/* o enquadramento só aparece num vídeo que chegou horizontal (nem como pendente num vertical) */}
+          {(Object.keys(NOMES) as (keyof typeof NOMES)[]).filter((k) => k !== 'enquadramento' || (veioHorizontal && !!passos.enquadramento && !passos.enquadramento.pulado)).map((k) => {
             const s = passos[k] ?? { status: 'pendente' }
             return (
               <li key={k} className={cn('flex items-center gap-3 text-[13px]', s.status === 'pendente' ? 'text-fog/60' : 'text-cream')}>

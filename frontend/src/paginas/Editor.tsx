@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { History, PanelLeftClose, PanelLeftOpen, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
-import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, gerarDirecao, motoresRodando, recalcularCortes, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
+import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, gerarDirecao, motoresRodando, recalcularCortes, reenquadrando, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
 import { abrirAba } from '@/components/abasProjetos'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
@@ -16,6 +16,9 @@ import { calcularCortes, trechoDaEmenda, type Corte, type Selecao } from '@/edit
 import LinhaVertical from '@/editor/LinhaVertical'
 import { Detalhe } from '@/editor/DetalheCorte'
 import Preview from '@/editor/Preview'
+import PainelLook from '@/editor/PainelLook'
+import PainelEnquadramento from '@/editor/PainelEnquadramento'
+import { LookAtor, useLookDoProjeto } from '@/editor/look'
 import Processamento from '@/editor/Processamento'
 import Configuracoes from '@/paginas/Configuracoes'
 import { montarSequencia } from '@/editor/sequencia'
@@ -86,12 +89,15 @@ export default function Editor() {
   const [repetir, setRepetir] = useState(false)
   const bruto = dados?.projeto.fontes.find((f) => f.papel === 'bruto')
   const cortes = useMemo(() => (dados && bruto ? calcularCortes(dados.timeline.V1, dados.palavras, bruto.duracao) : []), [dados, bruto])
-  // a tela dos Cortes (a timeline vertical do bruto); as outras abas do Pré-processamento e as etapas novas estão em construção
+  // a tela dos Cortes (a timeline vertical do bruto); fora dela, a prévia é o vídeo do ator já cortado
   const vertical = etapa === 'cortes' && abaPre === 'cortes'
+  // o look do ator (LUT + vinheta): vale em todas as etapas; "segure para ver sem" desliga só enquanto se segura
+  const [look, mudarLook, verLook] = useLookDoProjeto(id)
+  const [semLook, setSemLook] = useState(false)
   const direcaoReal = etapa === 'direcao'
   const insertsReal = etapa === 'inserts'
-  const resumo: Resumo | null =
-    etapa === 'cortes' ? (abaPre === 'cortes' ? null : RESUMOS[abaPre]) : etapa === 'transicoes' || etapa === 'audio' || etapa === 'legenda' ? RESUMOS[etapa] : null
+  // as três abas do Pré-processamento já são telas de verdade; Transições, Áudio e Legenda ainda estão em construção
+  const resumo: Resumo | null = etapa === 'transicoes' || etapa === 'audio' || etapa === 'legenda' ? RESUMOS[etapa] : null
 
   useEffect(() => {
     abrirEditor(id).then(setDados).catch((e) => setErro(e.message))
@@ -168,19 +174,21 @@ export default function Editor() {
     [id],
   )
 
-  // enquanto o pipeline roda (ou os motores extras trabalham), acompanha o projeto; ao terminar o principal, recarrega o editor
+  // enquanto o pipeline roda (ou os motores extras trabalham, ou o vídeo é reenquadrado), acompanha o projeto; ao terminar
+  // o principal ou o Reenquadrar, recarrega o editor (num Reenquadrar, o bruto, o proxy e o recorte do ator mudaram)
   const rodando = dados ? emAndamento(dados.projeto) : false
   const extras = dados ? motoresRodando(dados.projeto) : false
+  const enquadrando = dados ? reenquadrando(dados.projeto) : false
   useEffect(() => {
-    if (!rodando && !extras) return
+    if (!rodando && !extras && !enquadrando) return
     const timer = setInterval(async () => {
       const p = await abrirProjeto(id).catch(() => null)
       if (!p) return
-      if (rodando && !emAndamento(p)) setDados(await abrirEditor(id))
+      if ((rodando && !emAndamento(p)) || (enquadrando && !reenquadrando(p))) setDados(await abrirEditor(id))
       else setDados((d) => d && { ...d, projeto: p })
     }, 1000)
     return () => clearInterval(timer)
-  }, [id, rodando, extras])
+  }, [id, rodando, extras, enquadrando])
 
   // a transcrição escolhida para comparar (as barras amarelas)
   useEffect(() => {
@@ -242,7 +250,9 @@ export default function Editor() {
     if (!window.confirm(aviso)) return
     void gerarDirecao(projeto.id).then((p) => setDados({ ...dados, projeto: p })).catch((e) => window.alert((e as Error).message))
   }
-  const src = urlArquivo(projeto.id, bruto.proxy ?? bruto.arquivo)
+  // a cada Reenquadrar o proxy é refeito no mesmo caminho: a versão no endereço faz o player carregar o novo
+  const versao = projeto.enquadramento.versao
+  const src = urlArquivo(projeto.id, bruto.proxy ?? bruto.arquivo) + (versao ? `?v=${versao}` : '')
   // a prévia das telas em construção: o vídeo do ator já cortado
   const previa = (
     <Preview
@@ -258,9 +268,9 @@ export default function Editor() {
       buscar={player.buscar}
     />
   )
-  const horizontal = (bruto.largura ?? 0) > (bruto.altura ?? 0)
 
   return (
+    <LookAtor.Provider value={semLook ? null : look}>
     <div className="grid h-svh grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-deep text-cream">
       <header className="flex items-center gap-5 border-b border-line-dark bg-ink px-4">
         <Link to="/" title="Projetos" className="shrink-0">
@@ -375,7 +385,6 @@ export default function Editor() {
                   )}
                 >
                   {a.nome}
-                  {a.id !== 'cortes' && <span className="size-1.5 rounded-full bg-yellow" title="Em construção" />}
                 </button>
               ))}
             </div>
@@ -432,14 +441,16 @@ export default function Editor() {
                   </div>
                 </div>
               </div>
+            ) : abaPre === 'enquadramento' ? (
+              <PainelEnquadramento
+                projetoId={projeto.id}
+                previa={previa}
+                bruto={player.bruto}
+                tocando={player.tocando}
+                aoReenquadrar={() => void abrirProjeto(id).then((p) => setDados((d) => d && { ...d, projeto: p })).catch(() => undefined)}
+              />
             ) : (
-              resumo && (
-                <EtapaEmConstrucao
-                  resumo={resumo}
-                  aviso={abaPre === 'enquadramento' && !horizontal ? 'Este vídeo já é vertical (9:16): o enquadramento só vale para vídeos horizontais.' : undefined}
-                  previa={previa}
-                />
-              )
+              <PainelLook previa={previa} look={look} mudar={mudarLook} ver={verLook} comparar={setSemLook} />
             )}
           </div>
         ) : insertsReal ? (
@@ -460,6 +471,7 @@ export default function Editor() {
       )}
       <Configuracoes aberto={configAberta} aoFechar={() => setConfigAberta(false)} />
     </div>
+    </LookAtor.Provider>
   )
 }
 

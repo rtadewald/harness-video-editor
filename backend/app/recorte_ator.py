@@ -51,24 +51,38 @@ def pedir(id: str) -> dict:
 
 
 def _bruto(p: dict) -> tuple[str, Path]:
+    """O id do bruto e o proxy dele. Sem proxy registrado (ainda não feito, ou sendo refeito depois de um
+    Reenquadrar), levanta: o recorte não pode sair do vídeo antigo."""
     f = next(f for f in p['fontes'] if f['papel'] == 'bruto')
+    if not f.get('proxy'):
+        raise RuntimeError('O proxy do vídeo ainda não existe')
     return f['id'], projeto.pasta(p['id']) / 'midia' / 'proxy' / f'{f["id"]}.mp4'
 
 
+def versao_do_video(p: dict):
+    """A versão do bruto 9:16 (muda a cada Reenquadrar): um recorte começado numa versão não vale para outra."""
+    return (p.get('enquadramento') or {}).get('versao')
+
+
 def _rodar(id: str) -> None:
+    versao = None
     try:
         _marcar(id, estado='rodando')
         p = projeto.ler(id)
+        versao = versao_do_video(p)
         bid, proxy = _bruto(p)
         mascara, pessoa = arquivos(id, bid)
         mascara.parent.mkdir(parents=True, exist_ok=True)
         _baixar_modelo()
         _segmentar(proxy, mascara, lambda f: _marcar(id, progresso=round(f * 0.8, 3)))
         _pessoa(proxy, mascara, pessoa)
+        if versao_do_video(projeto.ler(id)) != versao:  # reenquadrado no meio: o novo recorte já foi pedido
+            return
         _marcar(id, estado='pronto', progresso=1, bruto=bid)
     except Exception as e:
         traceback.print_exc()
-        _marcar(id, estado='erro', erro=str(e)[:300])
+        if versao_do_video(projeto.ler(id)) == versao:
+            _marcar(id, estado='erro', erro=str(e)[:300])
 
 
 def _baixar_modelo() -> None:

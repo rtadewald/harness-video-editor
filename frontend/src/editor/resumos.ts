@@ -2,28 +2,6 @@
 export type Resumo = { fase: string; titulo: string; frase: string; itens: string[]; doc: string }
 
 export const RESUMOS = {
-  enquadramento: {
-    fase: 'P1',
-    titulo: 'Enquadramento',
-    frase: 'Só para vídeos horizontais (16:9): a câmera segue o rosto devagar e gera o bruto 9:16 que o resto do processo usa.',
-    itens: [
-      'Pequenos movimentos não mexem o quadro; ele só anda quando o ator se desloca de verdade, com aceleração e chegada suaves.',
-      'O original 16:9 com o retângulo 9:16 andando sobre ele.',
-      'Suavidade (Calma · Normal · Ágil), um deslocamento fixo para os lados e Reenquadrar.',
-    ],
-    doc: 'docs/preprocessamento.md',
-  },
-  look: {
-    fase: 'P1',
-    titulo: 'Look',
-    frase: 'LUTs no estilo dos nossos vídeos e a vinheta, só no ator, iguais na prévia e no MP4.',
-    itens: [
-      'Looks: Natural, Casa (o padrão), Frio / limpo e Sem LUT.',
-      'Intensidade do LUT (0 a 100%) e a vinheta: Sem · Leve · Normal · Forte (ligada por padrão).',
-      'A prévia muda na hora (WebGL); a exportação aplica o mesmo LUT e a mesma máscara.',
-    ],
-    doc: 'docs/preprocessamento.md',
-  },
   transicoes: {
     fase: 'P2',
     titulo: 'Transições',
