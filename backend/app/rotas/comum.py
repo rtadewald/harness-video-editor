@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import HTTPException, UploadFile
 from pydantic import BaseModel
 
-from . import projeto
+from .. import projeto
 
 
 def ler_projeto(id: str) -> dict:

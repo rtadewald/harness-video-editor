@@ -8,9 +8,9 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import banco, captura_site, inserts
-from .rotas_comum import guardar_upload as _guardar
-from .rotas_comum import ler_projeto as _ler
+from .. import banco, captura_site, inserts
+from .comum import guardar_upload as _guardar
+from .comum import ler_projeto as _ler
 
 rotas = APIRouter()
 

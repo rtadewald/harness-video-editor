@@ -2,8 +2,8 @@
 às palavras). Os blocos são montados no navegador (a mesma conta da prévia e da página de render)."""
 from fastapi import APIRouter, HTTPException
 
-from . import legenda, projeto
-from .rotas_comum import Campos, ler_projeto
+from .. import legenda, projeto
+from .comum import Campos, ler_projeto
 
 rotas = APIRouter()
 

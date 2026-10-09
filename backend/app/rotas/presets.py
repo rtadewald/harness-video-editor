@@ -2,8 +2,8 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from . import entradas, presets, sons
-from .rotas_comum import Campos, ler_projeto
+from .. import entradas, presets, sons
+from .comum import Campos, ler_projeto
 
 rotas = APIRouter()
 
@@ -136,13 +136,13 @@ def quadro_referencia(ref: str, t: float):
 
 @rotas.get('/api/projetos/{id}/recorte')
 def estado_recorte(id: str):
-    from .rotas_comum import ler_projeto
+    from .comum import ler_projeto
     return ler_projeto(id).get('recorte') or {'estado': 'nenhum'}
 
 
 @rotas.post('/api/projetos/{id}/recorte')
 def pedir_recorte(id: str):
-    from . import recorte_ator
-    from .rotas_comum import ler_projeto
+    from .. import recorte_ator
+    from .comum import ler_projeto
     ler_projeto(id)
     return recorte_ator.pedir(id)

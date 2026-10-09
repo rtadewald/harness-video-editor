@@ -8,14 +8,14 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import (
+from .. import (
     calibragem,
     direcao,
     midia,
     referencias,
 )
-from .rotas_comum import extensao_do_upload as _extensao
-from .rotas_comum import guardar_upload as _guardar
+from .comum import extensao_do_upload as _extensao
+from .comum import guardar_upload as _guardar
 
 rotas = APIRouter()
 

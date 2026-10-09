@@ -5,12 +5,12 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from . import (
+from .. import (
     cortes,
     pipeline,
     projeto,
 )
-from .rotas_comum import ler_projeto as _ler
+from .comum import ler_projeto as _ler
 
 rotas = APIRouter()
 

@@ -78,9 +78,9 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 ├── backend/
 │   ├── app/
 │   │   ├── main.py            # o app FastAPI: o que recomeça quando o servidor sobe e a inclusão das rotas
-│   │   ├── rotas_*.py         # as rotas por assunto: projetos, referencias, cortes, direcao, inserts (e banco),
-│   │   │                      #   exportacao, presets (sons, entradas, recorte), motions, rosto, preprocessamento (look e
-│   │   │                      #   enquadramento); rotas_comum.py: o que compartilham
+│   │   ├── rotas/             # as rotas por assunto: projetos, referencias, cortes, direcao, inserts (e banco),
+│   │   │                      #   exportacao, presets (sons, entradas, recorte), motions, rosto, preprocessamento (look,
+│   │   │                      #   enquadramento e velocidade), transicoes, audio, legenda; comum.py: o que compartilham
 │   │   ├── comum.py           # .env, modelos do OpenRouter, mídia para a IA (base64), normalizador de texto, JSON atômico
 │   │   ├── projeto.py         # projeto.json, configuração do app (_config.json), motores de transcrição
 │   │   ├── pipeline.py        # fila do projeto: enquadramento, proxy, silêncios, transcrição, alinhamento, cortes, motores extras

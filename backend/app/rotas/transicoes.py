@@ -3,8 +3,8 @@ os efeitos em vídeo e as escolhas de cada projeto."""
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from . import projeto, transicoes
-from .rotas_comum import Campos, ler_projeto
+from .. import projeto, transicoes
+from .comum import Campos, ler_projeto
 
 rotas = APIRouter()
 

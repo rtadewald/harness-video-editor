@@ -1,11 +1,12 @@
-"""API do Harness Video Editor: o app, o que recomeça quando o servidor sobe e as rotas de cada assunto (`rotas_*.py`)."""
+"""API do Harness Video Editor: o app, o que recomeça quando o servidor sobe e as rotas de cada assunto (`rotas/`)."""
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from . import (audio, banco, captura_site, comum, direcao, direcao_projeto, enquadramento, entradas, exportacao, pipeline, recorte_ator, rosto, rotas_cortes,
-               rotas_direcao, rotas_exportacao, rotas_inserts, rotas_motions, rotas_presets, rotas_projetos, rotas_referencias,
-               rotas_preprocessamento, rotas_rosto, rotas_transicoes, rotas_audio, rotas_legenda)
+from . import audio, banco, captura_site, comum, direcao, direcao_projeto, enquadramento, entradas, exportacao, pipeline, recorte_ator, rosto
+from .rotas import (audio as r_audio, cortes as r_cortes, direcao as r_direcao, exportacao as r_exportacao, inserts as r_inserts,
+                    legenda as r_legenda, motions as r_motions, preprocessamento as r_preprocessamento, presets as r_presets,
+                    projetos as r_projetos, referencias as r_referencias, rosto as r_rosto, transicoes as r_transicoes)
 
 comum.carregar_env()
 
@@ -29,5 +30,5 @@ async def ciclo(_app):
 
 app = FastAPI(title='Harness Video Editor', lifespan=ciclo)
 
-for r in (rotas_projetos, rotas_referencias, rotas_cortes, rotas_direcao, rotas_inserts, rotas_exportacao, rotas_presets, rotas_motions, rotas_rosto, rotas_preprocessamento, rotas_transicoes, rotas_audio, rotas_legenda):
+for r in (r_projetos, r_referencias, r_cortes, r_direcao, r_inserts, r_exportacao, r_presets, r_motions, r_rosto, r_preprocessamento, r_transicoes, r_audio, r_legenda):
     app.include_router(r.rotas)

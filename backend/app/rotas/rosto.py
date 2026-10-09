@@ -1,8 +1,8 @@
 """Rotas do rosto do ator (SPEC §8.7): o estado da medida e pedir de novo."""
 from fastapi import APIRouter
 
-from . import rosto
-from .rotas_comum import ler_projeto
+from .. import rosto
+from .comum import ler_projeto
 
 rotas = APIRouter()
 
