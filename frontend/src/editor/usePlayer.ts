@@ -242,9 +242,13 @@ export function usePlayer(seq: Sequencia | null) {
       if (!v) return
       definirTrecho({ de, ate, pular: opcoes.pular ?? true, loop: opcoes.loop ?? false })
       v.currentTime = Math.max(de, 0)
+      // o relógio da saída já no ponto do trecho: o 1º quadro tocando não pode trazer o ponto antigo (os sons das
+      // transições entravam ali, fora de hora, e tocavam de novo no lugar certo)
+      const s = seq?.fonteParaSaida(Math.max(de, 0))
+      if (s != null) setTempo(s)
       void v.play()
     },
-    [definirTrecho],
+    [definirTrecho, seq],
   )
 
   return { ref, tempo, bruto, tocando, pular, setPular, velocidade, setVelocidade, trecho, buscar, buscarBruto, alternar, tocarTrecho }

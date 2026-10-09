@@ -218,7 +218,6 @@ function Opcoes(p: { corte: CorteDoVideo; b: Biblioteca; escolher: (tid: string 
   const lista = ordem.map((id) => b.transicoes.find((t) => t.id === id)).filter(Boolean) as Transicao[]
   const grupo = parDoGrupo(b, chaveGrupo(familia(p.corte.de) as Grupo, familia(p.corte.para) as Grupo))
   const [demo, setDemo] = useState<string | null>(null)
-  useEffect(() => () => pararSons(), [])
   const card = (t: Transicao) => {
     const usada = (p.corte.transicao?.id ?? 'corte-seco') === t.id
     return (
@@ -227,10 +226,7 @@ function Opcoes(p: { corte: CorteDoVideo; b: Biblioteca; escolher: (tid: string 
           t={t}
           fonte={fonteDaTransicao(b, t, grupo)}
           tocando={demo === t.id}
-          tocar={(sim) => {
-            pararSons()
-            setDemo(sim ? t.id : null)
-          }}
+          tocar={(sim) => setDemo(sim ? t.id : null)}
           som="referencia"
           semSelo
           soReferencia

@@ -14,6 +14,11 @@ export default function EfeitoNoPalco(p: { tempo: number; tocando: boolean; altu
   const cat = useCatalogoSons()
   const eventos = useMemo(() => (cortes ? sonsDasTransicoes(cortes, cat) : []), [cortes, cat])
   useSonsNoTempo(eventos, p.tempo, p.tocando && !p.mudo)
+  // os sons esperados, para os testes de ponta a ponta (só quando o teste cria o registro)
+  useEffect(() => {
+    const w = window as Window & { __sonsLog?: unknown[]; __sonsEsperados?: unknown }
+    if (w.__sonsLog && !p.cortes) w.__sonsEsperados = eventos.map((e) => ({ som: e.som, t: e.t, dur: e.dur ?? null }))
+  }, [eventos, p.cortes])
   const luz = useRef<HTMLVideoElement>(null)
   useEffect(() => {
     const v = luz.current
