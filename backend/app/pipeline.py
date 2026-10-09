@@ -10,7 +10,7 @@ from pathlib import Path
 
 from . import comum, cortes, midia, motores, projeto, transcricao
 
-PRINCIPAIS = ['proxy', 'silencios', 'transcricao', 'alinhamento', 'cortes']  # pausas antes: a transcrição é feita por pedaços entre elas
+PRINCIPAIS = ['enquadramento', 'proxy', 'silencios', 'transcricao', 'alinhamento', 'cortes']  # pausas antes: a transcrição é feita por pedaços entre elas
 PASSOS = [*PRINCIPAIS, 'variantes']
 _fila = ThreadPoolExecutor(max_workers=1)  # o que o criador está esperando
 _fila_motores = ThreadPoolExecutor(max_workers=1)  # motores extras: não atrasam os cortes
@@ -54,10 +54,13 @@ def _variante(id: str, vid: str, **campos) -> None:
 def _rodar(id: str, passos: list[str]) -> None:
     """O proxy só serve ao player: roda em paralelo com silêncios → transcrição → alinhamento → cortes.
     Os motores extras vão para a outra fila quando o resto termina bem."""
+    # um vídeo 16:9 vira o bruto 9:16 antes de tudo (o resto parte dele); num vertical, o passo não faz nada
+    if 'enquadramento' in passos and not _executar(id, ['enquadramento']):
+        return
     paralelo = threading.Thread(target=_executar, args=(id, ['proxy'])) if 'proxy' in passos else None
     if paralelo:
         paralelo.start()
-    ok = _executar(id, [p for p in passos if p not in ('proxy', 'variantes')])
+    ok = _executar(id, [p for p in passos if p not in ('enquadramento', 'proxy', 'variantes')])
     if paralelo:
         paralelo.join()
     if ok and 'variantes' in passos:
@@ -141,6 +144,24 @@ def _executar(id: str, passos: list[str]) -> bool:
     return True
 
 
+def refazer_proxy(id: str) -> bool:
+    """Refaz só o proxy (depois de um Reenquadrar), no mesmo estado do pipeline que a tela acompanha."""
+    projeto.atualizar(id, lambda p: p.setdefault('pipeline', estado_inicial())['passos'].update(proxy={'status': 'pendente'}))
+    return _executar(id, ['proxy'])
+
+
+def _enquadramento(id, base: Path, video: Path, bruto: dict):
+    """Um bruto 16:9 vira 9:16 seguindo o rosto (docs/preprocessamento.md); um vertical passa direto."""
+    from . import enquadramento
+    ultimo = [0.0]
+
+    def progresso(f):
+        if f - ultimo[0] >= 0.05:
+            ultimo[0] = f
+            _passo(id, 'enquadramento', progresso=round(f, 2))
+    return enquadramento.aplicar(id, progresso)
+
+
 def _proxy(id, base: Path, video: Path, bruto: dict):
     destino = base / 'midia' / 'proxy' / f'{bruto["id"]}.mp4'
     if bruto.get('proxy') and destino.exists():  # reprocessar não refaz (o player pode estar usando)
@@ -151,7 +172,13 @@ def _proxy(id, base: Path, video: Path, bruto: dict):
         if f - ultimo[0] >= 0.05:  # grava no máximo a cada 5%
             ultimo[0] = f
             _passo(id, 'proxy', progresso=round(f, 2))
-    midia.proxy(video, destino, bruto['duracao'], progresso)
+    # num arquivo à parte e trocado no fim: um proxy refeito (Reenquadrar) não some do player enquanto é gerado
+    tmp = destino.with_name(destino.stem + '.parte.mp4')
+    try:
+        midia.proxy(video, tmp, bruto['duracao'], progresso)
+        tmp.replace(destino)
+    finally:
+        tmp.unlink(missing_ok=True)
 
     def registrar(p):
         next(f for f in p['fontes'] if f['id'] == bruto['id'])['proxy'] = str(destino.relative_to(base))
@@ -218,4 +245,4 @@ def _cortes(id, base: Path, video: Path, bruto: dict):
     return {'clipes': len(clipes)}
 
 
-PASSO = {'proxy': _proxy, 'silencios': _silencios, 'transcricao': _transcricao, 'alinhamento': _alinhamento, 'cortes': _cortes}
+PASSO = {'enquadramento': _enquadramento, 'proxy': _proxy, 'silencios': _silencios, 'transcricao': _transcricao, 'alinhamento': _alinhamento, 'cortes': _cortes}

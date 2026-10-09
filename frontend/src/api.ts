@@ -22,8 +22,8 @@ export type Transcricao = {
   aviso?: string | null
 }
 
-type Passo = { status: 'pendente' | 'rodando' | 'pronto' | 'erro'; segundos?: number; progresso?: number; aviso?: string; pulado?: boolean }
-type Pipeline = { passos: Partial<Record<'proxy' | 'transcricao' | 'alinhamento' | 'silencios' | 'cortes' | 'variantes', Passo>>; erro: string | null }
+type Passo = { status: 'pendente' | 'rodando' | 'pronto' | 'erro'; segundos?: number; progresso?: number; aviso?: string; pulado?: boolean | string }
+type Pipeline = { passos: Partial<Record<'enquadramento' | 'proxy' | 'transcricao' | 'alinhamento' | 'silencios' | 'cortes' | 'variantes', Passo>>; erro: string | null }
 
 /** As etapas do editor (SPEC §1). `cortes` é o Pré-processamento (o id ficou); `enriquecimento` e `motion` são antigas
  *  (hoje dentro de Inserts) e só existem nos dados dos projetos. */
@@ -51,7 +51,8 @@ export type Projeto = {
   briefing: { texto: string; audio: string | null }
   /** O formato do vídeo (SPEC §1): só Reels por ora. */
   formato?: 'reels' | 'anuncio' | 'aula'
-  enquadramento: { x: number }
+  /** `estado`/`versao`: o Reenquadrar (docs/preprocessamento.md); `original`: o 16:9 guardado, num vídeo que veio horizontal. */
+  enquadramento: { x: number; estado?: 'fila' | 'rodando' | 'pronto' | 'erro'; versao?: number; original?: string }
   etapas: Record<Etapa, string>
   chats: Record<Etapa, Mensagem[]>
   pipeline?: Pipeline
@@ -159,6 +160,9 @@ export const salvarDirecaoProjeto = (id: string, itens: ItemDirecaoProjeto[]) =>
 export const refazerCortes = (id: string) => post<Projeto>(`/api/projetos/${id}/cortes/refazer`)
 
 /** O pipeline principal terminou (ou parou em erro)? Os motores extras rodam à parte e não contam. */
+/** O vídeo está sendo reenquadrado (o 9:16 e o proxy refeitos em segundo plano). */
+export const reenquadrando = (p: Projeto) => p.enquadramento?.estado === 'fila' || p.enquadramento?.estado === 'rodando'
+
 export const emAndamento = (p: Projeto) =>
   !p.pipeline?.erro &&
   Object.entries(p.pipeline?.passos ?? {}).some(([nome, s]) => nome !== 'variantes' && (s.status === 'pendente' || s.status === 'rodando'))

@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react'
+import CanvasLook from './CanvasLook'
 
 /** Uma cópia do vídeo do ator por cima do insert, no relógio do player principal: só a pessoa (o recorte, com
  *  transparência; a cabeça e os ombros saindo da área do ator) ou o ator inteiro na janela do "insert atrás". */
@@ -20,6 +21,7 @@ export default function AtorRecortado(p: { fonte: RefObject<HTMLVideoElement | n
     return () => cancelAnimationFrame(id)
   }, [p.fonte])
   return (
+    <>
     <video
       ref={v}
       src={p.src}
@@ -29,5 +31,7 @@ export default function AtorRecortado(p: { fonte: RefObject<HTMLVideoElement | n
       className="pointer-events-none absolute inset-0 size-full object-cover"
       style={{ objectPosition: `${p.enquadramentoX * 100}% 50%`, ...p.estilo }}
     />
+    <CanvasLook video={v} posX={p.enquadramentoX} />
+    </>
   )
 }

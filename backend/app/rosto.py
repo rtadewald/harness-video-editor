@@ -79,12 +79,19 @@ def _bruto(p: dict) -> tuple[str, Path]:
 
 
 def _rodar(id: str) -> None:
+    from .recorte_ator import versao_do_video
+    versao = None
     try:
         _marcar(id, estado='rodando')
-        bid, proxy = _bruto(projeto.ler(id))
-        if not proxy.exists():
+        p = projeto.ler(id)
+        versao = versao_do_video(p)
+        bid, proxy = _bruto(p)
+        # sem proxy registrado (sendo refeito depois de um Reenquadrar), a medida não pode sair do vídeo antigo
+        if not next(f for f in p['fontes'] if f['papel'] == 'bruto').get('proxy') or not proxy.exists():
             raise RuntimeError('O proxy do vídeo ainda não existe')
         medida = medir(proxy, lambda f: _marcar(id, progresso=round(f, 3)))
+        if versao_do_video(projeto.ler(id)) != versao:  # reenquadrado no meio: a medida do vídeo antigo não vale
+            return
         destino = arquivo(id, bid)
         destino.parent.mkdir(parents=True, exist_ok=True)
         comum.salvar_json(destino, medida, indent=None)
@@ -92,7 +99,8 @@ def _rodar(id: str) -> None:
         _marcar(id, estado='pronto', progresso=1, bruto=bid, amostras=len(medida['amostras']), achados=achados)
     except Exception as e:
         traceback.print_exc()
-        _marcar(id, estado='erro', erro=str(e)[:300])
+        if versao_do_video(projeto.ler(id)) == versao:
+            _marcar(id, estado='erro', erro=str(e)[:300])
 
 
 def _baixar_modelo() -> None:
@@ -133,8 +141,12 @@ def _quadros(video: Path, por_segundo: int):
     import numpy as np
     info = midia.inspecionar(video)
     w, h, duracao = info['largura'], info['altura'], info['duracao']
+    # o detector não precisa de mais que ~1280 px (as medidas saem em fração do quadro): um 4K reduzido não passa ~25 MB
+    # por quadro pelo cano
+    k_esc = min(1.0, 1280 / max(w, h, 1))
+    w, h = max(int(w * k_esc) // 2 * 2, 2), max(int(h * k_esc) // 2 * 2, 2)
     with tempfile.TemporaryFile() as erros:  # num arquivo, para o stderr nunca encher o cano e travar o ffmpeg
-        ff = subprocess.Popen(['ffmpeg', '-v', 'error', '-i', str(video), '-vf', f'fps={por_segundo}', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'],
+        ff = subprocess.Popen(['ffmpeg', '-v', 'error', '-i', str(video), '-vf', f'fps={por_segundo},scale={w}:{h}', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'],
                               stdout=subprocess.PIPE, stderr=erros)
         tamanho = w * h * 3
         k = 0

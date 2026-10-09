@@ -11,7 +11,7 @@ Editor de vídeo local, controlado por interface web, em que cada etapa da ediç
 
 | Área | Doc | Estado (out/2026) |
 |---|---|---|
-| Pré-processamento: novo projeto, 16:9 → 9:16, cortes, look | [preprocessamento.md](docs/preprocessamento.md) · [cortes.md](docs/cortes.md) | Cortes e novo projeto **reais**; Enquadramento e Look **especificados** (abas em construção) |
+| Pré-processamento: novo projeto, 16:9 → 9:16, cortes, look | [preprocessamento.md](docs/preprocessamento.md) · [cortes.md](docs/cortes.md) | **Real** (Enquadramento e Look: P1, à espera da avaliação de Rodrigo) |
 | Direção visual (Calibragem, referências, heurística, direção do projeto) | [direcao.md](docs/direcao.md) | **Real** |
 | Inserts: mídias, banco, presets de enriquecimento, sons de apoio | [inserts.md](docs/inserts.md) | **Real** |
 | Motions | [motions.md](docs/motions.md) | **Real** |
@@ -79,10 +79,13 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 │   ├── app/
 │   │   ├── main.py            # o app FastAPI: o que recomeça quando o servidor sobe e a inclusão das rotas
 │   │   ├── rotas_*.py         # as rotas por assunto: projetos, referencias, cortes, direcao, inserts (e banco),
-│   │   │                      #   exportacao, presets (sons, entradas, recorte), motions, rosto; rotas_comum.py: o que compartilham
+│   │   │                      #   exportacao, presets (sons, entradas, recorte), motions, rosto, preprocessamento (look e
+│   │   │                      #   enquadramento); rotas_comum.py: o que compartilham
 │   │   ├── comum.py           # .env, modelos do OpenRouter, mídia para a IA (base64), normalizador de texto, JSON atômico
 │   │   ├── projeto.py         # projeto.json, configuração do app (_config.json), motores de transcrição
-│   │   ├── pipeline.py        # fila do projeto: proxy, silêncios, transcrição, alinhamento, cortes, motores extras
+│   │   ├── pipeline.py        # fila do projeto: enquadramento, proxy, silêncios, transcrição, alinhamento, cortes, motores extras
+│   │   ├── enquadramento.py   # 16:9 → 9:16 pelo rosto: o caminho da câmera, o recorte quadro a quadro, Reenquadrar (§8.1)
+│   │   ├── look.py            # o look do ator: os LUTs, a vinheta, os filtros da exportação (§8.1)
 │   │   ├── midia.py           # ffmpeg/ffprobe (erro legível, medidas), proxy, áudio, silêncios, forma de onda, miniatura
 │   │   ├── transcricao.py     # MLX Whisper por pedaços + stable-ts
 │   │   ├── motores.py         # outros motores (Qwen, CTC, Parakeet, ElevenLabs…)
@@ -102,6 +105,7 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 │   │   ├── entradas.py        # entradas e saídas dos inserts sem preset (configuração global, §8.4)
 │   │   ├── exportacao.py      # exportação: inserts fotografados em paralelo + uma passada do ffmpeg (§13)
 │   │   └── render_quadros.py  # os navegadores escondidos que fotografam a camada dos inserts
+│   ├── luts/              # os LUTs do look (.cube, gerados por ferramentas/luts.py; no git)
 │   ├── tests/
 │   └── pyproject.toml
 ├── frontend/src/
@@ -112,7 +116,7 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 │   ├── referencias/   # timeline de direção, edição, detalhe, painel da Calibragem
 │   └── components/    # marca, navegação, Modal, componentes shadcn (ui/)
 ├── frontend/public/motion/   # o runtime e os presets de motion (HTML + GSAP)
-├── ferramentas/       # scripts do Claude: montar presets (tira, curva, pose), sons (biblioteca, detecção), e os das áreas novas
+├── ferramentas/       # scripts do Claude: montar presets (tira, curva, pose), sons (biblioteca, detecção), os LUTs (luts.py) e os das áreas novas
 ├── projetos/          # dados dos projetos (fora do git)
 ├── referencias/       # vídeos da Calibragem, _favoritos.json, _heuristica.json (fora do git)
 ├── banco/             # mídias dos inserts (global, fora do git)
@@ -136,11 +140,12 @@ projetos/<slug>/
 ├── silencios.json
 ├── picos.json          # forma de onda real: um pico a cada 5 ms (0–255), para a timeline
 ├── midia/
-│   ├── bruto.<ext>     # o vídeo do ator (num 16:9, o 9:16 gerado pelo enquadramento; o original em original/)
-│   ├── original/       # o 16:9 enviado, intocado (só quando foi reenquadrado)
+│   ├── bruto.<ext>     # o vídeo do ator, como foi enviado (num vertical)
+│   ├── bruto_9x16.mp4  # num 16:9: o 9:16 gerado pelo enquadramento (o bruto do projeto; refeito a cada Reenquadrar)
+│   ├── original/       # num 16:9: o vídeo enviado, intocado
 │   ├── proxy/          # versões 720p para o player
 │   ├── recorte/        # a silhueta do ator (máscara e só a pessoa)
-│   ├── rosto/          # o rosto do ator ao longo do vídeo (§8.7)
+│   ├── rosto/          # o rosto do ator ao longo do vídeo (§8.7): <bruto>.json (do proxy) e, num 16:9, original.json
 │   └── voz/            # a voz limpa (§8.9)
 ├── direcao_log/        # prompt e resposta de cada geração da direção (§8.2.2)
 ├── inserts_log/        # registro de cada busca de insert (§8.3)
@@ -161,7 +166,9 @@ projetos/<slug>/
     { "id": "a1", "papel": "apoio", "arquivo": "midia/apoio/site.mp4", "proxy": "..." }
   ],
   "formato": "reels",                     // §6 (anúncio e aula: em breve)
-  "enquadramento": { "suavidade": "normal", "desloca": 0 },   // §8.1: só se o bruto veio 16:9
+  "enquadramento": { "x": 0.5, "suavidade": "normal", "desloca": 0, "original": "midia/original/bruto.mp4",   // §8.1: o resto só se
+                     "feito": { "suavidade": "normal", "desloca": 0 }, "versao": 1,                          //   o bruto veio 16:9
+                     "estado": "pronto", "progresso": 1, "erro": null },                                    //   (o Reenquadrar)
   "look": { "lut": "casa", "intensidade": 1, "vinheta": "normal" },   // §8.1
   "nivel_voz": { "fonte": "f1", "db": -23.3 },  // §8.6: a fala do bruto, para os sons ficarem na relação certa com a voz
   "timeline": { "V1": [] },              // V1 = clipes do bruto; A1 segue a V1 (inserts, motions, transições, áudio e legenda ficam nos campos de cada área)
@@ -201,7 +208,7 @@ projetos/<slug>/
 
 💡 O app:
 - **Barra de cima** (todas as telas): os **projetos abertos como abas** (o × fecha; dois cliques no nome renomeiam), depois **Projetos · Banco · Referências · Presets · Motions · Transições** e, à direita, **Calibragem** e **Heurística da direção**.
-- **Barra das etapas** (à esquerda, recolhível): Pré-processamento · Direção visual · Inserts · Transições · Áudio · Legenda. Cada projeto reabre na última etapa usada. 💡 O Pré-processamento guarda o id `cortes` (dados e etapa lembrada continuam valendo) e tem, no topo, as abas **Cortes · Enquadramento · Look** (a aba aberta fica lembrada neste navegador). As telas ainda não feitas (Enquadramento, Look, Transições, Áudio, Legenda e a página Transições) mostram a prévia do vídeo cortado e um cartão "em construção" com o que virá (`editor/EmConstrucao.tsx`, textos em `editor/resumos.ts`); no topo, o selo EM CONSTRUÇÃO. Em janelas estreitas, os links da barra de cima ficam só com o ícone (💡 pelo espaço que sobra para os links, não pela largura da janela — uma container query: as abas dos projetos abertos ocupam até 40% da barra e rolam; a Calibragem e a Heurística perdem o rótulo primeiro; se nem os ícones couberem, os links rolam).
+- **Barra das etapas** (à esquerda, recolhível): Pré-processamento · Direção visual · Inserts · Transições · Áudio · Legenda. Cada projeto reabre na última etapa usada. 💡 O Pré-processamento guarda o id `cortes` (dados e etapa lembrada continuam valendo) e tem, no topo, as abas **Cortes · Enquadramento · Look** (a aba aberta fica lembrada neste navegador). As três abas do Pré-processamento são telas de verdade (P1). As telas ainda não feitas (Transições, Áudio, Legenda e a página Transições) mostram a prévia do vídeo cortado e um cartão "em construção" com o que virá (`editor/EmConstrucao.tsx`, textos em `editor/resumos.ts`); no topo, o selo EM CONSTRUÇÃO. Em janelas estreitas, os links da barra de cima ficam só com o ícone (💡 pelo espaço que sobra para os links, não pela largura da janela — uma container query: as abas dos projetos abertos ocupam até 40% da barra e rolam; a Calibragem e a Heurística perdem o rótulo primeiro; se nem os ícones couberem, os links rolam).
 - **Topo do editor:** Configurações, o botão especial da etapa (ex.: "Refazer cortes com IA") e **Exportar**.
 - **Cada etapa** tem a sua tela: a timeline do jeito que serve a ela (vertical nos Cortes e na Direção, horizontal nas outras), o vídeo no centro com o resultado no lugar e os cards de trabalho ao lado.
 
@@ -352,7 +359,7 @@ Uma correção pontual num vídeo vale só para aquele vídeo, a menos que o cri
 | # | Entrega | Pronto quando |
 |---|---|---|
 | F0 | **Fundação das novas etapas:** as etapas renomeadas (Pré-processamento, Transições, Áudio, Legenda, cada uma com a sua tela vazia), o novo projeto (nome, motor, formato), o `rosto.py` (a medida do rosto, usada por duas áreas) e a exportação separada por camadas (§13), com os ganchos de cada área | O app abre nas etapas novas e exporta igual a hoje |
-| P1 | **Pré-processamento:** 16:9 → 9:16 pelo rosto e o look (LUTs + vinheta) | Um vídeo 16:9 vira 9:16 seguindo o rosto; o look igual na prévia e no MP4 |
+| P1 ✅ (à espera da avaliação) | **Pré-processamento:** 16:9 → 9:16 pelo rosto e o look (LUTs + vinheta) | Um vídeo 16:9 vira 9:16 seguindo o rosto; o look igual na prévia e no MP4 |
 | P2 | **Transições:** análise das referências, transições recriadas, página e etapa | Os cortes do vídeo de teste com as transições favoritas, aprovadas por Rodrigo |
 | P3 | **Áudio:** faixas de fundo geradas, limpeza da voz, timbre, mixer, −14 LUFS | O MP4 com a voz limpa, a faixa de fundo e os níveis certos, aprovados no ouvido |
 | P4 | **Legenda:** o estilo da casa medido, a geração e a edição, o ASS | As legendas do vídeo de teste iguais às das referências |

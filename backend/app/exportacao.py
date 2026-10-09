@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
+from . import look as look_mod
 from . import banco, comum, midia, projeto, render_quadros, sons
 
 RESOLUCOES = {'720p': (720, 1280), '1080p': (1080, 1920), '4k': (2160, 3840)}
@@ -97,12 +98,13 @@ JANELA = {'y0': 0.72, 'escala': 0.55, 'raio': 0.07}  # o ator no "insert atrás"
 
 
 def _ator(clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, h: int, fps: int,
-          divisoes: list[tuple[float, float, dict]], duracao: float, mascara: bool) -> tuple[list[str], list[str]]:
+          divisoes: list[tuple[float, float, dict]], duracao: float, mascara: bool, com_look: bool = False) -> tuple[list[str], list[str]]:
     """Os filtros do ator e do áudio (entrada 0 = bruto; 1 = a máscara da pessoa, se houver): cada clipe da V1 vira um
     par vídeo + áudio (o áudio com fade curto nas pontas) e o concat mantém os dois juntos em cada emenda; depois, recorte
     9:16, escala, fps de saída (o ator repete quadros, sem interpolar) e o ator descendo para a parte de baixo nas telas
     divididas (metade de `f` da altura). Devolve os filtros de baixo (saídas [base] e [ac]) e os de cima, aplicados depois
-    dos inserts sobre [topo_in] → [topo]: o ator na janela do "insert atrás" e a pessoa recortada saindo da área dele."""
+    dos inserts sobre [topo_in] → [topo]: o ator na janela do "insert atrás" e a pessoa recortada saindo da área dele.
+    `com_look`: o ator escalado sai em [ator_cru] e o look (`look.filtros`, ligado em `comando_final`) faz o [ator]."""
     n = len(clipes)
     usa_mascara = mascara and any(d['modo'] == 'atras' for _, _, d in divisoes)  # a cabeça sai por cima só no "ator embaixo"
     partes = [f'[0:v]split={n}' + ''.join(f'[v{k}]' for k in range(n)), f'[0:a]asplit={n}' + ''.join(f'[a{k}]' for k in range(n))]
@@ -121,7 +123,7 @@ def _ator(clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, 
             masc += f'[cm{k}]'
     partes.append(f'{pares}concat=n={n}:v=1:a=1[vc][ac]')
     recorte = f"crop=w=trunc(ih*9/16/2)*2:h=ih:x=(iw-ow)*{enquadramento_x:.4f}," if horizontal else ''
-    partes.append(f'[vc]{recorte}scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{h},setsar=1,fps={fps}[ator]')
+    partes.append(f'[vc]{recorte}scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{h},setsar=1,fps={fps}[{'ator_cru' if com_look else 'ator'}]')
     quando = lambda ts: '+'.join(f'between(t,{a:.4f},{b - 0.5 / fps:.4f})' for a, b in ts) or '0'  # noqa: E731
     metades = [(a, b, d['f']) for a, b, d in divisoes if d['modo'] == 'metade']
     atras = [(a, b) for a, b, d in divisoes if d['modo'] == 'atras']
@@ -210,19 +212,28 @@ def _audio(eventos_som: list[dict] | None, primeira_entrada: int, rotulo_voz: st
 def comando_final(bruto: Path, clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, h: int, fps: int,
                   divisoes: list[tuple[float, float, dict]], camadas: list[tuple[Path, float]], codec: str, duracao: float,
                   saida: Path, mascara: Path | None = None, eventos_som: list[dict] | None = None,
-                  transicoes: list[dict] | None = None, legenda: dict | None = None) -> list[str]:
+                  transicoes: list[dict] | None = None, legenda: dict | None = None, look: dict | None = None,
+                  mascara_vinheta: Path | None = None) -> list[str]:
     """Uma passada só, montada por camadas na ordem do contrato (SPEC §13; cada área mexe só na sua função): o ator e o
     áudio do bruto, decodificado pelo chip de vídeo (`_ator`); por cima, a camada dos inserts (`_inserts`); por cima
     dela, o ator na janela do "insert atrás" e a pessoa recortada (a parte de cima de `_ator`); depois, sobre o quadro
     montado, as transições e a legenda (`_pos_montagem`); o áudio (`_audio`). Codifica no chip de vídeo (HEVC ou H.264).
-    Entradas do ffmpeg, nesta ordem: o bruto, a máscara (se usada), os clipes dos inserts e os sons."""
-    partes, topo = _ator(clipes, horizontal, enquadramento_x, w, h, fps, divisoes, duracao, mascara is not None)
+    Entradas do ffmpeg, nesta ordem: o bruto, a máscara (se usada), os clipes dos inserts, os sons e a máscara da
+    vinheta do look (se houver; em loop). O look (LUT + vinheta, `look.py`) vale só para o ator, logo depois da escala."""
+    com_look = look_mod.ativo(look)
+    partes, topo = _ator(clipes, horizontal, enquadramento_x, w, h, fps, divisoes, duracao, mascara is not None, com_look)
     usa_mascara = any('[1:v]' in x for x in partes)
     base_idx = 2 if usa_mascara else 1
     entradas: list[str] = ['-i', str(mascara)] if usa_mascara else []
     ent_ins, f_ins = _inserts(camadas, base_idx, 'base', 'topo_in')
     ent_som, f_som = _audio(eventos_som, base_idx + len(camadas), 'ac', 'am')
     entradas += ent_ins + ent_som
+    if com_look:
+        idx_vinheta = None
+        if mascara_vinheta is not None and look_mod.VINHETAS.get(look.get('vinheta'), 0) > 0:
+            idx_vinheta = base_idx + len(camadas) + ent_som.count('-i')
+            entradas += ['-loop', '1', '-i', str(mascara_vinheta)]
+        partes += look_mod.filtros(look, 'ator_cru', 'ator', idx_vinheta)
     partes += f_ins + f_som + topo + _pos_montagem(transicoes, legenda, 'topo', 'v')
     cv = ['-c:v', 'hevc_videotoolbox', '-q:v', '65', '-tag:v', 'hvc1'] if codec == 'hevc' else ['-c:v', 'h264_videotoolbox', '-q:v', '65']
     return ['ffmpeg', '-y', '-loglevel', 'error', '-progress', 'pipe:1', '-nostats', '-hwaccel', 'videotoolbox', '-i', str(bruto),
@@ -341,9 +352,11 @@ def _gravar(id: str, e: dict, saida: Path, vivo: dict) -> bool:
         divisoes = [(t['ini'], t['fim'], t.get('divisao') or {'modo': 'metade', 'f': 0.5}) for t in trechos if t['dividida']]
         from . import recorte_ator
         mascara = recorte_ator.arquivos(id, fonte['id'])[0] if (p.get('recorte') or {}).get('estado') == 'pronto' else None
+        lk = look_mod.do_projeto(p)  # o look do ator (LUT + vinheta)
         cmd = comando_final(projeto.pasta(id) / fonte['arquivo'], clipes, horizontal, p.get('enquadramento', {}).get('x', 0.5),
                             w, h, fps, divisoes, camadas, e['codec'], duracao, saida, mascara if mascara and mascara.exists() else None,
-                            eventos_som, render.get('transicoes'), render.get('legenda'))
+                            eventos_som, render.get('transicoes'), render.get('legenda'), lk,
+                            look_mod.mascara_vinheta(w, h, look_mod.VINHETAS[lk['vinheta']], tmp / 'vinheta.png') if look_mod.ativo(lk) else None)
         with open(log, 'wb') as erros:
             ff = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=erros, text=True)
             for linha in ff.stdout:

@@ -30,6 +30,11 @@ virado) são preenchidos com o vizinho. Num 16:9, roda antes, sobre o original r
 - Para as outras áreas: `rosto.medir(video)` (a P1 usa no original reduzido) e `rosto.rosto_mediano(id, ini, fim)` (a P5:
   a mediana de cx, cy, w, h nas amostras de um intervalo do bruto — as medidas de verdade, senão as preenchidas, senão a
   amostra mais próxima; `None` sem medida).
+- 💡 Na P1 (out/2026): `_quadros` reduz o vídeo para o lado maior de até 1280 px antes de passar ao detector (as medidas
+  saem em fração do quadro; um 4K não passa ~25 MB por quadro pelo cano). A medida do original 16:9, que guia o
+  enquadramento, fica em `midia/rosto/original.json` (não é apagada num Reenquadrar; a do proxy, `<bruto>.json`, é).
+  Num Reenquadrar, uma medida que estava rodando sobre o vídeo antigo é descartada quando termina (a versão do 9:16
+  mudou), e sem proxy registrado a medida não começa ([preprocessamento.md](preprocessamento.md)).
 - Medido no vídeo de teste (2:02, proxy 720×1280): ~10 s de trabalho, 732 amostras, rosto achado em todas (confiança
   0,78–0,96); centro mediano em x 0,48 e y 0,39 (centro-alto do quadro), largura mediana 0,53 do quadro.
 

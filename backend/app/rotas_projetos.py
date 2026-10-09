@@ -145,8 +145,10 @@ def abrir(id: str):
 
 @rotas.post('/api/projetos/{id}/processar')
 def processar(id: str):
-    """Roda de novo o pipeline inteiro (ex.: depois de um erro)."""
-    _ler(id)
+    """Roda de novo o pipeline inteiro (ex.: depois de um erro). Não durante um Reenquadrar (os dois mexem no 9:16 e no proxy)."""
+    p = _ler(id)
+    if (p.get('enquadramento') or {}).get('estado') in ('fila', 'rodando'):
+        raise HTTPException(409, 'O vídeo está sendo reenquadrado: espere terminar')
     pipeline.enfileirar(id)
     return projeto.ler(id)
 

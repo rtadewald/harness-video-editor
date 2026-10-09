@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Pause, Play, SkipBack } from 'lucide-react'
 import { formatarTempo } from '@/api'
+import CanvasLook from './CanvasLook'
 
 type Props = {
   videoRef: RefObject<HTMLVideoElement | null>
@@ -52,6 +53,8 @@ export default function Preview(p: Props) {
             className="size-full cursor-pointer object-cover"
             style={{ objectPosition: `${p.enquadramentoX * 100}% 50%` }}
           />
+          {/* o look do ator (LUT + vinheta), por cima do próprio vídeo */}
+          <CanvasLook video={p.videoRef} posX={p.enquadramentoX} />
 
           {p.sobreposicao}
         </div>

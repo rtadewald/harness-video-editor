@@ -105,6 +105,7 @@ def test_sem_rosto_no_video_rosto_mediano_e_none(cliente, video, monkeypatch):
     proxy = projeto.pasta(id) / 'midia' / 'proxy' / 'f1.mp4'
     proxy.parent.mkdir(parents=True)
     proxy.write_bytes(video.read_bytes())
+    projeto.atualizar(id, lambda p: p['fontes'][0].update(proxy='midia/proxy/f1.mp4'))
     abrir, _ = _detector_falso(lambda ms: [])
     monkeypatch.setattr(rosto, 'detector_mediapipe', abrir)
     rosto.pedir(id)
