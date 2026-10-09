@@ -36,11 +36,34 @@ export async function definirOrdem(par: string, ids: string[], favoritas: number
   if (b2) loja.definir({ ...b2, ordem: o })
 }
 
-/** A família de uma categoria de plano (para os pares que nunca apareceram nas referências; igual a `transicoes.py`). */
-export const familia = (c: string) => (c.includes('motion') ? 'motion' : c.startsWith('full_ator') || c === 'comentario_insert_ator' ? 'ator' : 'insert')
+/** O grupo de uma categoria de plano, a unidade das favoritas (igual a `transicoes.py`): ator (Full ator, com lettering,
+ *  com zoom), dividida (tela dividida com insert ou motion, comentário + insert + ator) e cheia (insert ou motion). */
+export const familia = (c: string) => (c.startsWith('full_ator') ? 'ator' : c.startsWith('tela_dividida') || c === 'comentario_insert_ator' ? 'dividida' : 'cheia')
 export const chavePar = (de: string, para: string) => `${de}>${para}`
-/** A ordem que vale para um par: a dele, ou a da família. */
-export const ordemDoPar = (b: Biblioteca, de: string, para: string) => b.ordem[chavePar(de, para)] ?? b.ordem[`familia:${familia(de)}>${familia(para)}`]
+/** Os grupos na ordem da página, com o nome; `familia:de>para` é a chave da ordem de um grupo. */
+export const GRUPOS = { ator: 'Full ator', dividida: 'Tela dividida', cheia: 'Tela cheia' } as const
+export type Grupo = keyof typeof GRUPOS
+export const chaveGrupo = (de: Grupo, para: Grupo) => `familia:${de}>${para}`
+export const nomeGrupoPar = (k: string) => {
+  const [de, para] = k.replace(/^familia:/, '').split('>')
+  return `${GRUPOS[de as Grupo] ?? de} → ${GRUPOS[para as Grupo] ?? para}`
+}
+/** Os pares das referências de um grupo somados num só: os cortes, as classes e os sons. */
+export function parDoGrupo(b: Biblioteca, k: string): Par {
+  const [de, para] = k.replace(/^familia:/, '').split('>')
+  const out: Par = { n: 0, classes: {}, sons: {}, cortes: [] }
+  for (const [pk, p] of Object.entries(b.pares)) {
+    const [a, z] = pk.split('>')
+    if (familia(a) !== de || familia(z) !== para) continue
+    out.n += p.n
+    for (const [c, n] of Object.entries(p.classes)) out.classes[c] = (out.classes[c] ?? 0) + n
+    for (const [c, n] of Object.entries(p.sons)) out.sons[c] = (out.sons[c] ?? 0) + n
+    out.cortes.push(...p.cortes)
+  }
+  return out
+}
+/** A ordem que vale para um par: a do grupo (de onde sai → para onde vai); sem ela, a do par exato (antiga). */
+export const ordemDoPar = (b: Biblioteca, de: string, para: string) => b.ordem[`familia:${familia(de)}>${familia(para)}`] ?? b.ordem[chavePar(de, para)]
 /** A transição que um corte recebe sozinho: a 1ª favorita do par (ou da família); sem nada, o corte seco. */
 export function padraoDoPar(b: Biblioteca, de: string, para: string): string {
   const o = ordemDoPar(b, de, para)

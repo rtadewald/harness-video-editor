@@ -42,27 +42,31 @@ def test_biblioteca_editar_e_listar():
 def test_ordem_favoritas_e_padrao_do_par():
     _semear()
     assert transicoes.padrao_do_par('full_ator', 'insert_tela_cheia') == 'corte-seco'  # nada gravado: o corte seco
-    o = transicoes.definir_ordem('familia:ator>insert', ['brilho-branco', 'nao-existe', 'corte-seco', 'brilho-branco'], 5)
-    assert o['familia:ator>insert'] == {'ids': ['brilho-branco', 'corte-seco'], 'favoritas': 2}  # sem as desconhecidas nem repetidas
-    # um par sem ordem própria segue a da família; com a própria, a dele
+    o = transicoes.definir_ordem('familia:ator>dividida', ['brilho-branco', 'nao-existe', 'corte-seco', 'brilho-branco'], 5)
+    assert o['familia:ator>dividida'] == {'ids': ['brilho-branco', 'corte-seco'], 'favoritas': 2}  # sem as desconhecidas nem repetidas
+    # o grupo vale para todos os pares dele (Full ator com lettering → tela dividida com motion também)
     assert transicoes.padrao_do_par('full_ator', 'tela_dividida_insert') == 'brilho-branco'
+    assert transicoes.padrao_do_par('full_ator_lettering', 'tela_dividida_motion') == 'brilho-branco'
+    # a ordem antiga do par exato só vale sem a do grupo
     transicoes.definir_ordem('full_ator>tela_dividida_insert', ['zoom-desfoque', 'corte-seco'], 1)
+    assert transicoes.padrao_do_par('full_ator', 'tela_dividida_insert') == 'brilho-branco'
+    transicoes.definir_ordem('familia:ator>dividida', [], 0)
     assert transicoes.padrao_do_par('full_ator', 'tela_dividida_insert') == 'zoom-desfoque'
-    # com ordem própria e nenhuma favorita, o par fica seco (não cai na família; igual a padraoDoPar no front)
-    transicoes.definir_ordem('full_ator>tela_dividida_insert', ['zoom-desfoque'], 0)
+    # com ordem e nenhuma favorita, o par fica seco (igual a padraoDoPar no front)
+    transicoes.definir_ordem('familia:ator>dividida', ['zoom-desfoque'], 0)
     assert transicoes.padrao_do_par('full_ator', 'tela_dividida_insert') == 'corte-seco'
     assert transicoes.ordem_do_par('full_ator', 'tela_dividida_insert')['ids'] == ['zoom-desfoque']
-    # lista vazia apaga a ordem do par
-    assert 'full_ator>tela_dividida_insert' not in transicoes.definir_ordem('full_ator>tela_dividida_insert', [], 0)
-    for par in ('nada', 'a>b>c', 'familia:x'):
+    # lista vazia apaga a ordem
+    assert 'familia:ator>dividida' not in transicoes.definir_ordem('familia:ator>dividida', [], 0)
+    for par in ('nada', 'a>b>c', 'familia:x', 'familia:ator>insert'):
         with pytest.raises(ValueError):
             transicoes.definir_ordem(par, ['corte-seco'], 1)
 
 
 def test_familias():
-    assert [transicoes.familia(c) for c in ('full_ator', 'full_ator_zoom', 'comentario_insert_ator', 'tela_dividida_insert',
+    assert [transicoes.familia(c) for c in ('full_ator', 'full_ator_lettering', 'comentario_insert_ator', 'tela_dividida_insert',
                                             'insert_tela_cheia', 'motion_tela_cheia', 'tela_dividida_motion')] == \
-        ['ator', 'ator', 'ator', 'insert', 'insert', 'motion', 'motion']
+        ['ator', 'ator', 'dividida', 'dividida', 'cheia', 'cheia', 'dividida']
 
 
 def test_rotas(cliente, video):

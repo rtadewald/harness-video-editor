@@ -95,12 +95,14 @@ def editar(tid: str, campos: dict) -> dict:
 # ---------------------------------------------------------------- pares, ordem e favoritas
 
 def familia(categoria: str) -> str:
-    """A família de uma categoria de plano (para os pares que nunca apareceram nas referências)."""
-    if 'motion' in categoria:
-        return 'motion'
-    if categoria.startswith('full_ator') or categoria == 'comentario_insert_ator':
+    """O grupo de uma categoria de plano, a unidade das favoritas (pedido de Rodrigo, out/2026: grupos maiores, não o par
+    exato): **ator** (Full ator, com lettering, com zoom), **dividida** (a tela dividida com insert ou motion e o comentário
+    + insert + ator) e **cheia** (insert ou motion na tela cheia)."""
+    if categoria.startswith('full_ator'):
         return 'ator'
-    return 'insert'
+    if categoria.startswith('tela_dividida') or categoria == 'comentario_insert_ator':
+        return 'dividida'
+    return 'cheia'
 
 
 def chave(de: str, para: str) -> str:
@@ -121,7 +123,7 @@ def ordem() -> dict[str, dict]:
 
 
 def definir_ordem(par: str, ids: list, favoritas: int) -> dict:
-    if not _PAR.fullmatch(par or '') and not re.fullmatch(r'familia:[a-z]+>[a-z]+', par or ''):
+    if not _PAR.fullmatch(par or '') and not re.fullmatch(r'familia:(ator|dividida|cheia)>(ator|dividida|cheia)', par or ''):
         raise ValueError('Par inválido')
     if not isinstance(ids, list):
         raise ValueError('A ordem é uma lista de transições')
@@ -137,9 +139,9 @@ def definir_ordem(par: str, ids: list, favoritas: int) -> dict:
 
 
 def ordem_do_par(de: str, para: str, o: dict | None = None) -> dict | None:
-    """A ordem que vale para um par: a dele, ou (se ele não tiver) a da família."""
+    """A ordem que vale para um par: a do grupo (de onde sai → para onde vai); sem ela, a do par exato (antiga)."""
     o = ordem() if o is None else o
-    return o.get(chave(de, para)) or o.get(f'familia:{familia(de)}>{familia(para)}')
+    return o.get(f'familia:{familia(de)}>{familia(para)}') or o.get(chave(de, para))
 
 
 def padrao_do_par(de: str, para: str, o: dict | None = None) -> str:

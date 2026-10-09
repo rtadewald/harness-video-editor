@@ -1,35 +1,35 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Volume2 } from 'lucide-react'
+import { ChevronRight, Volume2 } from 'lucide-react'
 import { formatarTempo, urlArquivoReferencia } from '@/api'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
-import { CATEGORIAS } from '@/editor/EtapaDirecao'
 import { pararSons } from '@/editor/sons'
 import { cn } from '@/lib/utils'
 import CardTransicao from '@/transicoes/CardTransicao'
-import { definirOrdem, ordemDoPar, useBiblioteca, type Biblioteca, type Par, type Transicao } from '@/transicoes/transicoes'
+import { GRUPOS, chaveGrupo, definirOrdem, nomeGrupoPar, parDoGrupo, useBiblioteca, type Biblioteca, type Grupo as GrupoPlano, type Par, type Transicao } from '@/transicoes/transicoes'
 
 const TODAS = '__todas' // a vista com todas as transições
-const FAMILIAS: Record<string, string> = { ator: 'Ator', insert: 'Insert', motion: 'Motion' }
-const nomeLado = (c: string) => CATEGORIAS.planos[c] ?? FAMILIAS[c] ?? c
-const nomePar = (k: string) => {
-  const [de, para] = k.replace(/^familia:/, '').split('>')
-  return `${nomeLado(de)} → ${nomeLado(para)}`
-}
+const LADOS = Object.keys(GRUPOS) as GrupoPlano[]
 
-/** A página Transições (SPEC §8.8; docs/transicoes.md): à esquerda os pares (o plano que sai → o que entra), os vistos
- *  nas referências pelo nº de cortes e as famílias (que valem para os pares que nunca apareceram); à direita, as
- *  transições do par: as 2 favoritas em cima (a 1ª é o padrão: entra sozinha em cada corte desse par) e "Outras
- *  transições" embaixo, cada uma com a referência e a recriação lado a lado; e os cortes do par nas referências. */
+/** A página Transições (SPEC §8.8; docs/transicoes.md): à esquerda os grupos de origem (Full ator, Tela dividida, Tela
+ *  cheia), cada um abrindo para onde vai, com o nº de cortes nas referências; à direita, as transições do par de grupos:
+ *  as 2 favoritas em cima (a 1ª é o padrão: entra sozinha em cada corte desse par) e "Outras transições" embaixo, cada
+ *  uma com a referência e a recriação lado a lado; e os cortes do par nas referências. */
 export default function Transicoes() {
   const b = useBiblioteca()
   const [sel, setSel] = useState<string | null>(null)
   const [tocando, setTocando] = useState<string | null>(null) // um por vez
   const [som, setSom] = useState<'referencia' | 'recriacao'>('recriacao')
   useEffect(() => () => pararSons(), [])
-  const vistos = b ? Object.keys(b.pares) : []
-  const familias = b ? Object.keys(b.ordem).filter((k) => k.startsWith('familia:')).sort() : []
   const par = sel ?? TODAS
+  const [abertos, setAbertos] = useState<Set<string>>(() => new Set(LADOS))
+  const alternarGrupo = (g: string) =>
+    setAbertos((x) => {
+      const n = new Set(x)
+      if (n.has(g)) n.delete(g)
+      else n.add(g)
+      return n
+    })
   const tocar = (id: string) => (sim: boolean) => {
     pararSons()
     setTocando(sim ? id : null)
@@ -45,10 +45,7 @@ export default function Transicoes() {
       <div className="grid min-h-0 grid-cols-[300px_minmax(0,1fr)]">
         <aside className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-4 overflow-x-hidden overflow-y-auto border-r border-line-dark px-3 py-5">
           {!b && <p className="px-2 text-[12px] text-fog">Carregando…</p>}
-          {b && !vistos.length && !familias.length && (
-            <p className="px-2 text-[12px] leading-[1.6] text-fog">Nenhuma transição ainda: o Claude analisa os cortes das referências e grava as transições (docs/transicoes.md).</p>
-          )}
-          {b && b.transicoes.length > 0 && (
+          {b && (
             <Grupo titulo="Biblioteca">
               <button
                 onClick={() => setSel(TODAS)}
@@ -62,18 +59,29 @@ export default function Transicoes() {
               </button>
             </Grupo>
           )}
-          {vistos.length > 0 && (
-            <Grupo titulo="Pares das referências">
-              {vistos.map((k) => (
-                <ItemPar key={k} k={k} b={b!} n={b!.pares[k].n} ativo={par === k} abrir={() => setSel(k)} />
-              ))}
-            </Grupo>
-          )}
-          {familias.length > 0 && (
-            <Grupo titulo="Famílias (os outros pares)">
-              {familias.map((k) => (
-                <ItemPar key={k} k={k} b={b!} ativo={par === k} abrir={() => setSel(k)} />
-              ))}
+          {b && (
+            <Grupo titulo="De onde sai → para onde vai">
+              {LADOS.map((de) => {
+                const aberto = abertos.has(de)
+                const n = LADOS.reduce((t, para) => t + parDoGrupo(b, chaveGrupo(de, para)).n, 0)
+                return (
+                  <div key={de} className="grid min-w-0 grid-cols-[minmax(0,1fr)]">
+                    <button onClick={() => alternarGrupo(de)} className="flex items-center gap-1.5 rounded-[6px] px-1 py-1.5 text-left hover:bg-cream/[0.05]">
+                      <ChevronRight className={cn('size-3.5 shrink-0 text-fog transition-transform', aberto && 'rotate-90')} />
+                      <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{GRUPOS[de]}</span>
+                      <span className="pr-1 text-[11px] text-fog tabular-nums">{n}</span>
+                    </button>
+                    {aberto && (
+                      <div className="ml-[13px] grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5 border-l border-line-dark pl-2">
+                        {LADOS.map((para) => {
+                          const k = chaveGrupo(de, para)
+                          return <ItemPar key={k} k={k} b={b} n={parDoGrupo(b, k).n} ativo={par === k} abrir={() => setSel(k)} />
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </Grupo>
           )}
         </aside>
@@ -163,22 +171,22 @@ function Grupo(p: { titulo: string; children: ReactNode }) {
   )
 }
 
-function ItemPar(p: { k: string; b: Biblioteca; n?: number; ativo: boolean; abrir: () => void }) {
-  const [de, para] = p.k.replace(/^familia:/, '').split('>')
-  const o = p.k.startsWith('familia:') ? p.b.ordem[p.k] : ordemDoPar(p.b, de, para)
+function ItemPar(p: { k: string; b: Biblioteca; n: number; ativo: boolean; abrir: () => void }) {
+  const o = p.b.ordem[p.k]
   const padrao = o && o.favoritas > 0 ? p.b.transicoes.find((t) => t.id === o.ids[0]) : null
+  const para = GRUPOS[p.k.split('>')[1] as GrupoPlano]
   return (
-    <button onClick={p.abrir} title={nomePar(p.k)} className={cn('grid min-w-0 grid-cols-[minmax(0,1fr)] rounded-[6px] px-2 py-1.5 text-left ring-1', p.ativo ? 'bg-cream/10 ring-cream/40' : 'ring-transparent hover:bg-cream/[0.05]')}>
+    <button onClick={p.abrir} title={nomeGrupoPar(p.k)} className={cn('grid min-w-0 grid-cols-[minmax(0,1fr)] rounded-[6px] px-2 py-1.5 text-left ring-1', p.ativo ? 'bg-cream/10 ring-cream/40' : 'ring-transparent hover:bg-cream/[0.05]')}>
       <span className="flex items-center gap-2 text-[12px] font-semibold">
-        <span className="min-w-0 flex-1 truncate">{nomePar(p.k)}</span>
-        {p.n != null && <span className="text-[11px] font-normal text-fog tabular-nums">{p.n}</span>}
+        <span className="min-w-0 flex-1 truncate">→ {para}</span>
+        <span className="text-[11px] font-normal text-fog tabular-nums">{p.n}</span>
       </span>
       <span className="truncate text-[11px] text-fog">{padrao?.nome ?? 'Corte seco'}</span>
     </button>
   )
 }
 
-/** As transições de um par, na ordem dele (a própria; sem ela, a da família), e os cortes do par nas referências. */
+/** As transições de um par de grupos, na ordem dele, e os cortes do par nas referências (os pares de categorias somados). */
 function DetalhePar(p: {
   k: string
   b: Biblioteca
@@ -188,10 +196,7 @@ function DetalhePar(p: {
   tocar: (id: string) => (sim: boolean) => void
 }) {
   const { b, k } = p
-  const familia = k.startsWith('familia:')
-  const [de, para] = k.replace(/^familia:/, '').split('>')
-  const o = familia ? b.ordem[k] : ordemDoPar(b, de, para)
-  const herdada = !familia && !b.ordem[k] && !!o
+  const o = b.ordem[k]
   // a ordem inteira (as transições que ainda não estão nela vão para o fim)
   const ids = [...(o?.ids ?? []), ...b.transicoes.map((t) => t.id)].filter((x, i, l) => l.indexOf(x) === i && b.transicoes.some((t) => t.id === x))
   const nFav = Math.min(o?.favoritas ?? 0, ids.length)
@@ -204,7 +209,7 @@ function DetalhePar(p: {
     else salvar([resto[0], id, ...resto.slice(1)], 2) // já são 2: entra no lugar da 2ª, que vai para as outras
   }
   const tornarPrimeira = (id: string) => salvar([id, ...ids.filter((x) => x !== id)], nFav)
-  const parInfo: Par | undefined = familia ? undefined : b.pares[k]
+  const parInfo: Par = parDoGrupo(b, k)
   const fonteDe = (t: Transicao) => fonteDaTransicao(b, t, parInfo)
   const card = (t: Transicao, i: number) => (
     <CardTransicao
@@ -223,15 +228,15 @@ function DetalhePar(p: {
     <div className="mx-auto grid max-w-[1320px] gap-10">
       <div className="flex flex-wrap items-end gap-4">
         <div className="grid gap-1">
-          <p className="eyebrow text-sage">{familia ? 'Família' : 'Par'}</p>
-          <h1 className="text-[22px] font-semibold">{nomePar(k)}</h1>
+          <p className="eyebrow text-sage">De onde sai → para onde vai</p>
+          <h1 className="text-[22px] font-semibold">{nomeGrupoPar(k)}</h1>
           <p className="text-[12px] leading-[1.6] text-fog">
-            {parInfo
+            {parInfo.n
               ? `${parInfo.n} ${parInfo.n === 1 ? 'corte' : 'cortes'} nas referências · ${Object.entries(parInfo.sons)
+                  .sort((x, y) => y[1] - x[1])
                   .map(([s, n]) => `${s} ${n}×`)
                   .join(', ') || 'sem som de corte'}`
-              : 'Vale para os pares desta família que não aparecem nas referências.'}
-            {herdada && ' Este par ainda segue a ordem da família; mudar uma favorita grava a dele.'}
+              : 'Nenhum corte assim nas referências.'}
           </p>
         </div>
         <EscolhaSom som={p.som} mudarSom={p.mudarSom} />
@@ -245,7 +250,7 @@ function DetalhePar(p: {
         <p className="eyebrow text-fog">Outras transições</p>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(270px,1fr))] gap-x-10 gap-y-12">{lista.slice(nFav).map((t, j) => card(t, j + nFav))}</div>
       </section>
-      {parInfo && parInfo.cortes.length > 0 && <CortesDoPar par={parInfo} tocando={p.tocando} tocar={p.tocar} />}
+      {parInfo.cortes.length > 0 && <CortesDoPar par={parInfo} tocando={p.tocando} tocar={p.tocar} />}
     </div>
   )
 }

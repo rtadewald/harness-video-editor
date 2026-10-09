@@ -45,7 +45,7 @@ BIBLIOTECA = [
 ]
 DO_SOM = {'click-classic-01': 'corte-clique', 'instant-camera-01': 'corte-camera', 'riser-07': 'subida-ao-corte'}
 # a 2ª favorita quando o par não tem nenhuma com som ou efeito: pela família do plano que entra
-RESERVA = {'ator': 'subida-ao-corte', 'insert': 'corte-camera', 'motion': 'corte-clique'}
+RESERVA = {'ator': 'subida-ao-corte', 'cheia': 'corte-camera', 'dividida': 'corte-clique'}
 
 
 TOLERANCIA = 0.2  # s: um corte da análise é a fonte de um efeito se estiver a menos disso dela (o corte medido quadro a
