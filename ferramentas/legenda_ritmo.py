@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 
 RAIZ = Path(__file__).resolve().parents[1]
-REFS = RAIZ / 'referencias'
+REFS = RAIZ / 'dados' / 'referencias'
 FPS = 4
 MEIO = 0.5 / FPS  # o bloco apareceu entre o quadro anterior e este: o meio do intervalo
 PAUSA = 0.3  # s: as referências são cortadas justas; pausas maiores quase não há

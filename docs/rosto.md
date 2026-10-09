@@ -15,7 +15,7 @@ virado) são preenchidos com o vizinho. Num 16:9, roda antes, sobre o original r
 
 💡 Feito na F0 (out/2026), em `backend/app/rosto.py`:
 - O modelo é o BlazeFace de curta distância (`blaze_face_short_range.tflite`, ~230 KB), baixado na primeira vez para
-  `modelos/` (fora do git, como o do recorte do ator). Os quadros saem do proxy pelo ffmpeg (`fps=6`, já com a rotação),
+  `dados/modelos/` (fora do git, como o do recorte do ator). Os quadros saem do proxy pelo ffmpeg (`fps=6`, já com a rotação),
   confiança mínima 0,5; com mais de um rosto, vale o maior.
 - O arquivo: `{por_segundo: 6, largura, altura, amostras: [{t, cx, cy, w, h, conf}]}` (t em s do bruto; o resto em fração
   do quadro). Um buraco recebe a caixa da medida mais próxima no tempo (empate: a anterior) com `conf: 0`; sem rosto

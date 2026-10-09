@@ -60,7 +60,7 @@ Suba tudo com um comando:
 - Interface: http://localhost:5173
 - API: http://localhost:8000 (FastAPI)
 
-Na primeira vez os modelos locais baixam sozinhos, o que demora um pouco. Os projetos ficam em `projetos/` (ignorada pelo git).
+Na primeira vez os modelos locais baixam sozinhos, o que demora um pouco. Os projetos ficam em `dados/projetos/` (ignorada pelo git).
 
 ### Testes
 

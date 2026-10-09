@@ -22,8 +22,8 @@ from pathlib import Path
 import numpy as np
 
 RAIZ = Path(__file__).resolve().parents[1]
-REFS = RAIZ / 'referencias'
-SAIDA = RAIZ / 'trilhas'
+REFS = RAIZ / 'dados' / 'referencias'
+SAIDA = RAIZ / 'dados' / 'trilhas'
 CACHE = SAIDA / 'analise'
 DUPLICADAS = {'52-processo-ds-1'}
 TAXA = 22050

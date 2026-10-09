@@ -16,7 +16,7 @@ from typing import Callable
 
 from . import comum, midia, projeto
 
-MODELO = Path(__file__).resolve().parents[2] / 'modelos' / 'blaze_face_short_range.tflite'
+MODELO = comum.DADOS / 'modelos' / 'blaze_face_short_range.tflite'
 URL_MODELO = ('https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/'
               'blaze_face_short_range.tflite')
 POR_SEGUNDO = 6  # amostras por segundo

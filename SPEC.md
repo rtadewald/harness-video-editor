@@ -44,7 +44,7 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 
 ## 2. Escopo
 
-✅ **Entra:** as seis etapas acima, reais; a tela de projetos (criar, abrir e apagar — apagar manda a pasta para `projetos/_lixeira/`, recuperável); o pipeline automático ao criar o projeto; as páginas de apoio (Banco, Referências, Calibragem, Heurística, Presets, Motions, Transições); a exportação MP4 a partir de qualquer etapa.
+✅ **Entra:** as seis etapas acima, reais; a tela de projetos (criar, abrir e apagar — apagar manda a pasta para `dados/projetos/_lixeira/`, recuperável); o pipeline automático ao criar o projeto; as páginas de apoio (Banco, Referências, Calibragem, Heurística, Presets, Motions, Transições); a exportação MP4 a partir de qualquer etapa.
 
 ✅ **Fica fora (por ora):**
 - O agente do chat (§11) e o desfazer/refazer com versões nomeadas (§10).
@@ -120,14 +120,16 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 │   └── components/    # marca, navegação, Modal, componentes shadcn (ui/)
 ├── frontend/public/motion/   # o runtime e os presets de motion (HTML + GSAP)
 ├── ferramentas/       # scripts do Claude: montar presets (tira, curva, pose), sons (biblioteca, detecção), os LUTs (luts.py) e os das áreas novas
-├── projetos/          # dados dos projetos (fora do git)
-├── referencias/       # vídeos da Calibragem, _favoritos.json, _heuristica.json (fora do git)
-├── banco/             # mídias dos inserts (global, fora do git)
-├── presets/           # presets de enriquecimento e ordem.json (fora do git)
-├── sons/              # sons do time e sons/biblioteca/ processada (fora do git: licença)
-├── transicoes/        # transições entre planos (fora do git, §8.8)
-├── trilhas/           # faixas de fundo geradas (fora do git, §8.9)
-└── _legado/           # projeto anterior, só referência
+├── dados/             # tudo o que o app guarda (fora do git; `comum.DADOS` no backend)
+│   ├── projetos/      # um projeto por pasta (§5); _config.json; _lixeira/ (os apagados)
+│   ├── referencias/   # vídeos da Calibragem, _favoritos.json, _heuristica.json
+│   ├── banco/         # mídias dos inserts (global)
+│   ├── presets/       # presets de enriquecimento e ordem.json
+│   ├── sons/          # sons do time e sons/biblioteca/ processada (licença)
+│   ├── transicoes/    # transições entre planos (§8.8)
+│   ├── trilhas/       # faixas de fundo geradas (§8.9)
+│   └── modelos/       # os modelos de visão do MediaPipe (rosto e silhueta)
+└── _legado/           # projeto anterior, só referência (fora do git)
 ```
 
 ## 5. Projeto em disco
@@ -137,7 +139,7 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 💡
 
 ```text
-projetos/<slug>/
+dados/projetos/<slug>/
 ├── projeto.json        # estado: fontes, formato, timeline, etapas, histórico, versões (briefing e chats: de projetos antigos / do agente futuro)
 ├── transcricoes/       # uma transcrição por motor: whisper.json, whisper-stable.json, whisper-qwen.json, …
 ├── silencios.json

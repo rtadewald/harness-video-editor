@@ -13,7 +13,7 @@ from pathlib import Path
 
 from . import comum, referencias, sons
 
-RAIZ = Path(__file__).resolve().parents[2] / 'presets'
+RAIZ = comum.DADOS / 'presets'
 EXTERNAS = RAIZ / 'externas'  # vídeos de referência de fora das Referências (um post do Instagram): `externa:<nome>`
 
 

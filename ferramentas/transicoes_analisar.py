@@ -68,7 +68,7 @@ def classe(m: dict) -> str:
 def main() -> None:
     sons = [d for d in json.loads(Path(sys.argv[1]).read_text()) if d.get('z', 99) >= 40 and d['nota'] >= 0.5] if len(sys.argv) > 1 else []
     pares: dict = collections.defaultdict(lambda: {'n': 0, 'classes': collections.Counter(), 'sons': collections.Counter(), 'cortes': []})
-    for arq in sorted((RAIZ / 'referencias').glob('*/direcao.json')):
+    for arq in sorted((RAIZ / 'dados' / 'referencias').glob('*/direcao.json')):
         ref = arq.parent.name
         if ref in DUPLICADAS:
             continue
@@ -86,7 +86,7 @@ def main() -> None:
             p['sons'].update(s)
             p['cortes'].append({'ref': ref, 't': round(t, 3), 'classe': c, 'sons': s})
         print(ref, file=sys.stderr)
-    saida = RAIZ / 'transicoes' / 'pares.json'
+    saida = RAIZ / 'dados' / 'transicoes' / 'pares.json'
     saida.parent.mkdir(exist_ok=True)
     saida.write_text(json.dumps({k: {**v, 'classes': dict(v['classes']), 'sons': dict(v['sons'])} for k, v in sorted(pares.items(), key=lambda x: -x[1]['n'])},
                                 ensure_ascii=False, indent=1))

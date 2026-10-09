@@ -18,7 +18,7 @@ saem os textos (prompts) para o Lyria, um por faixa, com variações de clima (m
 "tech"…), sempre instrumental.
 
 💡 A geração (`ferramentas/trilhas_gerar.py`): Lyria 3 Pro pela OpenRouter (`OPENROUTER_API_KEY`), faixas completas de
-~2–3 min, salvas em `trilhas/` (dados, fora do git, com um `catalogo.json`: nome, clima, BPM, duração, o prompt usado).
+~2–3 min, salvas em `dados/trilhas/` (dados, fora do git, com um `catalogo.json`: nome, clima, BPM, duração, o prompt usado).
 Cada faixa é normalizada para o mesmo volume percebido.
 
 💡 No vídeo, a faixa começa no início, se repete com crossfade se o vídeo for mais longo, e termina com um fade de ~1,5 s
@@ -59,7 +59,7 @@ na prévia; e o −14 é um ganho medido antes mais um limitador de pico — em 
 
 ## Como ficou (P3, out/2026)
 
-💡 **A música das referências** (`ferramentas/trilhas_analisar.py` → `trilhas/analise.json`): o Demucs (htdemucs)
+💡 **A música das referências** (`ferramentas/trilhas_analisar.py` → `dados/trilhas/analise.json`): o Demucs (htdemucs)
 separa a voz do resto nos primeiros 90 s de cada referência. Medido nas janelas de 0,4 s com fala, pela mediana (que
 deixa de fora os golpes dos efeitos): **as 10 referências têm música**, em média **13 dB abaixo da voz** (de −6 a
 −29 dB), de 78 a 152 BPM. O **ducking não dá para medir**: as referências cortadas quase não têm pausas sem fala.
@@ -71,7 +71,7 @@ voz. A descrição fica no `analise.json`.
 completions da OpenRouter com `modalities: ['text', 'audio']` e streaming; a resposta vem em base64, um MP3 de ~2 min).
 Os prompts saem da análise, um clima por faixa (Piano lo-fi, Arpejo suave, Pads ambiente, Chillhop, Sinos leves,
 Cinemático, Grave tech, Piano pulsante), sempre instrumentais, com os médios livres e a energia constante (para fazer
-loop). Cada faixa é normalizada para **−16 LUFS** (`trilhas.LUFS`) e gravada em `trilhas/<id>.m4a` com o
+loop). Cada faixa é normalizada para **−16 LUFS** (`trilhas.LUFS`) e gravada em `dados/trilhas/<id>.m4a` com o
 `catalogo.json` (nome, clima, BPM medido, duração, o prompt). Custo: US$ 0,08 por faixa.
 
 💡 **A voz** (`audio.py`): o DeepFilterNet 3 roda num ambiente Python à parte (o 0.5.6 pede o torchaudio antigo:

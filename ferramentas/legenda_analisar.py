@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 
 RAIZ = Path(__file__).resolve().parents[1]
-REFS = RAIZ / 'referencias'
+REFS = RAIZ / 'dados' / 'referencias'
 SAIDA = REFS / '_legenda.json'
 DUPLICADAS = {'52-processo-ds-1'}
 JANELA = 1.2

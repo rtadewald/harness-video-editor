@@ -12,8 +12,8 @@ from pathlib import Path
 import numpy as np
 
 RAIZ = Path(__file__).resolve().parents[1]
-BIBLIOTECA = RAIZ / 'sons' / 'biblioteca'
-REFS = RAIZ / 'referencias'
+BIBLIOTECA = RAIZ / 'dados' / 'sons' / 'biblioteca'
+REFS = RAIZ / 'dados' / 'referencias'
 TAXA = 22050
 
 

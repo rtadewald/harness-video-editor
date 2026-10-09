@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import comum, projeto
 
-RAIZ = Path(__file__).resolve().parents[2] / 'referencias'
+RAIZ = comum.DADOS / 'referencias'
 _trava = threading.Lock()
 
 

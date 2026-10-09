@@ -7,7 +7,7 @@ from pathlib import Path
 
 from . import comum
 
-RAIZ = Path(__file__).resolve().parents[2] / 'trilhas'
+RAIZ = comum.DADOS / 'trilhas'
 _ID = re.compile(r'[a-z0-9][a-z0-9-]{0,40}')
 LUFS = -16.0  # a sonoridade de todas as faixas da biblioteca (a geração normaliza)
 # o laço: o trecho estável da faixa, onde a energia (média de 2 s) fica a menos de `LACO_DB` da mediana

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from . import comum
 
-RAIZ = Path(__file__).resolve().parents[2] / 'projetos'
+RAIZ = comum.DADOS / 'projetos'
 SAIDA = {'largura': 1080, 'altura': 1920}
 # as etapas do editor (SPEC §1); `cortes` é o Pré-processamento (o id ficou), `enriquecimento` e `motion` são antigas
 # (hoje dentro de Inserts) e ficam pelos dados dos projetos
