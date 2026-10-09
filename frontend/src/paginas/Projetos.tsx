@@ -57,7 +57,7 @@ export default function Projetos() {
               </span>
               <span className="text-center">
                 <span className="block text-[14px] font-semibold text-cream">Novo projeto</span>
-                <span className="text-[11px]">Bruto, briefing e apoios</span>
+                <span className="text-[11px]">Nome, formato e o vídeo bruto</span>
               </span>
             </button>
           </li>

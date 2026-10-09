@@ -11,17 +11,17 @@ Editor de vídeo local, controlado por interface web, em que cada etapa da ediç
 
 | Área | Doc | Estado (out/2026) |
 |---|---|---|
-| Pré-processamento: novo projeto, 16:9 → 9:16, cortes, look | [preprocessamento.md](docs/preprocessamento.md) · [cortes.md](docs/cortes.md) | Cortes **real**; o resto **especificado** |
+| Pré-processamento: novo projeto, 16:9 → 9:16, cortes, look | [preprocessamento.md](docs/preprocessamento.md) · [cortes.md](docs/cortes.md) | Cortes e novo projeto **reais**; Enquadramento e Look **especificados** (abas em construção) |
 | Direção visual (Calibragem, referências, heurística, direção do projeto) | [direcao.md](docs/direcao.md) | **Real** |
 | Inserts: mídias, banco, presets de enriquecimento, sons de apoio | [inserts.md](docs/inserts.md) | **Real** |
 | Motions | [motions.md](docs/motions.md) | **Real** |
-| Rosto do ator (enquadramento nas áreas que sobram) | [rosto.md](docs/rosto.md) | **Especificado** |
-| Transições entre planos | [transicoes.md](docs/transicoes.md) | **Especificado** |
-| Áudio: voz, faixa de fundo, mixer | [audio.md](docs/audio.md) | **Especificado** |
-| Legenda | [legenda.md](docs/legenda.md) | **Especificado** |
-| Prévia e exportação | [exportacao.md](docs/exportacao.md) | **Real** (ator, inserts, motions, sons) |
+| Rosto do ator (enquadramento nas áreas que sobram) | [rosto.md](docs/rosto.md) | A medida **real** (F0); o enquadramento, **especificado** |
+| Transições entre planos | [transicoes.md](docs/transicoes.md) | **Especificado** (etapa e página em construção) |
+| Áudio: voz, faixa de fundo, mixer | [audio.md](docs/audio.md) | **Especificado** (etapa em construção) |
+| Legenda | [legenda.md](docs/legenda.md) | **Especificado** (etapa em construção) |
+| Prévia e exportação | [exportacao.md](docs/exportacao.md) | **Real** (ator, inserts, motions, sons), montada por camadas |
 
-O agente do chat e o desfazer/versões do editor ainda não foram feitos (§10, §11).
+O agente do chat e o desfazer/versões do editor ainda não foram feitos (§10, §11); o chat simulado saiu na F0.
 
 ---
 
@@ -79,7 +79,7 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 │   ├── app/
 │   │   ├── main.py            # o app FastAPI: o que recomeça quando o servidor sobe e a inclusão das rotas
 │   │   ├── rotas_*.py         # as rotas por assunto: projetos, referencias, cortes, direcao, inserts (e banco),
-│   │   │                      #   exportacao, presets (e sons), motions; rotas_comum.py: o que elas compartilham
+│   │   │                      #   exportacao, presets (sons, entradas, recorte), motions, rosto; rotas_comum.py: o que compartilham
 │   │   ├── comum.py           # .env, modelos do OpenRouter, mídia para a IA (base64), normalizador de texto, JSON atômico
 │   │   ├── projeto.py         # projeto.json, configuração do app (_config.json), motores de transcrição
 │   │   ├── pipeline.py        # fila do projeto: proxy, silêncios, transcrição, alinhamento, cortes, motores extras
@@ -98,15 +98,15 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 │   │   ├── sons.py            # sons de apoio: catálogo, momentos de som, mistura na exportação, nível da voz (§8.6)
 │   │   ├── motions.py         # motions: presets em HTML + GSAP e o motion de cada plano (§8.5)
 │   │   ├── recorte_ator.py    # a silhueta do ator (MediaPipe) para a cabeça passar por cima do insert
-│   │   ├── transicoes.py      # (hoje: entradas e saídas dos inserts sem preset; vira entradas.py, §8.8)
+│   │   ├── rosto.py           # o rosto do ator ao longo do vídeo (MediaPipe), medido uma vez por projeto (§8.7)
+│   │   ├── entradas.py        # entradas e saídas dos inserts sem preset (configuração global, §8.4)
 │   │   ├── exportacao.py      # exportação: inserts fotografados em paralelo + uma passada do ffmpeg (§13)
-│   │   ├── render_quadros.py  # os navegadores escondidos que fotografam a camada dos inserts
-│   │   └── mocks.py           # o chat simulado
+│   │   └── render_quadros.py  # os navegadores escondidos que fotografam a camada dos inserts
 │   ├── tests/
 │   └── pyproject.toml
 ├── frontend/src/
-│   ├── paginas/       # Projetos, Editor, Banco, Calibragem, RevisaoReferencia, Referencias, Heuristica, Presets, Configuracoes, NovoProjeto, Render
-│   ├── editor/        # as etapas, o player, a prévia; editor/inserts/: as peças da etapa Inserts
+│   ├── paginas/       # Projetos, Editor, Banco, Calibragem, RevisaoReferencia, Referencias, Heuristica, Presets, Transicoes, Configuracoes, NovoProjeto, Render
+│   ├── editor/        # as etapas (etapas.ts), o player, a prévia; EmConstrucao.tsx: as telas que ainda vão ser feitas; editor/inserts/: a etapa Inserts
 │   ├── presets/       # a página Presets (card com o modal, avaliação, recomendados)
 │   ├── motions/       # os motions (grade, edição, página, sons)
 │   ├── referencias/   # timeline de direção, edição, detalhe, painel da Calibragem
@@ -131,7 +131,7 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 
 ```text
 projetos/<slug>/
-├── projeto.json        # estado: fontes, briefing, timeline, etapas, chats, histórico, versões
+├── projeto.json        # estado: fontes, formato, timeline, etapas, histórico, versões (briefing e chats: de projetos antigos / do agente futuro)
 ├── transcricoes/       # uma transcrição por motor: whisper.json, whisper-stable.json, whisper-qwen.json, …
 ├── silencios.json
 ├── picos.json          # forma de onda real: um pico a cada 5 ms (0–255), para a timeline
@@ -164,7 +164,7 @@ projetos/<slug>/
   "enquadramento": { "suavidade": "normal", "desloca": 0 },   // §8.1: só se o bruto veio 16:9
   "look": { "lut": "casa", "intensidade": 1, "vinheta": "normal" },   // §8.1
   "nivel_voz": { "fonte": "f1", "db": -23.3 },  // §8.6: a fala do bruto, para os sons ficarem na relação certa com a voz
-  "timeline": { "V1": [], "V2": [], "V3": [], "LEG": [] },   // V1 = clipes do bruto; A1 segue a V1
+  "timeline": { "V1": [] },              // V1 = clipes do bruto; A1 segue a V1 (inserts, motions, transições, áudio e legenda ficam nos campos de cada área)
   "transcricoes": { "elevenlabs": { "status": "pronto", … } }, "transcricao_ativa": "elevenlabs",
   "cortes": { "mantidas": [], "duvidas": [] },
   "direcao": { "status": "pronto", "versoes": [], "ativa": 1, "itens": [] },   // §8.2.2 (campos da versão aberta espelhados)
@@ -173,7 +173,8 @@ projetos/<slug>/
   "transicoes": {},                                                          // §8.8: as trocadas à mão
   "audio": { "voz": {}, "fundo": null, "niveis": {} },                       // §8.9
   "legenda": { "ligada": true, "blocos": [] },                               // §8.10
-  "etapas": { "cortes": "pronta", "direcao": "pronta", … },
+  "rosto": { "estado": "pronto", "progresso": 1, "amostras": 732, "achados": 732 },   // §8.7: a medida em midia/rosto/
+  "etapas": { "cortes": "pronta", "direcao": "pronta", … },   // ids: cortes (o Pré-processamento), direcao, inserts, transicoes, audio, legenda
   "chats": { … },                         // o chat do agente (§11), por etapa
   "historico": [],                        // ver §10
   "versoes": []
@@ -200,7 +201,7 @@ projetos/<slug>/
 
 💡 O app:
 - **Barra de cima** (todas as telas): os **projetos abertos como abas** (o × fecha; dois cliques no nome renomeiam), depois **Projetos · Banco · Referências · Presets · Motions · Transições** e, à direita, **Calibragem** e **Heurística da direção**.
-- **Barra das etapas** (à esquerda, recolhível): Pré-processamento · Direção visual · Inserts · Transições · Áudio · Legenda. Cada projeto reabre na última etapa usada.
+- **Barra das etapas** (à esquerda, recolhível): Pré-processamento · Direção visual · Inserts · Transições · Áudio · Legenda. Cada projeto reabre na última etapa usada. 💡 O Pré-processamento guarda o id `cortes` (dados e etapa lembrada continuam valendo) e tem, no topo, as abas **Cortes · Enquadramento · Look** (a aba aberta fica lembrada neste navegador). As telas ainda não feitas (Enquadramento, Look, Transições, Áudio, Legenda e a página Transições) mostram a prévia do vídeo cortado e um cartão "em construção" com o que virá (`editor/EmConstrucao.tsx`, textos em `editor/resumos.ts`); no topo, o selo EM CONSTRUÇÃO. Em janelas estreitas, os links da barra de cima ficam só com o ícone (💡 pelo espaço que sobra para os links, não pela largura da janela — uma container query: as abas dos projetos abertos ocupam até 40% da barra e rolam; a Calibragem e a Heurística perdem o rótulo primeiro; se nem os ícones couberem, os links rolam).
 - **Topo do editor:** Configurações, o botão especial da etapa (ex.: "Refazer cortes com IA") e **Exportar**.
 - **Cada etapa** tem a sua tela: a timeline do jeito que serve a ela (vertical nos Cortes e na Direção, horizontal nas outras), o vídeo no centro com o resultado no lugar e os cards de trabalho ao lado.
 
@@ -267,7 +268,7 @@ projetos/<slug>/
 
 ## 11. Agente
 
-✅ **Adiado para depois da fase 4** (decisão de Rodrigo). Até lá o chat segue simulado. Quando vier:
+✅ **Adiado para depois da fase 4** (decisão de Rodrigo). 💡 O chat simulado (respostas prontas, só nas etapas que eram mock) saiu na F0, com as trilhas falsas (V2, V3, LEG) do editor; os históricos (`chats`) continuam no projeto, por etapa. Quando vier:
 ✅ **Um agente só**, LangChain. O prompt de sistema e as ferramentas mudam conforme a etapa aberta. Cada etapa tem seu próprio histórico de chat, salvo no projeto.
 ✅ O agente enxerga o estado do projeto (briefing, transcrição, timeline). Tudo que ele altera passa por ferramentas, então aparece na timeline e pode ser desfeito.
 ✅ Transcrições e briefings são **dados, não instruções**: comandos que apareçam dentro de falas são ignorados.
@@ -313,7 +314,7 @@ projetos/<slug>/
 | 5 | **Legenda** (por cima de tudo) | camada HTML | ASS desenhado pelo libass | §8.10 |
 | A | **Áudio**: voz limpa → timbre → compressor; sons dos presets; sons das transições; fundo com ducking; −14 LUFS | Web Audio, um ganho por trilha | grafo do ffmpeg (`amix`, `sidechaincompress`, `loudnorm`) | §8.6, §8.9 |
 
-💡 A página de render (`/render/p/<id>`) entrega ao backend tudo o que é calculado no front (`window.__render`): os trechos dos inserts, a divisão da tela, os eventos de som e, quando existirem, as transições e os blocos da legenda. Cada área acrescenta o seu campo; o backend monta a passada do ffmpeg por partes (uma função por camada).
+💡 A página de render (`/render/p/<id>`) entrega ao backend tudo o que é calculado no front (`window.__render`): os trechos dos inserts, a divisão da tela, os eventos de som e, quando existirem, as transições e os blocos da legenda. Cada área acrescenta o seu campo (os ganchos `transicoes` e `legenda` já existem, opcionais e sem efeito); o backend monta a passada do ffmpeg por partes, uma função por camada em `exportacao.py`: `_ator` (1 e 3), `_inserts` (2), `_pos_montagem` → `_transicoes` (4) e `_legenda` (5), `_audio` (A) — ver [exportacao.md](docs/exportacao.md).
 
 ## 14. Regras editoriais dos cortes
 
@@ -343,6 +344,8 @@ Uma correção pontual num vídeo vale só para aquele vídeo, a menos que o cri
 ## 15. Ordem de construção
 
 ✅ Feito e em uso: Fundação, Cortes, Direção visual (D1–D7), Inserts e Banco, Enriquecimento por presets (divisão da tela, ajustes rápidos, avaliação, recomendados), Motions, Sons de apoio, Exportação.
+
+💡 F0 feita (out/2026, branch `f0-fundacao`), à espera da avaliação de Rodrigo.
 
 ✅ **Próximas, uma branch por funcionalidade** (decisão de Rodrigo, out/2026), cada uma com a sua spec em `docs/` antes do código:
 

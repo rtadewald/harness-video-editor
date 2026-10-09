@@ -7,9 +7,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 
 type Props = { aberto: boolean; aoFechar: () => void }
+
+/** Os formatos (SPEC §1): só o Reels está ativo; Anúncio e Aula aparecem como "em breve". */
+const FORMATOS = [
+  { id: 'reels', nome: 'Reels', detalhe: 'vertical, 9:16', ativo: true },
+  { id: 'anuncio', nome: 'Anúncio', detalhe: 'em breve', ativo: false },
+  { id: 'aula', nome: 'Aula', detalhe: 'em breve', ativo: false },
+]
 
 export default function NovoProjeto({ aberto, aoFechar }: Props) {
   const navegar = useNavigate()
@@ -43,21 +50,12 @@ export default function NovoProjeto({ aberto, aoFechar }: Props) {
           <Marca className="mb-3 text-coral" />
           <p className="eyebrow text-[#56625d]">Novo projeto</p>
           <DialogTitle>Do bruto ao Reels.</DialogTitle>
-          <DialogDescription>Suba o bruto, o briefing e os vídeos de apoio.</DialogDescription>
+          <DialogDescription>Dê um nome, escolha o formato e suba o vídeo bruto, vertical ou horizontal.</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={enviar} className="grid gap-4">
           <Campo rotulo="Nome">
             <Input name="nome" required placeholder="Ex.: Melhor IA para design" autoFocus />
-          </Campo>
-          <Campo rotulo="Vídeo bruto">
-            <Input name="bruto" type="file" accept="video/*" required />
-          </Campo>
-          <Campo rotulo="Briefing (texto)" opcional>
-            <Textarea name="briefing_texto" rows={3} placeholder="O que esse vídeo precisa passar, pedidos específicos…" />
-          </Campo>
-          <Campo rotulo="Briefing (áudio)" opcional>
-            <Input name="briefing_audio" type="file" accept="audio/*,video/*" />
           </Campo>
           <Campo rotulo="Motor de transcrição">
             <select
@@ -75,8 +73,26 @@ export default function NovoProjeto({ aberto, aoFechar }: Props) {
                 ))}
             </select>
           </Campo>
-          <Campo rotulo="Vídeos de apoio" opcional>
-            <Input name="apoios" type="file" accept="video/*" multiple />
+          <Campo rotulo="Formato">
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Formato">
+              {FORMATOS.map((f) => (
+                <label
+                  key={f.id}
+                  title={f.ativo ? undefined : 'Em breve'}
+                  className={cn(
+                    'grid gap-0.5 rounded-[3px] border px-3 py-2.5 text-[13px] text-ink has-[:checked]:border-ink has-[:checked]:bg-ink has-[:checked]:text-cream',
+                    f.ativo ? 'cursor-pointer border-line bg-white hover:border-ink' : 'cursor-not-allowed border-line bg-white/50 opacity-50',
+                  )}
+                >
+                  <input type="radio" name="formato" value={f.id} defaultChecked={f.id === 'reels'} disabled={!f.ativo} className="sr-only" />
+                  <span className="font-semibold">{f.nome}</span>
+                  <span className="text-[11px] opacity-70">{f.detalhe}</span>
+                </label>
+              ))}
+            </div>
+          </Campo>
+          <Campo rotulo="Vídeo bruto">
+            <Input name="bruto" type="file" accept="video/*" required />
           </Campo>
 
           {enviando && (
@@ -103,11 +119,11 @@ export default function NovoProjeto({ aberto, aoFechar }: Props) {
   )
 }
 
-function Campo({ rotulo, opcional, children }: { rotulo: string; opcional?: boolean; children: React.ReactNode }) {
+function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
   return (
     <div className="grid gap-1.5">
       <Label>
-        {rotulo} {opcional && <span className="font-medium tracking-[0.1em] text-[#8a958e]">· opcional</span>}
+        {rotulo}
       </Label>
       {children}
     </div>

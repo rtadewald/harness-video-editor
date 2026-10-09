@@ -164,29 +164,66 @@ def _ator(clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, 
     return partes, topo
 
 
+def _inserts(camadas: list[tuple[Path, float]], primeira_entrada: int, rotulo_in: str, saida: str) -> tuple[list[str], list[str]]:
+    """Camada 2 (SPEC §13): cada clipe da camada dos inserts e motions (ProRes 4444 com transparência, fotografado pelos
+    navegadores) sobreposto no seu instante. Devolve (entradas, filtros), de [`rotulo_in`] a [`saida`]."""
+    entradas: list[str] = []
+    filtros: list[str] = []
+    atual = rotulo_in
+    for k, (clipe, inicio) in enumerate(camadas):
+        entradas += ['-i', str(clipe)]
+        filtros.append(f'[{k + primeira_entrada}:v]setpts=PTS-STARTPTS+{inicio:.6f}/TB[c{k}]')
+        filtros.append(f'[{atual}][c{k}]overlay=format=auto:eof_action=pass[o{k}]')
+        atual = f'o{k}'
+    filtros.append(f'[{atual}]null[{saida}]')
+    return entradas, filtros
+
+
+def _transicoes(transicoes: list[dict] | None, rotulo_in: str) -> tuple[list[str], str]:
+    """Camada 4 (SPEC §13, §8.8; a P2): as transições entre planos, sobre o quadro já montado (escala, `gblur` e véu por
+    expressões de tempo, só nos trechos delas). Recebe `__render.transicoes`. Por ora não faz nada. Devolve (filtros,
+    rótulo de saída)."""
+    return [], rotulo_in
+
+
+def _legenda(legenda: dict | None, rotulo_in: str) -> tuple[list[str], str]:
+    """Camada 5 (SPEC §13, §8.10; a P4): a legenda por cima de tudo (um ASS desenhado pelo libass). Recebe
+    `__render.legenda`. Por ora não faz nada. Devolve (filtros, rótulo de saída)."""
+    return [], rotulo_in
+
+
+def _pos_montagem(transicoes: list[dict] | None, legenda: dict | None, rotulo_in: str, saida: str) -> list[str]:
+    """O que age sobre o quadro inteiro já montado: as transições e, por cima de tudo, a legenda; no fim, o formato de
+    saída."""
+    filtros, atual = _transicoes(transicoes, rotulo_in)
+    f_leg, atual = _legenda(legenda, atual)
+    return [*filtros, *f_leg, f'[{atual}]format=yuv420p[{saida}]']
+
+
+def _audio(eventos_som: list[dict] | None, primeira_entrada: int, rotulo_voz: str, saida: str) -> tuple[list[str], list[str]]:
+    """Camada A (SPEC §13, §8.6, §8.9): a voz do bruto (já cortada, [`rotulo_voz`]) com os sons de apoio dos presets
+    somados. Aqui entram, com a P3, a voz limpa (limpeza → timbre → compressor), os sons das transições, a faixa de fundo
+    com ducking e o volume final (−14 LUFS). Devolve (entradas, filtros), com a mistura em [`saida`]."""
+    return sons.filtro_mistura(eventos_som or [], primeira_entrada, rotulo_voz, saida)
+
+
 def comando_final(bruto: Path, clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, h: int, fps: int,
                   divisoes: list[tuple[float, float, dict]], camadas: list[tuple[Path, float]], codec: str, duracao: float,
-                  saida: Path, mascara: Path | None = None, eventos_som: list[dict] | None = None) -> list[str]:
-    """Uma passada só: o ator e o áudio do bruto (decodificado pelo chip de vídeo) e, por cima, cada clipe da camada dos
-    inserts (ProRes 4444 com transparência) no seu instante; por cima de tudo, o ator na janela do "insert atrás" e a
-    pessoa recortada (máscara); os sons de apoio dos presets (`eventos_som`) somados à voz; codifica no chip de vídeo
-    (HEVC ou H.264)."""
+                  saida: Path, mascara: Path | None = None, eventos_som: list[dict] | None = None,
+                  transicoes: list[dict] | None = None, legenda: dict | None = None) -> list[str]:
+    """Uma passada só, montada por camadas na ordem do contrato (SPEC §13; cada área mexe só na sua função): o ator e o
+    áudio do bruto, decodificado pelo chip de vídeo (`_ator`); por cima, a camada dos inserts (`_inserts`); por cima
+    dela, o ator na janela do "insert atrás" e a pessoa recortada (a parte de cima de `_ator`); depois, sobre o quadro
+    montado, as transições e a legenda (`_pos_montagem`); o áudio (`_audio`). Codifica no chip de vídeo (HEVC ou H.264).
+    Entradas do ffmpeg, nesta ordem: o bruto, a máscara (se usada), os clipes dos inserts e os sons."""
     partes, topo = _ator(clipes, horizontal, enquadramento_x, w, h, fps, divisoes, duracao, mascara is not None)
     usa_mascara = any('[1:v]' in x for x in partes)
     base_idx = 2 if usa_mascara else 1
-    atual = 'base'
     entradas: list[str] = ['-i', str(mascara)] if usa_mascara else []
-    for k, (clipe, inicio) in enumerate(camadas):
-        entradas += ['-i', str(clipe)]
-        partes.append(f'[{k + base_idx}:v]setpts=PTS-STARTPTS+{inicio:.6f}/TB[c{k}]')
-        partes.append(f'[{atual}][c{k}]overlay=format=auto:eof_action=pass[o{k}]')
-        atual = f'o{k}'
-    partes.append(f'[{atual}]null[topo_in]')
-    entradas_som, mistura = sons.filtro_mistura(eventos_som or [], base_idx + len(camadas), 'ac', 'am')
-    entradas += entradas_som
-    partes += mistura
-    partes += topo
-    partes.append('[topo]format=yuv420p[v]')
+    ent_ins, f_ins = _inserts(camadas, base_idx, 'base', 'topo_in')
+    ent_som, f_som = _audio(eventos_som, base_idx + len(camadas), 'ac', 'am')
+    entradas += ent_ins + ent_som
+    partes += f_ins + f_som + topo + _pos_montagem(transicoes, legenda, 'topo', 'v')
     cv = ['-c:v', 'hevc_videotoolbox', '-q:v', '65', '-tag:v', 'hvc1'] if codec == 'hevc' else ['-c:v', 'h264_videotoolbox', '-q:v', '65']
     return ['ffmpeg', '-y', '-loglevel', 'error', '-progress', 'pipe:1', '-nostats', '-hwaccel', 'videotoolbox', '-i', str(bruto),
             *entradas, '-filter_complex', ';'.join(partes), '-map', '[v]', '-map', '[am]', *cv, '-pix_fmt', 'yuv420p',
@@ -229,14 +266,20 @@ def _rodar(id: str, e: dict) -> None:
         _andamento.pop(id, None)
 
 
-def _trechos(url: str) -> tuple[list[dict], list[dict]]:
-    """Os inserts com mídia e os sons de apoio (SPEC §8.6), no tempo do vídeo final, lidos da página de render."""
+def _trechos(url: str) -> dict:
+    """O que a página de render calcula no front (`window.__render`, SPEC §13), no tempo do vídeo final: os inserts com
+    mídia (`trechos`), os sons de apoio (`sons`, §8.6) e, quando as áreas existirem, as transições entre planos
+    (`transicoes`, §8.8) e os blocos da legenda (`legenda`, §8.10) — `None` enquanto a página não os tiver."""
     from playwright.sync_api import sync_playwright
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel='chromium')
         try:
             pg = render_quadros.abrir_render(browser, url)
-            return pg.evaluate('() => window.__render.trechos'), pg.evaluate('async () => window.__render.sons ? await window.__render.sons() : []')
+            return pg.evaluate("""async () => {
+                const r = window.__render
+                const ler = async (f) => (typeof f === 'function' ? await f() : f ?? null)
+                return { trechos: r.trechos, sons: r.sons ? await r.sons() : [], transicoes: await ler(r.transicoes), legenda: await ler(r.legenda) }
+            }""")
         finally:
             browser.close()
 
@@ -263,7 +306,8 @@ def _gravar(id: str, e: dict, saida: Path, vivo: dict) -> bool:
                 banco.arquivo_para_exportar(banco.ler_item(bid))
             except (FileNotFoundError, ValueError):
                 pass  # mídia apagada do banco: a página de render mostra o que houver
-        trechos, eventos_som = _trechos(url)
+        render = _trechos(url)
+        trechos, eventos_som = render['trechos'], render['sons']
         fator = sons.fator_do_projeto(id)  # os sons na mesma relação com a voz deste vídeo que nas referências
         eventos_som = [{**ev, 'ganho': float(ev.get('ganho', sons.INTENSIDADES['baixo'])) * fator} for ev in eventos_som]
         grupos = pedacos(trechos, fps, navegadores)
@@ -299,7 +343,7 @@ def _gravar(id: str, e: dict, saida: Path, vivo: dict) -> bool:
         mascara = recorte_ator.arquivos(id, fonte['id'])[0] if (p.get('recorte') or {}).get('estado') == 'pronto' else None
         cmd = comando_final(projeto.pasta(id) / fonte['arquivo'], clipes, horizontal, p.get('enquadramento', {}).get('x', 0.5),
                             w, h, fps, divisoes, camadas, e['codec'], duracao, saida, mascara if mascara and mascara.exists() else None,
-                            eventos_som)
+                            eventos_som, render.get('transicoes'), render.get('legenda'))
         with open(log, 'wb') as erros:
             ff = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=erros, text=True)
             for linha in ff.stdout:

@@ -1,4 +1,4 @@
-"""Rotas dos projetos: a configuração, criar, abrir e processar, o editor, a conversa com o agente, as transcrições e os arquivos."""
+"""Rotas dos projetos: a configuração, criar, abrir e processar, o editor, as transcrições e os arquivos."""
 import json
 import os
 import shutil
@@ -12,7 +12,6 @@ from . import (
     comum,
     cortes,
     midia,
-    mocks,
     motores,
     pipeline,
     projeto,
@@ -92,12 +91,19 @@ def criar(
     briefing_audio: Annotated[UploadFile | None, File()] = None,
     apoios: Annotated[list[UploadFile], File()] = [],
     motor: Annotated[str, Form()] = '',
+    formato: Annotated[str, Form()] = 'reels',
 ):
+    """A tela de criação manda nome, motor, formato e o vídeo (SPEC §6); o briefing e os vídeos de apoio ainda são aceitos
+    (clientes antigos), mas não vêm mais da tela."""
     nome = nome.strip()
     if not nome:
         raise HTTPException(422, 'Dê um nome ao projeto')
     if motor and motor not in projeto.MOTORES:
         raise HTTPException(422, 'Motor de transcrição desconhecido')
+    if formato not in projeto.FORMATOS:
+        raise HTTPException(422, 'Formato desconhecido')
+    if not projeto.FORMATOS[formato]:
+        raise HTTPException(422, 'Esse formato ainda não está disponível (em breve)')
     id = projeto.novo_id(nome)
     base = projeto.RAIZ / id
     try:
@@ -122,7 +128,7 @@ def criar(
             _guardar(briefing_audio, destino)
             briefing['audio'] = str(destino.relative_to(base))
 
-        novo = projeto.criar(id, nome, fontes, briefing, motor or None)
+        novo = projeto.criar(id, nome, fontes, briefing, motor or None, formato)
     except Exception as e:
         shutil.rmtree(base, ignore_errors=True)
         if isinstance(e, HTTPException):
@@ -147,33 +153,16 @@ def processar(id: str):
 
 @rotas.get('/api/projetos/{id}/editor')
 def editor(id: str):
-    """Transcrição e V1 reais (quando prontas); V2, V3 e LEG ainda simuladas."""
+    """A transcrição e a V1 (quando prontas). O resto (direção, inserts, motions…) vem das rotas de cada área."""
     p = _ler(id)
     if 'cortes' not in p:
-        return {'projeto': p, 'palavras': [], 'timeline': {'V1': [], 'V2': [], 'V3': [], 'LEG': []}, 'duvidas': []}
+        return {'projeto': p, 'palavras': [], 'timeline': {'V1': []}, 'duvidas': []}
     palavras = projeto.ler_palavras(id)
     for w, fica in zip(palavras, cortes.mantidas_por_indice(palavras, p['cortes']['mantidas'])):
         w['mantida'] = fica
     silencios = json.loads((projeto.pasta(id) / 'silencios.json').read_text())['silencios']
     return {'projeto': p, 'palavras': palavras, 'silencios': silencios, 'duvidas': p['cortes']['duvidas'],
-            'timeline': {'V1': p['timeline']['V1'], **mocks.trilhas(palavras, p)}}
-
-
-class Mensagem(BaseModel):
-    texto: str
-
-
-@rotas.post('/api/projetos/{id}/chat/{etapa}')
-def conversar(id: str, etapa: str, msg: Mensagem):
-    """Agente fictício: guarda a mensagem do criador e uma resposta pronta da etapa."""
-    _ler(id)
-    if etapa not in projeto.ETAPAS:
-        raise HTTPException(404, 'Etapa não existe')
-    if not msg.texto.strip():
-        raise HTTPException(422, 'Mensagem vazia')
-    novas = [mocks.mensagem('criador', msg.texto.strip()), mocks.responder(etapa)]
-    projeto.atualizar(id, lambda p: p['chats'][etapa].extend(novas))
-    return novas
+            'timeline': {'V1': p['timeline']['V1']}}
 
 
 @rotas.get('/api/projetos/{id}/transcricoes/{vid}')

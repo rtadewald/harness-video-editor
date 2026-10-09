@@ -65,5 +65,8 @@ tudo): por isso é um efeito "depois da montagem".
 ⏳ Uma transição que muda o próprio corte (por exemplo, sobrepor os dois planos por alguns quadros) pede quadros dos dois
 lados ao mesmo tempo; fica para depois, se as referências tiverem.
 
-💡 O nome "transições" hoje também é usado pelas **entradas e saídas dos inserts sem preset** (`transicoes.py`,
-`editor/transicoes.ts`); essas passam a se chamar **entradas** (`entradas.py`) para não confundir.
+💡 As **entradas e saídas dos inserts sem preset** (que antes também se chamavam "transições") passaram a se chamar
+**entradas** na F0 (out/2026; falta a aprovação de Rodrigo): `entradas.py`, `editor/entradas.ts`, rotas `/api/entradas…`
+e a chave `entradas` nas Configurações (a antiga `transicoes` passa para `entradas` quando o servidor sobe,
+`entradas.migrar`, antes de esta área gravar qualquer coisa ali). O nome `transicoes` fica só para as transições entre
+planos.

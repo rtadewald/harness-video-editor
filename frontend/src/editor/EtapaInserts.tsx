@@ -22,7 +22,7 @@ import { useMotionsDoProjeto } from '@/motions/useMotionsDoProjeto'
 import InsertNoLugar, { pedidosNoTempo, presetDe } from './InsertNoLugar'
 import LinhaInserts from './LinhaInserts'
 import { corteDe, enriquecimentoDe, entradaDe, saidaDe, type Qual } from './enriquecimento'
-import { duracaoEntrada, duracaoSaida, useTransicoes, type Lado } from './transicoes'
+import { duracaoEntrada, duracaoSaida, useEntradas, type Lado } from './entradas'
 import Preview from './Preview'
 import type { Sequencia } from './sequencia'
 import type { usePlayer } from './usePlayer'
@@ -280,16 +280,16 @@ export default function EtapaInserts(p: Props) {
     return () => window.removeEventListener('keydown', tecla)
   })
 
-  const trans = useTransicoes()
+  const entradas = useEntradas()
   const [presetAberto, setPresetAberto] = useState<string | null>(null)
   /** Toca a entrada (o começo) ou a saída (o fim) de uma mídia do insert selecionado, com uma folga. */
-  const verTransicao = (x: Pedido, lado: Lado, q: Qual) => {
+  const verEntrada = (x: Pedido, lado: Lado, q: Qual) => {
     const e = enriquecimentoDe(x)
     const dur = x.t.fim - x.t.inicio
     const corte = x.midias.length === 2 ? corteDe(e, dur) * dur : 0
     const ini = x.t.inicio + (q === 2 ? corte : 0)
     const fim = q === 1 && x.midias.length === 2 && e.entre === 'sequencia' ? x.t.inicio + corte : x.t.fim
-    const d = lado === 'entrada' ? duracaoEntrada(entradaDe(e, q), trans!, fim - ini) : duracaoSaida(saidaDe(e, q), trans!, fim - ini)
+    const d = lado === 'entrada' ? duracaoEntrada(entradaDe(e, q), entradas!, fim - ini) : duracaoSaida(saidaDe(e, q), entradas!, fim - ini)
     const [a, b] = lado === 'entrada' ? [ini, Math.min(ini + d + 0.6, fim)] : [Math.max(fim - d - 0.6, ini), fim]
     player.tocarTrecho(seq.saidaParaFonte(a), seq.saidaParaFonte(Math.max(b - 0.01, a)), { pular: true, loop: false })
   }
@@ -410,7 +410,7 @@ export default function EtapaInserts(p: Props) {
                 />
               ) : noCursor && (
                 <>
-                  <InsertNoLugar pedido={noCursor} banco={banco} tempo={tempo} tocando={player.tocando} fundo={ins?.fundo ?? 'gradiente'} trans={trans} />
+                  <InsertNoLugar pedido={noCursor} banco={banco} tempo={tempo} tocando={player.tocando} fundo={ins?.fundo ?? 'gradiente'} entradas={entradas} />
                   {divisao?.modo === 'atras' && <AtorRecortado fonte={player.ref} src={p.src} estilo={estiloDoAtor(divisao)} enquadramentoX={p.enquadramentoX} />}
                   {estiloPessoa && urlPessoa && <AtorRecortado fonte={player.ref} src={urlPessoa} estilo={estiloPessoa} enquadramentoX={p.enquadramentoX} />}
                   {noCursor.tipo === 'comentario_insert_ator' && (
@@ -492,8 +492,8 @@ export default function EtapaInserts(p: Props) {
                 banco={banco}
                 mudar={(campos) => void enriquecerInsert(projeto.id, sel.id, campos).then(setIns).catch(falhar)}
                 aplicarAoTipo={() => void enriquecerTipo(projeto.id, sel.id).then(setIns).catch(falhar)}
-                ver={(lado, q) => trans && verTransicao(sel, lado, q)}
-                trans={trans}
+                ver={(lado, q) => entradas && verEntrada(sel, lado, q)}
+                entradas={entradas}
                 presetAberto={presetAberto}
                 abrirPreset={(id) => {
                   setPresetAberto(id)
@@ -517,7 +517,7 @@ export default function EtapaInserts(p: Props) {
                 mudar={() => {}}
                 aplicarAoTipo={() => {}}
                 ver={() => {}}
-                trans={trans}
+                entradas={entradas}
               />
             ) : (
               <p className="text-[12.5px] leading-[1.7] text-fog">{planoSel ? 'Este plano não tem insert nem motion.' : 'Escolha um insert ou um motion na linha do tempo.'}</p>

@@ -14,6 +14,8 @@ scratch.log
 /motions/
 /presets/
 /sons/
+/transicoes/
+/trilhas/
 /.dev.env
 # na segunda cópia (git worktree) os dados são links para os da pasta principal
 /projetos
@@ -21,5 +23,8 @@ scratch.log
 /banco
 /motions
 /presets
+/sons
+/transicoes
+/trilhas
 /backend/.env
 /modelos/

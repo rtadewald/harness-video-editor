@@ -13,6 +13,7 @@ import { RenderChuva, RenderProjeto } from './paginas/Render'
 import Presets from './paginas/Presets'
 import PaginaMotions from './motions/PaginaMotions'
 import RenderPreset from './paginas/RenderPreset'
+import Transicoes from './paginas/Transicoes'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -27,6 +28,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/banco" element={<Banco />} />
         <Route path="/presets" element={<Presets />} />
         <Route path="/motions" element={<PaginaMotions />} />
+        <Route path="/transicoes" element={<Transicoes />} />
         <Route path="/render/chuva" element={<RenderChuva />} />
         <Route path="/render/p/:id" element={<RenderProjeto />} />
         <Route path="/render/preset" element={<RenderPreset />} />
