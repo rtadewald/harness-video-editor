@@ -188,8 +188,10 @@ def test_pausa_dentro_do_trecho_so_e_cortada_se_for_muito_longa():
     palavras = _palavras((0.0, 0.5), (3.0, 3.5))
     longa = [{'inicio': 0.6, 'fim': 2.9, 'dur': 2.3}]
     clipes = cortes.montar_clipes(palavras, [True, True], longa, 4.0)
-    assert [(c['inicio'], c['fim']) for c in clipes] == [(0.0, 1.0), (2.5, 3.6)]  # sobra 0,4 s de cada lado
-    curta = [{'inicio': 0.6, 'fim': 1.9, 'dur': 1.3}]  # 1,3 s: respiro que o criador quer manter
+    assert [(c['inicio'], c['fim']) for c in clipes] == [(0.0, 0.7), (2.8, 3.6)]  # as margens do corte de cada lado (0,1 s)
+    sem_margem = cortes.montar_clipes(palavras, [True, True], longa, 4.0, folga_inicio=0, folga_fim=0)
+    assert [(c['inicio'], c['fim']) for c in sem_margem] == [(0.0, 0.6), (2.9, 3.5)]  # colado nas palavras
+    curta = [{'inicio': 0.6, 'fim': 1.9, 'dur': 1.3}]  # 1,3 s: pausa que o criador quer manter
     assert len(cortes.montar_clipes([*palavras[:1], {'id': 'w00001', 'texto': 'p1', 'inicio': 2.0, 'fim': 2.5}], [True, True], curta, 4.0)) == 1
 
 
@@ -577,15 +579,12 @@ def test_config_das_margens_valida_e_atualiza_so_o_que_veio(cliente):
 
 def test_pausas_longas_vem_da_configuracao_e_zero_desliga(cliente):
     ps = cortes.parametros({})
-    assert (ps['pausa_max'], ps['respiro']) == (2.0, 0.8)
-    ps = cortes.parametros({'pausa_max_ms': 1200, 'respiro_ms': 500})
-    assert (ps['pausa_max'], ps['respiro']) == (1.2, 0.5)
+    assert ps['pausa_max'] == 2.0 and 'respiro' not in ps
+    assert cortes.parametros({'pausa_max_ms': 1200})['pausa_max'] == 1.2
     assert cortes.parametros({'pausa_max_ms': 0})['pausa_max'] == float('inf')  # 0 = nunca encurtar
 
-    c = cliente.put('/api/config', json={'pausa_max_ms': 1200, 'respiro_ms': 500}).json()
-    assert (c['pausa_max_ms'], c['respiro_ms']) == (1200, 500)
-    assert cliente.put('/api/config', json={'respiro_ms': 3000}).status_code == 422  # sobra mais do que a pausa
-    assert cliente.put('/api/config', json={'pausa_max_ms': 0, 'respiro_ms': 3000}).status_code == 200  # desligado: sem conflito
+    c = cliente.put('/api/config', json={'pausa_max_ms': 1200}).json()
+    assert c['pausa_max_ms'] == 1200 and 'respiro_ms' not in c
     assert cliente.put('/api/config', json={'pausa_max_ms': 99999}).status_code == 422
 
 
@@ -593,8 +592,8 @@ def test_pausa_de_1_4_s_so_e_cortada_se_o_limite_for_menor_que_ela():
     palavras = _palavras((0.0, 0.5), (2.0, 2.5))
     silencios = [{'inicio': 0.6, 'fim': 2.0, 'dur': 1.4}]
     assert len(cortes.montar_clipes(palavras, [True, True], silencios, 3.0, **cortes.parametros({'pausa_max_ms': 2000}))) == 1
-    cortado = cortes.montar_clipes(palavras, [True, True], silencios, 3.0, **cortes.parametros({'pausa_max_ms': 1000, 'respiro_ms': 400}))
-    assert len(cortado) == 2 and cortado[1]['inicio'] - cortado[0]['fim'] == pytest.approx(1.4 - 0.4)  # a parte cortada é a pausa menos o respiro
+    cortado = cortes.montar_clipes(palavras, [True, True], silencios, 3.0, **cortes.parametros({'pausa_max_ms': 1000, 'antes_do_corte_ms': 100, 'depois_do_corte_ms': 300}))
+    assert len(cortado) == 2 and cortado[1]['inicio'] - cortado[0]['fim'] == pytest.approx(1.4 - 0.1 - 0.3)  # a pausa menos as margens
     assert len(cortes.montar_clipes(palavras, [True, True], silencios, 3.0, **cortes.parametros({'pausa_max_ms': 0}))) == 1
 
 

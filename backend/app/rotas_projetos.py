@@ -29,7 +29,6 @@ class Config(BaseModel):
     antes_do_corte_ms: int | None = Field(default=None, ge=0, le=1000)
     depois_do_corte_ms: int | None = Field(default=None, ge=0, le=1000)
     pausa_max_ms: int | None = Field(default=None, ge=0, le=30000)  # 0 = nunca encurtar pausas
-    respiro_ms: int | None = Field(default=None, ge=0, le=5000)
     modelo_direcao: str | None = Field(default=None, min_length=3, max_length=120)
     quadros_por_segundo: int | None = Field(default=None, ge=1, le=4)
     formato_analise: Literal['video', 'mosaico'] | None = None
@@ -73,8 +72,6 @@ def salvar_config(c: Config):
         raise HTTPException(422, 'Motor de transcrição desconhecido')
     mudancas = {k: v for k, v in c.model_dump().items() if v is not None}
     nova = {**projeto.ler_config(), **mudancas}
-    if nova['pausa_max_ms'] and nova['respiro_ms'] > nova['pausa_max_ms']:
-        raise HTTPException(422, 'O que sobra de uma pausa cortada não pode ser maior que a pausa a partir da qual se corta.')
     projeto.salvar_config(nova)
     return _config_completa()
 

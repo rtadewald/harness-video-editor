@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
-type CampoNumerico = 'antes_do_corte_ms' | 'depois_do_corte_ms' | 'pausa_max_ms' | 'respiro_ms'
+type CampoNumerico = 'antes_do_corte_ms' | 'depois_do_corte_ms' | 'pausa_max_ms'
 
 /** O que cada aba recebe: a configuração atual e como salvar. Tudo é salvo na hora, como padrão do app. */
 type Contexto = {
@@ -171,7 +171,7 @@ function AbaCortes({ config, escolherMotor, salvarNumero }: Contexto) {
 
       <Grupo
         titulo="Pausas longas"
-        texto="Uma pausa no meio de um trecho que você manteria só é cortada se for mais longa que o limite abaixo, e então sobra o “respiro”. Pausas menores ficam como foram faladas. O detector só enxerga silêncios de pelo menos 0,3 s."
+        texto="Uma pausa no meio de um trecho que você manteria só é cortada se for mais longa que o limite abaixo, e o corte deixa as mesmas margens de antes e depois dos outros cortes. Pausas menores ficam como foram faladas. O detector só enxerga silêncios de pelo menos 0,3 s."
       >
         <div className="grid grid-cols-2 gap-3">
           <CampoNumero
@@ -183,16 +183,6 @@ function AbaCortes({ config, escolherMotor, salvarNumero }: Contexto) {
             maximo={30}
             valor={config?.pausa_max_ms}
             aoSalvar={(v) => salvarNumero('pausa_max_ms', v, 1000)}
-          />
-          <CampoNumero
-            rotulo="Deixar de pausa"
-            dica="O que sobra de uma pausa cortada"
-            unidade="s"
-            escala={1000}
-            passo={0.1}
-            maximo={5}
-            valor={config?.respiro_ms}
-            aoSalvar={(v) => salvarNumero('respiro_ms', v, 1000)}
           />
         </div>
       </Grupo>

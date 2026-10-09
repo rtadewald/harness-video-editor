@@ -194,9 +194,8 @@ export type Config = {
   /** Ar que fica depois da última palavra de um trecho (= antes do corte) e antes da primeira do seguinte (= depois do corte). */
   antes_do_corte_ms: number
   depois_do_corte_ms: number
-  /** Pausas dentro de um trecho que passam disso são encurtadas para `respiro_ms` (0 = nunca encurtar). */
+  /** Pausas dentro de um trecho que passam disso são cortadas, com as margens acima (0 = nunca cortar). */
   pausa_max_ms: number
-  respiro_ms: number
   /** Direção visual: modelo multimodal (OpenRouter) que analisa as referências e quadros por segundo de cada trecho. */
   modelo_direcao: string
   quadros_por_segundo: number
