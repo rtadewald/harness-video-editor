@@ -399,7 +399,7 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
               disabled={rodando || !dados.palavras.length}
               title={
                 dados.palavras.length
-                  ? 'Pede à IA uma nova seleção do texto final (não retranscreve). Mantém as palavras que você ligou ou desligou à mão.'
+                  ? 'Pede à IA uma nova seleção do texto final (não retranscreve). Substitui a seleção inteira: os ajustes feitos à mão se perdem.'
                   : 'Sem transcrição ainda: os cortes saem dela.'
               }
               className="ml-2 flex h-8 items-center gap-2 rounded-full border border-yellow/70 bg-yellow/10 px-3.5 text-[11px] font-semibold whitespace-nowrap text-yellow transition-colors hover:bg-yellow hover:text-ink disabled:opacity-60"
