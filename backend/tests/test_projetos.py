@@ -1697,3 +1697,14 @@ def test_pausa_partida_pelo_detector_ainda_corta_como_dois_trechos():
     assert [(c['inicio'], c['fim']) for c in clipes] == [(11.46, 11.922), (13.991, 14.5)]
     # com o limite acima do vão, fica um trecho só
     assert len(cortes.montar_clipes(palavras, [True, True], silencios, 16.0, pausa_max=3.0, folga_inicio=0, folga_fim=0)) == 1
+
+
+def test_apagar_projeto_vai_para_a_lixeira(cliente, video):
+    pid = _criar(cliente, video)['id']
+    assert cliente.delete(f'/api/projetos/{pid}').json() == {'ok': True}
+    assert pid not in [p['id'] for p in cliente.get('/api/projetos').json()]
+    assert cliente.get(f'/api/projetos/{pid}').status_code == 404
+    lixo = list((projeto.RAIZ / projeto.LIXEIRA).glob(f'{pid}-*/projeto.json'))
+    assert len(lixo) == 1  # a pasta inteira, recuperável
+    assert cliente.delete(f'/api/projetos/{pid}').status_code == 404
+    assert cliente.delete('/api/projetos/..%2F_config.json').status_code in (404, 422)

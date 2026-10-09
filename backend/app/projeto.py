@@ -298,6 +298,18 @@ def etapas_no_resumo(p: dict) -> dict:
     return etapas
 
 
+LIXEIRA = '_lixeira'  # os projetos apagados (fora da lista; dá para recuperar movendo a pasta de volta)
+
+
+def apagar(id: str) -> Path:
+    """Apaga um projeto da lista: a pasta vai para `projetos/_lixeira/<id>-<data>`, não some do disco."""
+    origem = pasta(id)
+    destino = RAIZ / LIXEIRA / f"{id}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    destino.parent.mkdir(exist_ok=True)
+    origem.rename(destino)
+    return destino
+
+
 def listar() -> list[dict]:
     if not RAIZ.exists():
         return []
