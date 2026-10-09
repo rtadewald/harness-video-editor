@@ -141,9 +141,9 @@ export function receitaParaInsert(r: Receita, d: Divisao | null, aspectos: numbe
 /** Um card desenhado maior que a área que DESLIZA na horizontal (o "Cresce e desliza": cresce preso por um lado,
  *  transbordando pelo outro, e desliza revelando o resto): o transbordo é o efeito, então o card não encolhe para caber
  *  — fica com a largura do desenho (só limitado pela altura, numa mídia alta), preso pela borda do desenho, a entrada
- *  cresce a partir dela e o deslize termina com a outra borda do card ainda um pouco além da área (`TRANSBORDO_NO_FIM`),
- *  qualquer que seja a proporção da mídia. `null`: não é esse caso. */
-const TRANSBORDO_NO_FIM = 16 // % da área
+ *  cresce a partir dela e o deslize anda `DESLIZE` (o da referência) sem passar do que transborda, qualquer que seja a
+ *  proporção da mídia. `null`: não é esse caso. */
+const DESLIZE = 23 // % da área
 function deslizeTransbordando(c: CardReceita, a: number, areaAsp: number, atras: boolean): CardReceita | null {
   const dx = c.saida?.para.dx ?? 0
   if (atras || c.repouso.w <= 100 || Math.abs(dx) < 5 || (c.saida?.para.escala ?? 1) > 1.05) return null
@@ -159,9 +159,10 @@ function deslizeTransbordando(c: CardReceita, a: number, areaAsp: number, atras:
   const esq = dx < 0
   const borda = esq ? c.repouso.cx - c.repouso.w / 2 : c.repouso.cx + c.repouso.w / 2
   const cx = esq ? borda + w / 2 : borda - w / 2
-  // o deslize termina com a outra borda ainda 16% além da área, como na referência (medido no Cresce e desliza: o card
-  // anda ~23% da tela e a borda direita fica a ~116%) — nunca abre margem do lado que estava transbordando
-  const deslize = esq ? Math.min(100 + TRANSBORDO_NO_FIM - (cx + w / 2), 0) : Math.max(-TRANSBORDO_NO_FIM - (cx - w / 2), 0)
+  // o deslize anda o que a referência anda (medido no Cresce e desliza: ~23% da tela, devagar e reto até o corte), sem
+  // passar do que transborda: nunca abre margem do lado que estava para fora
+  const sobra = esq ? cx + w / 2 - 100 : -(cx - w / 2)
+  const deslize = (esq ? -1 : 1) * Math.max(Math.min(DESLIZE, sobra), 0)
   const e = c.entrada
   // a entrada que cresce: começa no mesmo lado preso (o centro desloca metade do que falta crescer)
   const entrada = e && e.de.escala < 0.98 ? { ...e, de: { ...e.de, dx: ((esq ? -1 : 1) * (w / 2) * (1 - e.de.escala)) } } : e

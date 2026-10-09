@@ -102,7 +102,8 @@ Legenda de status: ✅ aprovado por Rodrigo · 💡 proposta técnica · ⏳ em 
 💡 **Card que transborda e desliza** (ajuste pedido por Rodrigo, out/2026, no "Cresce e desliza"): um card desenhado
 maior que a área que desliza na horizontal não encolhe para caber a mídia (o transbordo é o efeito): fica com a largura
 do desenho (só limitado pela altura numa mídia alta), preso pela borda do desenho, a entrada cresce a partir dela, e o
-deslize termina com a outra borda ainda 16% além da área — medido na referência (52-processo-ds, 21,96 s: o card cresce
-até ~140% da largura, preso à esquerda, e anda ~23% da tela até o corte). Antes, ele era limitado a 96% da largura: o
+deslize anda os ~23% da tela da referência (52-processo-ds, 21,96 s: o card cresce até ~140% da largura, preso à
+esquerda, e anda ~23% devagar até o corte), sem passar do que transborda. Na receita (dado de Rodrigo, a pedido dele):
+o deslize **linear** (o zoom de entrada continua com a curva que freia) e sem o som do deslize. Antes, ele era limitado a 96% da largura: o
 zoom ficava bem menor que o da referência e o deslize abria uma margem à direita. Um card maior que a área que não
 desliza (o Corte seco) continua encolhendo para caber, no meio do pedaço que aparecia.
