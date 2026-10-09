@@ -7,10 +7,11 @@ Legenda de status: ✅ aprovado por Rodrigo · 💡 proposta técnica · ⏳ em 
 
 ## O que é uma transição
 
-✅ Um **tipo de transição é o par exato de categorias** (decisão de Rodrigo, out/2026): a categoria do plano que sai e a
-do que entra — por exemplo Full ator → Tela dividida, Insert tela cheia → Full ator. Um par que nunca apareceu nas
-referências usa o padrão da família (ator → insert, insert → ator, insert → insert, → motion, motion →) e, na falta,
-o corte seco.
+✅ Um **tipo de transição é o par de grupos** (decisão de Rodrigo, out/2026, no lugar do par exato de categorias): o
+grupo do plano que sai e o do que entra. São 3 grupos: **Full ator** (Full ator, com lettering, com zoom), **Tela
+dividida** (com insert ou motion, e o comentário + insert + ator) e **Tela cheia** (insert ou motion) — 9 pares, cada um
+com a sua ordem (`familia:ator>dividida` em `ordem.json`). Sem ordem no grupo vale a do par exato antiga, se houver; na
+falta, o corte seco.
 
 💡 Nas 13 referências há **333 cortes entre planos em 30 pares**. Os mais comuns: Tela dividida ↔ Full ator (41 + 41),
 Tela dividida ↔ Insert tela cheia (34 + 32), Insert tela cheia ↔ Full ator (30 + 24), Tela dividida → Tela dividida
@@ -101,8 +102,8 @@ efeitos visuais de verdade são três, conferidos quadro a quadro:
 
 💡 **A biblioteca** (`ferramentas/transicoes_semear.py`): Corte seco · Corte com clique · Corte com câmera · Subida até o
 corte · Luz colorida · Zoom com desfoque · Brilho branco. As favoritas: a 1ª é a mais comum no par (quase sempre o corte
-seco) e a 2ª, a mais comum com efeito ou som; sem nenhuma no par, a reserva da família de destino (ator: Subida até o
-corte; insert: Corte com câmera; motion: Corte com clique). Cada corte das referências conta para a transição com efeito
+seco) e a 2ª, a mais comum com efeito ou som; sem nenhuma no par, a reserva do grupo de destino (Full ator: Subida até o
+corte; Tela cheia: Corte com câmera; Tela dividida: Corte com clique). Cada corte das referências conta para a transição com efeito
 de que ele é fonte (a referência e o instante, com 0,2 s de tolerância: o corte medido quadro a quadro cai alguns
 quadros antes do da análise — o brilho em 4,43 s, o corte em 4,54 s), senão para a do som achado nele, senão para o
 corte seco. 💡 O mesmo vale para as **fontes** (o corte que a página mostra como referência): um corte que é fonte de
@@ -141,16 +142,17 @@ brilho); no vídeo de teste (1:01,7 em 4K), brilho + zoom + luz somam ~4,5% de C
 render manda os cortes com efeito em `__render.transicoes` e os sons em `__render.sons`.
 
 💡 **A regra do padrão do par** é uma só, a do front (`padraoDoPar`, que decide o vídeo e a exportação):
-`transicoes.padrao_do_par` (back) é a mesma — a ordem do par, ou a da família se o par não tiver a sua; a 1ª favorita
-dela; um par com ordem própria e nenhuma favorita fica **seco** (não cai na família), e sem nada também
-(`corte-seco`).
+`transicoes.padrao_do_par` (back) é a mesma — a ordem do grupo (senão a do par exato antiga); a 1ª favorita dela; uma
+ordem sem favorita fica **seca**, e sem nada também (`corte-seco`).
 
-💡 **A página Transições**: à esquerda os pares (os das referências pelo nº de cortes, depois as famílias); à direita, as
+💡 **A página Transições**: à esquerda "Todas as transições" e os grupos de origem (Full ator, Tela dividida, Tela cheia),
+cada um abrindo para os destinos com o nº de cortes nas referências (os pares de categorias somados) e o padrão; à direita, as
 favoritas do par (a ★ liga/desliga; a 1ª é o "padrão do par", e "Tornar o padrão do par" a sobe) e as outras, cada uma
 com **a referência e a recriação lado a lado** no mesmo relógio (a recriação usa o quadro de antes e o de depois do
 efeito da própria referência, com o efeito e o som do motor), o som (qual e a intensidade), aprovar e "Som da referência
-/ da recriação"; embaixo, os cortes do par nas referências, cada um tocando com o som. Um par que ainda segue a ordem da
-família ganha a sua ao mudar uma favorita.
+/ da recriação"; embaixo, os cortes do par nas referências, cada um tocando com o som. O modal da transição (clicar no
+nome ou na engrenagem) toca a referência e a recriação cada uma sozinha, com o próprio som, e mostra os cortes das
+referências onde ela aparece.
 
 💡 **A etapa Transições** segue o arranjo da etapa Inserts (pedido de Rodrigo, out/2026): à esquerda o corte selecionado
 (as favoritas do par, as outras, ▶ Ver o corte, voltar à favorita), no meio a prévia, e embaixo a **linha do tempo**

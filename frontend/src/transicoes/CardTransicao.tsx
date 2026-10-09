@@ -6,7 +6,7 @@ import { CATEGORIAS } from '@/editor/EtapaDirecao'
 import { NOME_INTENSIDADE, eventoNoTempo, useCatalogoSons, type Intensidade } from '@/editor/sons'
 import { cn } from '@/lib/utils'
 import EfeitoNoPalco from './EfeitoNoPalco'
-import { LUZ, editarTransicao, useBiblioteca, type Biblioteca, type CorteDoVideo, type Transicao } from './transicoes'
+import { LUZ, editarTransicao, nomeGrupoPar, useBiblioteca, type Biblioteca, type CorteDoVideo, type Transicao } from './transicoes'
 
 const DEPOIS = 1.5 // quanto o trecho mostra depois do corte
 const quadro = (ref: string, t: number) => `/api/presets/quadro/${encodeURIComponent(ref)}?t=${Math.max(t, 0).toFixed(2)}`
@@ -21,6 +21,8 @@ function Miniatura(p: {
   tocar: (sim: boolean) => void
   som: 'referencia' | 'recriacao'
   favorita?: { ligada: boolean; primeira: boolean }
+  /** no modal: cada lado toca sozinho, com o próprio som (clicar no lado que está tocando para) */
+  porLado?: (lado: 'referencia' | 'recriacao') => void
 }) {
   const { t, fonte } = p
   const cat = useCatalogoSons()
@@ -68,13 +70,13 @@ function Miniatura(p: {
       <div
         role="button"
         tabIndex={0}
-        onClick={() => p.tocar(!p.tocando)}
-        onKeyDown={(k) => (k.key === 'Enter' || k.key === ' ') && (k.preventDefault(), p.tocar(!p.tocando))}
+        onClick={() => !p.porLado && p.tocar(!p.tocando)}
+        onKeyDown={(k) => !p.porLado && (k.key === 'Enter' || k.key === ' ') && (k.preventDefault(), p.tocar(!p.tocando))}
         className={cn(
           'group relative grid w-full cursor-pointer grid-cols-2 gap-px overflow-hidden rounded-[6px] bg-line-dark ring-1 transition-[box-shadow] [contain:paint] hover:ring-2 hover:ring-coral',
           p.favorita?.ligada ? 'ring-yellow/50' : 'ring-line-dark',
         )}
-        title={p.tocando ? 'Parar' : 'Tocar em loop (a referência e a recriação juntas)'}
+        title={p.porLado ? undefined : p.tocando ? 'Parar' : 'Tocar em loop (a referência e a recriação juntas)'}
       >
         <div className="relative aspect-[9/16] overflow-hidden bg-black">
           {fonte ? (
@@ -105,9 +107,28 @@ function Miniatura(p: {
         {p.favorita?.primeira && (
           <span className="absolute top-2.5 right-2.5 rounded-full bg-yellow px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-ink uppercase">Padrão do par</span>
         )}
+        {p.porLado ? (
+          (['referencia', 'recriacao'] as const).map((lado, i) => {
+            const este = p.tocando && p.som === lado
+            return (
+              <button
+                key={lado}
+                onClick={(ev) => (ev.stopPropagation(), p.porLado!(lado))}
+                className={cn('group/lado absolute inset-y-0 grid w-1/2 place-items-center', i ? 'right-0' : 'left-0')}
+                title={este ? 'Parar' : `Tocar com o som da ${lado === 'referencia' ? 'referência' : 'recriação'}`}
+              >
+                <span className={cn('grid size-11 place-items-center rounded-full text-cream transition-opacity', este ? 'bg-coral opacity-0 group-hover/lado:opacity-100' : 'bg-ink/80 opacity-90')}>
+                  {este ? <Pause className="size-4" /> : <Play className="size-4 translate-x-px fill-current" />}
+                </span>
+                {este && <Volume2 className="absolute right-2.5 bottom-2.5 size-3.5 text-coral" />}
+              </button>
+            )
+          })
+        ) : (
         <span className={cn('absolute top-1/2 left-1/2 grid size-11 -translate-1/2 place-items-center rounded-full bg-ink/80 text-cream transition-opacity', p.tocando ? 'opacity-0 group-hover:opacity-100' : 'opacity-90')}>
           {p.tocando ? <Pause className="size-4" /> : <Play className="size-4 translate-x-px fill-current" />}
         </span>
+        )}
         {p.tocando && (
           <div className="absolute inset-x-0 bottom-0 h-1 bg-black/40">
             <div className="h-full bg-coral" style={{ width: `${(rel / fim) * 100}%` }} />
@@ -181,11 +202,7 @@ export default function CardTransicao(p: {
 }
 
 type Uso = { ref: string; t: number; par?: string }
-const nomeCat = (c: string) => CATEGORIAS.planos[c] ?? c
-const nomePar = (k: string) => {
-  const [de, para] = k.replace(/^familia:/, '').split('>')
-  return `${nomeCat(de)} → ${nomeCat(para)}`
-}
+const nomePar = (k: string) => (k.startsWith('familia:') ? nomeGrupoPar(k) : k.split('>').map((c) => CATEGORIAS.planos[c] ?? c).join(' → '))
 /** Os cortes das referências onde a transição aparece: os de onde ela foi recriada e, nas de som, os cortes em que esse
  *  som cai (no corte seco, os secos sem som), com o par de cada um. */
 function usosDe(b: Biblioteca, t: Transicao): Uso[] {
@@ -209,6 +226,11 @@ function DetalheTransicao(p: { t: Transicao; fonte: { ref: string; t: number } |
   const [tocando, setTocando] = useState(false)
   const [som, setSom] = useState<'referencia' | 'recriacao'>('recriacao')
   const t = b?.transicoes.find((x) => x.id === p.t.id) ?? p.t
+  const tocarLado = (lado: 'referencia' | 'recriacao') => {
+    if (tocando && som === lado) return setTocando(false)
+    setSom(lado)
+    setTocando(true)
+  }
   const usos = useMemo(() => (b ? usosDe(b, t) : []), [b, t])
   const favoritaEm = b ? Object.entries(b.ordem).filter(([, o]) => o.ids.slice(0, o.favoritas).includes(t.id)).map(([k]) => k) : []
   const e = t.efeito
@@ -217,22 +239,11 @@ function DetalheTransicao(p: { t: Transicao; fonte: { ref: string; t: number } |
     <Modal titulo={t.nome} fechar={p.fechar} tamanho="largo">
       <div className="flex min-h-0 flex-1 gap-8">
         <div className="grid w-[420px] shrink-0 content-start gap-3">
-          <Miniatura t={t} fonte={fonte} tocando={tocando} tocar={setTocando} som={som} />
-          <div className="flex items-center gap-1 text-[11.5px]">
-            <Volume2 className="mr-1 size-3.5 text-fog" />
-            {(['referencia', 'recriacao'] as const).map((x) => (
-              <button
-                key={x}
-                onClick={() => setSom(x)}
-                className={cn('h-7 rounded-full border px-3 font-semibold', som === x ? 'border-cream bg-cream text-ink' : 'border-line-dark text-fog hover:text-cream')}
-              >
-                Som da {x === 'referencia' ? 'referência' : 'recriação'}
-              </button>
-            ))}
-          </div>
+          <Miniatura t={t} fonte={fonte} tocando={tocando} tocar={setTocando} som={som} porLado={tocarLado} />
+          <p className="text-[11.5px] text-fog">Toque a referência ou a recriação: cada uma com o próprio som.</p>
           <p className="text-[12px] leading-[1.6] text-fog">{t.descricao}</p>
         </div>
-        <div className="grid min-h-0 min-w-0 flex-1 content-start gap-6 overflow-y-auto pr-1">
+        <div className="-ml-1 grid min-h-0 min-w-0 flex-1 content-start gap-6 overflow-y-auto py-1 pr-1 pl-1">
           <section className="grid gap-2">
             <p className="eyebrow text-sage">Som</p>
             <Som t={t} />
@@ -256,7 +267,6 @@ function DetalheTransicao(p: { t: Transicao; fonte: { ref: string; t: number } |
               <div className="flex flex-wrap gap-1.5">
                 {favoritaEm.map((k) => (
                   <span key={k} className="rounded-full px-2.5 py-1 text-[11px] text-cream ring-1 ring-line-dark">
-                    {k.startsWith('familia:') ? 'Família ' : ''}
                     {nomePar(k)}
                   </span>
                 ))}
@@ -266,7 +276,7 @@ function DetalheTransicao(p: { t: Transicao; fonte: { ref: string; t: number } |
           <section className="grid gap-2">
             <p className="eyebrow text-sage">Onde aparece nas referências · {usos.length}</p>
             {!usos.length && <p className="text-[12px] text-fog">Nenhum corte das referências ligado a esta transição.</p>}
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2">
+            <div className="grid grid-cols-4 gap-3">
               {usos.map((u) => {
                 const atual = fonte && fonte.ref === u.ref && Math.abs(fonte.t - u.t) < 0.05
                 return (
@@ -274,14 +284,15 @@ function DetalheTransicao(p: { t: Transicao; fonte: { ref: string; t: number } |
                     key={`${u.ref}@${u.t}`}
                     onClick={() => {
                       setFonte({ ref: u.ref, t: u.t })
+                      setSom('referencia')
                       setTocando(true)
                     }}
-                    className={cn('grid gap-1 rounded-[6px] p-1.5 text-left ring-1', atual ? 'bg-cream/10 ring-cream/50' : 'ring-line-dark hover:bg-cream/[0.05]')}
+                    className={cn('grid content-start overflow-hidden rounded-[6px] text-left ring-1', atual ? 'bg-cream/10 ring-2 ring-coral' : 'ring-line-dark hover:bg-cream/[0.05] hover:ring-cream/40')}
                     title="Ver este corte na prévia"
                   >
-                    <img src={quadro(u.ref, u.t - 0.3)} alt="" loading="lazy" className="aspect-[9/16] w-full rounded-[4px] bg-black object-cover" />
-                    <span className="truncate text-[11px] font-semibold">{u.ref}</span>
-                    <span className="truncate text-[10.5px] text-fog">
+                    <img src={quadro(u.ref, u.t - 0.3)} alt="" loading="lazy" className="aspect-[9/16] w-full bg-black object-cover" />
+                    <span className="truncate px-2 pt-2 text-[11px] font-semibold">{u.ref}</span>
+                    <span className="truncate px-2 pt-0.5 pb-2 text-[10.5px] text-fog">
                       {formatarTempo(u.t)}
                       {u.par ? ` · ${nomePar(u.par)}` : ''}
                     </span>
