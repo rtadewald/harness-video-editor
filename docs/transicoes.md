@@ -157,7 +157,7 @@ referências onde ela aparece.
 💡 **A etapa Transições** segue o arranjo da etapa Inserts (pedido de Rodrigo, out/2026): à esquerda o corte selecionado
 — **sempre o próximo a partir do cursor** (parado enquanto o vídeo toca; clicar num corte leva o cursor até ele) — com
 as favoritas do par e as outras, cada uma com a **demonstração**, 3 por linha numa coluna larga (820 px, arrastável; a referência e a recriação lado a lado, como na
-página Transições; o nome embaixo escolhe), ▶ Ver o corte (atalho **R**) e voltar à favorita; no meio a prévia, e embaixo a **linha do tempo**
+página Transições; o nome embaixo escolhe), ▶ Ver o corte (atalho **R**) e voltar à favorita; à direita do vídeo, o card **Todos os cortes** (pedido de Rodrigo, out/2026; `sortearTransicoes`): **Variar favoritas** (cada corte com uma das 2 favoritas do par, meio a meio), **Sortear todas** (50% uma favorita sorteada entre elas, 50% uma das outras sorteada entre elas; sem favorita, uma das outras) e **Voltar às favoritas** (tira as escolhas à mão); cada clique sorteia de novo e grava tudo num PUT só (a 1ª favorita sorteada fica como padrão do par, não à mão); no meio a prévia, e embaixo a **linha do tempo**
 (`editor/LinhaBase.tsx`, a mesma base da dos Inserts) com as trilhas **Planos**, **Transições** (a janela do efeito em
 volta de cada corte; o ponto vermelho marca a escolhida à mão) e **Sons**. ▶ Ver o corte toca de 1,5 s antes a 1,5 s
 depois e para, pelo mesmo trecho do player da etapa Inserts (`tocarTrecho`; pausar o esquece). 💡 Rodada 2 da QA: um
