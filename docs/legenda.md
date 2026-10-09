@@ -41,7 +41,7 @@ por cima de tudo, no fim da montagem (SPEC §13) — rápido e nítido em 4K, se
 ## Como ficou (P4, out/2026)
 
 💡 **O que as referências mostraram** (`ferramentas/legenda_analisar.py`; o OCR do macOS — Vision, pelo `ocrmac`, num
-ambiente à parte — em 4 quadros/s, guardado em `referencias/_legenda_ocr/`; o resumo em `referencias/_legenda.json`):
+ambiente à parte — em 4 quadros/s, guardado em `dados/referencias/_legenda_ocr/`; o resumo em `dados/referencias/_legenda.json`):
 2.777 quadros com legenda em 10 referências. O texto lido só conta como legenda quando bate com as palavras faladas
 naquele instante (±1,2 s): o que é de um insert ou de um motion sai.
 - **Uma palavra por vez** é o estilo da casa: 53% dos quadros mostram 1 palavra e 7 das 10 referências têm mediana 1;
@@ -56,7 +56,7 @@ naquele instante (±1,2 s): o que é de um insert ou de um motion sai.
 - **Tamanho**: 56 px num quadro 1080×1920 (2,92% da altura), calibrado pelo mesmo OCR: a palavra "vulnerabilidades" lida
   na referência e desenhada no Chrome dão a mesma altura (0,0247) e quase a mesma largura (0,382 × 0,388).
 - **Tempo** (`ferramentas/legenda_ritmo.py`, sobre os mesmos quadros e a transcrição de cada referência — o mesmo
-  ElevenLabs dos projetos; resultado em `referencias/_legenda_ritmo.json`; 4 quadros/s, então ±0,125 s por instante e
+  ElevenLabs dos projetos; resultado em `dados/referencias/_legenda_ritmo.json`; 4 quadros/s, então ±0,125 s por instante e
   valem as medianas): o bloco **entra 0,17 s antes** da 1ª palavra (mediana de 1.470 blocos; de 0,15 a 0,21 s nas 10
   referências) e **sai ~0,1 s antes do fim** da última; numa pausa de 0,3 s ou mais, a legenda some antes da próxima
   palavra (8 de 10 pausas — as referências são cortadas justas, pausas assim quase não há).

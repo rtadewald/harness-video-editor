@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import comum, projeto
 
-RAIZ = Path(__file__).resolve().parents[2] / 'sons' / 'biblioteca'
+RAIZ = comum.DADOS / 'sons' / 'biblioteca'
 # o ganho de cada intensidade sobre o som normalizado (pico de energia a -18 dBFS), para uma voz no nível das
 # referências (`VOZ_REF`): Baixo fica ~16 dB e Médio ~10 dB abaixo da voz (medido nas referências: os sons de apoio
 # do time ficam de 14 a 20 dB abaixo dela). Num vídeo com a voz mais baixa, tudo desce junto (`fator_da_voz`).

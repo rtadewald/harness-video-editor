@@ -5,26 +5,10 @@ __pycache__/
 .pytest_cache/
 node_modules/
 dist/
-projetos/
 _legado/
 frontend/otto-cinematic-9-design-system/
 scratch.log
-/referencias/
-/banco/
-/motions/
-/presets/
-/sons/
-/transicoes/
-/trilhas/
 /.dev.env
-# na segunda cópia (git worktree) os dados são links para os da pasta principal
-/projetos
-/referencias
-/banco
-/motions
-/presets
-/sons
-/transicoes
-/trilhas
+# os dados do app (na segunda cópia, git worktree, um link para os da pasta principal)
+/dados
 /backend/.env
-/modelos/

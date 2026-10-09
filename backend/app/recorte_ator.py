@@ -10,9 +10,9 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import projeto
+from . import comum, projeto
 
-MODELO = Path(__file__).resolve().parents[2] / 'modelos' / 'selfie_segmenter.tflite'
+MODELO = comum.DADOS / 'modelos' / 'selfie_segmenter.tflite'
 _fila = ThreadPoolExecutor(max_workers=1)
 _trava = threading.Lock()
 

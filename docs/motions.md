@@ -113,7 +113,7 @@ valores, fundo}`, `PATCH …/motions/{plano} {valores, fundo}`, `DELETE …/moti
 
 💡 **Histórico:** a 1ª versão (out/2026) tinha a IA escrevendo cada motion (Opus via OpenRouter, ficha de identidade,
 referências da Calibragem, conferência por quadros, biblioteca com versões em `motions/`). Saiu com a decisão acima; a
-pasta `motions/` ficou no disco, sem uso.
+pasta ficou guardada em `_legado/motions-antigo/`, sem uso.
 
 ⏳ Em aberto: o card de Enriquecimento à direita ainda mostra, num motion, as grades "só para ver" (o motion entra e sai
 seco); fundos novos próprios dos motions (ex.: o céu da referência do Claude Code); mais presets conforme Rodrigo pedir;

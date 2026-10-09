@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 RAIZ = Path(__file__).resolve().parents[1]
-BRUTOS = RAIZ / 'sons'
+BRUTOS = RAIZ / 'dados' / 'sons'
 SAIDA = BRUTOS / 'biblioteca'
 TAXA = 48000
 MAX_S = 8.0  # risers e ambientes longos: o começo basta (o resto vira fade)

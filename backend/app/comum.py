@@ -11,6 +11,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 ENV = Path(__file__).resolve().parents[1] / '.env'
+# os dados do app (fora do git): projetos, referências, banco, presets, sons, trilhas, transições e os modelos de visão
+DADOS = Path(__file__).resolve().parents[2] / 'dados'
 # o front (Vite), que serve as páginas de render da exportação e dos motions
 FRONT = os.environ.get('HARNESS_FRONT', 'http://localhost:5173')
 FIM_DE_FRASE = ('.', '?', '!', '…')

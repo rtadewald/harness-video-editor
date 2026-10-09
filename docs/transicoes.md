@@ -41,7 +41,7 @@ deslocamento) e quais sons. Com isso o Claude escreve cada transição.
   `seco · luz · brilho · zoom` (`transicoes.TIPOS`).*
 - **Som:** um som da biblioteca, com intensidade e onde o golpe cai em relação ao corte.
 
-💡 Uma transição é um JSON em `transicoes/<id>.json` (dados, fora do git, como `presets/`): nome, os pares em que vale,
+💡 Uma transição é um JSON em `dados/transicoes/<id>.json` (dados, fora do git, como `dados/presets/`): nome, os pares em que vale,
 os efeitos com tempos e curvas, o som, de onde veio (referência e instante) e se está aprovada.
 
 ## Onde se escolhe
@@ -85,7 +85,7 @@ planos.
 
 ## Como ficou (P2, out/2026)
 
-💡 **O que as referências mostraram** (`ferramentas/transicoes_analisar.py` → `transicoes/pares.json`; 294 cortes em 30
+💡 **O que as referências mostraram** (`ferramentas/transicoes_analisar.py` → `dados/transicoes/pares.json`; 294 cortes em 30
 pares, sem a referência duplicada): cerca de 68% dos cortes são secos; os sons de corte caem sobre cortes secos (o Click
 Classic no corte, ~8 dB abaixo da voz: Médio; a Instant Camera ao entrar num insert de tela cheia e o Riser 07 terminando
 no corte para o ator, ~15–20 dB abaixo: Baixo). O "desfoque" que a medida acusa nos cortes para um insert quase sempre é
@@ -109,7 +109,7 @@ quadros antes do da análise — o brilho em 4,43 s, o corte em 4,54 s), senão 
 corte seco. 💡 O mesmo vale para as **fontes** (o corte que a página mostra como referência): um corte que é fonte de
 uma transição com efeito não entra nas fontes de uma de som (rodada 2 da QA: no par Full ator → Motion tela cheia, o
 "Corte com clique" mostrava o corte da Luz colorida, manychat 6,87 s, e a recriação saía tingida da luz). A página já
-pula essas fontes (`fonteDe` em `paginas/Transicoes.tsx`); os dados gravados em `transicoes/` ainda as listam (o
+pula essas fontes (`fonteDe` em `paginas/Transicoes.tsx`); os dados gravados em `dados/transicoes/` ainda as listam (o
 `corte-clique` com o manychat 6,87 s e o `subida-ao-corte` com o cursor-free-v2 4,54 s, o corte do Brilho branco) até o
 semear ser rodado de novo — decisão de Rodrigo. **Refazível sem perder a curadoria**: de quem já existe, guarda o nome, o som (e a intensidade) e o
 "aprovado", e só grava a ordem dos pares que ainda não têm a sua em `ordem.json`; `--refazer` volta tudo ao que a
