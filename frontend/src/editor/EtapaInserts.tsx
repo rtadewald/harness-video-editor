@@ -29,9 +29,9 @@ import type { Sequencia } from './sequencia'
 import type { usePlayer } from './usePlayer'
 import { TEM_MOTION, type NovaMidia, type Pedido } from './inserts/comum'
 import DetalheInsert from './inserts/DetalheInsert'
-import { Alca, Cabecalho, Campo, Recolhivel, useTamanhos } from './inserts/layout'
+import { Alca, Cabecalho, Recolhivel, useTamanhos } from './inserts/layout'
 import PainelEnriquecimento from './inserts/PainelEnriquecimento'
-import { Categoria, EditorPresetAberto, EscolhaFundo, ResumoFundo, SemInsert } from './inserts/pecas'
+import { Categoria, EditorPresetAberto, EscolhaFundo, ResumoFundo, SemInsert, SugestaoIA } from './inserts/pecas'
 import { emCampoDeTexto, modalAberto } from '@/lib/atalhos'
 
 type Props = {
@@ -344,11 +344,26 @@ export default function EtapaInserts(p: Props) {
           {erro && <p className="border-b border-line-dark px-4 py-2 text-[12px] text-coral">{erro}</p>}
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
             {planoSel && (
-              <Categoria
-                atual={planoSel.tipo}
-                sugestao={sugestaoIA(planoSel.id)}
-                mudar={(tipo) => void editarDirecao((it) => editar(it, planoSel.id, { tipo }))}
-              />
+              // a categoria e a sugestão da IA juntas; a linha separa o trabalho do plano (mídias, motion)
+              <div className="mb-4 grid gap-3 border-b border-line-dark pb-4">
+                <Categoria
+                  atual={planoSel.tipo}
+                  sugestao={sugestaoIA(planoSel.id)}
+                  mudar={(tipo) => {
+                    // voltar à categoria que a IA sugeriu traz de volta o que ela tinha preenchido (o comentário da pessoa, o
+                    // lettering, a descrição e o conteúdo), que uma categoria sem esses campos apaga
+                    const ia = projeto.direcao?.itens_ia?.find((i) => i.id === planoSel.id)
+                    const campos = ia && ia.tipo === tipo ? { tipo, texto: ia.texto, descricao: ia.descricao, conteudo: ia.conteudo } : { tipo }
+                    void editarDirecao((it) => editar(it, planoSel.id, campos))
+                  }}
+                />
+                <SugestaoIA
+                  tipo={planoSel.tipo}
+                  fala={planoSel.fala}
+                  descricao={planoSel.descricao}
+                  rotulo={TEM_MOTION.includes(planoSel.tipo) ? 'O que a direção pede' : 'O que acontece no insert'}
+                />
+              </div>
             )}
             {!planoSel ? (
               <p className="text-[12.5px] leading-[1.7] text-fog">
@@ -372,13 +387,9 @@ export default function EtapaInserts(p: Props) {
                   void carregarBanco()
                   void lerInserts(projeto.id).then(setIns)
                 }}
-                ver={() => player.tocarTrecho(seq.saidaParaFonte(sel.t.inicio), seq.saidaParaFonte(Math.max(sel.t.fim - 0.01, sel.t.inicio)), { pular: true, loop: false })}
               />
             ) : ehMotion ? (
               <div className="grid gap-4">
-                <span className="w-fit rounded-full bg-yellow px-2.5 py-1 text-[11px] font-semibold text-ink">{CATEGORIAS.planos[planoSel.tipo]}</span>
-                <p className="border-l-2 border-line-dark pl-3 text-[12.5px] leading-[1.6] text-cream/90">“{planoSel.fala}”</p>
-                {planoSel.descricao && <Campo rotulo="O que a direção pede">{planoSel.descricao}</Campo>}
                 <PainelMotion key={planoSel.id} projetoId={projeto.id} plano={planoSel} motion={motions[planoSel.id]} mudou={recarregarMotions} bancoMudou={() => void carregarBanco()} />
               </div>
             ) : (

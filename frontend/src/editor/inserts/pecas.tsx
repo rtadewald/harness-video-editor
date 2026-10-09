@@ -4,8 +4,8 @@ import { CATEGORIAS } from '../EtapaDirecao'
 import EditorPreset from '../EditorPreset'
 import { usePresets } from '../presets'
 import { FUNDOS } from '../Fundo'
-import { TEM_MOTION } from './comum'
-import { Recolhivel } from './layout'
+import { NOME_TIPO, TEM_MOTION } from './comum'
+import { Campo, Recolhivel } from './layout'
 
 /** O editor do preset com a engrenagem aberta, na coluna ao lado do vídeo. Assina os presets sozinho: mexer num slider
  *  redesenha só ele (e quem mostra o preset), não a etapa inteira. */
@@ -55,7 +55,6 @@ export function EscolhaFundo({ atual, escolher }: { atual: string; escolher: (f:
 export function SemInsert({ plano }: { plano: ItemRef & { fala: string } }) {
   return (
     <div className="grid gap-3 text-[12.5px] leading-[1.7] text-fog">
-      <span className="w-fit rounded-full bg-cream/10 px-2.5 py-1 text-[11px] font-semibold text-cream">{CATEGORIAS.planos[plano.tipo]}</span>
       <p>Este plano não tem insert{TEM_MOTION.includes(plano.tipo) ? ' (é um motion: veja a aba Motion)' : ''}.</p>
     </div>
   )
@@ -64,7 +63,7 @@ export function SemInsert({ plano }: { plano: ItemRef & { fala: string } }) {
 /** A categoria do plano, trocável aqui mesmo (a direção muda; a sugestão da IA fica marcada). */
 export function Categoria(p: { atual: string; sugestao: string | null; mudar: (tipo: string) => void }) {
   return (
-    <div className="mb-4 grid gap-1.5 border-b border-line-dark pb-4">
+    <div className="grid gap-1.5">
       <div className="flex items-center gap-2 text-[11px]">
         <span className="eyebrow text-sage">Categoria</span>
         {p.sugestao && p.sugestao !== p.atual && (
@@ -86,5 +85,28 @@ export function Categoria(p: { atual: string; sugestao: string | null; mudar: (t
         ))}
       </select>
     </div>
+  )
+}
+
+/** O chip da categoria do plano, na cor do tipo (insert em tela cheia, tela dividida, motion, ator). */
+export function ChipCategoria({ tipo }: { tipo: string }) {
+  const cor = TEM_MOTION.includes(tipo) ? 'bg-yellow text-ink' : tipo === 'insert_tela_cheia' ? 'bg-blue text-cream' : tipo.includes('insert') ? 'bg-mint text-ink' : 'bg-cream/10 text-cream'
+  return <span className={cn('shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold', cor)}>{NOME_TIPO[tipo] ?? CATEGORIAS.planos[tipo] ?? tipo}</span>
+}
+
+/** A sugestão da IA de um plano (a fala e o que a direção pede), num toggle fechado por padrão (lembrado aberto), com o
+ *  chip da categoria na barra: igual nos inserts, nos motions e nos planos sem insert. */
+export function SugestaoIA(p: { tipo: string; fala: string; descricao?: string | null; rotulo?: string }) {
+  return (
+    <Recolhivel chave="sugestao" titulo="Sugestão da IA" fechado resumo={<ChipCategoria tipo={p.tipo} />}>
+      <div className="grid gap-3">
+        <p className="border-l-2 border-line-dark pl-3 text-[12.5px] leading-[1.6] text-cream/90">“{p.fala}”</p>
+        {p.descricao ? (
+          <Campo rotulo={p.rotulo ?? 'O que acontece no insert'}>{p.descricao}</Campo>
+        ) : (
+          <p className="text-[11.5px] text-fog">A direção não descreveu este plano.</p>
+        )}
+      </div>
+    </Recolhivel>
   )
 }
