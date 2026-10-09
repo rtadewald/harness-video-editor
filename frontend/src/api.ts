@@ -357,6 +357,8 @@ export function formatarTempo(s: number) {
   return `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`
 }
 
+import type { AjusteAtor } from '@/editor/ator'
+
 // ---------------------------------------------------------------- Inserts e banco (SPEC §8.3)
 
 /** Uma mídia do banco ligada a um insert: um original ou um trecho dele. */
@@ -374,7 +376,7 @@ export type PedidoInsert = {
   duracao: number
   midias: MidiaLigada[]
   /** O que o criador mudou no enriquecimento (o resto vem do estilo do formato; SPEC §8.3). */
-  enriquecimento?: Partial<Record<'layout' | 'entrada' | 'entrada_2' | 'saida' | 'saida_2' | 'entre' | 'movimento', string> & { corte: number; preset: string; divisao: string; ajustes: Record<string, string> }>
+  enriquecimento?: Partial<Record<'layout' | 'entrada' | 'entrada_2' | 'saida' | 'saida_2' | 'entre' | 'movimento', string> & { corte: number; preset: string; divisao: string; ajustes: Record<string, string>; ator: AjusteAtor }>
   /** O card de comentário (só em Comentário + insert + ator): o que difere do padrão. */
   comentario?: Partial<{ texto: string | null; avatar: number; usuario: string; tempo: string; traducao: boolean; x: number; y: number; escala: number }>
   /** As capturas de site deste insert: as em andamento (várias podem rodar ao mesmo tempo) e as que falharam (§8.3). */

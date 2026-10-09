@@ -15,7 +15,7 @@ Editor de vídeo local, controlado por interface web, em que cada etapa da ediç
 | Direção visual (Calibragem, referências, heurística, direção do projeto) | [direcao.md](docs/direcao.md) | **Real** |
 | Inserts: mídias, banco, presets de enriquecimento, sons de apoio | [inserts.md](docs/inserts.md) | **Real** |
 | Motions | [motions.md](docs/motions.md) | **Real** |
-| Rosto do ator (enquadramento nas áreas que sobram) | [rosto.md](docs/rosto.md) | A medida **real** (F0); o enquadramento, **especificado** |
+| Rosto do ator (enquadramento nas áreas que sobram) | [rosto.md](docs/rosto.md) | **Real** (F0: a medida; P5: o enquadramento na tela dividida e os modos do "ator embaixo") |
 | Transições entre planos | [transicoes.md](docs/transicoes.md) | **Real** (P2: a biblioteca, a página, a etapa, a prévia e o MP4) |
 | Áudio: voz, faixa de fundo, mixer | [audio.md](docs/audio.md) | **Real** (P3: limpeza, timbre, faixas geradas, mixer, −14 LUFS) |
 | Legenda | [legenda.md](docs/legenda.md) | **Real** (P4: estilo medido, palavra a palavra, edição, ASS na exportação) |
@@ -327,7 +327,7 @@ projetos/<slug>/
 | 5 | **Legenda** (por cima de tudo) | camada HTML | ASS desenhado pelo libass | §8.10 |
 | A | **Áudio**: voz limpa → timbre → compressor; sons dos presets; sons das transições; fundo com ducking; −14 LUFS | Web Audio, um ganho por trilha | grafo do ffmpeg (`amix`, `acrossfade` nas voltas do fundo, ducking por `volume` com `eval=frame`, ganho medido + `alimiter`) | §8.6, §8.9 |
 
-💡 A página de render (`/render/p/<id>`) entrega ao backend tudo o que é calculado no front (`window.__render`): os trechos dos inserts, a divisão da tela, os eventos de som e, quando existirem, as transições e os blocos da legenda. Cada área acrescenta o seu campo (`transicoes` desde a P2, `legenda` desde a P4: os blocos para o ASS); o backend monta a passada do ffmpeg por partes, uma função por camada em `exportacao.py`: `_ator` (1 e 3), `_inserts` (2), `_pos_montagem` → `_transicoes` (4) e `_legenda` (5), `_audio` (A) — ver [exportacao.md](docs/exportacao.md).
+💡 A página de render (`/render/p/<id>`) entrega ao backend tudo o que é calculado no front (`window.__render`): os trechos dos inserts, a divisão da tela, os eventos de som e, quando existirem, as transições e os blocos da legenda. Cada área acrescenta o seu campo (`transicoes` desde a P2, `legenda` desde a P4: os blocos para o ASS; desde a P5, `trechos[].divisao.ator`: a geometria do ator em cada trecho dividido, [rosto.md](docs/rosto.md)); o backend monta a passada do ffmpeg por partes, uma função por camada em `exportacao.py`: `_ator` (1 e 3; com a geometria, `_ator_na_geometria`), `_inserts` (2), `_pos_montagem` → `_transicoes` (4) e `_legenda` (5), `_audio` (A) — ver [exportacao.md](docs/exportacao.md).
 
 ## 14. Regras editoriais dos cortes
 
@@ -369,7 +369,7 @@ Uma correção pontual num vídeo vale só para aquele vídeo, a menos que o cri
 | P2 ✅ (à espera da avaliação) | **Transições:** análise das referências, transições recriadas, página e etapa | Os cortes do vídeo de teste com as transições favoritas, aprovadas por Rodrigo |
 | P3 ✅ (à espera da avaliação) | **Áudio:** faixas de fundo geradas, limpeza da voz, timbre, mixer, −14 LUFS | O MP4 com a voz limpa, a faixa de fundo e os níveis certos, aprovados no ouvido |
 | P4 ✅ (à espera da avaliação) | **Legenda:** o estilo da casa medido, a geração e a edição, o ASS | As legendas do vídeo de teste iguais às das referências |
-| P5 | **Rosto nos inserts:** o enquadramento do ator na tela dividida e no "ator embaixo" | O rosto bem posicionado em todos os planos divididos do vídeo de teste |
+| P5 ✅ (à espera da avaliação) | **Rosto nos inserts:** o enquadramento do ator na tela dividida e no "ator embaixo" | O rosto bem posicionado em todos os planos divididos do vídeo de teste |
 
 💡 **Em paralelo** (quando Rodrigo pedir): depois da F0, P1 a P5 mexem em arquivos separados (cada uma no seu doc, nos seus módulos, na sua camada da exportação e no seu campo do `__render`), então podem ser feitas por agentes em paralelo, cada um numa cópia da pasta (`git worktree`) e numa branch própria; o Claude principal junta uma de cada vez na main, rodando todos os testes e a exportação de ponta a ponta a cada junção. O que pede o olho de Rodrigo (aprovar transições, o estilo da legenda, ouvir as faixas) fica para a revisão no fim de cada uma.
 

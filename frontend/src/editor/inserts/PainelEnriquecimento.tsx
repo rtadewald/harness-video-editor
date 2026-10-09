@@ -11,6 +11,7 @@ import { presetDe } from '../InsertNoLugar'
 import type { Qual } from '../enriquecimento'
 import { type Lado, type Entradas } from '../entradas'
 import { BOTAO, NOME_TIPO, type Pedido } from './comum'
+import { NOME_MODO, type AjusteAtor, type ModoAtor } from '../ator'
 
 export default function PainelEnriquecimento(p: {
   pedido: Pedido
@@ -50,6 +51,7 @@ export default function PainelEnriquecimento(p: {
           Ator embaixo, cropado numa janela
         </label>
       )}
+      {!p.aviso && x.formato === 'dividida' && x.midias.length > 0 && <OpcoesDoAtor x={x} mudar={(ator) => p.mudar({ ator } as never)} />}
       {!p.aviso && x.enriquecimento?.preset && !presetAtual && (
         <p className="rounded-[6px] border border-dashed border-yellow/40 px-3 py-2 text-[11.5px] leading-[1.6] text-yellow/90">
           O preset escolhido ({presets?.find((y) => y.id === x.enriquecimento?.preset)?.nome ?? 'apagado'}) não serve a {x.midias.length} mídia{x.midias.length > 1 ? 's' : ''}: escolha outro.
@@ -130,6 +132,51 @@ export default function PainelEnriquecimento(p: {
           <Copy className="size-3" /> Aplicar a todos “{nomeTipo}”
         </button>
       </div>
+    </div>
+  )
+}
+
+/** O ator no insert (P5; docs/rosto.md): no "ator embaixo", o modo (a janela, só a pessoa recortada, ou encolhido num
+ *  canto), arrastado e redimensionado no vídeo; na tela dividida, o enquadramento automático pelo rosto, que se ajusta
+ *  arrastando a alça "Ator" no vídeo. "Automático" volta ao de fábrica. */
+function OpcoesDoAtor(p: { x: Pedido; mudar: (ator: AjusteAtor | null) => void }) {
+  const aj = (p.x.enriquecimento?.ator ?? {}) as AjusteAtor
+  const atras = p.x.enriquecimento?.divisao === 'atras'
+  const modo = aj.modo ?? 'janela'
+  const mexido = atras ? aj.x != null || aj.y != null || aj.escala != null : aj.dx != null || aj.dy != null || aj.zoom != null
+  if (!atras)
+    return (
+      <p className="-mt-3 ml-6 text-[11px] leading-[1.6] text-fog">
+        O ator fica enquadrado pelo rosto na parte de baixo. Para ajustar, arraste a alça “Ator” no vídeo (a do canto dá zoom).{' '}
+        {mexido && (
+          <button onClick={() => p.mudar(null)} className="text-cream underline-offset-2 hover:underline">
+            Automático
+          </button>
+        )}
+      </p>
+    )
+  return (
+    <div className="-mt-3 ml-6 grid gap-1.5">
+      <div className="flex rounded-full p-0.5 ring-1 ring-line-dark">
+        {(['janela', 'recortado', 'canto'] as ModoAtor[]).map((m) => (
+          <button
+            key={m}
+            onClick={() => p.mudar(m === 'janela' ? null : { modo: m })}
+            title={m === 'janela' ? 'O ator encolhido numa janela embaixo, com a cabeça saindo por cima' : m === 'recortado' ? 'Só você, sem o cenário (o recorte do ator)' : 'O ator inteiro, diminuído num canto'}
+            className={cn('flex-1 rounded-full py-1 text-[11.5px] font-semibold', modo === m ? 'bg-cream text-ink' : 'text-fog hover:text-cream')}
+          >
+            {NOME_MODO[m]}
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] leading-[1.6] text-fog">
+        Clique no ator no vídeo para selecionar; arraste para mover e use a alça do canto para mudar o tamanho.{' '}
+        {mexido && (
+          <button onClick={() => p.mudar(aj.modo ? { modo: aj.modo } : null)} className="text-cream underline-offset-2 hover:underline">
+            Posição automática
+          </button>
+        )}
+      </p>
     </div>
   )
 }

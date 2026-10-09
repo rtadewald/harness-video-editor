@@ -13,6 +13,7 @@ import { usePresets } from './presets'
 import CardAjustes from './CardAjustes'
 import { aspectosDe, telaTodaPermitida } from './divisao'
 import MontagemNoPalco from './MontagemNoPalco'
+import { useRosto, type AjusteAtor } from './ator'
 import PainelMotion from '@/motions/PainelMotion'
 import { EdicaoPreset } from '@/motions/PresetMotion'
 import { preCarregarMarcas } from '@/motions/sons'
@@ -162,6 +163,12 @@ export default function EtapaInserts(p: Props) {
     setIns((i) => i && { ...i, pedidos: i.pedidos.map((x) => (x.id === pid ? { ...x, enriquecimento: { ...x.enriquecimento, ...(campos as object) } } : x)) })
     void enriquecerInsert(projeto.id, pid, campos as Parameters<typeof enriquecerInsert>[2]).then(setIns).catch(falhar)
   }
+  /** O ator arrastado no vídeo (P5): muda na tela enquanto arrasta e salva ao soltar (`null`: o automático). */
+  const mudarAtor = (pid: string, ator: AjusteAtor | null, salvarAgora: boolean) => {
+    setIns((r) => r && { ...r, pedidos: r.pedidos.map((x) => (x.id === pid ? { ...x, enriquecimento: { ...x.enriquecimento, ator: ator ?? undefined } } : x)) })
+    if (salvarAgora) void enriquecerInsert(projeto.id, pid, { ator } as Parameters<typeof enriquecerInsert>[2]).then(setIns).catch(falhar)
+  }
+  const rostoEm = useRosto(projeto, seq)
   /** Onde a 2ª mídia começa (fração do insert): muda na tela na hora (arrastando) e salva ao soltar. */
   const ajustarCorte = (pid: string, v: number | null, salvarAgora: boolean) => {
     setIns((r) =>
@@ -392,6 +399,8 @@ export default function EtapaInserts(p: Props) {
                 src={p.src}
                 enquadramentoX={p.enquadramentoX}
                 mudarComentario={mudarComentario}
+                rostoEm={rostoEm}
+                mudarAtor={mudarAtor}
               />
             }
             transicoes

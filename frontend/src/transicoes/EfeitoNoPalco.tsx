@@ -25,10 +25,12 @@ export default function EfeitoNoPalco(p: { tempo: number; tocando: boolean; altu
   const zoom = e && (e.escala !== 1 || e.desfoque > 0)
   // o desfoque como no MP4: o σ cresce com a curva até altura/120 e vale no quadro já ampliado (o blur() do CSS é aplicado
   // antes da escala do mesmo elemento, então sai dividido por ela)
+  // `isolate`: o que está dentro (o card do comentário, o ator por cima do insert) fica embaixo da luz, do branco e da
+  // legenda, como no MP4, mesmo com z-index próprio
   return (
     <>
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 isolate"
         style={zoom ? { transform: `scale(${e.escala})`, filter: e.desfoque > 0.01 ? `blur(${(e.desfoque * p.altura) / 120 / e.escala}px)` : undefined } : undefined}
       >
         {p.children}

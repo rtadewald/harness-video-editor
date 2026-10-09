@@ -90,7 +90,8 @@ os ajustes que valem.
 - **tela dividida**: na **costura real** do trecho (a divisão de cada insert: de 0,28 a 0,62; o motion dividido é meio a
   meio, 0,5), não na mediana 0,453;
 - **ator embaixo** (o insert na tela toda e o ator numa janela): a altura do Full ator dentro da janela do ator
-  encolhido (0,755 — no peito, como no Full ator);
+  encolhido (0,755 — no peito, como no Full ator); desde a P5, pela geometria do ator no modo e na posição em que ele
+  estiver (no recortado também no peito; no canto, logo acima da caixa; [rosto.md](rosto.md));
 - **card do comentário**: logo **acima** do card (ou abaixo, se não couber), com a altura do card estimada pelo texto e
   pela escala (no melhor-ia-design: a legenda termina em 0,466 e o card começa em 0,481).
 

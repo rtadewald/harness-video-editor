@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { abrirEditor, json, lerInserts, listarBanco, mapaBanco, type DadosEditor, type InsertsProjeto, type ItemBanco } from '@/api'
 import { falaDoPlano, fundoDoMotion, listarPresets as listarPresetsMotion, motionsDoProjeto, urlPaginaMotionPlano, type MotionPlano } from '@/motions/api'
 import { escolhasDeSom, eventosDoMotion, marcasDaPagina } from '@/motions/sons'
+import { geometriaDoAtor, useRosto } from '@/editor/ator'
 import { blocosDaLegenda, paraExportar, zonasDaLegenda, type Legenda } from '@/legenda/legenda'
 import { cortesDoVideo, sonsDasTransicoes, type Biblioteca, type Escolhas } from '@/transicoes/transicoes'
 import { CardComentario, comentarioDe } from '@/editor/ComentarioIG'
@@ -92,19 +93,25 @@ export function RenderProjeto() {
     void listarBanco().then((l) => setBanco(mapaBanco(l)))
   }, [id])
 
+  const seqRender = useMemo(() => (dados ? montarSequencia(dados.timeline, dados.palavras) : null), [dados])
+  // o rosto do ator (P5): a geometria do ator em cada trecho dividido vai junto da divisão, para o ffmpeg aplicar
+  const rostoEm = useRosto(dados?.projeto, seqRender)
   const pedidos = useMemo(() => {
     if (!dados || !ins) return null
-    const seq = montarSequencia(dados.timeline, dados.palavras)
+    const seq = seqRender ?? montarSequencia(dados.timeline, dados.palavras)
     const saida = palavrasNaSaida(dados.palavras, seq)
     const planos = paraTempo(dados.projeto.direcao?.itens ?? [], dados.palavras, saida, seq.duracao).visiveis.filter((i) => i.camada === 'plano')
     // os motions: os planos de motion que já têm um motion escolhido
     const comMotion = planos.filter((pl) => motions?.[pl.id]).map((pl) => ({ plano: pl.id, ini: pl.inicio, fim: pl.fim, dividida: pl.tipo === 'tela_dividida_motion', fala: falaDoPlano(saida, pl.inicio, pl.fim) }))
     return { duracao: seq.duracao, lista: pedidosNoTempo(ins.pedidos, planos).filter((x) => x.midias.length), motions: comMotion, planos, saida, palavras: dados.palavras }
-  }, [dados, ins, motions])
+  }, [dados, ins, motions, seqRender])
 
   // a página avisa o backend que está pronta e responde a cada instante pedido depois de tudo pintado
   useEffect(() => {
     if (!pedidos || !banco || !entradas || !motions || !presets) return
+    // com o rosto medido, a página só se diz pronta depois de tentar lê-lo (a geometria do ator depende dele); sem rosto
+    // no vídeo ou com o arquivo faltando, segue sem ele (o enquadramento de antes)
+    if (rostoEm === undefined) return
     // os cortes entre planos com a transição de cada um (a biblioteca e as escolhas do projeto, lidas na hora)
     const cortesDasTransicoes = async () => {
       const [b, escolhas] = await Promise.all([fetch('/api/transicoes').then(json<Biblioteca>), fetch(`/api/projetos/${id}/transicoes`).then(json<Escolhas>)])
@@ -113,8 +120,15 @@ export function RenderProjeto() {
     window.__render = {
       duracao: pedidos.duracao,
       trechos: [
-        ...pedidos.lista.map((x) => ({ ini: x.t.inicio, fim: x.t.fim, dividida: x.formato === 'dividida', divisao: divisaoDe(x, banco, presets) })),
-        ...pedidos.motions.map((m) => ({ ini: m.ini, fim: m.fim, dividida: m.dividida, divisao: m.dividida ? ({ modo: 'metade', tipo: 'area', f: 0.5 } as Divisao) : null })),
+        ...pedidos.lista.map((x) => {
+          const divisao = divisaoDe(x, banco, presets)
+          const ator = geometriaDoAtor(divisao, x.enriquecimento?.ator, rostoEm?.(x.t.inicio, x.t.fim) ?? null)
+          return { ini: x.t.inicio, fim: x.t.fim, dividida: x.formato === 'dividida', divisao: divisao && { ...divisao, ator } }
+        }),
+        ...pedidos.motions.map((m) => {
+          const divisao: Divisao | null = m.dividida ? { modo: 'metade', tipo: 'area', f: 0.5 } : null
+          return { ini: m.ini, fim: m.fim, dividida: m.dividida, divisao: divisao && { ...divisao, ator: geometriaDoAtor(divisao, null, rostoEm?.(m.ini, m.fim) ?? null) } }
+        }),
       ],
       sons: async () => {
         const cat = await carregarCatalogoSons()
@@ -154,7 +168,7 @@ export function RenderProjeto() {
           setPedido((x) => ({ t, n: x.n + 1 }))
         }),
     }
-  }, [id, pedidos, banco, entradas, motions, presets])
+  }, [id, pedidos, banco, entradas, motions, presets, rostoEm])
   useEffect(() => {
     if (!chegou.current) return
     const ok = chegou.current
@@ -180,7 +194,9 @@ export function RenderProjeto() {
       </RelogioRender.Provider>
     )
   if (!atual || !banco) return null
-  const c = comentarioDe(atual, posicaoDoComentario(divisaoDe(atual, banco, presets)))
+  const divisaoAtual = divisaoDe(atual, banco, presets)
+  // o card desvia do ator pela geometria dele (o rosto só muda o x: a altura é a mesma da prévia)
+  const c = comentarioDe(atual, posicaoDoComentario(divisaoAtual, geometriaDoAtor(divisaoAtual, atual.enriquecimento?.ator, null)))
   return (
     <RelogioRender.Provider value={tempo}>
       <div className="fixed inset-0 overflow-hidden">
