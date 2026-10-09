@@ -100,6 +100,13 @@ def retomar_interrompidas() -> None:
 JANELA = {'y0': 0.72, 'escala': 0.55, 'raio': 0.07}  # o ator no "insert atrás" (igual a editor/divisao.ts; raio em fração da largura do ator encolhido)
 
 
+def acelerar(vel: float) -> tuple[str, str]:
+    """Os filtros de um clipe acelerado: o `setpts` do vídeo e o `atempo` do áudio (com a vírgula; vazio a 1×)."""
+    if abs(vel - 1) < 1e-6:
+        return 'setpts=PTS-STARTPTS', ''
+    return f'setpts=(PTS-STARTPTS)/{vel:.4f}', f'atempo={vel:.4f},'
+
+
 def _ator(clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, h: int, fps: int,
           divisoes: list[tuple[float, float, dict]], duracao: float, mascara: bool, com_look: bool = False) -> tuple[list[str], list[str]]:
     """Os filtros do ator e do áudio (entrada 0 = bruto; 1 = a máscara da pessoa, se houver): cada clipe da V1 vira um
@@ -121,13 +128,15 @@ def _ator(clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, 
     pares, masc = '', ''
     for k, c in enumerate(clipes):
         ini, fim = c['inicio'], c['fim']
-        dur = fim - ini
-        partes.append(f'[v{k}]trim=start={ini:.4f}:end={fim:.4f},setpts=PTS-STARTPTS[cv{k}]')
-        partes.append(f'[a{k}]atrim=start={ini:.4f}:end={fim:.4f},asetpts=PTS-STARTPTS,'
+        dur = projeto.dur_saida(c)
+        # acelerado (`vel`, a aceleração do ator): o vídeo com os tempos divididos e o áudio no atempo (mantém o tom)
+        setpts, atempo = acelerar(c.get('vel', 1))
+        partes.append(f'[v{k}]trim=start={ini:.4f}:end={fim:.4f},{setpts}[cv{k}]')
+        partes.append(f'[a{k}]atrim=start={ini:.4f}:end={fim:.4f},asetpts=PTS-STARTPTS,{atempo}'
                       f'afade=t=in:d={FADE},afade=t=out:st={max(dur - FADE, 0):.4f}:d={FADE}[ca{k}]')
         pares += f'[cv{k}][ca{k}]'
         if usa_mascara:
-            partes.append(f'[m{k}]trim=start={ini:.4f}:end={fim:.4f},setpts=PTS-STARTPTS[cm{k}]')
+            partes.append(f'[m{k}]trim=start={ini:.4f}:end={fim:.4f},{setpts}[cm{k}]')
             masc += f'[cm{k}]'
     partes.append(f'{pares}concat=n={n}:v=1:a=1[vc][ac]')
     recorte = f"crop=w=trunc(ih*9/16/2)*2:h=ih:x=(iw-ow)*{enquadramento_x:.4f}," if horizontal else ''
@@ -411,8 +420,8 @@ def _gravar(id: str, e: dict, saida: Path, vivo: dict) -> bool:
     tudo numa passada do ffmpeg. Devolve True se foi cancelada."""
     p = projeto.ler(id)
     fonte = next(f for f in p['fontes'] if f['papel'] == 'bruto')
-    clipes = sorted(p['timeline']['V1'], key=lambda c: c['inicio'])
-    duracao = sum(c['fim'] - c['inicio'] for c in clipes)
+    clipes = projeto.v1_tocada(p)
+    duracao = sum(projeto.dur_saida(c) for c in clipes)
     w, h = RESOLUCOES[e['resolucao']]
     fps, navegadores = e['fps'], e.get('navegadores', NAVEGADORES)
     horizontal = (fonte.get('largura') or 0) > (fonte.get('altura') or 0)

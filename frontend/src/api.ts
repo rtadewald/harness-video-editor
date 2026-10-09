@@ -43,6 +43,8 @@ export type Projeto = {
   nome: string
   criado_em: string
   fontes: Fonte[]
+  /** A aceleração do vídeo do ator (1 a 1,5×; ausente = 1). */
+  velocidade?: number
   /** O recorte do ator (a pessoa sem o fundo), para a divisão da tela. */
   recorte?: { estado: 'fila' | 'rodando' | 'pronto' | 'erro'; progresso?: number; erro?: string | null }
   /** A medida do rosto do ator (SPEC §8.7): `midia/rosto/<bruto>.json`, ~6 amostras por segundo. */

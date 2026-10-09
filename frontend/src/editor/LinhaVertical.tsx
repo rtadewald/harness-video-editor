@@ -44,6 +44,8 @@ type Props = {
   tentarMotor: (vid: string) => void
   /** Move uma borda de trecho mantido (o que arrastar nas pontas de um corte expandido). */
   ajustar: (clipeId: string, lado: 'inicio' | 'fim', t: number) => Promise<void>
+  /** A aceleração do ator: só para mostrar a duração final. */
+  velocidade?: number
   /** Refaz os trechos com as margens de Configurações, sem chamar a IA. */
   aoRecalcular: () => void
   /** Corta (`manter=false`) ou devolve ao vídeo (`manter=true`) um intervalo do bruto, mesmo no meio de um trecho mantido. */
@@ -413,7 +415,7 @@ export default function LinhaVertical(p: Props) {
       <div className="shrink-0 border-b border-line-dark px-3 py-2">
         <div className="flex items-center justify-between gap-2">
           <span className="eyebrow truncate text-fog">
-            Bruto {formatarDuracao(p.duracao)} → <b className="text-cream">{formatarDuracao(p.clipes.reduce((s, c) => s + c.fim - c.inicio, 0))}</b> · {p.cortes.length} cortes
+            Bruto {formatarDuracao(p.duracao)} → <b className="text-cream">{formatarDuracao(p.clipes.reduce((s, c) => s + c.fim - c.inicio, 0) / (p.velocidade ?? 1))}</b> · {p.cortes.length} cortes
           </span>
           <div className="flex items-center text-fog">
             <Icone rotulo="Afastar" onClick={() => zoomPara(px / 1.6)}><Minus /></Icone>

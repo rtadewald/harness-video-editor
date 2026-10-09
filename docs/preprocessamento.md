@@ -6,6 +6,17 @@ para vídeos 16:9) e **Look** (LUT e vinheta). Também o que acontece **ao criar
 
 Legenda de status: ✅ aprovado por Rodrigo · 💡 proposta técnica · ⏳ em aberto.
 
+## Velocidade do ator
+
+✅ (pedido de Rodrigo, out/2026) Card **Velocidade do ator** no topo da coluna da direita: atalhos 1×, 1,1×, 1,2×, 1,3× e
+o ajuste fino de 1× a 1,5× (passos de 0,05). Acelera o vídeo do ator inteiro, sem mudar o tom da voz
+(`projeto.velocidade`, `PUT /api/projetos/{id}/velocidade`). 💡 Como: a V1 continua no tempo do bruto e cada clipe dura
+`(fim − início) / vel` na saída (`projeto.v1_tocada` e `dur_saida` no back, `montarSequencia(…, vel)` no front). Por
+isso tudo o que vem das palavras acompanha sozinho: planos, inserts, legenda, transições, sons e as falas do ducking.
+Na exportação, o ator e a voz de cada clipe são acelerados (`setpts=(PTS-STARTPTS)/vel` e `atempo`, `exportacao.acelerar`);
+na prévia, o vídeo do ator toca na velocidade da prévia × a do projeto, e a música e os inserts seguem o relógio da
+saída. ⏳ Os deslocamentos à mão da direção (`off_ini`/`off_fim`, em segundos da saída) não são reescalados.
+
 ## Novo projeto
 
 ✅ A tela de criação tem só (decisão de Rodrigo, out/2026):

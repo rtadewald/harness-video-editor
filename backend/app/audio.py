@@ -462,14 +462,14 @@ def filtros(a: dict, clipes: list[dict], eventos_som: list[dict], primeira_entra
     `a`: `{voz: Path, voz_lufs, timbre, niveis, fundo: Path | None, laco: (ini, fim) | None, fundo_mudo, falas: [(ini, fim)],
     ducking_db}`. Devolve (entradas, filtros), com a mistura em [`saida`]."""
     from . import sons
-    from .exportacao import FADE
+    from .exportacao import FADE, acelerar
 
     entradas = ['-i', str(a['voz'])]
     n = len(clipes)
     f = [f'[{primeira_entrada}:a]aresample=48000,{para_mono(Path(a["voz"]))},asplit={n}' + ''.join(f'[pv{k}]' for k in range(n))]
     for k, c in enumerate(clipes):
-        dur = c['fim'] - c['inicio']
-        f.append(f"[pv{k}]atrim=start={c['inicio']:.4f}:end={c['fim']:.4f},asetpts=PTS-STARTPTS,"
+        dur = projeto.dur_saida(c)
+        f.append(f"[pv{k}]atrim=start={c['inicio']:.4f}:end={c['fim']:.4f},asetpts=PTS-STARTPTS,{acelerar(c.get('vel', 1))[1]}"
                  f'afade=t=in:d={FADE},afade=t=out:st={max(dur - FADE, 0):.4f}:d={FADE}[pc{k}]')
     f.append(''.join(f'[pc{k}]' for k in range(n)) + f'concat=n={n}:v=0:a=1,{cadeia_voz(a["timbre"], a["niveis"]["ator"])},'
              f'{VOZ_ESTEREO}[pvoz]')

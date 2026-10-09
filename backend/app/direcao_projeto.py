@@ -83,23 +83,25 @@ Responda um item por marcação, com o mesmo número, na mesma ordem."""
 # ---------------------------------------------------------------- dados de entrada
 
 def palavras_na_saida(palavras: list[dict], clipes: list[dict]) -> list[dict]:
-    """As palavras que tocam no vídeo final, com início e fim no tempo da saída (a V1 tocada em sequência)."""
+    """As palavras que tocam no vídeo final, com início e fim no tempo da saída (a V1 tocada em sequência, cada clipe
+    acelerado pelo seu `vel`; `projeto.v1_tocada`)."""
     acc, posicoes = 0.0, []
     for c in sorted(clipes, key=lambda c: c['inicio']):
         posicoes.append((c, acc))
-        acc += c['fim'] - c['inicio']
+        acc += projeto.dur_saida(c)
     out = []
     for w in palavras:
         for c, base in posicoes:
             if w['inicio'] < c['fim'] and w['fim'] > c['inicio']:
-                out.append({**w, 'clipe': (c.get('id'), c['inicio']), 'saida_ini': round(base + max(w['inicio'], c['inicio']) - c['inicio'], 3),
-                            'saida_fim': round(base + min(w['fim'], c['fim']) - c['inicio'], 3)})
+                v = c.get('vel', 1)
+                out.append({**w, 'clipe': (c.get('id'), c['inicio']), 'saida_ini': round(base + (max(w['inicio'], c['inicio']) - c['inicio']) / v, 3),
+                            'saida_fim': round(base + (min(w['fim'], c['fim']) - c['inicio']) / v, 3)})
                 break
     return out
 
 
 def duracao_saida(clipes: list[dict]) -> float:
-    return round(sum(c['fim'] - c['inicio'] for c in clipes), 3)
+    return round(sum(projeto.dur_saida(c) for c in clipes), 3)
 
 
 
@@ -279,7 +281,7 @@ def validar(itens: list[dict], ids_palavras: set[str]) -> list[dict]:
 def _palavras_mantidas(id: str, p: dict) -> list[dict]:
     palavras = projeto.ler_palavras(id)
     mantidas = cortes.mantidas_por_indice(palavras, p['cortes']['mantidas'])
-    return palavras_na_saida([w for w, fica in zip(palavras, mantidas) if fica], p['timeline']['V1'])
+    return palavras_na_saida([w for w, fica in zip(palavras, mantidas) if fica], projeto.v1_tocada(p))
 
 
 def prompt_diretora(id: str, fala=None) -> dict:
@@ -300,7 +302,7 @@ def prompt_diretora(id: str, fala=None) -> dict:
     sistema = PROMPT + (f"\n\nSOBRE O CRIADOR (contexto): {config['perfil_criador']}" if config['perfil_criador'] else '')
     sistema += ('\n\n=== HEURÍSTICA DO CRIADOR (as "Regras do criador" são obrigatórias e valem mais que tudo) ===\n\n'
                 + calibragem.documento(h, lista))
-    usuario = (f'=== VÍDEO NOVO ({duracao_saida(p["timeline"]["V1"]):.1f} s, já cortado) — a fala, para você dirigir ===\n\n{(fala or transcricao_corrida)(saida)}'
+    usuario = (f'=== VÍDEO NOVO ({duracao_saida(projeto.v1_tocada(p)):.1f} s, já cortado) — a fala, para você dirigir ===\n\n{(fala or transcricao_corrida)(saida)}'
                + ('\n\nAntes de responder, confira se a direção cumpre as REGRAS DO CRIADOR.' if regras else ''))
     return {'sistema': sistema, 'usuario': usuario, 'saida': saida, 'config': config, 'exemplos': n_exemplos}
 
