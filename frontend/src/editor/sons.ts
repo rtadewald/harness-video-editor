@@ -61,11 +61,17 @@ export function eventoNoTempo(s: { som: string | null; intensidade: Intensidade;
       desde -= t * vel
       t = 0
     }
-    return { t, som: info.id, ganho, desde, ...(Math.abs(vel - 1) > 0.01 ? { vel: +vel.toFixed(4) } : {}) }
+    // depois do golpe, o rabo do som some com o movimento: um rabo longo é cortado em `RABO` s (com o fade do fim); um
+    // curto termina sozinho (cortá-lo poria o fade em cima do golpe)
+    const rabo = (info.duracao - info.ataque) / vel
+    const corte = rabo > RABO ? { dur: +(golpe - t + RABO).toFixed(4) } : {}
+    return { t, som: info.id, ganho, desde, ...corte, ...(Math.abs(vel - 1) > 0.01 ? { vel: +vel.toFixed(4) } : {}) }
   }
   const t = quando + s.atraso - (dur ? 0 : info.ataque)
   return { t: Math.max(t, 0), som: info.id, ganho, desde: Math.max(-t, 0), ...(dur ? { dur } : {}) }
 }
+/** Quanto do som toca depois do golpe, num som que abrange um movimento (s): o movimento acabou, o som acaba junto. */
+const RABO = 0.15
 /** Quanto um som pode desacelerar ou acelerar para abranger um movimento (além disso, o tom mudaria demais). */
 const VEL: [number, number] = [0.65, 1.6]
 
@@ -80,10 +86,14 @@ export function eventosDaReceita(receita: Receita, dur: number, cat: Catalogo | 
   cards.forEach(({ c, ini, fim }, k) => {
     quando.entrada.push([ini + (c.entrada?.atraso?.pos ?? 0)])
     if (k > 0 && ini > cards[0].ini + 0.02) quando.troca.push([ini])
-    // a saída: quando começa; o mergulho (zoom de saída): o golpe no fim do zoom e o som desde o começo dele
+    // a saída: quando começa; o mergulho (zoom de saída): o som abrange o zoom de verdade — a janela da escala dentro da
+    // saída (`atraso.escala` e `dur.escala`; o resto da saída o card fica parado) —, com o golpe no fim do zoom
     if (c.saida) {
-      if (c.saida.para.escala > 1.05) quando.mergulho.push([fim, c.saida.duracao])
-      else quando.saida.push([fim - c.saida.duracao])
+      if (c.saida.para.escala > 1.05) {
+        const atraso = c.saida.atraso?.escala ?? 0
+        const d = c.saida.dur?.escala ?? c.saida.duracao - atraso
+        quando.mergulho.push([fim - c.saida.duracao + atraso + d, d])
+      } else quando.saida.push([fim - c.saida.duracao])
     }
     if (c.zoom) quando.zoom.push([ini + c.zoom.inicio + c.zoom.duracao, c.zoom.duracao])
   })
