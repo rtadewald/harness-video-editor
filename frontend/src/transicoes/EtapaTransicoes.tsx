@@ -1,14 +1,30 @@
-import { useContext, useMemo, useState, type ReactNode } from 'react'
+import { useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Play, Shuffle, Star, Volume2 } from 'lucide-react'
+import { Check, Play, Shuffle, Star, Volume2 } from 'lucide-react'
 import { formatarTempo, type ItemRef } from '@/api'
 import { CATEGORIAS } from '@/editor/EtapaDirecao'
 import LinhaBase, { type Trilha } from '@/editor/LinhaBase'
 import { Alca, Cabecalho, useTamanhos } from '@/editor/inserts/layout'
-import { useCatalogoSons } from '@/editor/sons'
+import { pararSons, useCatalogoSons } from '@/editor/sons'
+import { emCampoDeTexto, modalAberto } from '@/lib/atalhos'
 import { cn } from '@/lib/utils'
 import { COR_PLANO } from '@/referencias/LinhaDirecao'
-import { LUZ, TransicoesDoVideo, ordemDoPar, sonsDasTransicoes, useBiblioteca, type CorteDoVideo, type Transicao } from './transicoes'
+import { Miniatura } from './CardTransicao'
+import {
+  LUZ,
+  TransicoesDoVideo,
+  chaveGrupo,
+  familia,
+  fonteDaTransicao,
+  ordemDoPar,
+  parDoGrupo,
+  sonsDasTransicoes,
+  useBiblioteca,
+  type Biblioteca,
+  type CorteDoVideo,
+  type Grupo,
+  type Transicao,
+} from './transicoes'
 
 const nomeCat = (c: string) => CATEGORIAS.planos[c] ?? c
 const VAZIO: CorteDoVideo[] = []
@@ -37,8 +53,12 @@ export default function EtapaTransicoes(p: {
   const cortes = useContext(TransicoesDoVideo) ?? VAZIO
   const b = useBiblioteca()
   const cat = useCatalogoSons()
-  const [sel, setSel] = useState<string | null>(null)
-  const corte = cortes.find((c) => c.plano === sel) ?? null
+  // o corte selecionado é sempre o próximo a partir do cursor (pedido de Rodrigo, out/2026: sem precisar clicar nele);
+  // enquanto o vídeo toca fica o que estava (o R toca o corte e passa dele)
+  const proximo = cortes.find((c) => c.t >= p.tempo - 0.05) ?? cortes[cortes.length - 1] ?? null
+  const [sel, setSel] = useState<string | null>(proximo?.plano ?? null)
+  if (!p.tocando && proximo && sel !== proximo.plano) setSel(proximo.plano)
+  const corte = cortes.find((c) => c.plano === sel) ?? proximo
   const [tam, arrastarBorda] = useTamanhos()
   // ▶ Ver: toca de 1,5 s antes a 1,5 s depois do corte e para (o trecho do player: pausar o esquece)
   const ver = (c: CorteDoVideo) => p.tocarTrecho(Math.max(c.t - 1.5, 0), Math.min(c.t + 1.5, p.duracao))
@@ -46,6 +66,17 @@ export default function EtapaTransicoes(p: {
     setSel(c.plano)
     p.buscar(Math.max(c.t - 0.4, 0))
   }
+  // R: toca o corte selecionado para ver como ficou
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'r' || e.metaKey || e.ctrlKey || e.altKey || emCampoDeTexto(e.target, e.key) || modalAberto() || !cortes.length) return
+      e.preventDefault()
+      pararSons()
+      if (corte) ver(corte)
+    }
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  })
   const efeitos = cortes.filter(temAlgo).length
   // as favoritas de hoje podem deixar todos os cortes secos (a 1ª favorita é a mais comum no par, quase sempre o corte
   // seco): sem trocar à mão, o vídeo sai sem efeito nem som de transição — melhor dizer na tela (docs/transicoes.md, ⏳)
@@ -71,10 +102,10 @@ export default function EtapaTransicoes(p: {
             {!cortes.length ? (
               <p className="text-[12.5px] leading-[1.7] text-fog">Este vídeo ainda não tem planos na direção (a etapa Direção visual).</p>
             ) : corte && b ? (
-              <Opcoes corte={corte} todas={b.transicoes} favoritas={ordemDoPar(b, corte.de, corte.para)} escolher={(tid) => p.escolher(corte, tid)} ver={() => ver(corte)} />
+              <Opcoes key={corte.plano} corte={corte} b={b} escolher={(tid) => p.escolher(corte, tid)} ver={() => ver(corte)} />
             ) : (
               <p className="text-[12.5px] leading-[1.7] text-fog">
-                Cada corte entre planos recebe sozinho a favorita do par (de onde sai → para onde vai). Escolha um corte na linha do tempo para ver e trocar a transição dele.
+                Cada corte entre planos recebe sozinho a favorita do par (de onde sai → para onde vai).
               </p>
             )}
             {todosSecos && (
@@ -163,27 +194,49 @@ export default function EtapaTransicoes(p: {
   )
 }
 
-function Opcoes(p: { corte: CorteDoVideo; todas: Transicao[]; favoritas?: { ids: string[]; favoritas: number }; escolher: (tid: string | null) => void; ver: () => void }) {
-  const fav = new Set((p.favoritas?.ids ?? []).slice(0, p.favoritas?.favoritas ?? 0))
-  const ordem = [...(p.favoritas?.ids ?? []), ...p.todas.map((t) => t.id)].filter((x, i, l) => l.indexOf(x) === i)
-  const lista = ordem.map((id) => p.todas.find((t) => t.id === id)).filter(Boolean) as Transicao[]
-  const botao = (t: Transicao) => (
-    <button
-      key={t.id}
-      onClick={() => p.escolher(t.id)}
-      title={t.descricao}
-      className={cn(
-        'flex items-center gap-1.5 rounded-[6px] px-2.5 py-2 text-left text-[11.5px] font-semibold ring-1',
-        p.corte.transicao?.id === t.id ? 'bg-cream text-ink ring-cream' : 'text-fog ring-line-dark hover:text-cream',
-      )}
-    >
-      {fav.has(t.id) && <Star className="size-3 shrink-0 fill-yellow text-yellow" />}
-      <span className="truncate">{t.nome}</span>
-      {t.som && <Volume2 className="ml-auto size-3 shrink-0 opacity-60" />}
-    </button>
-  )
+/** As opções do corte selecionado, cada uma com a demonstração (a referência e a recriação lado a lado, como na página
+ *  Transições; clicar na prévia toca, com o som da recriação) e o nome embaixo, que escolhe a transição para o corte. */
+function Opcoes(p: { corte: CorteDoVideo; b: Biblioteca; escolher: (tid: string | null) => void; ver: () => void }) {
+  const { b } = p
+  const favoritas = ordemDoPar(b, p.corte.de, p.corte.para)
+  const fav = new Set((favoritas?.ids ?? []).slice(0, favoritas?.favoritas ?? 0))
+  const ordem = [...(favoritas?.ids ?? []), ...b.transicoes.map((t) => t.id)].filter((x, i, l) => l.indexOf(x) === i)
+  const lista = ordem.map((id) => b.transicoes.find((t) => t.id === id)).filter(Boolean) as Transicao[]
+  const grupo = parDoGrupo(b, chaveGrupo(familia(p.corte.de) as Grupo, familia(p.corte.para) as Grupo))
+  const [demo, setDemo] = useState<string | null>(null)
+  useEffect(() => () => pararSons(), [])
+  const card = (t: Transicao) => {
+    const usada = (p.corte.transicao?.id ?? 'corte-seco') === t.id
+    return (
+      <div key={t.id} className={cn('grid min-w-0 gap-2 rounded-[8px] p-1.5 ring-1', usada ? 'bg-cream/[0.07] ring-2 ring-cream' : 'ring-transparent')}>
+        <Miniatura
+          t={t}
+          fonte={fonteDaTransicao(b, t, grupo)}
+          tocando={demo === t.id}
+          tocar={(sim) => {
+            pararSons()
+            setDemo(sim ? t.id : null)
+          }}
+          som="recriacao"
+          semSelo
+        />
+        <button
+          onClick={() => p.escolher(t.id)}
+          title={t.descricao}
+          className={cn(
+            'flex min-w-0 items-center gap-1.5 rounded-[6px] px-2 py-1.5 text-left text-[11.5px] font-semibold',
+            usada ? 'bg-cream text-ink' : 'text-cream/80 ring-1 ring-line-dark hover:text-cream hover:ring-cream/40',
+          )}
+        >
+          {fav.has(t.id) && <Star className="size-3 shrink-0 fill-yellow text-yellow" />}
+          <span className="min-w-0 flex-1 truncate">{t.nome}</span>
+          {usada ? <Check className="size-3.5 shrink-0" /> : t.som && <Volume2 className="size-3 shrink-0 opacity-60" />}
+        </button>
+      </div>
+    )
+  }
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-5">
       <div className="grid gap-1">
         <p className="text-[13px] font-semibold">
           {nomeCat(p.corte.de)} → {nomeCat(p.corte.para)}
@@ -192,24 +245,24 @@ function Opcoes(p: { corte: CorteDoVideo; todas: Transicao[]; favoritas?: { ids:
           <span className="tabular-nums">{formatarTempo(p.corte.t)}</span>
           <span>·</span>
           <span className={cn(p.corte.manual && 'text-coral')}>{p.corte.manual ? 'escolhida à mão' : 'a favorita do par'}</span>
-          <button onClick={p.ver} className="ml-auto flex items-center gap-1 rounded-full border border-line-dark px-2.5 py-1 text-[11px] font-semibold text-fog hover:text-cream">
-            <Play className="size-3" /> Ver o corte
+          <button onClick={p.ver} className="ml-auto flex items-center gap-1 rounded-full border border-line-dark px-2.5 py-1 text-[11px] font-semibold text-fog hover:text-cream" title="Ver o corte no vídeo (R)">
+            <Play className="size-3" /> Ver o corte <kbd className="ml-0.5 rounded-[3px] bg-cream/10 px-1 font-sans text-[10px]">R</kbd>
           </button>
         </p>
+        {p.corte.manual && (
+          <button onClick={() => p.escolher(null)} className="w-fit text-[11px] text-fog underline-offset-2 hover:text-cream hover:underline">
+            Voltar à favorita do par
+          </button>
+        )}
       </div>
-      <div className="grid gap-1.5">
+      <div className="grid gap-2">
         <p className="eyebrow text-yellow">Favoritas do par</p>
-        <div className="grid grid-cols-2 gap-1.5">{lista.filter((t) => fav.has(t.id)).map(botao)}</div>
+        <div className="grid grid-cols-2 gap-2">{lista.filter((t) => fav.has(t.id)).map(card)}</div>
       </div>
-      <div className="grid gap-1.5">
+      <div className="grid gap-2">
         <p className="eyebrow text-fog">Outras transições</p>
-        <div className="grid grid-cols-2 gap-1.5">{lista.filter((t) => !fav.has(t.id)).map(botao)}</div>
+        <div className="grid grid-cols-2 gap-2">{lista.filter((t) => !fav.has(t.id)).map(card)}</div>
       </div>
-      {p.corte.manual && (
-        <button onClick={() => p.escolher(null)} className="w-fit text-[11px] text-fog underline-offset-2 hover:text-cream hover:underline">
-          Voltar à favorita do par
-        </button>
-      )}
     </div>
   )
 }

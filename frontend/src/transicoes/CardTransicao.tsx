@@ -14,13 +14,15 @@ const quadro = (ref: string, t: number) => `/api/presets/quadro/${encodeURICompo
 /** A prévia de uma transição (SPEC §8.8): a referência (o corte de onde ela veio, tocando com o som dela) e a
  *  recriação ao lado (o quadro de antes e o de depois do corte, com o efeito e o som do motor, no mesmo relógio), de
  *  borda a borda, como nos presets. `som`: de qual lado sai o som. Serve ao card e ao modal da transição. */
-function Miniatura(p: {
+export function Miniatura(p: {
   t: Transicao
   fonte: { ref: string; t: number } | null
   tocando: boolean
   tocar: (sim: boolean) => void
   som: 'referencia' | 'recriacao'
   favorita?: { ligada: boolean; primeira: boolean }
+  /** sem o selo Aprovada / A revisar (na etapa Transições do editor) */
+  semSelo?: boolean
   /** no modal: cada lado toca sozinho, com o próprio som (clicar no lado que está tocando para) */
   porLado?: (lado: 'referencia' | 'recriacao') => void
 }) {
@@ -101,9 +103,11 @@ function Miniatura(p: {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#0b1714e6] to-transparent" />
         <span className="absolute bottom-2.5 left-2.5 text-[9.5px] font-semibold tracking-[0.08em] text-cream/70 uppercase">Referência</span>
         <span className="absolute bottom-2.5 left-[calc(50%+10px)] text-[9.5px] font-semibold tracking-[0.08em] text-cream/70 uppercase">Recriação</span>
+        {!p.semSelo && (
         <span className={cn('absolute top-2.5 left-2.5 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] uppercase', t.aprovado ? 'bg-mint text-ink' : 'bg-coral text-cream')}>
           {t.aprovado ? 'Aprovada' : 'A revisar'}
         </span>
+        )}
         {p.favorita?.primeira && (
           <span className="absolute top-2.5 right-2.5 rounded-full bg-yellow px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-ink uppercase">Padrão do par</span>
         )}
