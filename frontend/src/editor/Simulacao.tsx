@@ -3,7 +3,8 @@ import type { ItemBanco } from '@/api'
 import { cn } from '@/lib/utils'
 import { ajustesEfetivos, comAjustes, type Ajustes } from './ajustes'
 import CenaPreset from './CenaPreset'
-import { areaDoInsert, divisaoDe, estiloDaPessoa, estiloDoAtor, receitaParaInsert } from './divisao'
+import { estiloDaPessoaNaGeometria, estiloDoQuadro, geometriaDoAtor } from './ator'
+import { areaDoInsert, divisaoDe, receitaParaInsert } from './divisao'
 import Fundo from './Fundo'
 import { noFormato, type Preset } from './presets'
 
@@ -109,12 +110,15 @@ export default function Simulacao(p: {
   const base = noFormato(preset, formato, sim.n).receita
   const receita = comAjustes(receitaParaInsert(comAjustes(base, ajEf, 'antes'), divisao, aspectos, formato), ajEf, 'depois')
   const atorReal = p.midias?.ator
+  // o ator pelas mesmas contas do editor (`editor/ator.ts`), na posição de fábrica: a janela no "ator embaixo" e, na
+  // tela dividida, o ator descendo metade do insert (o vídeo de amostra não tem o rosto medido)
+  const g = geometriaDoAtor(divisao, null, null)
   const ator = sim.tela !== 'vertical' && (
-    <div className="pointer-events-none absolute inset-0" style={estiloDoAtor(divisao)}>
+    <div className="pointer-events-none absolute inset-0" style={estiloDoQuadro(g) ?? undefined}>
       {atorReal ? <Video src={atorReal.video} className="size-full object-cover" /> : <Boneco />}
     </div>
   )
-  const pessoa = sim.tela === 'atras' && atorReal?.pessoa ? estiloDaPessoa(divisao) : null
+  const pessoa = sim.tela === 'atras' && atorReal?.pessoa ? estiloDaPessoaNaGeometria(g) : null
   return (
     <SimTocando.Provider value={!!p.tocando}>
     <div data-simulacao className={cn('relative aspect-[9/16] w-full overflow-hidden bg-black', p.className)}>

@@ -2,7 +2,7 @@
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -92,7 +92,8 @@ def opcoes_de_enriquecimento():
 
 
 class Enriquecimento(BaseModel):
-    campos: dict[str, str | float | list[float] | dict[str, str] | None]
+    # os dicionários (os ajustes rápidos do preset, o ator da P5 com números) são validados em `inserts._validar_enriquecimento`
+    campos: dict[str, str | float | list[float] | dict[str, Any] | None]
 
 
 @rotas.put('/api/projetos/{id}/inserts/{pid}/enriquecimento')

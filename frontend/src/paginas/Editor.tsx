@@ -24,6 +24,7 @@ import { paraTempo, palavrasNaSaida } from '@/editor/direcaoProjeto'
 import { TransicoesDoVideo, chavePar, cortesDoVideo, useBiblioteca, useEscolhas } from '@/transicoes/transicoes'
 import { FatorSom } from '@/editor/sons'
 import { MontagemDoProjeto } from '@/editor/MontagemNoPalco'
+import { useRosto } from '@/editor/ator'
 import EtapaTransicoes from '@/transicoes/EtapaTransicoes'
 import EtapaAudio from '@/audio/EtapaAudio'
 import EtapaLegenda from '@/legenda/EtapaLegenda'
@@ -125,6 +126,8 @@ export default function Editor() {
     [naSaida, legenda, dados, zonasLegenda],
   )
   const orfaosLegenda = useMemo(() => (naSaida && legenda && dados ? ajustesNoVideo(legenda.ajustes, dados.palavras, naSaida.saida).orfaos : []), [naSaida, legenda, dados])
+  // o rosto do ator (P5): o enquadramento dele na tela dividida, nas prévias montadas
+  const rostoEm = useRosto(dados?.projeto, seq)
   const catSons = useCatalogoSons()
   const sonsTransicao = useMemo(() => (cortesTransicao ? sonsDasTransicoes(cortesTransicao, catSons) : []), [cortesTransicao, catSons])
   const [picos, setPicos] = useState<Picos | null>(null)
@@ -327,6 +330,7 @@ export default function Editor() {
             videoRef={player.ref}
             src={src}
             enquadramentoX={projeto.enquadramento.x}
+            rostoEm={rostoEm}
           />
         )
       }

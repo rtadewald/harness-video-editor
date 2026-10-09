@@ -1,6 +1,7 @@
 import type { ItemBanco } from '@/api'
 import type { Preset, Receita } from './presets'
 import { ajustesEfetivos } from './ajustes'
+import { topoDoAtor, type Geometria } from './ator'
 
 /** A divisão da tela num insert de tela dividida (SPEC §8.4), automática: o tipo vem do preset escolhido e as medidas,
  *  da proporção da 1ª mídia.
@@ -139,30 +140,13 @@ export const aspectosDe = (midias: { banco: string }[], banco?: Map<string, Item
 /** A área do insert no quadro (estilo CSS em %). */
 export const areaDoInsert = (d: Divisao | null): React.CSSProperties => (!d ? { inset: 0 } : { left: 0, right: 0, top: 0, height: `${d.f * 100}%` })
 
-/** Onde a caixinha do comentário fica sozinha (centro, % do quadro): na costura do insert com o ator. */
-export function posicaoDoComentario(d: Divisao | null): { x: number; y: number } {
+/** Onde a caixinha do comentário fica sozinha (centro, % do quadro): na costura do insert com o ator. `g`: a geometria
+ *  do ator (`ator.geometriaDoAtor`, a P5), para desviar dele no modo e na posição em que estiver. */
+export function posicaoDoComentario(d: Divisao | null, g?: Geometria | null): { x: number; y: number } {
   if (!d) return { x: 50, y: 50 }
-  // no "ator embaixo", na borda de baixo do card (na costura, cobriria o rosto que sai da janela); senão, na costura
-  // no "ator embaixo", acima da cabeça (que sai da janela), ou na borda de baixo do card se ela estiver mais acima
-  if (d.modo === 'atras') return { x: 50, y: Math.min(TOPO_CABECA - 6, d.card ? (d.f / 2 + (d.card.h / 100) * (d.f / 2)) * 100 : 100) }
+  // no "ator embaixo", acima da cabeça (que sai da janela, ou do recortado; no canto, acima da caixa), ou na borda de
+  // baixo do card se ela estiver mais acima. Na exportação, o ator vai por cima do card: aqui ele não cobre o texto
+  const cabeca = g && g.modo !== 'metade' ? topoDoAtor(g) * 100 : TOPO_CABECA
+  if (d.modo === 'atras') return { x: 50, y: Math.min(cabeca - 6, d.card ? (d.f / 2 + (d.card.h / 100) * (d.f / 2)) * 100 : 100) }
   return { x: 50, y: d.f * 100 }
-}
-
-const topoDaJanela = () => ((JANELA.y0 - (100 - JANELA.escala * 100)) / (JANELA.escala * 100)) * 100 // em % do ator encolhido
-
-/** Como o vídeo do ator fica (transform e recorte no próprio elemento, que ocupa o quadro todo). */
-export function estiloDoAtor(d: Divisao | null): React.CSSProperties {
-  if (!d) return {}
-  if (d.modo === 'metade') return { transform: `translateY(${(d.f / 2) * 100}%)` }
-  return {
-    transform: `scale(${JANELA.escala})`,
-    transformOrigin: '50% 100%',
-    clipPath: `inset(${topoDaJanela()}% 0 0 0 round ${JANELA.raio}% / ${(JANELA.raio * 9) / 16}%)`, // cantos redondos (o raio em % da largura)
-  }
-}
-
-/** O recorte da pessoa por cima do insert (cabeça e ombros saindo da janela): só no "ator embaixo", que é quando se pede. */
-export function estiloDaPessoa(d: Divisao | null): React.CSSProperties | null {
-  if (d?.modo !== 'atras') return null
-  return { transform: `scale(${JANELA.escala})`, transformOrigin: '50% 100%', clipPath: `inset(0 0 ${100 - topoDaJanela()}% 0)` }
 }

@@ -7,7 +7,7 @@ import MidiaCard from '../MidiaCard'
 import SeletorBanco from '../SeletorBanco'
 import EditorVideo from '../EditorVideo'
 import { ACEITA, BOTAO, NOME_TIPO, type NovaMidia, type Pedido } from './comum'
-import { Campo } from './layout'
+import { Campo, Recolhivel } from './layout'
 
 export default function DetalheInsert(p: {
   pedido: Pedido
@@ -85,12 +85,22 @@ export default function DetalheInsert(p: {
           ▶ Ver trecho
         </button>
       </div>
-      <p className="border-l-2 border-line-dark pl-3 text-[12.5px] leading-[1.6] text-cream/90">“{x.fala}”</p>
-      {x.descricao ? (
-        <Campo rotulo="O que acontece no insert">{x.descricao}</Campo>
-      ) : (
-        <p className="text-[11.5px] text-fog">A direção não descreveu este insert.</p>
-      )}
+      {/* a sugestão da IA (a fala e o que acontece no insert): fechada, para as mídias ficarem à vista; lembrada aberta */}
+      <Recolhivel
+        chave="sugestao"
+        titulo="Sugestão da IA"
+        fechado
+        resumo={<span className="truncate text-[11.5px] text-fog">“{x.fala}”</span>}
+      >
+        <div className="grid gap-3">
+          <p className="border-l-2 border-line-dark pl-3 text-[12.5px] leading-[1.6] text-cream/90">“{x.fala}”</p>
+          {x.descricao ? (
+            <Campo rotulo="O que acontece no insert">{x.descricao}</Campo>
+          ) : (
+            <p className="text-[11.5px] text-fog">A direção não descreveu este insert.</p>
+          )}
+        </div>
+      </Recolhivel>
 
       <div className="grid gap-2">
         <p className="eyebrow text-fog">

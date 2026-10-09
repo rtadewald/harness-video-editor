@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { enviar, json, lerInserts, listarBanco, mapaBanco, type InsertsProjeto, type ItemBanco, type ItemRef } from '@/api'
 import { comentarioDe } from '@/editor/ComentarioIG'
 import type { PalavraSaida } from '@/editor/direcaoProjeto'
-import { JANELA, divisaoDe, posicaoDoComentario, type Divisao } from '@/editor/divisao'
+import { geometriaDoAtor, topoDoAtor, type Geometria } from '@/editor/ator'
+import { divisaoDe, posicaoDoComentario, type Divisao } from '@/editor/divisao'
 import { pedidosNoTempo } from '@/editor/InsertNoLugar'
 import type { Pedido } from '@/editor/inserts/comum'
 import { usePresets, type Preset } from '@/editor/presets'
@@ -58,19 +59,21 @@ const FOLGA = 0.015
 /** O texto de uma palavra na legenda (a vírgula e o ponto e vírgula saem; a pergunta e a exclamação ficam). */
 const limpar = (t: string) => t.replace(/[,;:]+$/, '')
 
-/** O que há na tela num trecho (um insert) e muda a altura da legenda: a divisão da tela (onde fica a costura) e o card
- *  do comentário (`y`: o centro, `h`: a altura, frações do quadro). */
-export type Zona = { ini: number; fim: number; divisao: Divisao | null; card: { y: number; h: number } | null }
+/** O que há na tela num trecho (um insert) e muda a altura da legenda: a divisão da tela (onde fica a costura), o ator
+ *  no "ator embaixo" (a geometria, `editor/ator.ts`; sem o rosto, que só muda o x) e o card do comentário (`y`: o
+ *  centro, `h`: a altura, frações do quadro). */
+export type Zona = { ini: number; fim: number; divisao: Divisao | null; ator?: Geometria | null; card: { y: number; h: number } | null }
 
 export function zonasDaLegenda(pedidos: Pedido[], banco: Map<string, ItemBanco> | null | undefined, presets: Preset[] | null | undefined): Zona[] {
   return pedidos.map((x) => {
     const divisao = x.midias.length > 0 ? divisaoDe(x, banco, presets) : null
+    const ator = geometriaDoAtor(divisao, x.enriquecimento?.ator, null)
     let card = null
     if (x.tipo === 'comentario_insert_ator') {
-      const c = comentarioDe(x, posicaoDoComentario(divisao))
+      const c = comentarioDe(x, posicaoDoComentario(divisao, ator))
       card = { y: c.y / 100, h: alturaDoCard(c.texto ?? x.texto ?? '', c.escala) }
     }
-    return { ini: x.t.inicio, fim: x.t.fim, divisao, card }
+    return { ini: x.t.inicio, fim: x.t.fim, divisao, ator, card }
   })
 }
 
@@ -103,14 +106,18 @@ function alturaDoCard(texto: string, escala: number) {
 
 /** A altura do centro da legenda num instante: a medida para o tipo de plano; na tela dividida, a costura real do
  *  trecho (a divisão de cada insert, `divisaoDe`; o motion dividido é meio a meio); no "ator embaixo", a mesma altura
- *  do Full ator dentro da janela do ator encolhido; e, se houver um card de comentário ali, logo acima dele (ou
- *  abaixo, se não couber). Inserts em tela cheia e motions não são lidos (o conteúdo é desenhado na hora): fica a
+ *  do Full ator dentro do ator encolhido (na janela ou no recortado, onde ele estiver; no canto, logo acima da caixa);
+ *  e, se houver um card de comentário ali, logo acima dele (ou abaixo, se não couber). Inserts em tela cheia e motions não são lidos (o conteúdo é desenhado na hora): fica a
  *  altura medida. */
 export function alturaDaLegenda(tipo: string | undefined, z: Zona | null): number {
   let y = ALTURA_POR_PLANO[tipo ?? ''] ?? ALTURA_PADRAO
   const d = z?.divisao
   if (d?.modo === 'metade') y = Math.min(Math.max(d.f, 0.3), 0.7)
-  else if (d?.modo === 'atras') y = 1 - JANELA.escala + ALTURA_POR_PLANO.full_ator * JANELA.escala
+  else if (d?.modo === 'atras') {
+    // na janela e no recortado, a altura do Full ator dentro do ator encolhido; no canto (o ator pequeno), logo acima dele
+    const g: Geometria = z?.ator ?? { modo: 'janela', s: 0.55, tx: 0.225, ty: 0.45 }
+    y = g.modo === 'canto' ? topoDoAtor(g) - MEIA - FOLGA : g.ty + ALTURA_POR_PLANO.full_ator * g.s
+  }
   else if (tipo === 'tela_dividida_motion') y = 0.5
   const c = z?.card
   if (c && y + MEIA + FOLGA > c.y - c.h / 2 && y - MEIA - FOLGA < c.y + c.h / 2) {

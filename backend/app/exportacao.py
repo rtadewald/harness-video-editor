@@ -109,7 +109,12 @@ def _ator(clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, 
     dos inserts sobre [topo_in] → [topo]: o ator na janela do "insert atrás" e a pessoa recortada saindo da área dele.
     `com_look`: o ator escalado sai em [ator_cru] e o look (`look.filtros`, ligado em `comando_final`) faz o [ator]."""
     n = len(clipes)
-    usa_mascara = mascara and any(d['modo'] == 'atras' for _, _, d in divisoes)  # a cabeça sai por cima só no "ator embaixo"
+    # a geometria do ator (P5, `editor/ator.ts`): quando a página de render a manda, o ator é posto por ela
+    geometria = any(d.get('ator') for _, _, d in divisoes)
+    if geometria:
+        usa_mascara = mascara and any((d.get('ator') or {}).get('modo') in ('janela', 'recortado') for _, _, d in divisoes)
+    else:
+        usa_mascara = mascara and any(d['modo'] == 'atras' for _, _, d in divisoes)  # a cabeça sai por cima só no "ator embaixo"
     partes = [f'[0:v]split={n}' + ''.join(f'[v{k}]' for k in range(n)), f'[0:a]asplit={n}' + ''.join(f'[a{k}]' for k in range(n))]
     if usa_mascara:
         partes.append(f'[1:v]split={n}' + ''.join(f'[m{k}]' for k in range(n)))
@@ -127,6 +132,11 @@ def _ator(clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, 
     partes.append(f'{pares}concat=n={n}:v=1:a=1[vc][ac]')
     recorte = f"crop=w=trunc(ih*9/16/2)*2:h=ih:x=(iw-ow)*{enquadramento_x:.4f}," if horizontal else ''
     partes.append(f'[vc]{recorte}scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{h},setsar=1,fps={fps}[{'ator_cru' if com_look else 'ator'}]')
+    if geometria:
+        if usa_mascara:
+            partes.append(f'{masc}concat=n={n}:v=1:a=0,scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},format=gray,fps={fps}[masc]')
+        topo = _ator_na_geometria(partes, divisoes, w, h, fps, duracao, usa_mascara)
+        return partes, topo
     quando = lambda ts: '+'.join(f'between(t,{a:.4f},{b - 0.5 / fps:.4f})' for a, b in ts) or '0'  # noqa: E731
     metades = [(a, b, d['f']) for a, b, d in divisoes if d['modo'] == 'metade']
     atras = [(a, b) for a, b, d in divisoes if d['modo'] == 'atras']
@@ -167,6 +177,88 @@ def _ator(clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, 
             atual = 'tpj'
     topo.append(f'[{atual}]null[topo]')
     return partes, topo
+
+
+def _par(v: float) -> int:
+    return max(2, int(round(v / 2)) * 2)
+
+
+def _cantos(w: int, h: int, r: int, fps: int, dur: float, rotulo: str) -> str:
+    """Uma máscara de cantos redondos (raio `r` px) do tamanho do ator, para o `alphamerge`."""
+    return (f"color=c=white:s={w}x{h}:r={fps}:d={dur:.4f},format=gray,"
+            f"geq=lum='255*lte(hypot(max(0,max({r}-X,X-{w - r})),max(0,max({r}-Y,Y-{h - r}))),{r})'[{rotulo}]")
+
+
+def _desde(a: float, fps: int) -> str:
+    """Leva um pedaço recortado do ator (começando em 0) de volta ao instante `a` com quadros transparentes antes dele, no
+    lugar de só empurrar o tempo (`setpts=PTS+a/TB`): sem quadros até `a`, o overlay esperava o primeiro e guardava na
+    fila todos os quadros do ator de 0 até `a` (a memória crescia com o instante do insert, gigabytes num insert tardio).
+    `n`: os quadros do ator (um a cada 1/fps desde 0) antes de `a`, então o primeiro do pedaço cai no instante dele."""
+    n = math.ceil(a * fps - 1e-6)
+    return f'tpad=start={n}:color=black@0' if n > 0 else 'null'
+
+
+def _ator_na_geometria(partes: list[str], divisoes: list[tuple[float, float, dict]], w: int, h: int, fps: int, duracao: float,
+                       usa_mascara: bool) -> list[str]:
+    """O ator posto pela geometria de cada trecho dividido (P5; `editor/ator.ts`): `{modo, s, tx, ty, topo?, raio?}` —
+    o quadro do ator com o canto de cima à esquerda em (tx, ty) e a escala s, em frações do quadro.
+    - `metade` (tela dividida): o ator inteiro, ampliado e deslocado pelo rosto, embaixo dos inserts ([base]);
+    - `janela`, `canto`: o ator encolhido por cima dos inserts — a janela (só de `topo` para baixo) ou o quadro inteiro,
+      com os cantos redondos; `recortado`: só a pessoa (a máscara). Na janela, a pessoa recortada sai por cima dela.
+    Cada trecho por cima é um pedaço recortado do ator (só aqueles quadros são escalados). Acrescenta os filtros de baixo
+    em `partes` (saída [base]) e devolve os de cima, de [topo_in] a [topo]."""
+    quando = lambda a, b: f'between(t,{a:.4f},{b - 0.5 / fps:.4f})'  # noqa: E731
+    metades = [(a, b, d['ator']) for a, b, d in divisoes if (d.get('ator') or {}).get('modo') == 'metade']
+    sobre = [(a, b, d['ator']) for a, b, d in divisoes if (d.get('ator') or {}).get('modo') in ('janela', 'canto', 'recortado')]
+    # sem a máscara (o recorte do ator não ficou pronto), o recortado vira o ator inteiro num canto
+    if not usa_mascara:
+        sobre = [(a, b, {**g, 'modo': 'canto', 'raio': g.get('raio') or 0.07} if g['modo'] == 'recortado' else g) for a, b, g in sobre]
+    quadros = [(a, b, g) for a, b, g in sobre if g['modo'] in ('janela', 'canto')]
+    pessoas = [(a, b, g) for a, b, g in sobre if g['modo'] in ('janela', 'recortado')] if usa_mascara else []
+    usos = 1 + len(quadros) + (1 if pessoas else 0)
+    partes.append(f'[ator]split={usos}[ator0]' + ''.join(f'[aq{i}]' for i in range(len(quadros))) + ('[ator2]' if pessoas else ''))
+    partes.append(f'color=c=black:s={w}x{h}:r={fps}:d={duracao:.4f}[tela]')
+    # a tela dividida: escala e posição por trecho (fora dos trechos, o ator como foi gravado)
+    escala = '+'.join(f"{quando(a, b)}*{g['s'] - 1:.5f}" for a, b, g in metades if abs(g['s'] - 1) > 1e-4)
+    x = '+'.join(f"{quando(a, b)}*{g['tx']:.5f}*W" for a, b, g in metades if abs(g['tx']) > 1e-5) or '0'
+    y = '+'.join(f"{quando(a, b)}*{g['ty']:.5f}*H" for a, b, g in metades if abs(g['ty']) > 1e-5) or '0'
+    ator0 = 'ator0'
+    if escala:
+        partes.append(f"[ator0]scale=w='trunc(iw*(1+{escala})/2)*2':h='trunc(ih*(1+{escala})/2)*2':eval=frame[ator0s]")
+        ator0 = 'ator0s'
+    partes.append(f"[tela][{ator0}]overlay=x='{x}':y='{y}':eval=frame:shortest=1[base]")
+    topo: list[str] = []
+    atual = 'topo_in'
+    for i, (a, b, g) in enumerate(quadros):
+        sw, sh = _par(g['s'] * w), _par(g['s'] * h)
+        x0, y0 = round(g['tx'] * w), round(g['ty'] * h)
+        corte = _par((g.get('topo') or 0) * sh) if g['modo'] == 'janela' else 0
+        qh = sh - corte
+        r = max(1, round((g.get('raio') or 0) * sw))
+        topo.append(f'[aq{i}]trim=start={a:.4f}:end={b:.4f},setpts=PTS-STARTPTS,scale={sw}:{sh},crop={sw}:{qh}:0:{corte},format=rgba[q{i}]')
+        topo.append(_cantos(sw, qh, r, fps, b - a, f'qc{i}'))
+        topo.append(f'[q{i}][qc{i}]alphamerge,{_desde(a, fps)}[qr{i}]')
+        topo.append(f"[{atual}][qr{i}]overlay=x={x0}:y={y0 + corte}:eof_action=pass:enable='{quando(a, b)}'[tq{i}]")
+        atual = f'tq{i}'
+    if pessoas:
+        # o ator e a máscara são cortados no trecho antes de se juntarem: o alphamerge (que espera as duas entradas) só
+        # recebe os quadros do trecho, e nada do ator antes dele fica guardado esperando a máscara
+        n = len(pessoas)
+        partes.append('[ator2]split=' + str(n) + ''.join(f'[pa{i}]' for i in range(n)))
+        partes.append('[masc]split=' + str(n) + ''.join(f'[pm{i}]' for i in range(n)))
+        for i, (a, b, g) in enumerate(pessoas):
+            sw, sh = _par(g['s'] * w), _par(g['s'] * h)
+            x0, y0 = round(g['tx'] * w), round(g['ty'] * h)
+            # na janela, só a parte de cima (a cabeça e os ombros saindo dela); no recortado, a pessoa inteira
+            alto = _par((g.get('topo') or 0) * sh) if g['modo'] == 'janela' else sh
+            corte = f'trim=start={a:.4f}:end={b:.4f},setpts=PTS-STARTPTS'
+            topo.append(f'[pa{i}]{corte}[pat{i}]')
+            topo.append(f'[pm{i}]{corte}[pmt{i}]')
+            topo.append(f'[pat{i}][pmt{i}]alphamerge,scale={sw}:{sh},crop={sw}:{alto}:0:0,{_desde(a, fps)}[pq{i}]')
+            topo.append(f"[{atual}][pq{i}]overlay=x={x0}:y={y0}:eof_action=pass:enable='{quando(a, b)}'[tp{i}]")
+            atual = f'tp{i}'
+    topo.append(f'[{atual}]null[topo]')
+    return topo
 
 
 def _inserts(camadas: list[tuple[Path, float]], primeira_entrada: int, rotulo_in: str, saida: str) -> tuple[list[str], list[str]]:

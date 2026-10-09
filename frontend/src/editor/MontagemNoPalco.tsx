@@ -5,10 +5,12 @@ import MotionNoLugar from '@/motions/MotionNoLugar'
 import { usePresets as usePresetsMotion } from '@/motions/PresetMotion'
 import { escolhasDeSom } from '@/motions/sons'
 import { useMotionsDoProjeto } from '@/motions/useMotionsDoProjeto'
+import AtorArrastavel from './AtorArrastavel'
 import AtorRecortado from './AtorRecortado'
+import { ajusteNaFolga, estiloDaPessoaNaGeometria, estiloDoQuadro, geometriaDoAtor, type AjusteAtor, type Rosto } from './ator'
 import { CardComentario, comentarioDe, type Comentario } from './ComentarioIG'
 import type { PalavraSaida } from './direcaoProjeto'
-import { divisaoDe, estiloDaPessoa, estiloDoAtor, posicaoDoComentario, type Divisao } from './divisao'
+import { divisaoDe, posicaoDoComentario, type Divisao } from './divisao'
 import { useEntradas } from './entradas'
 import InsertNoLugar, { pedidosNoTempo } from './InsertNoLugar'
 import type { Pedido } from './inserts/comum'
@@ -32,6 +34,10 @@ export default function MontagemNoPalco(p: {
   src: string
   enquadramentoX: number
   mudarComentario?: (pid: string, campos: Partial<Comentario>) => void
+  /** O rosto típico num trecho do vídeo final (`useRosto`): o enquadramento do ator na tela dividida (P5). */
+  rostoEm?: ((ini: number, fim: number) => Rosto | null) | null
+  /** O ator arrasta e muda de tamanho no vídeo (só na etapa Inserts): o ajuste novo do insert. */
+  mudarAtor?: (pid: string, ator: AjusteAtor, salvar: boolean) => void
 }) {
   const { projeto, tempo, motions } = p
   const presets = usePresets()
@@ -43,8 +49,12 @@ export default function MontagemNoPalco(p: {
   // a divisão do insert sob o cursor: onde o ator fica (desce, ou encolhe numa janela) e se a pessoa recortada sai por cima
   const divisao: Divisao | null =
     noCursor && noCursor.midias.length > 0 ? divisaoDe(noCursor, p.banco, presets) : motionNoCursor?.tipo === 'tela_dividida_motion' ? { modo: 'metade', tipo: 'area', f: 0.5 } : null
-  // no "insert atrás" o ator vai por cima do insert (uma cópia sincronizada, abaixo); o vídeo principal fica como está
-  const estiloAtor = JSON.stringify(divisao?.modo === 'atras' ? {} : estiloDoAtor(divisao))
+  // a geometria do ator (P5): na tela dividida o vídeo principal desce/amplia pelo rosto; no "ator embaixo", uma cópia
+  // sincronizada vai por cima do insert (a janela, o canto) e/ou a pessoa recortada, e o vídeo principal fica como está
+  const rosto = noCursor && p.rostoEm ? p.rostoEm(noCursor.t.inicio, noCursor.t.fim) : motionNoCursor && p.rostoEm ? p.rostoEm(motionNoCursor.inicio, motionNoCursor.fim) : null
+  const ajuste = (noCursor?.enriquecimento as { ator?: AjusteAtor } | undefined)?.ator
+  const g = geometriaDoAtor(divisao, ajuste, rosto)
+  const estiloAtor = JSON.stringify(g?.modo === 'metade' ? estiloDoQuadro(g) : {})
   const { videoRef } = p
   useEffect(() => {
     const v = videoRef.current
@@ -57,9 +67,11 @@ export default function MontagemNoPalco(p: {
       v.style.transform = v.style.transformOrigin = v.style.clipPath = ''
     }
   }, [estiloAtor, videoRef])
-  const estiloPessoa = estiloDaPessoa(divisao)
   const bruto = projeto.fontes.find((f) => f.papel === 'bruto')
   const urlPessoa = projeto.recorte?.estado === 'pronto' && bruto ? urlArquivo(projeto.id, `midia/recorte/${bruto.id}_pessoa.webm`) : null
+  const estiloPessoa = urlPessoa ? estiloDaPessoaNaGeometria(g) : null
+  // o recortado sem o recorte do ator pronto: o ator com o cenário, no mesmo lugar (com os cantos redondos)
+  const estiloQuadro = g && g.modo !== 'metade' ? (estiloDoQuadro(g) ?? (urlPessoa ? null : estiloDoQuadro({ ...g, modo: 'canto', raio: 0.07 }))) : null
 
   if (motionNoCursor) {
     const m = motions[motionNoCursor.id]
@@ -78,11 +90,20 @@ export default function MontagemNoPalco(p: {
   return (
     <>
       <InsertNoLugar pedido={noCursor} banco={p.banco} tempo={tempo} tocando={p.tocando} fundo={p.fundo} entradas={entradas} />
-      {divisao?.modo === 'atras' && <AtorRecortado fonte={videoRef} src={p.src} estilo={estiloDoAtor(divisao)} enquadramentoX={p.enquadramentoX} />}
-      {estiloPessoa && urlPessoa && <AtorRecortado fonte={videoRef} src={urlPessoa} estilo={estiloPessoa} enquadramentoX={p.enquadramentoX} />}
+      {/* o ator por cima do insert vai também por cima do card do comentário (z-10), como na exportação: lá o card é
+          fotografado junto com a camada dos inserts e o ator é posto depois (SPEC §13) */}
+      {(estiloQuadro || estiloPessoa) && (
+        <div className="pointer-events-none absolute inset-0 z-[15]">
+          {estiloQuadro && <AtorRecortado fonte={videoRef} src={p.src} estilo={estiloQuadro} enquadramentoX={p.enquadramentoX} />}
+          {estiloPessoa && urlPessoa && <AtorRecortado fonte={videoRef} src={urlPessoa} estilo={estiloPessoa} enquadramentoX={p.enquadramentoX} />}
+        </div>
+      )}
+      {g && divisao && p.mudarAtor && (
+        <AtorArrastavel g={g} d={divisao} aj={ajuste ?? {}} mudar={(campos, salvar) => p.mudarAtor!(noCursor.id, ajusteNaFolga(divisao, { ...ajuste, ...campos }, rosto), salvar)} />
+      )}
       {noCursor.tipo === 'comentario_insert_ator' && (
         <CardComentario
-          c={comentarioDe(noCursor, posicaoDoComentario(divisao))}
+          c={comentarioDe(noCursor, posicaoDoComentario(divisao, g))}
           texto={comentarioDe(noCursor).texto ?? noCursor.texto ?? ''}
           mudar={mudar && ((campos) => mudar(noCursor.id, campos))}
         />
@@ -102,6 +123,7 @@ export function MontagemDoProjeto(p: {
   videoRef: RefObject<HTMLVideoElement | null>
   src: string
   enquadramentoX: number
+  rostoEm?: ((ini: number, fim: number) => Rosto | null) | null
 }) {
   const id = p.projeto.id
   const [ins, setIns] = useState<InsertsProjeto | null>(null)

@@ -129,7 +129,38 @@ ESTILO = {
 # divisão da tela (só tela dividida): automática pela mídia, fração do insert em cima (o ator embaixo) ou o insert atrás
 # com o ator numa janela embaixo
 DIVISOES = ('auto', '50', '56', '42', '32', 'atras')
-AJUSTES = ('corte', 'preset', 'divisao', 'ajustes')  # preset: o id de um preset da biblioteca (presets.py), que manda em layout, entrada e saída
+AJUSTES = ('corte', 'preset', 'divisao', 'ajustes', 'ator')  # preset: o id de um preset da biblioteca (presets.py), que manda em layout, entrada e saída
+
+
+# o ator no insert (P5, docs/rosto.md): no "ator embaixo", o modo (a janela, só a pessoa recortada, ou encolhido num canto)
+# com o centro e o tamanho (frações do quadro; arrastado e redimensionado no vídeo); na tela dividida, o ajuste manual do
+# enquadramento pelo rosto (deslocamento e zoom). Sem um campo, o automático. O zoom é um fator sobre o automático, para
+# mais ou para menos (até 1/1,6: de um automático ampliado de volta ao "cobrir a área"; `editor/ator.ts` ZOOM)
+MODOS_ATOR = ('janela', 'recortado', 'canto')
+_LIMITES_ATOR = {'x': (0, 1), 'y': (0, 1), 'escala': (0.15, 1), 'dx': (-0.5, 0.5), 'dy': (-0.5, 0.5), 'zoom': (0.625, 1.6)}
+
+
+def _validar_ator(v) -> dict | None:
+    if v is None:
+        return None
+    if not isinstance(v, dict):
+        raise ValueError('O ator é um dicionário')
+    out: dict = {}
+    for k, x in v.items():
+        if x is None:
+            continue
+        if k == 'modo':
+            if x not in MODOS_ATOR:
+                raise ValueError('Modo do ator desconhecido')
+            out[k] = x
+        elif k in _LIMITES_ATOR:
+            if not isinstance(x, (int, float)) or isinstance(x, bool):
+                raise ValueError(f'{k} é um número')
+            a, b = _LIMITES_ATOR[k]
+            out[k] = round(max(a, min(b, float(x))), 4)
+        else:
+            raise ValueError(f'Campo do ator desconhecido: {k}')
+    return out or None
 
 
 def _validar_enriquecimento(formato: str, campos: dict) -> dict:
@@ -150,6 +181,9 @@ def _validar_enriquecimento(formato: str, campos: dict) -> dict:
             if v is not None and not (isinstance(v, dict) and all(isinstance(a, str) and isinstance(b, str) and len(a) < 20 and len(b) < 20 for a, b in v.items())):
                 raise ValueError('Ajustes inválidos')
             limpo[k] = v or None
+            continue
+        if k == 'ator':
+            limpo[k] = _validar_ator(v)
             continue
         if k == 'divisao':
             if v is not None and v not in DIVISOES:

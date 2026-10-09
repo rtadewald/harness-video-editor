@@ -1288,6 +1288,23 @@ def test_enriquecimento_guarda_so_o_que_difere_do_estilo(cliente, video, monkeyp
     assert cliente.get('/api/inserts/enriquecimento').json()['estilo']['vertical']['layout'] == 'card'
 
 
+def test_ajuste_do_ator_passa_pela_rota(cliente, video, monkeypatch):
+    """O ator da P5 (docs/rosto.md) leva números (centro, escala, deslocamento, zoom): a rota aceita e guarda no insert."""
+    id = _criar(cliente, video)['id']
+    monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
+    projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': [_plano_ins('p1', 'comentario_insert_ator', 0, 5)]}))
+    pid = cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]['id']
+    url = f'/api/projetos/{id}/inserts/{pid}/enriquecimento'
+    r = cliente.put(url, json={'campos': {'ator': {'modo': 'canto', 'x': 0.5, 'y': 0.7, 'escala': 0.3}}})
+    assert r.status_code == 200 and r.json()['pedidos'][0]['enriquecimento']['ator'] == {'modo': 'canto', 'x': 0.5, 'y': 0.7, 'escala': 0.3}
+    r = cliente.put(url, json={'campos': {'ator': {'dx': 0.1, 'dy': -0.05, 'zoom': 1.2}}})
+    assert r.status_code == 200 and r.json()['pedidos'][0]['enriquecimento']['ator'] == {'dx': 0.1, 'dy': -0.05, 'zoom': 1.2}
+    assert cliente.get(f'/api/projetos/{id}/inserts').json()['pedidos'][0]['enriquecimento']['ator']['zoom'] == 1.2
+    assert cliente.put(url, json={'campos': {'ator': {'x': 'meio'}}}).status_code == 422
+    assert cliente.put(url, json={'campos': {'ajustes': {'cor': 1}}}).status_code == 422  # os ajustes do preset seguem só texto
+    assert 'ator' not in cliente.put(url, json={'campos': {'ator': None}}).json()['pedidos'][0]['enriquecimento']
+
+
 def test_card_de_comentario_guarda_so_o_que_difere(cliente, video, monkeypatch):
     id = _criar(cliente, video)['id']
     monkeypatch.setattr(direcao_projeto, '_palavras_mantidas', lambda i, p: _saida_inserts())
