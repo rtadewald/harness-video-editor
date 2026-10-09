@@ -48,6 +48,11 @@ export function usePlayer(seq: Sequencia | null) {
     // extrapolado pelo relógio do sistema), silencia o vídeo nesse instante e devolve o som quando o salto termina.
     let ultimoT = -1
     let ultimoEm = 0
+    // o vídeo trocado (outro src: a voz limpa ficou pronta, outra limpeza): o elemento volta ao 0, parado, sem o evento
+    // de pause; o player guarda onde estava e se tocava, e retoma dali quando o novo carrega
+    let tocandoAgora = false
+    let ondeEstava = 0
+    let retomar: { t: number; tocar: boolean } | null = null
     let agendado: { fim: number; timer: number } | null = null
     const cancelarAgendado = () => {
       if (agendado) clearTimeout(agendado.timer)
@@ -65,14 +70,42 @@ export function usePlayer(seq: Sequencia | null) {
       v.currentTime = destino
     }
     const LOOKAHEAD = 0.15 // s de vídeo antes do fim do trecho em que o salto é agendado
-    const ligar = (v: HTMLVideoElement | null) => {
-      atual?.removeEventListener('play', toca)
-      atual?.removeEventListener('pause', para)
-      atual = v
-      if (!v) return
-      v.addEventListener('play', toca)
-      v.addEventListener('pause', para)
+    const tocou = () => {
+      tocandoAgora = true
+      toca()
+    }
+    const parou = () => {
+      tocandoAgora = false
+      para()
+    }
+    const esvaziou = () => {
+      retomar = { t: ondeEstava, tocar: tocandoAgora }
+      tocandoAgora = false
+      para()
+    }
+    const carregou = () => {
+      const v = atual
+      const r = retomar
+      retomar = null
+      if (!v || !r) return
       v.playbackRate = velocidadeRef.current
+      v.currentTime = r.t
+      if (r.tocar) void v.play().catch(() => {})
+    }
+    const ligar = (v: HTMLVideoElement | null) => {
+      atual?.removeEventListener('play', tocou)
+      atual?.removeEventListener('pause', parou)
+      atual?.removeEventListener('emptied', esvaziou)
+      atual?.removeEventListener('loadedmetadata', carregou)
+      atual = v
+      retomar = null
+      if (!v) return
+      v.addEventListener('play', tocou)
+      v.addEventListener('pause', parou)
+      v.addEventListener('emptied', esvaziou)
+      v.addEventListener('loadedmetadata', carregou)
+      v.playbackRate = velocidadeRef.current
+      tocandoAgora = !v.paused
       setTocando(!v.paused)
     }
     const passo = () => {
@@ -83,6 +116,12 @@ export function usePlayer(seq: Sequencia | null) {
         return
       }
       const t = v.currentTime
+      if (v.readyState < 1) {
+        // carregando um src novo: o currentTime é 0 até ele carregar (o relógio fica onde estava)
+        raf = requestAnimationFrame(passo)
+        return
+      }
+      ondeEstava = t
       const agora = performance.now()
       if (t !== ultimoT || v.paused || v.seeking) {
         ultimoT = t

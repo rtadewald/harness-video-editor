@@ -119,6 +119,7 @@ export default function Exportar({ projeto, duracao }: { projeto: Projeto; durac
             </button>
           </div>
           {atual.status === 'pronta' ? <AcoesArquivo projetoId={projeto.id} e={atual} /> : atual.erro && <p className="text-[12px] text-coral">{atual.erro}</p>}
+          {atual.status === 'pronta' && atual.aviso && <p className="text-[12px] text-yellow">{atual.aviso}</p>}
         </div>
       )}
     </>

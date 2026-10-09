@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
+from . import audio as audio_mod
 from . import look as look_mod
 from . import transicoes as transicoes_mod
 from . import banco, comum, midia, projeto, render_quadros, sons
@@ -64,7 +65,7 @@ def exportar(id: str, resolucao: str, fps: int, codec: str, nome: str | None = N
         _andamento[id] = {'progresso': 0.0, 'cancelar': threading.Event()}
     nome = _limpar_nome(nome or '') or nome_padrao(p, resolucao, fps)
     e = {'status': 'rodando', 'progresso': 0.0, 'resolucao': resolucao, 'fps': fps, 'codec': codec, 'navegadores': navegadores, 'nome': nome,
-         'arquivo': None, 'erro': None, 'inicio': datetime.now().isoformat(timespec='seconds'), 'fim': None}
+         'arquivo': None, 'erro': None, 'aviso': None, 'inicio': datetime.now().isoformat(timespec='seconds'), 'fim': None}
     projeto.atualizar(id, lambda q: q.__setitem__('exportacao', e))
     _fila.submit(_rodar, id, e)
     return e
@@ -208,19 +209,24 @@ def _pos_montagem(transicoes: list[dict] | None, legenda: dict | None, rotulo_in
     return entradas, [*filtros, *f_leg, f'[{atual}]format=yuv420p[{saida}]']
 
 
-def _audio(eventos_som: list[dict] | None, primeira_entrada: int, rotulo_voz: str, saida: str) -> tuple[list[str], list[str]]:
-    """Camada A (SPEC §13, §8.6, §8.8, §8.9): a voz do bruto (já cortada, [`rotulo_voz`]) com os sons somados — os de
-    apoio dos presets e os das transições (os dois vêm em `__render.sons`). Aqui entram, com a P3, a voz limpa (limpeza →
-    timbre → compressor), a faixa de fundo com ducking e o volume final (−14 LUFS). Devolve (entradas, filtros), com a
-    mistura em [`saida`]."""
-    return sons.filtro_mistura(eventos_som or [], primeira_entrada, rotulo_voz, saida)
+def _audio(eventos_som: list[dict] | None, primeira_entrada: int, rotulo_voz: str, saida: str, clipes: list[dict],
+           duracao: float, audio: dict | None = None) -> tuple[list[str], list[str]]:
+    """Camada A (SPEC §13, §8.6, §8.8, §8.9): sem `audio`, a voz do bruto (já cortada, [`rotulo_voz`]) com os sons
+    somados — os de apoio dos presets e os das transições (os dois vêm em `__render.sons`). Com `audio` (a P3,
+    `audio.da_exportacao`), a voz vem de uma entrada própria (a limpa, cortada igual) com o timbre, o compressor e os
+    faders, o fundo com ducking e o −14 LUFS (`audio.filtros`); a voz do bruto é descartada. Devolve (entradas,
+    filtros), com a mistura em [`saida`]."""
+    if audio is None:
+        return sons.filtro_mistura(eventos_som or [], primeira_entrada, rotulo_voz, saida)
+    entradas, filtros = audio_mod.filtros(audio, clipes, eventos_som or [], primeira_entrada, saida, duracao, audio.get('medida'))
+    return entradas, [f'[{rotulo_voz}]anullsink', *filtros]
 
 
 def comando_final(bruto: Path, clipes: list[dict], horizontal: bool, enquadramento_x: float, w: int, h: int, fps: int,
                   divisoes: list[tuple[float, float, dict]], camadas: list[tuple[Path, float]], codec: str, duracao: float,
                   saida: Path, mascara: Path | None = None, eventos_som: list[dict] | None = None,
                   transicoes: list[dict] | None = None, legenda: dict | None = None, look: dict | None = None,
-                  mascara_vinheta: Path | None = None) -> list[str]:
+                  mascara_vinheta: Path | None = None, audio: dict | None = None) -> list[str]:
     """Uma passada só, montada por camadas na ordem do contrato (SPEC §13; cada área mexe só na sua função): o ator e o
     áudio do bruto, decodificado pelo chip de vídeo (`_ator`); por cima, a camada dos inserts (`_inserts`); por cima
     dela, o ator na janela do "insert atrás" e a pessoa recortada (a parte de cima de `_ator`); depois, sobre o quadro
@@ -233,7 +239,7 @@ def comando_final(bruto: Path, clipes: list[dict], horizontal: bool, enquadramen
     base_idx = 2 if usa_mascara else 1
     entradas: list[str] = ['-i', str(mascara)] if usa_mascara else []
     ent_ins, f_ins = _inserts(camadas, base_idx, 'base', 'topo_in')
-    ent_som, f_som = _audio(eventos_som, base_idx + len(camadas), 'ac', 'am')
+    ent_som, f_som = _audio(eventos_som, base_idx + len(camadas), 'ac', 'am', clipes, duracao, audio)
     entradas += ent_ins + ent_som
     if com_look:
         idx_vinheta = None
@@ -277,7 +283,7 @@ def _rodar(id: str, e: dict) -> None:
             _fim(id, status='cancelada')
             return
         parte.replace(final)
-        _fim(id, status='pronta', progresso=1.0, arquivo=final.name)
+        _fim(id, status='pronta', progresso=1.0, arquivo=final.name, aviso=vivo.get('aviso'))
     except Exception as ex:
         traceback.print_exc()
         parte.unlink(missing_ok=True)
@@ -362,10 +368,22 @@ def _gravar(id: str, e: dict, saida: Path, vivo: dict) -> bool:
         from . import recorte_ator
         mascara = recorte_ator.arquivos(id, fonte['id'])[0] if (p.get('recorte') or {}).get('estado') == 'pronto' else None
         lk = look_mod.do_projeto(p)  # o look do ator (LUT + vinheta)
+        # o áudio (P3): a voz limpa (feita agora se faltar; se falhar, a do bruto com um aviso), o fundo e o −14 LUFS,
+        # medido antes só no áudio (rápido)
+        if vivo['cancelar'].is_set():
+            return True
+        som = audio_mod.da_exportacao(id, p, clipes)
+        vivo['aviso'] = som.pop('aviso', None)
+        if vivo['cancelar'].is_set():
+            return True
+        som['medida'] = audio_mod.medir(som, clipes, eventos_som, duracao)
+        if vivo['cancelar'].is_set():
+            return True
         cmd = comando_final(projeto.pasta(id) / fonte['arquivo'], clipes, horizontal, p.get('enquadramento', {}).get('x', 0.5),
                             w, h, fps, divisoes, camadas, e['codec'], duracao, saida, mascara if mascara and mascara.exists() else None,
                             eventos_som, render.get('transicoes'), render.get('legenda'), lk,
-                            look_mod.mascara_vinheta(w, h, look_mod.VINHETAS[lk['vinheta']], tmp / 'vinheta.png') if look_mod.ativo(lk) else None)
+                            look_mod.mascara_vinheta(w, h, look_mod.VINHETAS[lk['vinheta']], tmp / 'vinheta.png') if look_mod.ativo(lk) else None,
+                            som)
         with open(log, 'wb') as erros:
             ff = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=erros, text=True)
             for linha in ff.stdout:

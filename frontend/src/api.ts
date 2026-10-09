@@ -476,6 +476,8 @@ export type Exportacao = OpcoesExportacao & {
   nome: string
   arquivo: string | null
   erro: string | null
+  /** O vídeo saiu, com uma ressalva (a voz limpa falhou e foi a original). */
+  aviso?: string | null
   inicio: string
   fim: string | null
 }
