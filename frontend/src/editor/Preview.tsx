@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } fro
 import { Pause, Play, SkipBack } from 'lucide-react'
 import { formatarTempo } from '@/api'
 import CanvasLook from './CanvasLook'
+import EfeitoNoPalco from '@/transicoes/EfeitoNoPalco'
 
 type Props = {
   videoRef: RefObject<HTMLVideoElement | null>
@@ -18,6 +19,9 @@ type Props = {
   bruto?: number
   /** Desenho por cima do vídeo (ex.: o esboço do layout da Direção visual). */
   sobreposicao?: ReactNode
+  /** As transições entre planos no palco (o efeito e o som): só nas etapas em que o quadro está montado (Inserts e
+   *  Transições); no Pré-processamento e na Direção, o ator fica limpo para avaliar o look e ouvir as emendas. */
+  transicoes?: boolean
 }
 
 /** Monitor 9:16. Recorte parado: bruto vertical só preenche; horizontal usa o centro do enquadramento. */
@@ -44,6 +48,8 @@ export default function Preview(p: Props) {
           className="relative overflow-hidden rounded-[3px] bg-black shadow-[0_20px_60px_#0006] ring-1 ring-line-dark"
           style={{ width: tela.w, height: tela.h }}
         >
+          {/* as transições entre planos agem sobre tudo o que está no palco */}
+          <EfeitoNoPalco tempo={p.tempo} tocando={p.tocando} altura={tela.h} desligado={!p.transicoes}>
           <video
             ref={p.videoRef}
             src={p.src}
@@ -57,6 +63,7 @@ export default function Preview(p: Props) {
           <CanvasLook video={p.videoRef} posX={p.enquadramentoX} />
 
           {p.sobreposicao}
+          </EfeitoNoPalco>
         </div>
       </div>
 

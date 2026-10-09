@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { abrirEditor, lerInserts, listarBanco, mapaBanco, type DadosEditor, type InsertsProjeto, type ItemBanco } from '@/api'
+import { abrirEditor, json, lerInserts, listarBanco, mapaBanco, type DadosEditor, type InsertsProjeto, type ItemBanco } from '@/api'
 import { falaDoPlano, fundoDoMotion, listarPresets as listarPresetsMotion, motionsDoProjeto, urlPaginaMotionPlano, type MotionPlano } from '@/motions/api'
 import { escolhasDeSom, eventosDoMotion, marcasDaPagina } from '@/motions/sons'
+import { cortesDoVideo, sonsDasTransicoes, type Biblioteca, type Escolhas } from '@/transicoes/transicoes'
 import { CardComentario, comentarioDe } from '@/editor/ComentarioIG'
 import { paraTempo, palavrasNaSaida } from '@/editor/direcaoProjeto'
 import { ChuvaAoVivo, RelogioRender } from '@/editor/Fundo'
@@ -96,12 +97,17 @@ export function RenderProjeto() {
     const planos = paraTempo(dados.projeto.direcao?.itens ?? [], dados.palavras, saida, seq.duracao).visiveis.filter((i) => i.camada === 'plano')
     // os motions: os planos de motion que já têm um motion escolhido
     const comMotion = planos.filter((pl) => motions?.[pl.id]).map((pl) => ({ plano: pl.id, ini: pl.inicio, fim: pl.fim, dividida: pl.tipo === 'tela_dividida_motion', fala: falaDoPlano(saida, pl.inicio, pl.fim) }))
-    return { duracao: seq.duracao, lista: pedidosNoTempo(ins.pedidos, planos).filter((x) => x.midias.length), motions: comMotion }
+    return { duracao: seq.duracao, lista: pedidosNoTempo(ins.pedidos, planos).filter((x) => x.midias.length), motions: comMotion, planos }
   }, [dados, ins, motions])
 
   // a página avisa o backend que está pronta e responde a cada instante pedido depois de tudo pintado
   useEffect(() => {
     if (!pedidos || !banco || !entradas || !motions || !presets) return
+    // os cortes entre planos com a transição de cada um (a biblioteca e as escolhas do projeto, lidas na hora)
+    const cortesDasTransicoes = async () => {
+      const [b, escolhas] = await Promise.all([fetch('/api/transicoes').then(json<Biblioteca>), fetch(`/api/projetos/${id}/transicoes`).then(json<Escolhas>)])
+      return cortesDoVideo(pedidos.planos, b, escolhas)
+    }
     window.__render = {
       duracao: pedidos.duracao,
       trechos: [
@@ -126,8 +132,13 @@ export function RenderProjeto() {
               .map((e) => ({ ...e, t: e.t + m.ini }))
           }),
         )
-        return [...dosInserts, ...dosMotions.flat()]
+        return [...dosInserts, ...dosMotions.flat(), ...sonsDasTransicoes(await cortesDasTransicoes(), cat)]
       },
+      // as transições com efeito (o som delas vai em `sons`), para o ffmpeg desenhar depois da montagem (SPEC §8.8)
+      transicoes: async () =>
+        (await cortesDasTransicoes())
+          .filter((c) => c.transicao && c.transicao.efeito.tipo !== 'seco')
+          .map((c) => ({ t: c.t, ...c.transicao!.efeito })),
       ir: (t) =>
         new Promise<string | null>((ok) => {
           chegou.current = ok

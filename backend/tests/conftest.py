@@ -5,7 +5,7 @@ import types
 import pytest
 from fastapi.testclient import TestClient
 
-from app import banco, comum, direcao, main, pipeline, projeto, recorte_ator, referencias, rosto, sons
+from app import banco, comum, direcao, main, pipeline, projeto, recorte_ator, referencias, rosto, sons, transicoes
 
 
 @pytest.fixture(autouse=True)
@@ -15,6 +15,7 @@ def _nada_real(tmp_path, monkeypatch):
     monkeypatch.setattr(referencias, 'RAIZ', tmp_path / 'referencias')
     monkeypatch.setattr(banco, 'RAIZ', tmp_path / 'banco')
     monkeypatch.setattr(sons, 'RAIZ', tmp_path / 'sons')  # a biblioteca de sons de verdade fica fora dos testes
+    monkeypatch.setattr(transicoes, 'RAIZ', tmp_path / 'transicoes')  # e as transições, com a ordem dos pares
     monkeypatch.setattr(comum, 'carregar_env', lambda: None)  # nenhum teste lê o .env de verdade (chaves de API)
     # o recorte e o rosto do ator (MediaPipe) não rodam sozinhos em segundo plano nos testes, nem baixam modelos
     for modulo in (recorte_ator, rosto):

@@ -16,7 +16,7 @@ Editor de vídeo local, controlado por interface web, em que cada etapa da ediç
 | Inserts: mídias, banco, presets de enriquecimento, sons de apoio | [inserts.md](docs/inserts.md) | **Real** |
 | Motions | [motions.md](docs/motions.md) | **Real** |
 | Rosto do ator (enquadramento nas áreas que sobram) | [rosto.md](docs/rosto.md) | A medida **real** (F0); o enquadramento, **especificado** |
-| Transições entre planos | [transicoes.md](docs/transicoes.md) | **Especificado** (etapa e página em construção) |
+| Transições entre planos | [transicoes.md](docs/transicoes.md) | **Real** (P2: a biblioteca, a página, a etapa, a prévia e o MP4) |
 | Áudio: voz, faixa de fundo, mixer | [audio.md](docs/audio.md) | **Especificado** (etapa em construção) |
 | Legenda | [legenda.md](docs/legenda.md) | **Especificado** (etapa em construção) |
 | Prévia e exportação | [exportacao.md](docs/exportacao.md) | **Real** (ator, inserts, motions, sons), montada por camadas |
@@ -208,7 +208,7 @@ projetos/<slug>/
 
 💡 O app:
 - **Barra de cima** (todas as telas): os **projetos abertos como abas** (o × fecha; dois cliques no nome renomeiam), depois **Projetos · Banco · Referências · Presets · Motions · Transições** e, à direita, **Calibragem** e **Heurística da direção**.
-- **Barra das etapas** (à esquerda, recolhível): Pré-processamento · Direção visual · Inserts · Transições · Áudio · Legenda. Cada projeto reabre na última etapa usada. 💡 O Pré-processamento guarda o id `cortes` (dados e etapa lembrada continuam valendo) e tem, no topo, as abas **Cortes · Enquadramento · Look** (a aba aberta fica lembrada neste navegador). As três abas do Pré-processamento são telas de verdade (P1). As telas ainda não feitas (Transições, Áudio, Legenda e a página Transições) mostram a prévia do vídeo cortado e um cartão "em construção" com o que virá (`editor/EmConstrucao.tsx`, textos em `editor/resumos.ts`); no topo, o selo EM CONSTRUÇÃO. Em janelas estreitas, os links da barra de cima ficam só com o ícone (💡 pelo espaço que sobra para os links, não pela largura da janela — uma container query: as abas dos projetos abertos ocupam até 40% da barra e rolam; a Calibragem e a Heurística perdem o rótulo primeiro; se nem os ícones couberem, os links rolam).
+- **Barra das etapas** (à esquerda, recolhível): Pré-processamento · Direção visual · Inserts · Transições · Áudio · Legenda. Cada projeto reabre na última etapa usada. 💡 O Pré-processamento guarda o id `cortes` (dados e etapa lembrada continuam valendo) e mostra tudo numa tela só, sem abas: os Cortes, a prévia e, à direita, o Look e o Enquadramento (P1; [preprocessamento.md](docs/preprocessamento.md)). A etapa Transições segue o arranjo da de Inserts (P2; [transicoes.md](docs/transicoes.md)). As telas ainda não feitas (Áudio e Legenda) mostram a prévia do vídeo cortado e um cartão "em construção" com o que virá (`editor/EmConstrucao.tsx`, textos em `editor/resumos.ts`); no topo, o selo EM CONSTRUÇÃO. Em janelas estreitas, os links da barra de cima ficam só com o ícone (💡 pelo espaço que sobra para os links, não pela largura da janela — uma container query: as abas dos projetos abertos ocupam até 40% da barra e rolam; a Calibragem e a Heurística perdem o rótulo primeiro; se nem os ícones couberem, os links rolam).
 - **Topo do editor:** Configurações, o botão especial da etapa (ex.: "Refazer cortes com IA") e **Exportar**.
 - **Cada etapa** tem a sua tela: a timeline do jeito que serve a ela (vertical nos Cortes e na Direção, horizontal nas outras), o vídeo no centro com o resultado no lugar e os cards de trabalho ao lado.
 
@@ -360,7 +360,7 @@ Uma correção pontual num vídeo vale só para aquele vídeo, a menos que o cri
 |---|---|---|
 | F0 | **Fundação das novas etapas:** as etapas renomeadas (Pré-processamento, Transições, Áudio, Legenda, cada uma com a sua tela vazia), o novo projeto (nome, motor, formato), o `rosto.py` (a medida do rosto, usada por duas áreas) e a exportação separada por camadas (§13), com os ganchos de cada área | O app abre nas etapas novas e exporta igual a hoje |
 | P1 ✅ (à espera da avaliação) | **Pré-processamento:** 16:9 → 9:16 pelo rosto e o look (LUTs + vinheta) | Um vídeo 16:9 vira 9:16 seguindo o rosto; o look igual na prévia e no MP4 |
-| P2 | **Transições:** análise das referências, transições recriadas, página e etapa | Os cortes do vídeo de teste com as transições favoritas, aprovadas por Rodrigo |
+| P2 ✅ (à espera da avaliação) | **Transições:** análise das referências, transições recriadas, página e etapa | Os cortes do vídeo de teste com as transições favoritas, aprovadas por Rodrigo |
 | P3 | **Áudio:** faixas de fundo geradas, limpeza da voz, timbre, mixer, −14 LUFS | O MP4 com a voz limpa, a faixa de fundo e os níveis certos, aprovados no ouvido |
 | P4 | **Legenda:** o estilo da casa medido, a geração e a edição, o ASS | As legendas do vídeo de teste iguais às das referências |
 | P5 | **Rosto nos inserts:** o enquadramento do ator na tela dividida e no "ator embaixo" | O rosto bem posicionado em todos os planos divididos do vídeo de teste |

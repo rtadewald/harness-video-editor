@@ -1087,9 +1087,11 @@ def test_versoes_e_comentarios_da_direcao(cliente, video, monkeypatch):
     assert p['direcao']['versoes'][0]['geral'] == 'menos tela cheia'
     # a corretora devolve a v2 (simulada)
     monkeypatch.setattr(direcao_projeto, 'corrigir', lambda i, de: {'n': 2, 'origem': de, 'itens': [{**plano, 'descricao': 'novo'}], 'itens_ia': [], 'registro': None})
+    projeto.atualizar(id, lambda p: p.update(transicoes={'p1': {'id': 'seco', 'par': 'full_ator>full_ator'}}))
     direcao_projeto._rodar(id)
     d = projeto.ler(id)['direcao']
     assert [(v['n'], v['origem']) for v in d['versoes']] == [(1, None), (2, 1)] and d['ativa'] == 2
+    assert projeto.ler(id)['transicoes'] == {'p1': {'id': 'seco', 'par': 'full_ator>full_ator'}}  # corrigir mantém as transições
     assert d['itens'][0]['descricao'] == 'novo' and d['comentarios'] == [] and d['status'] == 'pronto'
     # ajustes vão para a versão aberta; voltar à v1 mostra a v1 com os comentários dela
     cliente.put(url, json={'itens': [{**plano, 'descricao': 'ajustado'}]})
@@ -1099,6 +1101,11 @@ def test_versoes_e_comentarios_da_direcao(cliente, video, monkeypatch):
     assert cliente.put(f'{url}/versao', json={'n': 9}).status_code == 404
     d = cliente.delete(f'{url}/comentarios/{cid}').json()
     assert d['comentarios'] == []
+    # gerar do zero: os planos são outros, as transições trocadas à mão (presas ao id do plano) saem
+    projeto.atualizar(id, lambda p: p['direcao'].update(pedido={'tipo': 'gerar'}))
+    monkeypatch.setattr(direcao_projeto, 'propor', lambda i: {'itens': [plano], 'itens_ia': [plano], 'registro': None})
+    direcao_projeto._rodar(id)
+    assert projeto.ler(id)['direcao']['ativa'] == 1 and 'transicoes' not in projeto.ler(id)
 
 
 def test_roteiro_da_versao_com_lettering_e_comentarios():
@@ -1355,7 +1362,7 @@ def test_entrada_e_saida_globais(cliente):
     assert cliente.put('/api/entradas/entrada/subir', json={'campos': {'direcao': 'diagonal'}}).status_code == 422
     assert cliente.put('/api/entradas/saida/girar', json={'campos': {}}).status_code == 422
     assert cliente.put('/api/entradas/saida/sumir', json={'campos': {'escala': 120}}).status_code == 422  # campo que o sumir não tem
-    assert cliente.get('/api/transicoes').status_code == 404  # o nome ficou para as transições entre planos (SPEC §8.8)
+    assert 'entrada' not in cliente.get('/api/transicoes').json()  # o nome ficou para as transições entre planos (SPEC §8.8)
 
 
 def test_entradas_leem_a_configuracao_antiga_e_passam_a_gravar_na_nova(cliente):

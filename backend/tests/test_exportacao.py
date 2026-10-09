@@ -67,5 +67,5 @@ def test_cada_camada_na_sua_funcao(tmp_path):
     ent, f = exportacao._inserts([(tmp_path / 'a.mov', 1.5)], 2, 'base', 'topo_in')
     assert ent == ['-i', str(tmp_path / 'a.mov')] and f[-1] == '[o0]null[topo_in]' and f[0].startswith('[2:v]setpts')
     assert exportacao._inserts([], 1, 'base', 'topo_in') == ([], ['[base]null[topo_in]'])
-    assert exportacao._pos_montagem(None, None, 'topo', 'v') == ['[topo]format=yuv420p[v]']
+    assert exportacao._pos_montagem(None, None, 'topo', 'v', 180, 320, 3) == ([], ['[topo]format=yuv420p[v]'])
     assert exportacao._audio(None, 3, 'ac', 'am') == ([], ['[ac]anull[am]'])

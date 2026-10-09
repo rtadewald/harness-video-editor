@@ -27,10 +27,11 @@ desativados, "em breve") e o vídeo. `POST /api/projetos` aceita `formato` (padr
 
 ## Na tela
 
-💡 A etapa (id `cortes`, o de antes) tem no topo as abas **Cortes · Enquadramento · Look**. Cortes é a tela de sempre
-([cortes.md](cortes.md)); Enquadramento e Look são as telas descritas abaixo, com a prévia do vídeo cortado ao lado (num
-vídeo vertical, o Enquadramento avisa que não se aplica). Nenhuma das três tem o selo EM CONSTRUÇÃO. Os atalhos dos
-Cortes (←/→ no bruto, E, B) valem só na aba Cortes.
+✅ **Tudo numa tela só, sem abas** (pedido de Rodrigo, out/2026: "não esconda as coisas atrás de tabs"). A etapa (id
+`cortes`, o de antes) tem três colunas: a linha vertical dos Cortes ([cortes.md](cortes.md)), a prévia com o detalhe da
+seleção e, **à direita, sempre à vista, o Look e o Enquadramento** (os filtros do ator), descritos abaixo (num vídeo
+vertical, o Enquadramento só avisa que não se aplica). Os atalhos dos Cortes (←/→ no bruto, E, B) valem na etapa
+inteira.
 
 ## Enquadramento: de 16:9 para 9:16 pelo rosto
 
@@ -62,7 +63,7 @@ maior até 1280 px) e guardado em `midia/rosto/original.json` (reenquadrar não 
 Ágil = zona morta 10 / 8 / 5%, velocidade máxima 10 / 20 / 25% da largura do recorte por segundo e mola 1,5 / 2,5 / 4
 (1/s); o recorte por quadro vai ao `crop` do ffmpeg pelo `sendcmd`; HEVC `-q:v 80`, áudio copiado; o 9:16 fica em
 `midia/bruto_9x16.mp4`. Reenquadrar (`PUT /api/projetos/{id}/enquadramento`) refaz o 9:16 em segundo plano e, em
-seguida, o proxy, o rosto e o recorte do ator. A aba mostra o original no instante do player (o tempo do bruto é o
+seguida, o proxy, o rosto e o recorte do ator. O Enquadramento mostra o original no instante do player (o tempo do bruto é o
 mesmo) com o recorte desenhado.
 
 💡 O caminho da câmera (revisão da P1, out/2026). A primeira versão tirava a média de duas passadas com velocidade
@@ -95,14 +96,14 @@ medida do rosto, ~30 s.
   durante um Reenquadrar.
 - **O proxy não some**: é refeito num arquivo à parte e trocado no fim (o player continua com o antigo enquanto isso); o
   Reenquadrar só fica `pronto` com o proxy novo no lugar. A cada 9:16 novo, `enquadramento.versao` sobe; o endereço do
-  player leva `?v=<versao>`, e o editor (não só a aba) acompanha o Reenquadrar em qualquer aba ou etapa e recarrega os
+  player leva `?v=<versao>`, e o editor (não só o painel) acompanha o Reenquadrar em qualquer etapa e recarrega os
   dados e o player quando ele termina — sem recarregar a página.
 - **O recorte e o rosto do ator** são refeitos do proxy novo. Um que estava rodando sobre o vídeo antigo termina depois,
   vê que a versão mudou e descarta o resultado (não marca `pronto`); sem proxy registrado (sendo refeito), os dois não
   começam.
 - **Servidor reiniciado no meio** (o `--reload` do `dev.sh`): o Reenquadrar que estava na fila ou rodando recomeça
   sozinho, e as sobras (`bruto_9x16.parte.mp4`, `.cmds`) são apagadas.
-- **Projetos de antes do enquadramento** com o bruto ainda 16:9: a aba diz isso e oferece **Converter para 9:16** (o
+- **Projetos de antes do enquadramento** com o bruto ainda 16:9: o Enquadramento diz isso e oferece **Converter para 9:16** (o
   mesmo caminho do Reenquadrar; os cortes continuam, o tempo é o mesmo).
 
 ⏳ Duas pessoas no quadro: segue o rosto maior (o mais perto da câmera).
@@ -156,14 +157,14 @@ ali e roda-se a ferramenta.
 💡 **A intensidade** é `LUT·k + original·(1 − k)` nos dois lados: o `mix()` do shader e, no ffmpeg,
 `[lut][original]blend=all_mode=normal:all_opacity=k` (o blend dá primeira·opacity + segunda·(1 − opacity); na primeira
 versão as entradas estavam trocadas e a intensidade saía invertida no MP4 — só 0, 50% e 100% batiam; corrigido na revisão
-da P1, com um teste a 25%). Na aba Look, o número e a prévia mudam a cada passo do slider (arraste ou setas) e o servidor
+da P1, com um teste a 25%). No Look, o número e a prévia mudam a cada passo do slider (arraste ou setas) e o servidor
 recebe 0,4 s depois que ele para.
 
 💡 **Projetos sem `look`** (todos os de antes da P1) usam o padrão: Casa a 100% com a vinheta Normal. Um vídeo já
 exportado antes, se exportado de novo, sai com essa cor e essa vinheta; para sair como antes, escolha "Sem LUT" e a
-vinheta "Sem" na aba Look.
+vinheta "Sem" no Look.
 
-💡 A prévia do look não para ao trocar de aba ou de etapa: o canvas WebGL não perde o contexto quando o efeito roda de
+💡 A prévia do look não para ao trocar de etapa: o canvas WebGL não perde o contexto quando o efeito roda de
 novo no mesmo canvas (o `StrictMode` do modo de desenvolvimento roda duas vezes); só o programa, as texturas e o buffer
 são liberados, e o contexto é largado quando o canvas sai da página.
 

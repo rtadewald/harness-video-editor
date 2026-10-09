@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { History, PanelLeftClose, PanelLeftOpen, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
-import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, gerarDirecao, motoresRodando, recalcularCortes, reenquadrando, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
+import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, json, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, gerarDirecao, motoresRodando, recalcularCortes, reenquadrando, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
 import { abrirAba } from '@/components/abasProjetos'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
@@ -11,7 +11,7 @@ import EtapaInserts from '@/editor/EtapaInserts'
 import Exportar from '@/editor/Exportar'
 import EtapaEmConstrucao from '@/editor/EmConstrucao'
 import { RESUMOS, type Resumo } from '@/editor/resumos'
-import { ABAS_PRE, ETAPAS, type AbaPre } from '@/editor/etapas'
+import { ETAPAS } from '@/editor/etapas'
 import { calcularCortes, trechoDaEmenda, type Corte, type Selecao } from '@/editor/cortes'
 import LinhaVertical from '@/editor/LinhaVertical'
 import { Detalhe } from '@/editor/DetalheCorte'
@@ -22,6 +22,11 @@ import { LookAtor, useLookDoProjeto } from '@/editor/look'
 import Processamento from '@/editor/Processamento'
 import Configuracoes from '@/paginas/Configuracoes'
 import { montarSequencia } from '@/editor/sequencia'
+import { paraTempo, palavrasNaSaida } from '@/editor/direcaoProjeto'
+import { TransicoesDoVideo, chavePar, cortesDoVideo, useBiblioteca, useEscolhas } from '@/transicoes/transicoes'
+import { FatorSom } from '@/editor/sons'
+import { MontagemDoProjeto } from '@/editor/MontagemNoPalco'
+import EtapaTransicoes from '@/transicoes/EtapaTransicoes'
 import { usePlayer } from '@/editor/usePlayer'
 
 export default function Editor() {
@@ -45,23 +50,6 @@ export default function Editor() {
       /* sem armazenamento: vale só nesta sessão */
     }
   }
-  // a aba aberta no Pré-processamento (Cortes · Enquadramento · Look), lembrada neste navegador
-  const [abaPre, setAbaPreBruta] = useState<AbaPre>(() => {
-    try {
-      const a = localStorage.getItem('editor.preprocessamento.aba')
-      return ABAS_PRE.find((x) => x.id === a)?.id ?? 'cortes'
-    } catch {
-      return 'cortes'
-    }
-  })
-  const setAbaPre = (a: AbaPre) => {
-    setAbaPreBruta(a)
-    try {
-      localStorage.setItem('editor.preprocessamento.aba', a)
-    } catch {
-      /* sem armazenamento: vale só nesta sessão */
-    }
-  }
   // barra das etapas recolhida (só os números): lembrada neste navegador
   const [recolhida, setRecolhida] = useState(() => {
     try {
@@ -80,6 +68,28 @@ export default function Editor() {
       return !r
     })
   const seq = useMemo(() => (dados ? montarSequencia(dados.timeline, dados.palavras) : null), [dados])
+  // as transições entre planos (SPEC §8.8): os planos da direção no tempo do vídeo final e a transição de cada corte
+  const biblioteca = useBiblioteca()
+  const [escolhasTransicoes, escolherTransicao] = useEscolhas(id)
+  const naSaida = useMemo(() => {
+    if (!dados || !seq) return null
+    const saida = palavrasNaSaida(dados.palavras, seq)
+    const planos = paraTempo(dados.projeto.direcao?.itens ?? [], dados.palavras, saida, seq.duracao)
+      .visiveis.filter((i) => i.camada === 'plano')
+      .sort((a, b) => a.inicio - b.inicio)
+    return { saida, planos }
+  }, [dados, seq])
+  const planosSaida = naSaida?.planos ?? null
+  const cortesTransicao = useMemo(() => (planosSaida ? cortesDoVideo(planosSaida, biblioteca, escolhasTransicoes) : null), [planosSaida, biblioteca, escolhasTransicoes])
+  // os sons da prévia na mesma relação com a voz deste vídeo que na exportação (SPEC §8.6): vale para os sons dos
+  // presets e para os das transições, em todas as etapas
+  const [fatorSom, setFatorSom] = useState(1)
+  useEffect(() => {
+    void fetch(`/api/projetos/${id}/sons/fator`)
+      .then(json<{ fator: number }>)
+      .then((r) => setFatorSom(r.fator))
+      .catch(() => {})
+  }, [id])
   const player = usePlayer(seq)
   const [picos, setPicos] = useState<Picos | null>(null)
   const [comparar, setComparar] = useState<string | null>(null)
@@ -89,15 +99,15 @@ export default function Editor() {
   const [repetir, setRepetir] = useState(false)
   const bruto = dados?.projeto.fontes.find((f) => f.papel === 'bruto')
   const cortes = useMemo(() => (dados && bruto ? calcularCortes(dados.timeline.V1, dados.palavras, bruto.duracao) : []), [dados, bruto])
-  // a tela dos Cortes (a timeline vertical do bruto); fora dela, a prévia é o vídeo do ator já cortado
-  const vertical = etapa === 'cortes' && abaPre === 'cortes'
+  // o Pré-processamento (a timeline vertical do bruto); fora dele, a prévia é o vídeo do ator já cortado
+  const vertical = etapa === 'cortes'
   // o look do ator (LUT + vinheta): vale em todas as etapas; "segure para ver sem" desliga só enquanto se segura
   const [look, mudarLook, verLook] = useLookDoProjeto(id)
   const [semLook, setSemLook] = useState(false)
   const direcaoReal = etapa === 'direcao'
   const insertsReal = etapa === 'inserts'
-  // as três abas do Pré-processamento já são telas de verdade; Transições, Áudio e Legenda ainda estão em construção
-  const resumo: Resumo | null = etapa === 'transicoes' || etapa === 'audio' || etapa === 'legenda' ? RESUMOS[etapa] : null
+  // Áudio e Legenda ainda estão em construção
+  const resumo: Resumo | null = etapa === 'audio' || etapa === 'legenda' ? RESUMOS[etapa] : null
 
   useEffect(() => {
     abrirEditor(id).then(setDados).catch((e) => setErro(e.message))
@@ -271,6 +281,8 @@ export default function Editor() {
 
   return (
     <LookAtor.Provider value={semLook ? null : look}>
+    <FatorSom.Provider value={fatorSom}>
+    <TransicoesDoVideo.Provider value={cortesTransicao}>
     <div className="grid h-svh grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-deep text-cream">
       <header className="flex items-center gap-5 border-b border-line-dark bg-ink px-4">
         <Link to="/" title="Projetos" className="shrink-0">
@@ -371,25 +383,7 @@ export default function Editor() {
         </nav>
 
         {etapa === 'cortes' ? (
-          <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]">
-            <div className="flex items-center gap-2 border-b border-line-dark px-6 py-2.5" role="tablist" aria-label="Partes do Pré-processamento">
-              {ABAS_PRE.map((a) => (
-                <button
-                  key={a.id}
-                  role="tab"
-                  aria-selected={abaPre === a.id}
-                  onClick={() => setAbaPre(a.id)}
-                  className={cn(
-                    'flex h-8 items-center gap-1.5 rounded-full border px-3.5 text-[12px] font-semibold transition-colors duration-300',
-                    abaPre === a.id ? 'border-cream bg-cream text-ink' : 'border-line-dark text-fog hover:border-cream/50 hover:text-cream',
-                  )}
-                >
-                  {a.nome}
-                </button>
-              ))}
-            </div>
-            {vertical ? (
-              <div className="grid min-h-0 min-w-0" style={{ gridTemplateColumns: 'clamp(460px,46vw,820px) minmax(0,1fr)' }}>
+              <div className="grid min-h-0 min-w-0" style={{ gridTemplateColumns: 'clamp(400px,38vw,720px) minmax(0,1fr) clamp(300px,24vw,380px)' }}>
               <LinhaVertical
                 duracao={bruto.duracao}
                 clipes={timeline.V1}
@@ -440,19 +434,17 @@ export default function Editor() {
                     <Detalhe dados={dados} cortes={cortes} selecao={selecao} ouvirPalavra={ouvirPalavra} ouvirEmenda={ouvirEmenda} loop={repetir} setLoop={setRepetir} restaurar={restaurar} devolver={(ini, fim) => alterarFaixa(ini, fim, true)} comparacao={comparacao} />
                   </div>
                 </div>
+                {/* à direita, sempre à vista: o look do ator e o enquadramento (SPEC §8.1) */}
+                <aside className="grid min-h-0 min-w-0 content-start gap-4 overflow-y-auto border-l border-line-dark px-4 py-5 text-cream">
+                  <PainelLook look={look} mudar={mudarLook} ver={verLook} comparar={setSemLook} />
+                  <PainelEnquadramento
+                    projetoId={projeto.id}
+                    bruto={player.bruto}
+                    tocando={player.tocando}
+                    aoReenquadrar={() => void abrirProjeto(id).then((p) => setDados((d) => d && { ...d, projeto: p })).catch(() => undefined)}
+                  />
+                </aside>
               </div>
-            ) : abaPre === 'enquadramento' ? (
-              <PainelEnquadramento
-                projetoId={projeto.id}
-                previa={previa}
-                bruto={player.bruto}
-                tocando={player.tocando}
-                aoReenquadrar={() => void abrirProjeto(id).then((p) => setDados((d) => d && { ...d, projeto: p })).catch(() => undefined)}
-              />
-            ) : (
-              <PainelLook previa={previa} look={look} mudar={mudarLook} ver={verLook} comparar={setSemLook} />
-            )}
-          </div>
         ) : insertsReal ? (
           <EtapaInserts dados={dados} seq={seq} player={player} src={src} enquadramentoX={projeto.enquadramento.x} aoMudarProjeto={(p) => setDados((d) => d && { ...d, projeto: p })} />
         ) : direcaoReal ? (
@@ -465,12 +457,56 @@ export default function Editor() {
             aoMudarProjeto={(p) => setDados((d) => d && { ...d, projeto: p })}
           />
         ) : (
-          resumo && <EtapaEmConstrucao resumo={resumo} previa={previa} />
+          etapa === 'transicoes' ? (
+            <EtapaTransicoes
+              previa={
+                // o quadro inteiro montado (o ator, os inserts e os motions), como na etapa Inserts: a transição age sobre ele
+                <Preview
+                  videoRef={player.ref}
+                  src={src}
+                  enquadramentoX={projeto.enquadramento.x}
+                  tempo={player.tempo}
+                  duracao={seq.duracao}
+                  tocando={player.tocando}
+                  alternar={player.alternar}
+                  velocidade={player.velocidade}
+                  setVelocidade={player.setVelocidade}
+                  buscar={player.buscar}
+                  transicoes
+                  sobreposicao={
+                    naSaida && (
+                      <MontagemDoProjeto
+                        projeto={projeto}
+                        planos={naSaida.planos}
+                        saida={naSaida.saida}
+                        tempo={player.tempo}
+                        tocando={player.tocando}
+                        videoRef={player.ref}
+                        src={src}
+                        enquadramentoX={projeto.enquadramento.x}
+                      />
+                    )
+                  }
+                />
+              }
+              planos={planosSaida ?? []}
+              duracao={seq.duracao}
+              tempo={player.tempo}
+              buscar={player.buscar}
+              tocando={player.tocando}
+              tocarTrecho={(de, ate) => player.tocarTrecho(seq.saidaParaFonte(de), seq.saidaParaFonte(Math.max(ate - 0.01, de)), { pular: true, loop: false })}
+              escolher={(c, tid) => escolherTransicao(c.plano, tid, chavePar(c.de, c.para))}
+            />
+          ) : (
+            resumo && <EtapaEmConstrucao resumo={resumo} previa={previa} />
+          )
         )}
       </div>
       )}
       <Configuracoes aberto={configAberta} aoFechar={() => setConfigAberta(false)} />
     </div>
+    </TransicoesDoVideo.Provider>
+    </FatorSom.Provider>
     </LookAtor.Provider>
   )
 }
