@@ -125,9 +125,12 @@ export function receitaParaInsert(r: Receita, d: Divisao | null, aspectos: numbe
     const cy = emPe ? 50 : atras ? Math.max(h / 2 + 3, 44) : c.repouso.cy + junto
     const folga = emPe ? Math.max(0, 98 - h) / Math.max(1, 98 - Math.min(c.repouso.h, 96)) : 1
     const continuo = c.continuo && folga < 1 ? { ...c.continuo, dy: c.continuo.dy * folga } : c.continuo
-    // um card desenhado maior que a área (passando da borda) e que encolheu para caber a mídia: fica preso pela borda
-    // esquerda do original (o lado que aparecia), em vez de ficar no centro antigo e deixar um vão à esquerda
-    const cx = atras || emPe ? 50 : c.repouso.w > 96 ? Math.max(c.repouso.cx - c.repouso.w / 2, 2) + w / 2 : c.repouso.cx
+    // um card desenhado maior que a área (passando da borda) e que encolheu para caber a mídia: fica no meio do pedaço
+    // que aparecia na área (um card centrado que transbordava dos dois lados continua centrado; um que saía por um lado
+    // continua daquele lado), sem passar das bordas
+    const visivel = [Math.max(c.repouso.cx - c.repouso.w / 2, 0), Math.min(c.repouso.cx + c.repouso.w / 2, 100)]
+    const meio = Math.min(Math.max((visivel[0] + visivel[1]) / 2, w / 2 + 2), 98 - w / 2)
+    const cx = atras || emPe ? 50 : c.repouso.w > 96 ? meio : c.repouso.cx
     return { ...comRepouso(c, { w, h, cy, cx }), continuo, ajuste: 'cover' as const }
   })
   return { ...r, cards }
