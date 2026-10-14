@@ -879,8 +879,8 @@ Código: `frontend/src/inserts/EtapaInserts.tsx` (a tela), `DetalheInsert.tsx` (
 4. Modo rápido (padrão): **"Capturar · 5 s do topo, com o carregamento"** grava a 1ª dobra direto, sem prévia.
 5. Com **Várias dobras** marcado: "Ler a página para marcar as dobras" lê a página inteira numa imagem (~6–8 s). Na imagem, clicar no vazio marca uma dobra (até **3**), clicar numa dobra a seleciona e arrastar a move, × ou Delete apaga (sempre fica pelo menos uma). À direita, o título e a lista ("Dobra 1 · topo, com o carregamento", "Dobra 2 · 48% da página"). Botão **"Capturar N dobras"**.
 6. **(automático)** A captura vai para uma fila em segundo plano: até **3 gravando ao mesmo tempo**, o resto espera; vale no mesmo insert ou em outros. Cada dobra grava em tempo real com as animações de entrada (screencast do Chrome a 2×, 1,8× na 9:16; reamostrado para 30 quadros/s; H.264 CRF 16), ~10–13 s por dobra.
-7. **(automático)** Cada dobra vira uma mídia do banco ("Título · dobra 2", origem "captura de site" com a URL) e entra no fim da lista do insert. As capturas que terminaram bem saem da lista na próxima captura; as com erro ficam até lá. Uma captura interrompida por reinício do servidor vira erro.
-- Banners de cookies comuns são fechados sozinhos; login fica de fora.
+7. **(automático)** Cada dobra vira uma mídia do banco ("Título · dobra 2", origem "captura de site" com a URL e onde a dobra começou em px) e entra no fim da lista do insert. Pedida pelo Claude (pela CLI), a mídia leva o projeto (o selo da faxina do banco, §8.15). Pela API, uma dobra entre 0 e 1 é uma fração da altura da página (o Claude marca sem a prévia; ex.: 0,4). As capturas que terminaram bem saem da lista na próxima captura; as com erro ficam até lá. Uma captura interrompida por reinício do servidor vira erro.
+- Banners de cookies comuns são fechados sozinhos ("Accept all", "Aceitar todos os cookies"…); login fica de fora. Um site que não manda nenhum quadro dá erro ("O navegador não mandou nenhum quadro").
 
 **Card de comentário do Instagram** (só em Comentário + insert + ator):
 - **Na prévia:** o card branco igual ao do app (foto, usuário e tempo **borrados**, o texto, "Responder" e "Ver tradução"), na fonte do sistema da Apple (SF Pro). Clicar seleciona (contorno amarelo), arrastar move, a **alça amarela do canto** muda o tamanho (de 60% a 130%; 100% = 75% da largura do vídeo). Clicar fora tira a seleção. O card fica sempre inteiro no quadro: arrastar para fora para na borda; crescer encostado na borda empurra o card para dentro.
@@ -1946,20 +1946,23 @@ Só os favoritos (a mesma rota e o mesmo arquivo da galeria) e as duas caixas le
 3. **(automático, em segundo plano)** A IA descreve (o modelo da análise das referências, vendo uma versão leve: até 120 s do vídeo): descrição e palavras-chave sugeridas. Não apaga o que você escreveu; a dela fica em `descricao_ia`. Descrições interrompidas por um reinício voltam para a fila. Enquanto alguma está descrevendo (ou um original está sendo cortado), a página se atualiza a cada 3 s.
 4. **(manual)** Clique numa mídia para abrir o detalhe e corrigir nome, descrição e palavras-chave.
 5. **(manual, opcional)** Em "Editar vídeo", marque trechos ou corte o original.
+6. **(automático)** Cada mídia ganha um **selo** (a faxina do banco, docs/editor-claude.md §7): **★ Usado** (entrou num vídeo aprovado, ela ou um trecho dela; ou vinha "usado" do 19), **✓ Aprovado** (marcada à mão, ou subida por você — as de antes do selo também), **✗ Recusado** (marcada à mão; trazida pelo Claude para um projeto já aprovado e que ficou de fora, ou para um projeto que foi para a lixeira; ou vinha recusada do 19) ou **sem selo** (trazida pelo Claude para um projeto ainda em edição). "Aprovado" de um projeto vem da versão marcada aprovada (E9).
+7. **(manual)** **Limpar recusados (N)** leva os originais recusados, com os trechos, para `dados/banco/_lixeira/<id>-<data>` (dá para recuperar movendo a pasta de volta). Nunca leva o que você subiu nem o que algum projeto ainda usa.
 
 #### O que você vê e pode fazer
 
 - **Cabeçalho:** barra de cima e **Adicionar mídias ↗** ("Enviando N…" durante o envio).
-- **Filtros:** **Todos · Vídeos · Imagens**, cada um com a contagem; à direita, "IA descrevendo N · " e quantas mídias estão à vista. **A caixa de busca saiu da página** (pedido de Rodrigo, out/2026); a busca continua no "Escolher do banco" dos inserts.
+- **Filtros:** **Todos · Vídeos · Imagens** e, depois de um traço, **Usados · Aprovados · Recusados · Sem selo** (clicar de novo desliga), cada um com a contagem; à direita, **Limpar recusados (N)** quando há algum; à direita, "IA descrevendo N · " e quantas mídias estão à vista. **A caixa de busca saiu da página** (pedido de Rodrigo, out/2026); a busca continua no "Escolher do banco" dos inserts.
 - Texto de ajuda: "Os vídeos e imagens dos inserts, de todos os projetos…" e o total ("Banco · 23 mídias").
 - **Grade de 6 colunas**, os mais novos primeiro; o 1º card é **Adicionar** ("Vídeos e imagens, vários de uma vez"). Só aparecem os **originais**. Cada card:
   - miniatura 16:9 (a mídia inteira, sem cortar); um vídeo **toca mudo com o mouse em cima**;
   - selo "Vídeo · 16:9" (azul) ou "Imagem · 1:1" (menta), a duração, o selo coral **"N trechos"**, e "cortando o original…" por cima enquanto corta;
-  - nome e, embaixo, o estado da IA ("descrição na fila", "descrevendo…", "a descrição falhou", "sem descrição") ou as 2 primeiras linhas da descrição;
+  - nome, o **selo** (★ Usado amarelo · ✓ Aprovado menta · ✗ Recusado coral) e o código; embaixo, o estado da IA ("descrição na fila", "descrevendo…", "a descrição falhou", "sem descrição") ou as 2 primeiras linhas da descrição;
   - lixeira ao passar o mouse: "Apagar “nome” do banco? Os inserts que a usam ficam sem ela."
 - **Detalhe** (janela por cima; Esc ou clicar fora fecha):
   - à esquerda, o vídeo com controles (mudo) ou a imagem;
-  - selo do tipo e formato; **Dimensões**, **Duração**, **Origem** (Upload com o nome do arquivo · Captura de site com a URL · Captura automática), **Entrou em**;
+  - selo do tipo e formato; **Dimensões**, **Duração**, **Origem** (Upload com o nome do arquivo · Captura de site com a URL · Web com a URL · Captura automática; "· pelo Claude" no que ele trouxe), **Entrou em**;
+  - **Selo**: o atual e **Aprovar** · **Recusar** · **Automático** (tira a marca de mão);
   - **Nome**, **Descrição**, **Palavras-chave** (separadas por vírgula; até 30) e **Salvar** (aceso só com mudança);
   - **Descrever de novo** (a IA vê de novo e sugere; não apaga o que você escreveu);
   - **Editar vídeo** (só vídeo; abre o editor de vídeo, aba Trechos ou Cortar o original);
@@ -1973,11 +1976,11 @@ Só os favoritos (a mesma rota e o mesmo arquivo da galeria) e as duas caixas le
 
 #### O que fica gravado
 
-- `dados/banco/<id>/` (id de 10 hex): `original.<ext>`, `proxy.mp4` (vídeo), `miniatura.jpg`, `item.json` com `nome`, `descricao`, `palavras`, `descricao_ia`, `tipo` (video · imagem), `formato` (o mais próximo entre 16:9 · 16:10 · 4:3 · 1:1 · 4:5 · 3:4 · 9:16 · alto), `largura`, `altura`, `duracao`, `origem`, `criado_em`, `ia {status, erro}`, `edicao {status, erro}` (corte do original).
+- `dados/banco/<id>/` (id de 10 hex): `original.<ext>`, `proxy.mp4` (vídeo), `miniatura.jpg`, `item.json` com `nome`, `descricao`, `palavras`, `descricao_ia`, `tipo` (video · imagem), `formato` (o mais próximo entre 16:9 · 16:10 · 4:3 · 1:1 · 4:5 · 3:4 · 9:16 · alto), `largura`, `altura`, `duracao`, `origem`, `criado_em`, `ia {status, erro}`, `edicao {status, erro}` (corte do original); quem trouxe: `do_criador: true` (subida pela tela) ou `trazido_por: 'claude'` + `projeto`; `estado` (o selo à mão: aprovado · recusado); `estado_19` (o selo que tinha no 19, nas copiadas de lá).
 - Um trecho: `item.json` só com `pai`, `inicio`, `fim`, `nome`.
 - Aceita MP4, MOV, M4V, WebM, PNG, JPG/JPEG, WebP (outras extensões dão erro).
 - **Usos** não são guardados: são calculados lendo os projetos.
-- Rotas: `GET /api/banco?busca=&tipo=` (originais, cada um com os trechos; a busca olha também o nome dos trechos), `POST /api/banco` (multipart `arquivos`), `GET|PUT|DELETE /api/banco/{id}` (num trecho, o PUT aceita `inicio`/`fim`), `POST /api/banco/{id}/trechos {inicio, fim, nome}`, `POST /api/banco/{id}/cortar {inicio, fim}`, `POST /api/banco/{id}/descrever`, `GET /api/banco/{id}/arquivo[?qualidade=exportacao]`, `GET /api/banco/{id}/miniatura`, `GET /api/banco/{id}/tira`.
+- Rotas: `GET /api/banco?busca=&tipo=` (originais, cada um com os trechos; a busca olha também o nome dos trechos), `POST /api/banco` (multipart `arquivos`), `GET|PUT|DELETE /api/banco/{id}` (num trecho, o PUT aceita `inicio`/`fim`), `POST /api/banco/{id}/trechos {inicio, fim, nome}`, `POST /api/banco/{id}/cortar {inicio, fim}`, `POST /api/banco/{id}/descrever`, `GET /api/banco/{id}/arquivo[?qualidade=exportacao]`, `GET /api/banco/{id}/miniatura`, `GET /api/banco/{id}/tira`, `PUT /api/banco/{id}/estado {estado}` (aprovado · recusado · null), `GET /api/banco-recusados` (os ids que a faxina levaria), `POST /api/banco-recusados/limpar`. O `POST /api/banco` com `X-Autor: claude` aceita `projeto`, `descricao`, `palavras` e `url` (com a descrição do Claude, a IA do app não descreve de novo). A lista e o detalhe trazem o `estado` (o selo).
 
 #### No vídeo final
 

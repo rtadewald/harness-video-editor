@@ -33,7 +33,7 @@ def listar(id: str) -> list[dict]:
     out = []
     for a in sorted(_pasta(id).glob('v*.json'), key=lambda a: int(re.sub(r'\D', '', a.stem) or 0)):
         v = comum.ler_json(a)
-        out.append({k: v.get(k) for k in ('versao', 'criado_em', 'autor', 'resumo', 'restaurada_de')})
+        out.append({k: v.get(k) for k in ('versao', 'criado_em', 'autor', 'resumo', 'restaurada_de', 'aprovada')})
     return out
 
 
@@ -53,6 +53,17 @@ def marcar(id: str, autor: str = 'claude', resumo: str = '') -> dict:
     projeto.atualizar(id, lambda x: x.update(versao=n))
     registrar_atividade(id, 'versao', f'Versão v{n} marcada' + (f': {resumo}' if resumo else ''), autor=autor)
     return {k: v[k] for k in ('versao', 'criado_em', 'autor', 'resumo')}
+
+
+def aprovada(id: str) -> int | None:
+    """A última versão aprovada (`aprovada` no vN.json; a aprovação entra na E9), ou None."""
+    vs = [v for v in listar_completas(id) if v.get('aprovada')]
+    return vs[-1]['versao'] if vs else None
+
+
+def listar_completas(id: str) -> list[dict]:
+    pasta = _pasta(id)
+    return [comum.ler_json(a) for a in sorted(pasta.glob('v*.json'), key=lambda a: int(re.sub(r'\D', '', a.stem) or 0))] if pasta.exists() else []
 
 
 def ler(id: str, n: int) -> dict:

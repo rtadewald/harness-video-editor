@@ -20,7 +20,8 @@ MAX_DOBRAS = 3
 DURACAO_PADRAO = 5.0  # s por dobra (o criador escolhe de 1 a 30 s; animações de entrada às vezes levam mais de 3 s)
 ALTURA_MAXIMA_PREVIA = 16_000
 # botões de aceitar cookies mais comuns (texto exato, sem diferenciar maiúsculas)
-COOKIES = ('Accept all', 'Accept', 'Allow all', 'I agree', 'Got it', 'OK', 'Aceitar', 'Aceitar todos', 'Concordo', 'Entendi')
+COOKIES = ('Accept all', 'Accept all cookies', 'Accept', 'Allow all', 'I agree', 'Got it', 'OK', 'Aceitar', 'Aceitar todos',
+           'Aceitar todos os cookies', 'Concordo', 'Entendi')
 
 _fila = ThreadPoolExecutor(max_workers=3)  # até 3 capturas ao mesmo tempo (o resto espera na fila)
 
@@ -162,13 +163,14 @@ def _status(id: str, pid: str, cid: str, **campos) -> None:
 
 
 def capturar(id: str, pid: str, url: str, proporcao: str, dobras: list[float], titulo: str | None = None,
-             duracao: float = DURACAO_PADRAO) -> dict:
+             duracao: float = DURACAO_PADRAO, claude: bool = False) -> dict:
     """Põe uma captura na fila (várias podem rodar ao mesmo tempo, no mesmo insert ou em outros). `dobras`: o topo de
-    cada dobra em px de CSS (a 1ª é o topo da página)."""
+    cada dobra em px de CSS (a 1ª é o topo da página) ou, de 0 a 1, em fração da altura da página (do 19: o Claude marca
+    sem a prévia). `claude`: a captura foi pedida pelo Claude (as mídias levam o projeto, para a faxina do banco)."""
     url = normalizar_url(url)
     if proporcao not in JANELAS:
         raise ValueError('Proporção inválida')
-    ys = sorted({max(0, round(float(y))) for y in dobras})[:MAX_DOBRAS] or [0]
+    ys = sorted({max(0.0, float(y)) if float(y) <= 1 else float(round(float(y))) for y in dobras})[:MAX_DOBRAS] or [0]
     duracao = round(max(1.0, min(float(duracao), 30.0)), 2)
     cid = uuid.uuid4().hex[:8]
     nova = {'id': cid, 'status': 'fila', 'url': url, 'proporcao': proporcao, 'dobras': ys, 'feitas': 0, 'erro': None, 'duracao': duracao}
@@ -182,20 +184,22 @@ def capturar(id: str, pid: str, url: str, proporcao: str, dobras: list[float], t
                 return
         raise LookupError('Pedido não encontrado')
     projeto.atualizar(id, aplicar)
-    _fila.submit(_rodar, id, pid, cid, url, proporcao, ys, duracao, titulo)
+    _fila.submit(_rodar, id, pid, cid, url, proporcao, ys, duracao, titulo, id if claude else None)
     return inserts.sincronizar(id)
 
 
-def _rodar(id: str, pid: str, cid: str, url: str, proporcao: str, ys: list[int], duracao: float, titulo: str | None) -> None:
+def _rodar(id: str, pid: str, cid: str, url: str, proporcao: str, ys: list[float], duracao: float, titulo: str | None,
+           claude: str | None = None) -> None:
     tmp = Path(tempfile.mkdtemp())
     try:
         _status(id, pid, cid, status='rodando')
         for k, y in enumerate(ys):
             saida = tmp / f'dobra{k + 1}.mp4'
-            visto = gravar(url, proporcao, y, duracao, saida, do_carregamento=(k == 0 and y == 0))
+            visto, topo = gravar(url, proporcao, y, duracao, saida, do_carregamento=(k == 0 and y == 0))
             titulo = titulo or visto or urlparse(url).netloc
             nome = f'{titulo} · dobra {k + 1}' if len(ys) > 1 else titulo
-            item = banco.subir(saida, f'{nome}.mp4', fonte={'tipo': 'captura de site', 'url': url, 'proporcao': proporcao, 'dobra': y})
+            item = banco.subir(saida, f'{nome}.mp4', fonte={'tipo': 'captura de site', 'url': url, 'proporcao': proporcao, 'dobra': topo},
+                               claude=claude)
 
             def ligar(p, bid=item['id'], feitas=k + 1):
                 for x in (p.get('inserts') or {}).get('pedidos', []):
@@ -214,7 +218,7 @@ def _rodar(id: str, pid: str, cid: str, url: str, proporcao: str, ys: list[int],
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path, do_carregamento: bool) -> str:
+def gravar(url: str, proporcao: str, y: float, duracao: float, saida: Path, do_carregamento: bool) -> tuple[str, int]:
     """Grava uma dobra em tempo real (screencast do Chrome com GPU), a 30 quadros/s constantes e densidade 2× (1,8× na
     9:16). Antes, uma visita de aquecimento fecha o banner de cookies e deixa a rede quente; a gravação abre uma aba
     nova (sem o estado da página, só com os cookies). Do carregamento: o vídeo começa no 1º quadro pintado. Dobra: a página
@@ -223,7 +227,7 @@ def gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path, do_car
     return asyncio.run(_gravar(url, proporcao, y, duracao, saida, do_carregamento))
 
 
-async def _gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path, do_carregamento: bool) -> str:
+async def _gravar(url: str, proporcao: str, y: float, duracao: float, saida: Path, do_carregamento: bool) -> tuple[str, int]:
     import asyncio
     import base64
     import time
@@ -233,6 +237,7 @@ async def _gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path,
     w, h = JANELAS[proporcao]
     dpr = DENSIDADE.get(proporcao, 2)
     quadros: list[tuple[float, bytes]] = []
+    topo = 0
     async with async_playwright() as pw:
         # channel 'chromium' = headless novo, com GPU (Metal); a densidade precisa ser real, senão o screencast sai em 1×
         browser = await pw.chromium.launch(channel='chromium', args=[
@@ -289,11 +294,12 @@ async def _gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path,
                 await _fechar_cookies_async(page)
                 await ligar()
                 await asyncio.sleep(0.3)
-                await page.evaluate("""(y) => {
+                topo = await page.evaluate("""(y) => {
                     document.documentElement.style.scrollBehavior = 'auto';
+                    if (y <= 1) y = y * document.documentElement.scrollHeight;
                     if (window.lenis?.scrollTo) window.lenis.scrollTo(y, {immediate: true, force: true});
                     window.scrollTo({top: y, left: 0, behavior: 'instant'});
-                    return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+                    return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(Math.round(window.scrollY)))));
                 }""", y)
                 depois = time.time()  # os quadros daqui em diante já mostram a dobra
                 await asyncio.sleep(duracao + 0.5)
@@ -304,7 +310,9 @@ async def _gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path,
             await browser.close()
 
     # 30 quadros/s constantes: em cada tique, o último quadro chegado até ali
-    seq = sorted((q for q in quadros), key=lambda q: q[0])
+    seq = sorted(quadros, key=lambda q: q[0])
+    if not seq:
+        raise RuntimeError('O navegador não mandou nenhum quadro')
     n = round(duracao * FPS)
     escolhidos, j = [], 0
     while j + 1 < len(seq) and seq[j + 1][0] <= t0:
@@ -325,7 +333,7 @@ async def _gravar(url: str, proporcao: str, y: int, duracao: float, saida: Path,
     ff.stdin.close()
     if ff.wait() != 0:
         raise RuntimeError(f'ffmpeg falhou: {ff.stderr.read().decode()[-300:]}')
-    return titulo
+    return titulo, topo
 
 
 async def _fechar_cookies_async(page) -> None:

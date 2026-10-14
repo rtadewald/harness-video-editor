@@ -299,14 +299,35 @@ def banco_buscar(a):
 
 
 def banco_subir(a):
+    """Sobe uma mídia ao banco do app, marcada como trazida pelo Claude para o projeto (o selo da faxina), com a
+    descrição dele (a IA do app não descreve de novo) e a URL de onde veio."""
     arq = Path(a.arquivo).expanduser()
+    a.projeto = a.projeto and resolver(a.projeto, 'projeto')
+    dados = {k: v for k, v in (('projeto', a.projeto), ('descricao', a.descricao), ('palavras', a.palavras), ('url', a.url)) if v}
     with arq.open('rb') as f:
-        itens = chamar('POST', '/api/banco', files=[('arquivos', (arq.name, f, mimetypes.guess_type(arq.name)[0] or 'application/octet-stream'))], timeout=None)
+        itens = chamar('POST', '/api/banco', data=dados, files=[('arquivos', (arq.name, f, mimetypes.guess_type(arq.name)[0] or 'application/octet-stream'))], timeout=None)
     item = itens[0] if isinstance(itens, list) else itens.get('itens', [itens])[0]
-    campos = {k: v for k, v in (('nome', a.nome), ('descricao', a.descricao), ('palavras', a.palavras and [p.strip() for p in a.palavras.split(',')])) if v}
-    if campos:
-        chamar('PUT', f'/api/banco/{item["id"]}', json=campos)
+    if a.nome:
+        chamar('PUT', f'/api/banco/{item["id"]}', json={'nome': a.nome})
+    if a.projeto:
+        atividade(a.projeto, 'inserts', f'Banco: subiu {a.nome or arq.name}' + (f' ({a.url})' if a.url else ''))
     print(item['id'])
+
+
+def banco_selo(a):
+    bid = resolver(a.midia, 'midia')
+    i = chamar('PUT', f'/api/banco/{bid}/estado', json={'estado': None if a.selo == 'auto' else a.selo})
+    print(f'{bid}: {i.get("estado") or "sem selo"}')
+
+
+def banco_limpar(a):
+    """Os recusados (o que o Claude trouxe e ficou de fora de um vídeo aprovado); com --confirmar, vão para a lixeira do banco."""
+    cods = _codigos()
+    ids = chamar('GET', '/api/banco-recusados')['ids']
+    if not a.confirmar:
+        print(f'{len(ids)} recusado(s): ' + (', '.join(cods['midia'].get(x, x) for x in ids) or '—') + ('\n(--confirmar leva para a lixeira do banco)' if ids else ''))
+        return
+    print(f'{len(chamar("POST", "/api/banco-recusados/limpar")["levados"])} mídia(s) (com os trechos) na lixeira do banco')
 
 
 def banco_trecho(a):
@@ -542,10 +563,13 @@ def main(argv=None):
     cmd('inserts', inserts_listar, ID, ajuda='os pedidos de insert com mídias e presets')
     cmd('inserts-ligar', inserts_ligar, ID, ('pedido', {}), ('midias', {'nargs': '+'}), FORCAR, ajuda='as mídias do insert (ids ou BAN-…), em ordem')
     cmd('banco-buscar', banco_buscar, ('termos', {}), ('-n', {'type': int, 'default': 15}))
-    cmd('banco-subir', banco_subir, ('arquivo', {}), ('--nome', {}), ('--descricao', {}), ('--palavras', {'help': 'separadas por vírgula'}))
+    cmd('banco-subir', banco_subir, ('arquivo', {}), ('--projeto', {'help': 'o projeto para o qual trouxe (o selo da faxina)'}), ('--url', {'help': 'de onde veio'}),
+        ('--nome', {}), ('--descricao', {}), ('--palavras', {'help': 'separadas por vírgula'}))
+    cmd('banco-selo', banco_selo, ('midia', {}), ('selo', {'choices': ['aprovado', 'recusado', 'auto']}))
+    cmd('banco-limpar', banco_limpar, ('--confirmar', {'action': 'store_true'}), ajuda='os recusados do banco; com --confirmar, para a lixeira')
     cmd('banco-trecho', banco_trecho, ('midia', {}), ('inicio', {'type': float}), ('fim', {'type': float}), ('--nome', {}))
     cmd('capturar', capturar, ID, ('pedido', {}), ('url', {}), ('--proporcao', {'choices': ['16:9', '4:3', '1:1', '9:16'], 'default': '16:9'}),
-        ('--dobras', {'nargs': '+', 'type': float, 'default': [0], 'help': 'o topo de cada dobra, em px da página'}),
+        ('--dobras', {'nargs': '+', 'type': float, 'default': [0], 'help': 'o topo de cada dobra: fração da página (0 a 1) ou px'}),
         ('--duracao', {'type': float, 'default': 4}), ('--titulo', {}), ('--esperar', {'action': 'store_true'}), FORCAR,
         ajuda='grava o site e liga as dobras ao insert (a captura do app)')
     cmd('presets-recomendados', presets_recomendados, ID, ('--refazer', {'action': 'store_true'}))
