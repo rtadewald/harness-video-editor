@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PanelRightClose, PanelRightOpen, Captions, Clapperboard, Images, Scissors, Search, Wand2 } from 'lucide-react'
-import { definirMidias, configurarComentario, definirFundo, definirMovimentoAtor, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, salvarDirecaoProjeto, type DadosEditor, type Projeto, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
+import { PanelRightClose, PanelRightOpen, Captions, Clapperboard, Images, Scissors, Search, Sparkles, Wand2 } from 'lucide-react'
+import { aplicarRecomendados, definirMidias, configurarComentario, definirFundo, definirMovimentoAtor, enriquecerInsert, enriquecerTipo, lerInserts, listarBanco, mapaBanco, subirNoBanco, salvarDirecaoProjeto, type DadosEditor, type Projeto, type InsertsProjeto, type ItemBanco, type ItemRef, type MidiaLigada } from '@/api'
 import { useLembrado } from '@/lib/useLembrado'
 import { paraAncora, paraTempo, palavrasNaSaida } from '@/direcao/direcaoProjeto'
 import { dividirPlano, editar } from '@/referencias/edicao'
@@ -344,8 +344,23 @@ export default function EtapaInserts(p: Props) {
                   {comMidia}/{pedidos.length} com mídia
                 </span>
                 <button
+                  onClick={() =>
+                    void aplicarRecomendados(projeto.id)
+                      .then((r) => {
+                        const n = r.inserts.filter((x) => x.preset && !x.pulado).length
+                        window.alert(n ? `${n} insert(s) receberam o preset recomendado.` : 'Nenhum insert sem preset para aplicar.')
+                        return lerInserts(projeto.id).then(setIns)
+                      })
+                      .catch(falhar)
+                  }
+                  className="ml-auto flex items-center gap-1.5 rounded-full px-3 py-1.5 font-semibold text-fog ring-1 ring-line-dark transition-colors hover:text-cream"
+                  title="Aplica o preset recomendado (1º favorito da situação, alternando entre vizinhos) a cada insert com mídia e sem preset; os que você mudou à mão ficam"
+                >
+                  <Sparkles className="size-3.5" /> Aplicar recomendados
+                </button>
+                <button
                   onClick={() => setBuscandoRefs(true)}
-                  className="ml-auto flex items-center gap-1.5 rounded-full bg-yellow px-3 py-1.5 font-semibold text-ink transition-colors hover:bg-cream"
+                  className="flex items-center gap-1.5 rounded-full bg-yellow px-3 py-1.5 font-semibold text-ink transition-colors hover:bg-cream"
                   title="Ver os planos dos vídeos de referência, já filtrados pelo tipo deste plano"
                 >
                   <Search className="size-3.5" /> Buscar por referências

@@ -111,7 +111,7 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
   const seq = useMemo(() => (dados ? montarSequencia(dados.timeline, dados.palavras, dados.projeto.velocidade ?? 1) : null), [dados])
   // as transições entre planos (SPEC §8.8): os planos da direção no tempo do vídeo final e a transição de cada corte
   const biblioteca = useBiblioteca()
-  const [escolhasTransicoes, escolherTransicao] = useEscolhas(id)
+  const [escolhasTransicoes, escolherTransicao, variarTransicoes] = useEscolhas(id)
   const naSaida = useMemo(() => {
     if (!dados || !seq) return null
     const saida = palavrasNaSaida(dados.palavras, seq)
@@ -577,6 +577,7 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
               tocarTrecho={(de, ate) => player.tocarTrecho(seq.saidaParaFonte(de), seq.saidaParaFonte(Math.max(ate - 0.01, de)), { pular: true, loop: false })}
               escolher={(c, tid) => escolherTransicao([{ plano: c.plano, tid, par: chavePar(c.de, c.para) }])}
               escolherVarios={escolherTransicao}
+              variar={variarTransicoes}
             />
           ) : etapa === 'audio' ? (
             <EtapaAudio

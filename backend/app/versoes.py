@@ -113,6 +113,8 @@ _ROTAS = [
     (r'clipes/([^/]+)/(?:ajustar|restaurar)', 'cortes', 1),
     (r'cortes/(faixa|recalcular|refazer)', 'cortes', 1),
     (r'direcao(?:/.*)?', 'direcao', None),
+    (r'inserts/presets/recomendados', 'inserts', None),
+    (r'transicoes/variar', 'transicoes', None),
     (r'inserts/ator/([^/]+)', 'presets_ator', 1),
     (r'inserts/(fundo|transicao)', 'inserts', 1),
     (r'inserts/([^/]+)/(?:midias|enriquecimento(?:/tipo)?|comentario|captura)', 'inserts', 1),

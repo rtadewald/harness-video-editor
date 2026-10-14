@@ -287,3 +287,53 @@ def filtros(transicoes: list[dict] | None, rotulo_in: str, saida: str, w: int, h
         k += 1
     f.append(f'[{atual}]null[{saida}]')
     return entradas, f
+
+
+# ---------------------------------------------------------------- variar (todos os cortes de uma vez)
+
+def variar(id: str, modo: str = 'favoritas', aleatorio=None) -> list[dict]:
+    """O "Variar favoritas" / "Sortear todas" da etapa (docs/editor-claude.md, E3; antes só na tela,
+    `sortearTransicoes`): `favoritas`, cada corte com uma das favoritas do par, meio a meio; `todas`, metade das vezes
+    uma favorita e metade uma das outras. Nunca três efeitos seguidos (um aprendizado do 19): o terceiro vira uma
+    favorita seca, se o par tiver. A 1ª favorita sorteada volta ao padrão do par (sem escolha). Os cortes marcados à
+    mão por Rodrigo (versoes.py) ficam como estão. Devolve {plano, par, id, pulado?} por corte."""
+    import random
+    from . import projeto, versoes
+    if modo not in ('favoritas', 'todas'):
+        raise ValueError('Modo desconhecido (favoritas ou todas)')
+    sortear = (aleatorio or random).choice
+    p = projeto.ler(id)
+    planos = sorted((i for i in (p.get('direcao') or {}).get('itens') or [] if i.get('camada') == 'plano'),
+                    key=lambda i: (i.get('palavra_ini') or '', i.get('inicio') or 0))
+    marcados = {m['alvo'] for m in versoes.manuais(id) if m['etapa'] == 'transicoes'}
+    biblioteca = {t['id']: t for t in listar()}
+    seco = {tid for tid, t in biblioteca.items() if (t.get('efeito') or {}).get('tipo', 'seco') == 'seco'}
+    o = ordem()
+    escolhas = dict(do_projeto(p))
+    out, efeitos_seguidos = [], 0
+    for a, b in zip(planos, planos[1:]):
+        par = chave(a['tipo'], b['tipo'])
+        if b['id'] in marcados:
+            atual = (escolhas.get(b['id']) or {}).get('id') or padrao_do_par(a['tipo'], b['tipo'], o)
+            out.append({'plano': b['id'], 'par': par, 'id': atual, 'pulado': 'mudado à mão por Rodrigo'})
+            efeitos_seguidos = 0 if atual in seco else efeitos_seguidos + 1
+            continue
+        od = ordem_do_par(a['tipo'], b['tipo'], o) or {'ids': [], 'favoritas': 0}
+        favs = [x for x in od['ids'][:od.get('favoritas', 0)] if x in biblioteca and biblioteca[x].get('aprovado', True)]
+        outras = [x for x in biblioteca if x not in favs and biblioteca[x].get('aprovado', True)]
+        if modo == 'favoritas':
+            tid = sortear(favs) if favs else 'corte-seco'
+        else:
+            tid = sortear(favs) if favs and (not outras or sortear([True, False])) else (sortear(outras) if outras else 'corte-seco')
+        if efeitos_seguidos >= 2 and tid not in seco:
+            tid = next((x for x in favs if x in seco), 'corte-seco')
+        efeitos_seguidos = 0 if tid in seco else efeitos_seguidos + 1
+        padrao = padrao_do_par(a['tipo'], b['tipo'], o)
+        if tid == padrao:
+            escolhas.pop(b['id'], None)
+        else:
+            escolhas[b['id']] = {'id': tid, 'par': par}
+        out.append({'plano': b['id'], 'par': par, 'id': tid})
+    limpas = validar_escolhas(escolhas)
+    projeto.atualizar(id, lambda x: x.__setitem__('transicoes', limpas))
+    return out

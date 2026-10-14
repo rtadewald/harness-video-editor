@@ -136,6 +136,19 @@ def definir_movimento_ator(id: str, plano: str, m: MovimentoAtor):
         raise HTTPException(422, str(e))
 
 
+class Recomendados(BaseModel):
+    refazer: bool = False
+
+
+@rotas.post('/api/projetos/{id}/inserts/presets/recomendados')
+def aplicar_recomendados(id: str, r: Recomendados):
+    """Os presets recomendados de cada insert sem preset (ou de todos, com `refazer`), com rodízio entre vizinhos; os
+    marcados à mão ficam (docs/editor-claude.md, E3)."""
+    _ler(id)
+    from .. import recomendados
+    return {'inserts': recomendados.aplicar(id, r.refazer)}
+
+
 @rotas.put('/api/projetos/{id}/inserts/fundo')
 def definir_fundo(id: str, f: FundoInserts):
     """O fundo atrás dos inserts com moldura, para o vídeo todo."""
