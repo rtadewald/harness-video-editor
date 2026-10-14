@@ -31,6 +31,8 @@ MOTORES = {
 }
 PADRAO = 'elevenlabs'  # motor de transcrição de fábrica; muda em Configurações
 MODELO_DIRECAO = 'google/gemini-3.8-flash'  # multimodal que analisa as referências (OpenRouter); muda em Configurações
+# a identidade visual dos motions que o Claude escreve (docs/editor-claude.md, Q29; muda em Configurações › Motions)
+IDENTIDADE_MOTION = 'Identidade visual dos motions (vinda das revisões do criador no 19, out/2026):\n- Fundo escuro: cards de vidro do design system da Asimov (fundo branco a 5%, borda branca a 10%, desfoque de 12 px), tipografia Inter fina, uma única cor de acento (coral #d97757 por padrão) e o fundo oficial da marca (`chuva`). Fundo claro: objetos e ícones reais sobre fundo liso. Nunca cards sólidos chapados nem fonte pesada.\n- Mostrar, não escrever: poucos elementos e quase nenhum texto.\n- Movimento suave e vivo: tudo com ease (entrada curta, chegada longa; curva perto de 0.25, 0.1, 0.1, 1 em 0,8 a 1 s), nunca linear; a cena nunca congela.\n- O design system vem dos arquivos originais do criador, nunca recriado de cabeça.\n- Fontes: Inter, Instrument Serif ou SF Pro. Números reais (ou uma nota dizendo que são ilustrativos).'
 LEGADO = 'whisper-stable'  # projetos antigos e plano B quando o motor escolhido falha
 
 
@@ -43,12 +45,14 @@ def ler_config() -> dict:
     config = {'motor_padrao': PADRAO, 'antes_do_corte_ms': 100, 'depois_do_corte_ms': 100, 'pausa_max_ms': 2000,
               'modelo_direcao': MODELO_DIRECAO, 'quadros_por_segundo': 2,
               'formato_analise': 'video', 'grade_mosaico': '3x2', 'perfil_criador': '',
-              'modelo_direcao_projeto': MODELO_DIRECAO, 'regras_direcao': '', 'modelo_diretora': MODELO_DIRECAO, 'raciocinio_diretora': 'medium'}
+              'modelo_direcao_projeto': MODELO_DIRECAO, 'regras_direcao': '', 'modelo_diretora': MODELO_DIRECAO, 'raciocinio_diretora': 'medium',
+              'identidade_motion': IDENTIDADE_MOTION}
     try:
         config.update(json.loads(_arquivo_config().read_text(encoding='utf-8')))
     except (FileNotFoundError, ValueError):
         pass
     config.pop('respiro_ms', None)  # antigo: a pausa cortada usa as margens do corte
+    config.pop('modelo_motion', None)  # antigo: a IA do app que escrevia motions saiu (agora é o Claude, docs/editor-claude.md)
     if config['motor_padrao'] not in MOTORES:
         config['motor_padrao'] = PADRAO
     for chave, maximo in (('antes_do_corte_ms', 1000), ('depois_do_corte_ms', 1000), ('pausa_max_ms', 30000)):

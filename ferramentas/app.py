@@ -399,6 +399,20 @@ def motions_listar(_a):
         print(f'        {m["descricao"]}')
 
 
+def motions_recusados(_a):
+    """Os motions recusados por Rodrigo, com o motivo: leia antes de escrever um motion novo."""
+    rec = chamar('GET', '/api/motions/recusados')
+    for r in rec:
+        print(f'✗ {r["nome"]} ({r["arquivo"]}): {r["motivo"] or "sem motivo"}')
+    if not rec:
+        print('nenhum motion recusado')
+
+
+def identidade(_a):
+    """A identidade visual dos motions (Configurações › Motions)."""
+    print(chamar('GET', '/api/config').get('identidade_motion') or '(vazia)')
+
+
 def motions_usar(a):
     if not guardar(a.id, 'motions', a.plano, a.forcar):
         return
@@ -576,6 +590,8 @@ def main(argv=None):
     cmd('presets-definir', presets_definir, ID, ('pedido', {}), ('preset', {'help': 'id, PRE-… ou "nenhum"'}), ('--ajustes', {'help': 'JSON'}), FORCAR)
     cmd('ator', ator, ID, ('plano', {}), ('movimento', {'choices': ['zoom_lento', 'zoom_seco', 'nada']}), FORCAR, ajuda='preset do Full ator')
     cmd('motions', motions_listar)
+    cmd('motions-recusados', motions_recusados, ajuda='os motions recusados, com o motivo (leia antes de escrever um novo)')
+    cmd('identidade', identidade, ajuda='a identidade visual dos motions (Configurações › Motions)')
     cmd('motions-usar', motions_usar, ID, ('plano', {}), ('--preset', {}), ('--video', {}), ('--formato', {'choices': ['vertical', 'dividida'], 'default': 'vertical'}),
         ('--valores', {'help': 'JSON dos campos'}), ('--fundo', {}), FORCAR)
     cmd('transicoes-variar', transicoes_variar, ID, ('--todas', {'action': 'store_true'}))
