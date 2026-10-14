@@ -20,6 +20,7 @@ Editor de vídeo local, controlado por interface web, em que cada etapa da ediç
 | Áudio: voz, faixa de fundo, mixer | [audio.md](docs/audio.md) | **Real** (P3: limpeza, timbre, faixas geradas, mixer, −14 LUFS) |
 | Legenda | [legenda.md](docs/legenda.md) | **Real** (P4: estilo medido, palavra a palavra, edição, ASS na exportação) |
 | Prévia e exportação | [exportacao.md](docs/exportacao.md) | **Real** (ator, inserts, motions, sons, transições, áudio), montada por camadas |
+| **Editor por Claude** (o Claude Code edita usando o app; revisão por comentários; o que vem do 19) | [editor-claude.md](docs/editor-claude.md) | **Plano** (out/2026), fases E1–E10 |
 
 O agente do chat e o desfazer/versões do editor ainda não foram feitos (§10, §11); o chat simulado saiu na F0.
 
@@ -2387,6 +2388,8 @@ Uma correção pontual num vídeo vale só para aquele vídeo, a menos que o cri
 | P5 ✅ (à espera da avaliação) | **Rosto nos inserts:** o enquadramento do ator na tela dividida e no "ator embaixo" | O rosto bem posicionado em todos os planos divididos do vídeo de teste |
 
 💡 **Em paralelo** (quando Rodrigo pedir): depois da F0, P1 a P5 mexem em arquivos separados (cada uma no seu doc, nos seus módulos, na sua camada da exportação e no seu campo do `__render`), então podem ser feitas por agentes em paralelo, cada um numa cópia da pasta (`git worktree`) e numa branch própria; o Claude principal junta uma de cada vez na main, rodando todos os testes e a exportação de ponta a ponta a cada junção. O que pede o olho de Rodrigo (aprovar transições, o estilo da legenda, ouvir as faixas) fica para a revisão no fim de cada uma.
+
+💡 **Próxima frente:** o editor por Claude, em fases E1–E10, no plano [editor-claude.md](docs/editor-claude.md).
 
 ## 16. Aprendizados medidos
 
