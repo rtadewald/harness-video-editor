@@ -63,6 +63,7 @@ export default function Banco() {
   const [busca] = useSearchParams()
   const [tipo, setTipo] = useState<Tipo>(() => (busca.get('tipo') === 'motions' ? 'motions' : busca.get('tipo') === 'inserts' ? 'inserts' : 'tudo'))
   const [motions, setMotions] = useState<Preset[]>([])
+  const [motionAberto, setMotionAberto] = useState<string | null>(null)
   const [motionsRecusados, setMotionsRecusados] = useState<PresetRecusado[]>([])
   const [selo, setSelo] = useState<Selo | 'nenhum' | null>(null)
   const [recusados, setRecusados] = useState<string[]>([])
@@ -205,7 +206,7 @@ export default function Banco() {
           <p className="mb-6 text-[13px] text-fog">Nada com esses filtros.</p>
         )}
 
-        <ul className="grid gap-x-5 gap-y-8" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))' }}>
+        <ul className="grid gap-x-5 gap-y-8" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
           {tipo !== 'motions' && (
             <li>
               <button
@@ -227,7 +228,7 @@ export default function Banco() {
             ...motionsVisiveis.map((m) => ({
               // os motions "a revisar" primeiro (o que pede ação), os outros depois das mídias novas
               criado: m.a_revisar ? '9' : '',
-              el: <CartaoMotion key={`m-${m.id}`} m={m} aprovar={() => agirMotion(() => aprovarPreset(m.id))} recusar={() => recusarMotion(m)} />,
+              el: <CartaoMotion key={`m-${m.id}`} m={m} abrir={() => setMotionAberto(m.id)} aprovar={() => agirMotion(() => aprovarPreset(m.id))} recusar={() => recusarMotion(m)} />,
             })),
           ]
             .sort((a, b) => b.criado.localeCompare(a.criado))
@@ -249,6 +250,14 @@ export default function Banco() {
       </main>
 
       {aberto && <Detalhe bid={aberto} fechar={() => setAberto(null)} mudou={() => void carregar()} />}
+      {motionAberto && motions.find((m) => m.id === motionAberto) && (
+        <DetalheMotion
+          m={motions.find((m) => m.id === motionAberto)!}
+          fechar={() => setMotionAberto(null)}
+          aprovar={() => agirMotion(() => aprovarPreset(motionAberto))}
+          recusar={() => recusarMotion(motions.find((m) => m.id === motionAberto)!)}
+        />
+      )}
     </div>
   )
 }
@@ -271,34 +280,124 @@ function Chip({ ativo, onClick, n, icone: Icone, children }: { ativo: boolean; o
 
 /** Um motion na grade do banco: a prévia (toca com o mouse em cima), o nome, o código e, se o Claude o escreveu e ainda
  *  está "a revisar", Aprovar e Recusar (com o motivo, que o Claude lê antes de escrever o próximo). */
-function CartaoMotion({ m, aprovar, recusar }: { m: Preset; aprovar: () => void; recusar: () => void }) {
+function CartaoMotion({ m, abrir, aprovar, recusar }: { m: Preset; abrir: () => void; aprovar: () => void; recusar: () => void }) {
   return (
     <li className="group relative">
-      <div className="relative grid aspect-video place-items-center overflow-hidden rounded-[6px] bg-deeper ring-1 ring-line-dark transition-[box-shadow] duration-300 group-hover:ring-2 group-hover:ring-coral">
-        <div className="aspect-[9/8] h-full">
-          <MiniaturaPreset preset={m} formato="dividida" />
+      <button onClick={abrir} className="block w-full text-left">
+        <div className="relative grid aspect-video place-items-center overflow-hidden rounded-[6px] bg-deeper ring-1 ring-line-dark transition-[transform,box-shadow] duration-300 group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-coral">
+          <div className="aspect-[9/8] h-full">
+            <MiniaturaPreset preset={m} formato="dividida" />
+          </div>
+          <span className="absolute bottom-2.5 left-2.5 rounded-full bg-coral px-2 py-0.5 text-[9px] font-semibold text-cream">Motion</span>
+          <span className="absolute right-2.5 bottom-2.5 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">{seg(m.duracao)}</span>
         </div>
-        <span className="absolute bottom-2.5 left-2.5 rounded-full bg-coral px-2 py-0.5 text-[9px] font-semibold text-cream">Motion · {m.duracao.toFixed(1).replace('.', ',')} s</span>
-      </div>
-      <div className="mt-3 flex items-center gap-2">
-        <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.02em]" title={m.descricao}>
+        <h3 className="mt-3 truncate text-[14px] font-semibold tracking-[-0.02em]" title={m.nome}>
           {m.nome}
         </h3>
+      </button>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         {m.a_revisar ? <span className="shrink-0 rounded-full bg-coral px-2 py-0.5 text-[9px] font-semibold text-cream uppercase">a revisar</span> : <SeloBanco estado="aprovado" />}
         <ChipCodigo tipo="motion" id={m.id} nome={m.nome} />
+        {m.a_revisar && (
+          <span className="ml-auto flex gap-1">
+            <button onClick={aprovar} title="Aprovar" className="grid size-6 place-items-center rounded-full bg-mint text-ink hover:brightness-110">
+              <Check className="size-3.5" />
+            </button>
+            <button onClick={recusar} title="Recusar… (com o motivo)" className="grid size-6 place-items-center rounded-full text-fog ring-1 ring-line-dark hover:text-coral hover:ring-coral">
+              <X className="size-3.5" />
+            </button>
+          </span>
+        )}
       </div>
-      <p className="mt-0.5 line-clamp-2 text-[12px] leading-[1.5] text-cream/85">{m.descricao}</p>
-      {m.a_revisar && (
-        <div className="mt-2 flex gap-1.5">
-          <button onClick={aprovar} className="flex items-center gap-1.5 rounded-full bg-mint px-3 py-1 text-[11px] font-semibold text-ink hover:brightness-110">
-            <Check className="size-3.5" /> Aprovar
-          </button>
-          <button onClick={recusar} className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold text-fog ring-1 ring-line-dark hover:text-coral hover:ring-coral">
-            <X className="size-3.5" /> Recusar…
-          </button>
-        </div>
-      )}
     </li>
+  )
+}
+
+/** O detalhe de um motion (como o de uma mídia): a prévia grande tocando (tela cheia ou dividida), a descrição, os
+ *  campos e os sons do preset e, se o Claude o escreveu e ele está "a revisar", Aprovar e Recusar (com o motivo). */
+function DetalheMotion({ m, fechar, aprovar, recusar }: { m: Preset; fechar: () => void; aprovar: () => void; recusar: () => void }) {
+  const [formato, setFormato] = useState<'vertical' | 'dividida'>('vertical')
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => e.key === 'Escape' && fechar()
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  }, [fechar])
+  const campos = Object.entries(m.campos)
+  const sons = Object.values(m.sons ?? {})
+  return (
+    <div data-modal className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-6" onClick={fechar}>
+      <div className="grid max-h-full w-full max-w-[1100px] grid-cols-[minmax(0,1.1fr)_minmax(340px,1fr)] gap-x-7 overflow-hidden rounded-[8px] bg-deep p-6 ring-1 ring-line-dark" onClick={(e) => e.stopPropagation()}>
+        <div className="grid min-h-0 place-items-center rounded-[6px] bg-black">
+          <div key={formato} className={cn(formato === 'vertical' ? 'h-[min(72vh,760px)] aspect-[9/16]' : 'w-full max-w-[560px] aspect-[9/8]')}>
+            <MiniaturaPreset preset={m} formato={formato} auto />
+          </div>
+        </div>
+        <div className="flex max-h-[min(80vh,820px)] min-h-0 flex-col gap-5 overflow-y-auto pr-1 text-[13px] text-cream">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-coral px-2.5 py-1 text-[11px] font-semibold text-cream">Motion</span>
+            <div className="flex rounded-full p-0.5 ring-1 ring-line-dark">
+              {(['vertical', 'dividida'] as const).map((f) => (
+                <button key={f} onClick={() => setFormato(f)} className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-semibold', formato === f ? 'bg-cream text-ink' : 'text-fog hover:text-cream')}>
+                  {f === 'vertical' ? 'Tela cheia' : 'Tela dividida'}
+                </button>
+              ))}
+            </div>
+            <button onClick={fechar} aria-label="Fechar" className="ml-auto grid size-8 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream">
+              <X className="size-4" />
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <h2 className="min-w-0 flex-1 text-[18px] font-semibold tracking-[-0.02em]">{m.nome}</h2>
+            <ChipCodigo tipo="motion" id={m.id} nome={m.nome} />
+          </div>
+          <div className="grid grid-cols-3 gap-x-6 gap-y-3 border-y border-line-dark py-4">
+            <Dado rotulo="Fundo sugerido" valor={m.fundo} />
+            <Dado rotulo="Campos" valor={String(Object.keys(m.campos).length)} />
+            <Dado rotulo="Sons" valor={String(Object.keys(m.sons ?? {}).length)} />
+          </div>
+          <Bloco titulo="Selo">
+            <div className="flex flex-wrap items-center gap-2">
+              {m.a_revisar ? <span className="rounded-full bg-coral px-2.5 py-1 text-[11px] font-semibold text-cream uppercase">a revisar</span> : <SeloBanco estado="aprovado" className="px-2.5 py-1 text-[11px]" />}
+              {m.a_revisar && (
+                <span className="ml-auto flex gap-1.5">
+                  <Button variant="pill" size="sm" className="text-fog hover:text-cream" onClick={aprovar}>
+                    <Check className="size-3.5" /> Aprovar
+                  </Button>
+                  <Button variant="pill" size="sm" className="text-fog hover:text-coral" onClick={recusar}>
+                    <X className="size-3.5" /> Recusar…
+                  </Button>
+                </span>
+              )}
+            </div>
+          </Bloco>
+          <Bloco titulo="Descrição">
+            <p className="leading-[1.7] text-cream/85">{m.descricao || '—'}</p>
+          </Bloco>
+          {campos.length > 0 && (
+            <Bloco titulo={`Campos · ${campos.length}`}>
+              <div className="grid gap-1.5">
+                {campos.map(([k, c]) => (
+                  <p key={k} className="text-fog">
+                    <span className="text-cream">{c.rotulo}</span> · {c.padrao || '—'}
+                  </p>
+                ))}
+              </div>
+            </Bloco>
+          )}
+          {sons.length > 0 && (
+            <Bloco titulo={`Sons · ${sons.length}`}>
+              <div className="grid gap-1.5">
+                {sons.map((x) => (
+                  <p key={x.rotulo} className="text-fog">
+                    <span className="text-cream">{x.rotulo}</span> · {x.som ?? 'sem som'}
+                  </p>
+                ))}
+              </div>
+            </Bloco>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -328,18 +427,15 @@ function Cartao({ item: i, abrir, apagar }: { item: ItemBanco; abrir: () => void
             <span className="absolute inset-0 grid place-items-center bg-black/60 text-[12px] font-semibold text-yellow">cortando o original…</span>
           )}
         </div>
-        <div className="mt-3 flex items-center gap-2">
-          <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.02em]" title={i.nome}>
-            {i.nome}
-          </h3>
+        <h3 className="mt-3 truncate text-[14px] font-semibold tracking-[-0.02em]" title={i.nome}>
+          {i.nome}
+        </h3>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <SeloBanco estado={i.estado} />
           <ChipCodigo tipo="midia" id={i.id} nome={i.nome} />
         </div>
-        {status ? (
-          <p className={cn('mt-0.5 text-[11px]', i.ia.status === 'erro' ? 'text-coral' : i.ia.status === 'pendente' ? 'text-fog' : 'text-yellow')}>{status}</p>
-        ) : (
-          <p className="mt-0.5 line-clamp-2 text-[12px] leading-[1.5] text-cream/85">{i.descricao}</p>
-        )}
+        {/* a descrição fica no detalhe; aqui só o estado da IA enquanto ela trabalha (ou falhou) */}
+        {status && <p className={cn('mt-0.5 text-[11px]', i.ia.status === 'erro' ? 'text-coral' : i.ia.status === 'pendente' ? 'text-fog' : 'text-yellow')}>{status}</p>}
       </button>
       <button
         onClick={apagar}
@@ -435,9 +531,8 @@ function Detalhe({ bid, fechar, mudou }: { bid: string; fechar: () => void; mudo
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-y border-line-dark py-4">
+              <div className="grid grid-cols-3 gap-x-6 gap-y-3 border-y border-line-dark py-4">
                 <Dado rotulo="Dimensões" valor={item.largura && item.altura ? `${item.largura}×${item.altura}` : '—'} />
-                <Dado rotulo="Duração" valor={item.tipo === 'video' ? seg(item.duracao) : '— (imagem)'} />
                 <Dado
                   rotulo="Origem"
                   valor={

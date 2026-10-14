@@ -1961,11 +1961,11 @@ Só os favoritos (a mesma rota e o mesmo arquivo da galeria) e as duas caixas le
 - **Grade de 6 colunas**, os mais novos primeiro; o 1º card é **Adicionar** ("Vídeos e imagens, vários de uma vez"). Só aparecem os **originais**. Cada card:
   - miniatura 16:9 (a mídia inteira, sem cortar); um vídeo **toca mudo com o mouse em cima**;
   - selo "Vídeo · 16:9" (azul) ou "Imagem · 1:1" (menta), a duração, o selo coral **"N trechos"**, e "cortando o original…" por cima enquanto corta;
-  - nome, o **selo** (★ Usado amarelo · ✓ Aprovado menta · ✗ Recusado coral) e o código; embaixo, o estado da IA ("descrição na fila", "descrevendo…", "a descrição falhou", "sem descrição") ou as 2 primeiras linhas da descrição;
+  - o nome numa linha e, embaixo, o **selo** (★ Usado amarelo · ✓ Aprovado menta · ✗ Recusado coral) e o código (a descrição fica no detalhe; 5 cards por linha); embaixo, só enquanto a IA trabalha ou falhou, o estado dela ("descrição na fila", "descrevendo…", "a descrição falhou", "sem descrição") ou as 2 primeiras linhas da descrição;
   - lixeira ao passar o mouse: "Apagar “nome” do banco? Os inserts que a usam ficam sem ela."
 - **Detalhe** (janela por cima; Esc ou clicar fora fecha):
   - à esquerda, o vídeo com controles (mudo) ou a imagem;
-  - selo do tipo e formato; **Dimensões**, **Duração**, **Origem** (Upload com o nome do arquivo · Captura de site com a URL · Web com a URL · Captura automática; "· pelo Claude" no que ele trouxe), **Entrou em**;
+  - selo do tipo e formato; **Dimensões**, **Origem** (Upload com o nome do arquivo · Captura de site com a URL · Web com a URL · Captura automática; "· pelo Claude" no que ele trouxe), **Entrou em**;
   - **Selo**: o atual e **Aprovar** · **Recusar** · **Automático** (tira a marca de mão);
   - **Nome**, **Descrição**, **Palavras-chave** (separadas por vírgula; até 30) e **Salvar** (aceso só com mudança);
   - **Descrever de novo** (a IA vê de novo e sugere; não apaga o que você escreveu);
