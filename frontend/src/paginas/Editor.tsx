@@ -28,6 +28,7 @@ import { paraTempo, palavrasNaSaida } from '@/direcao/direcaoProjeto'
 import { TransicoesDoVideo, chavePar, cortesDoVideo, useBiblioteca, useEscolhas } from '@/transicoes/transicoes'
 import { FatorSom } from '@/editor/sons'
 import { MontagemDoProjeto } from '@/player/MontagemNoPalco'
+import { elementosDoVideo, intervalosDeLettering, semLettering } from '@/elementos/elementos'
 import { useRosto } from '@/ator/ator'
 import EtapaTransicoes from '@/transicoes/EtapaTransicoes'
 import EtapaAudio from '@/audio/EtapaAudio'
@@ -115,10 +116,12 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
   const naSaida = useMemo(() => {
     if (!dados || !seq) return null
     const saida = palavrasNaSaida(dados.palavras, seq)
-    const planos = paraTempo(dados.projeto.direcao?.itens ?? [], dados.palavras, saida, seq.duracao)
-      .visiveis.filter((i) => i.camada === 'plano')
-      .sort((a, b) => a.inicio - b.inicio)
-    return { saida, planos }
+    const visiveis = paraTempo(dados.projeto.direcao?.itens ?? [], dados.palavras, saida, seq.duracao).visiveis
+    const planos = visiveis.filter((i) => i.camada === 'plano').sort((a, b) => a.inicio - b.inicio)
+    const elementos = visiveis.filter((i) => i.camada === 'elemento')
+    // onde há lettering, a legenda some (`elementos/`)
+    const letterings = intervalosDeLettering(elementosDoVideo([...planos, ...elementos]))
+    return { saida, planos, elementos, letterings }
   }, [dados, seq])
   const planosSaida = naSaida?.planos ?? null
   const cortesTransicao = useMemo(() => (planosSaida ? cortesDoVideo(planosSaida, biblioteca, escolhasTransicoes) : null), [planosSaida, biblioteca, escolhasTransicoes])
@@ -168,7 +171,7 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
   const [legenda, mudarLegenda] = useLegendaDoProjeto(id)
   const zonasLegenda = useZonasDaLegenda(id, dados?.palavras.length ? (naSaida?.planos ?? null) : null, etapa)
   const blocosLegenda = useMemo(
-    () => (naSaida && legenda && dados ? blocosDaLegenda(naSaida.saida, naSaida.planos, legenda, dados.palavras, zonasLegenda) : []),
+    () => (naSaida && legenda && dados ? semLettering(blocosDaLegenda(naSaida.saida, naSaida.planos, legenda, dados.palavras, zonasLegenda), naSaida.letterings) : []),
     [naSaida, legenda, dados, zonasLegenda],
   )
   const orfaosLegenda = useMemo(() => (naSaida && legenda && dados ? ajustesNoVideo(legenda.ajustes, dados.palavras, naSaida.saida).orfaos : []), [naSaida, legenda, dados])
@@ -372,6 +375,7 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
           <MontagemDoProjeto
             projeto={projeto}
             planos={naSaida.planos}
+            elementos={naSaida.elementos}
             saida={naSaida.saida}
             tempo={player.tempo}
             tocando={player.tocando}

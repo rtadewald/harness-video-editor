@@ -39,6 +39,9 @@ Animação mais elaborada que isso: troque o plano (insert real ou Full ator) pe
 ## Elementos
 
 Lettering, palavra ManyChat, caixinha de perguntas e print sobreposto vêm da direção, presos às palavras, e o app os
-desenha. Para mudar um texto, corrija pela corretora da direção.
+desenha na prévia e no MP4 (o mesmo estilo do 19: lettering branco abaixo do queixo ou com o fundo desfocado sobre um
+insert, a barra do ManyChat digitando, a caixinha do Instagram, o print como etiqueta mono com o texto). Onde há
+lettering, a legenda some sozinha. Para mudar um texto, corrija pela corretora da direção; confira na checagem
+(`A quadros <id> <s>` no meio do elemento).
 
 Tempo esperado: 2–4 min (o motion novo, em paralelo).

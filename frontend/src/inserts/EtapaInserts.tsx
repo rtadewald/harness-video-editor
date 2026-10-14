@@ -12,6 +12,7 @@ import { usePresets, vidasDasMidias } from '@/presets/presets'
 import CardAjustes from '@/presets/CardAjustes'
 import { aspectosDe, telaTodaPermitida } from '@/presets/divisao'
 import MontagemNoPalco from '@/player/MontagemNoPalco'
+import { elementosDoVideo, intervalosDeLettering, semLettering } from '@/elementos/elementos'
 import { useRosto, type AjusteAtor } from '@/ator/ator'
 import PainelMotion from '@/motions/PainelMotion'
 import { EdicaoPreset } from '@/motions/PresetMotion'
@@ -305,8 +306,11 @@ export default function EtapaInserts(p: Props) {
   const [verLegenda, setVerLegenda] = useLembrado('inserts.verLegenda', true)
   const lg = p.legenda
   const blocosLegenda = useMemo(
-    () => (lg?.ligada && verLegenda ? blocosDaLegenda(saida, planos, lg, dados.palavras, zonasDaLegenda(pedidos, banco, presetsTodos)) : []),
-    [lg, verLegenda, saida, planos, dados.palavras, pedidos, banco, presetsTodos],
+    () =>
+      lg?.ligada && verLegenda
+        ? semLettering(blocosDaLegenda(saida, planos, lg, dados.palavras, zonasDaLegenda(pedidos, banco, presetsTodos)), intervalosDeLettering(elementosDoVideo(itens)))
+        : [],
+    [lg, verLegenda, saida, planos, itens, dados.palavras, pedidos, banco, presetsTodos],
   )
   // a janela pode não comportar as larguras escolhidas: o centro guarda 300 px para o vídeo (com os controles) e, ao lado,
   // a coluna do preset e do fundo (268 px) ou a faixa dela recolhida; os cards encolhem juntos com o que sobra. Se a coluna
@@ -443,6 +447,7 @@ export default function EtapaInserts(p: Props) {
               <MontagemNoPalco
                 projeto={projeto}
                 planos={planos}
+                elementos={elementos}
                 saida={saida}
                 pedidos={pedidos}
                 banco={banco}
