@@ -288,27 +288,30 @@ function CartaoMotion({ m, abrir, aprovar, recusar }: { m: Preset; abrir: () => 
           <div className="aspect-[9/8] h-full">
             <MiniaturaPreset preset={m} formato="dividida" />
           </div>
-          <span className="absolute bottom-2.5 left-2.5 rounded-full bg-coral px-2 py-0.5 text-[9px] font-semibold text-cream">Motion</span>
+          <span className="absolute top-2.5 right-2.5 rounded-full bg-coral px-2 py-0.5 text-[9px] font-semibold text-cream">Motion</span>
           <span className="absolute right-2.5 bottom-2.5 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">{seg(m.duracao)}</span>
         </div>
-        <h3 className="mt-3 truncate text-[14px] font-semibold tracking-[-0.02em]" title={m.nome}>
-          {m.nome}
-        </h3>
+        <div className="mt-3 flex items-center gap-2">
+          <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.02em]" title={m.nome}>
+            {m.nome}
+          </h3>
+          <ChipCodigo tipo="motion" id={m.id} nome={m.nome} />
+        </div>
       </button>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        {m.a_revisar ? <span className="shrink-0 rounded-full bg-coral px-2 py-0.5 text-[9px] font-semibold text-cream uppercase">a revisar</span> : <SeloBanco estado="aprovado" />}
-        <ChipCodigo tipo="motion" id={m.id} nome={m.nome} />
-        {m.a_revisar && (
-          <span className="ml-auto flex gap-1">
-            <button onClick={aprovar} title="Aprovar" className="grid size-6 place-items-center rounded-full bg-mint text-ink hover:brightness-110">
-              <Check className="size-3.5" />
-            </button>
-            <button onClick={recusar} title="Recusar… (com o motivo)" className="grid size-6 place-items-center rounded-full text-fog ring-1 ring-line-dark hover:text-coral hover:ring-coral">
-              <X className="size-3.5" />
-            </button>
-          </span>
-        )}
-      </div>
+      {m.a_revisar ? (
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          <button onClick={aprovar} className="flex items-center justify-center gap-1.5 rounded-full bg-mint/15 py-1.5 text-[11.5px] font-semibold text-mint ring-1 ring-mint/40 transition-colors hover:bg-mint hover:text-ink">
+            <Check className="size-3.5" /> Aprovar
+          </button>
+          <button onClick={recusar} className="flex items-center justify-center gap-1.5 rounded-full py-1.5 text-[11.5px] font-semibold text-fog ring-1 ring-line-dark transition-colors hover:bg-coral/10 hover:text-coral hover:ring-coral">
+            <X className="size-3.5" /> Recusar
+          </button>
+        </div>
+      ) : (
+        <div className="mt-1.5">
+          <SeloBanco estado="aprovado" />
+        </div>
+      )}
     </li>
   )
 }
@@ -412,28 +415,34 @@ function Cartao({ item: i, abrir, apagar }: { item: ItemBanco; abrir: () => void
         <div className="relative aspect-video overflow-hidden rounded-[6px] bg-deeper ring-1 ring-line-dark transition-[transform,box-shadow] duration-300 group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-coral">
           <img src={urlBancoMiniatura(i.id)} alt="" loading="lazy" className="absolute inset-0 size-full object-contain" />
           {tocando && <video src={urlBancoArquivo(i.id)} autoPlay muted loop playsInline className="absolute inset-0 size-full bg-deeper object-contain" />}
-          <span className={cn('absolute bottom-2.5 left-2.5 rounded-full px-2 py-0.5 text-[9px] font-semibold', i.tipo === 'video' ? 'bg-blue text-cream' : 'bg-mint text-ink')}>
-            {NOME_TIPO_MIDIA[i.tipo]} · {i.formato}
+          <span className="absolute top-2.5 right-2.5 flex gap-1">
+            {(i.trechos?.length ?? 0) > 0 && (
+              <span className="rounded-full bg-coral px-2 py-0.5 text-[9px] font-semibold text-cream">
+                {i.trechos!.length} trecho{i.trechos!.length > 1 ? 's' : ''}
+              </span>
+            )}
+            <span className={cn('rounded-full px-2 py-0.5 text-[9px] font-semibold', i.tipo === 'video' ? 'bg-blue text-cream' : 'bg-mint text-ink')}>
+              {NOME_TIPO_MIDIA[i.tipo]} · {i.formato}
+            </span>
           </span>
           {i.tipo === 'video' && (
             <span className="absolute right-2.5 bottom-2.5 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">{seg(i.duracao)}</span>
-          )}
-          {(i.trechos?.length ?? 0) > 0 && (
-            <span className="absolute top-2.5 right-2.5 rounded-full bg-coral px-2 py-0.5 text-[10px] font-semibold text-cream">
-              {i.trechos!.length} trecho{i.trechos!.length > 1 ? 's' : ''}
-            </span>
           )}
           {i.edicao?.status === 'rodando' && (
             <span className="absolute inset-0 grid place-items-center bg-black/60 text-[12px] font-semibold text-yellow">cortando o original…</span>
           )}
         </div>
-        <h3 className="mt-3 truncate text-[14px] font-semibold tracking-[-0.02em]" title={i.nome}>
-          {i.nome}
-        </h3>
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <SeloBanco estado={i.estado} />
+        <div className="mt-3 flex items-center gap-2">
+          <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.02em]" title={i.nome}>
+            {i.nome}
+          </h3>
           <ChipCodigo tipo="midia" id={i.id} nome={i.nome} />
         </div>
+        {i.estado && (
+          <div className="mt-1.5">
+            <SeloBanco estado={i.estado} />
+          </div>
+        )}
         {/* a descrição fica no detalhe; aqui só o estado da IA enquanto ela trabalha (ou falhou) */}
         {status && <p className={cn('mt-0.5 text-[11px]', i.ia.status === 'erro' ? 'text-coral' : i.ia.status === 'pendente' ? 'text-fog' : 'text-yellow')}>{status}</p>}
       </button>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { saltoDaLinha } from '@/editor/janelaDaLinha'
 import { MessageSquareText, PanelLeftClose, PanelLeftOpen, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
@@ -343,6 +343,26 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
   }, [player, vertical, cortes, ouvirEmenda])
+
+  // R na Revisão, na Legenda e no Áudio (como nas outras linhas do tempo): volta ao começo do plano sob o cursor e toca
+  // até o fim; R de novo logo no fim do plano tocado repete o mesmo (Inserts e Transições têm o R deles)
+  const ultimoR = useRef<{ id: string; fim: number } | null>(null)
+  useEffect(() => {
+    if (etapa !== 'revisao' && etapa !== 'legenda' && etapa !== 'audio') return
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'r' || e.metaKey || e.ctrlKey || e.altKey || emCampoDeTexto(e.target, e.key) || modalAberto() || !seq) return
+      const ps = planosSaida ?? []
+      const naBorda = ultimoR.current && Math.abs(player.tempo - ultimoR.current.fim) < 0.2 ? ps.find((x) => x.id === ultimoR.current!.id) : null
+      const pl = naBorda ?? ps.find((x) => player.tempo >= x.inicio && player.tempo < x.fim)
+      if (!pl) return
+      e.preventDefault()
+      soltarFoco(e.target)
+      ultimoR.current = { id: pl.id, fim: pl.fim }
+      player.tocarTrecho(seq.saidaParaFonte(pl.inicio), seq.saidaParaFonte(Math.max(pl.fim - 2 / QUADROS, pl.inicio)), { pular: true, loop: false })
+    }
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  }, [etapa, planosSaida, player, seq])
 
   useEffect(() => {
     if (!vertical && !player.pular) player.setPular(true) // fora dos Cortes, a prévia é sempre o vídeo cortado

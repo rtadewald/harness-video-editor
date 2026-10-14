@@ -2196,7 +2196,7 @@ Indireto: o motor e as margens definem os cortes; os modelos da direção define
 
 ### Atalhos das etapas montadas (como no 19)
 
-Em todas as etapas depois do Pré-processamento (Direção, Inserts, Transições, Áudio, Legenda, Revisão): **Espaço** toca/pausa; **← / →** andam **um quadro** (24 por s, pausando); **Shift + ← / →** pulam **5% do trecho da linha do tempo que está à vista** (o salto acompanha o zoom; nunca menos que 0,2 s); **⌘ + rolagem** dá zoom na linha do tempo ancorado no mouse (⌘ + / ⌘ − também); a rolagem comum anda a linha do tempo de lado. Os da etapa continuam: **R** toca de novo o plano/corte (Inserts, Transições), **D** corta o plano no cursor (Inserts), **I · O · C** na Revisão. No Pré-processamento, as setas seguem em 0,5 s (Shift 5 s, Alt 10 ms).
+Em todas as etapas depois do Pré-processamento (Direção, Inserts, Transições, Áudio, Legenda, Revisão): **Espaço** toca/pausa; **← / →** andam **um quadro** (24 por s, pausando); **Shift + ← / →** pulam **5% do trecho da linha do tempo que está à vista** (o salto acompanha o zoom; nunca menos que 0,2 s); **⌘ + rolagem** dá zoom na linha do tempo ancorado no mouse (⌘ + / ⌘ − também); a rolagem comum anda a linha do tempo de lado. Os da etapa continuam: **R** volta ao começo do plano sob o cursor e toca até o fim (Inserts, Revisão, Legenda, Áudio; R logo no fim repete o mesmo plano) ou toca o corte selecionado (Transições), **D** corta o plano no cursor (Inserts), **I · O · C** na Revisão. No Pré-processamento, as setas seguem em 0,5 s (Shift 5 s, Alt 10 ms).
 
 ## 9. Timeline e ligação entre etapas
 
