@@ -511,3 +511,13 @@ export const listarFontesPresets = () => fetch('/api/presets/fontes').then(json<
 
 /** Segundos com uma casa, em PT-BR ("3,5"). */
 export const s1 = (t: number) => t.toFixed(1).replace('.', ',')
+
+// ---------------------------------------------------------------- versões, trava e atividade (docs/editor-claude.md, E2)
+export type VersaoProjeto = { versao: number; criado_em: string; autor: 'claude' | 'rodrigo'; resumo: string; restaurada_de?: number | null }
+export type EntradaAtividade = { em: string; autor: 'claude' | 'rodrigo'; etapa: string; texto: string; segundos?: number }
+export type EstadoClaude = { editando: boolean; etapa?: string | null; desde?: string }
+export const lerVersoes = (id: string) => fetch(`/api/projetos/${id}/versoes`).then(json<{ versoes: VersaoProjeto[]; atual: number }>)
+export const salvarVersao = (id: string, resumo = '') => enviar<VersaoProjeto>('POST', `/api/projetos/${id}/versoes`, { resumo })
+export const restaurarVersao = (id: string, n: number) => enviar<Projeto>('POST', `/api/projetos/${id}/versoes/${n}/restaurar`)
+export const lerAtividade = (id: string) => fetch(`/api/projetos/${id}/atividade`).then(json<{ claude: EstadoClaude; atividade: EntradaAtividade[] }>)
+export const destravarProjeto = (id: string) => enviar<EstadoClaude>('PUT', `/api/projetos/${id}/claude`, { editando: false })
