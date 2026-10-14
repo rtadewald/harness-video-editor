@@ -198,3 +198,13 @@ registradas); E4 junta tudo num primeiro vídeo; E5–E7 enriquecem a v1; E8–E
 - ⏳ O "Refazer cortes" do app descarta os ajustes manuais; com as marcas de mão (Q4), ele deve preservar o que
   Rodrigo marcou — decidir na E2/E3.
 - ⏳ O agente de chat dentro do app (SPEC §11) continua para depois.
+
+## 11. Andamento
+
+| Fase | Estado | O que entrou |
+|---|---|---|
+| E1 | ✅ feita (out/2026) | Copiado do 19 (só leitura; backup do que foi sobrescrito no scratchpad da sessão): 74 mídias do banco, 2 presets + 3 recusados (`dados/presets/_recusados/`) + `clipes/`, Mergulho e Sobe e mergulha sem o riser, `zoom-desfoque` e `ordem.json` das transições + `clipes/` + `luz.webm`, as referências `prj-mvi-0717-v7` e `prj-mvi-0718-v3`, os CTAs (`dados/ctas/`), 7 motions + `claude-code.html` e `runtime.js` corrigidos, e o registro `dados/codigos.json` (241 códigos; o 3 níveis ganhou o PRJ-10). Backend: `codigos.py` (atribuir, mapa, resolver; um PRJ do 19 que aqui é referência resolve para ela) e `GET /api/codigos`, `GET /api/codigos/{código}`; motions com `a_revisar`. Front: `ChipCodigo` (copia "CÓDIGO · nome") nos cards de Projetos, Banco (e trechos), Presets, Motions (com o selo "a revisar"), Transições e Referências (`REF-xx·pN`). A Heurística ganhou as 6 regras do criador do 19 e a regra sugerida que as contradizia virou "mostre a própria marca" (Q30); a identidade dos motions nas Configurações é a do 19 (Q29; a tela dela entra na E7). |
+
+### Para Rodrigo revisar
+
+- E1: os chips de código nos cards (o clique copia "CÓDIGO · nome"); as 6 regras novas na Heurística; os 7 motions novos na página Motions (6 com o selo "a revisar").

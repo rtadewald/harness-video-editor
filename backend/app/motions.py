@@ -53,7 +53,7 @@ def ler_preset(pid: str) -> dict:
     info = _json_do_script(frag, 'preset')
     return {'id': pid, 'nome': str(info.get('nome') or pid), 'descricao': str(info.get('descricao') or ''), 'fundo': info.get('fundo') or 'gradiente',
             'duracao': float(info.get('duracao') or 3), 'miniatura': float(info.get('miniatura') or 0.8), 'campos': campos_de(frag),
-            'sons': sons_de(info)}
+            'sons': sons_de(info), 'a_revisar': bool(info.get('a_revisar'))}
 
 
 def sons_de(info: dict) -> dict:

@@ -1,0 +1,93 @@
+<script type="application/json" id="preset">{"nome": "Barras de custo", "descricao": "Três barras sobem em sequência: duas altas e, por último, uma bem pequena em destaque (que brilha; o balão de texto é opcional); a cena se aproxima devagar até o corte.", "fundo": "verde_claro", "duracao": 4.2, "sons": {"barra": {"rotulo": "Cada barra termina de subir", "som": "ui-pop-02", "intensidade": "baixo"}, "destaque": {"rotulo": "O destaque aparece", "som": "correct-ding-02", "intensidade": "baixo"}}}</script>
+<script type="application/json" id="campos">{"rotulo1": {"tipo": "texto", "rotulo": "1ª barra (alta)", "padrao": "Claude Fable"}, "rotulo2": {"tipo": "texto", "rotulo": "2ª barra (alta)", "padrao": "GPT Astra"}, "rotulo3": {"tipo": "texto", "rotulo": "Barra pequena (destaque)", "padrao": "Gemini 3.7 Flash"}, "destaque": {"tipo": "texto", "rotulo": "Texto do destaque (vazio = sem balão)", "padrao": ""}}</script>
+<style>
+  /* medidas em px do palco (1080 de largura): barras de 224 px a cada 300 px, a de 100% com ~640 px na dividida */
+  #cena { position: absolute; inset: 0; will-change: transform; font-family: Inter, "SF Pro", system-ui, sans-serif; }
+  .barra { position: absolute; width: 224px; height: 0; border-radius: 30px 30px 14px 14px; background: linear-gradient(180deg, #ffffff 0%, #f3f6f4 100%);
+    box-shadow: 0 30px 70px rgba(20, 40, 30, .16), 0 8px 20px rgba(20, 40, 30, .08); will-change: height; }
+  .barra.alvo { background: linear-gradient(180deg, #7466ff 0%, #4f3ff0 100%); box-shadow: 0 14px 36px rgba(79, 63, 240, 0), 0 6px 14px rgba(40, 30, 140, .18); }
+  .rotulo { position: absolute; width: 284px; text-align: center; font-size: 40px; line-height: 1.14; font-weight: 600; letter-spacing: -.015em;
+    color: #15201b; opacity: 0; will-change: transform, opacity; }
+  .rotulo.alvo { font-weight: 700; }
+  #destaque { position: absolute; left: 0; top: 0; padding: 19px 31px 21px; border-radius: 999px; background: #5545f2; color: #fff; white-space: nowrap;
+    font-size: 44px; line-height: 1; font-weight: 700; letter-spacing: -.02em; box-shadow: 0 22px 50px rgba(55, 40, 200, .34), 0 6px 14px rgba(40, 30, 140, .2);
+    opacity: 0; transform-origin: 50% 100%; will-change: transform, opacity, filter; }
+  #destaque::after { content: ''; position: absolute; left: var(--seta, 50%); bottom: -10px; width: 24px; height: 24px; margin-left: -12px; border-radius: 4px;
+    background: #5545f2; transform: rotate(45deg); }
+</style>
+<div id="cena">
+  <div class="barra"></div><div class="barra"></div><div class="barra alvo"></div>
+  <div class="rotulo"></div><div class="rotulo"></div><div class="rotulo alvo"></div>
+  <div id="destaque"></div>
+</div>
+<script>
+  (function () {
+    const W = MOTION.largura, H = MOTION.altura, D = MOTION.duracao
+    const c = MOTION.campos
+    const cena = document.getElementById('cena'), destaque = document.getElementById('destaque')
+    const barras = Array.from(document.querySelectorAll('.barra')), rotulos = Array.from(document.querySelectorAll('.rotulo'))
+    ;[c.rotulo1, c.rotulo2, c.rotulo3].forEach((t, k) => { rotulos[k].textContent = String(t || '') })
+    destaque.textContent = String(c.destaque || '')
+    if (!destaque.textContent) destaque.style.display = 'none' // o criador achou o balão de texto demais
+
+    // a base das barras e onde chega a de 100%: na dividida (1080×960), a base a 200 px do pé (os rótulos embaixo);
+    // na tela cheia, o gráfico no meio de cima
+    const alto = H > W
+    const BASE = alto ? H * 0.64 : H - 200, TOPO = alto ? H * 0.24 : 118
+    const MAX = BASE - TOPO, PASSO = 300, LARG = 224
+    const xs = [W / 2 - PASSO, W / 2, W / 2 + PASSO]
+    const alturas = [1, 0.93, 0.07].map((f) => Math.round(f * MAX)) // as duas altas perto de 100%; a pequena, 7% delas
+    barras.forEach((b, k) => gsap.set(b, { left: xs[k] - LARG / 2, bottom: H - BASE }))
+    rotulos.forEach((r, k) => gsap.set(r, { left: xs[k] - 142, top: BASE + 40 }))
+
+    // os rótulos longos: a fonte diminui (igual nos três) até cada um caber em 2 linhas; o destaque, até caber na largura
+    document.fonts.ready.then(() => {
+      let tam = 40
+      const sobra = () => rotulos.some((r) => r.scrollHeight > tam * 1.14 * 2 + 2 || r.scrollWidth > r.clientWidth + 1)
+      while (sobra() && tam > 26) {
+        tam -= 2
+        rotulos.forEach((r) => { r.style.fontSize = `${tam}px` })
+      }
+      let td = 44
+      while (destaque.offsetWidth > W - 112 && td > 28) destaque.style.fontSize = `${(td -= 2)}px`
+      montar()
+    })
+
+    function montar() {
+      // o destaque logo acima da barra pequena (centrado nela, sem passar da borda; a ponta sempre aponta para ela)
+      const dw = destaque.offsetWidth, dh = destaque.offsetHeight
+      const dx = Math.max(56, Math.min(W - 56 - dw, xs[2] - dw / 2))
+      const seta = Math.max(dh / 2, Math.min(dw - dh / 2, xs[2] - dx))
+      destaque.style.setProperty('--seta', `${seta}px`)
+      gsap.set(destaque, { left: dx, top: BASE - alturas[2] - 30 - dh, transformOrigin: `${seta}px 100%` })
+
+      const k = Math.min(1, D / 3.2) // planos curtos: a sequência encolhe junto
+      const CASA = motion.curva(0.25, 0.1, 0.1, 1) // entrada curta e suave, chegada bem longa
+      // quando a barra "chega" (95% do caminho; o resto da curva é a acomodação longa): é aí que toca o pop
+      const chega = (dur) => { let x = 0; while (x < 1 && CASA(x) < 0.95) x += 0.005; return x * dur }
+      const tl = gsap.timeline({ paused: true })
+
+      // as altas primeiro, uma logo depois da outra; a pequena por último (os rótulos sobem e aparecem junto)
+      const inicios = [0.05, 0.3, 0.95].map((t) => t * k)
+      const durs = [0.95, 0.95, 0.8].map((d) => d * k)
+      barras.forEach((b, i) => {
+        tl.fromTo(b, { height: 0 }, { height: alturas[i], duration: durs[i], ease: CASA }, inicios[i])
+        tl.fromTo(rotulos[i], { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.7 * k, ease: CASA }, inicios[i])
+        motion.som('barra', inicios[i] + chega(durs[i]))
+      })
+
+      // o destaque: aparece, cresce um pouco e sai do desfoque; a barra pequena ganha um brilho
+      const tD = inicios[2] + chega(durs[2]) + 0.08 * k
+      if (destaque.textContent) tl.fromTo(destaque, { opacity: 0, y: 18, scale: 0.86, filter: 'blur(8px)' },
+        { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', duration: 0.9 * k, ease: CASA }, tD)
+      tl.to(barras[2], { boxShadow: '0 14px 36px rgba(79, 63, 240, .55), 0 6px 14px rgba(40, 30, 140, .18)', duration: 0.9 * k, ease: CASA }, tD)
+      motion.som('destaque', tD)
+
+      // a cena nunca para: se aproxima devagar o plano inteiro (puxando um pouco para a barra pequena) e termina ainda andando
+      gsap.set(cena, { transformOrigin: `${W / 2 + PASSO * 0.25}px ${BASE - MAX * 0.3}px` })
+      tl.fromTo(cena, { scale: 1 }, { scale: 1.06, duration: D, ease: motion.curva(0.2, 0.05, 0.1, 0.45) }, 0)
+      tl.to({}, { duration: 0 }, D)
+      motion.pronto(tl)
+    }
+  })()
+</script>

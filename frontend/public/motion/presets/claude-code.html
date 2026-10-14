@@ -75,7 +75,9 @@ Opus (1M context) · ~/acme
     const tempos = motion.digitar(texto, t0, D - 0.2, 0.07)
     const t1 = tempos.length ? tempos[tempos.length - 1] : t0
     motion.som('entrada', 0)
-    motion.som('digitacao', t0, t1 - t0 + 0.1)
+    // as teclas soam só enquanto as letras aparecem: da 1ª à última (com a fala, a 1ª letra pode vir bem depois de t0)
+    const tIni = tempos.length ? tempos[0] : t0
+    motion.som('digitacao', tIni, t1 - tIni + 0.1)
 
     // a cena nunca para: depois do zoom ela desliza para a esquerda com velocidade crescente (na referência, o
     // deslocamento cresce como ~82·(t − 0,65)² px: aceleração de ~164 px/s²), até acompanhar a digitação; quando a
@@ -101,7 +103,12 @@ Opus (1M context) · ~/acme
       const letra = largLetra(), k = gsap.getProperty(janela, 'scale')
       const vDig = (letra * kFim) / Math.max((t1 - t0) / Math.max(tempos.length, 1), 0.02) // a velocidade da digitação na tela
       const naTela = gsap.getProperty(janela, 'x') + (52 + digitado.offsetWidth) * k
-      const d = Math.max(deslize(t, vDig), naTela - B)
+      // em planos longos o deslize empurrava o começo do texto para fora pela esquerda: ele se aproxima de um teto
+      // (o início da linha a 5% da borda) cada vez mais devagar, sem parar
+      const L = Math.max(1, gsap.getProperty(janela, 'x') + 20 * k - W * 0.05)
+      const solto = deslize(t, vDig)
+      const suave = solto < 0.7 * L ? solto : 0.7 * L + 0.3 * L * Math.tanh((solto - 0.7 * L) / (0.3 * L))
+      const d = Math.max(suave, naTela - B)
       pan.style.transform = `translateX(${-d}px)`
     })
     tl.to({}, { duration: 0 }, D)

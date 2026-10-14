@@ -4,6 +4,7 @@ import NavHome from "@/components/NavHome";
 import { cn } from "@/lib/utils";
 import { MiniaturaPreset, usePresets } from "./PresetMotion";
 import type { Formato } from "./api";
+import { ChipCodigo } from '@/components/Codigo'
 
 /** `/motions`: a galeria dos presets de motion (SPEC §8.5; docs/motions.md), em tela cheia ou dividida. Com o mouse em
  *  cima, cada um toca em loop. Os presets são escritos no código; para usar, escolha num plano de motion na etapa Inserts. */
@@ -39,7 +40,11 @@ export default function PaginaMotions() {
             <li key={p.id} className="grid content-start gap-2.5">
               <MiniaturaPreset key={formato} preset={p} formato={formato} />
               <div className="grid gap-1 px-0.5">
-                <p className="text-[13px] font-semibold">{p.nome}</p>
+                <div className="flex items-center gap-2">
+                  <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">{p.nome}</p>
+                  {p.a_revisar && <span className="shrink-0 rounded-full bg-coral px-2 py-0.5 text-[10px] font-semibold text-cream uppercase">a revisar</span>}
+                  <ChipCodigo tipo="motion" id={p.id} nome={p.nome} />
+                </div>
                 <p className="text-[12px] leading-[1.5] text-fog">{p.descricao}</p>
                 <p className="text-[11px] text-fog/70">
                   {Object.values(p.campos).map((c) => c.rotulo).join(" · ")} · {p.duracao.toFixed(1).replace(".", ",")} s

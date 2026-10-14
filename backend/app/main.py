@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from . import audio, banco, captura_site, comum, direcao, direcao_projeto, enquadramento, entradas, exportacao, pipeline, recorte_ator, rosto
-from .rotas import (audio as r_audio, cortes as r_cortes, direcao as r_direcao, exportacao as r_exportacao, inserts as r_inserts,
+from .rotas import (audio as r_audio, codigos as r_codigos, cortes as r_cortes, direcao as r_direcao, exportacao as r_exportacao, inserts as r_inserts,
                     legenda as r_legenda, motions as r_motions, preprocessamento as r_preprocessamento, presets as r_presets,
                     projetos as r_projetos, referencias as r_referencias, rosto as r_rosto, transicoes as r_transicoes)
 
@@ -30,5 +30,5 @@ async def ciclo(_app):
 
 app = FastAPI(title='Harness Video Editor', lifespan=ciclo)
 
-for r in (r_projetos, r_referencias, r_cortes, r_direcao, r_inserts, r_exportacao, r_presets, r_motions, r_rosto, r_preprocessamento, r_transicoes, r_audio, r_legenda):
+for r in (r_codigos, r_projetos, r_referencias, r_cortes, r_direcao, r_inserts, r_exportacao, r_presets, r_motions, r_rosto, r_preprocessamento, r_transicoes, r_audio, r_legenda):
     app.include_router(r.rotas)

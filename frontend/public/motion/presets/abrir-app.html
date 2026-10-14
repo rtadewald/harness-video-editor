@@ -1,0 +1,163 @@
+<script type="application/json" id="preset">{"nome": "Abrir o app", "descricao": "Sobre o fundo claro, o ícone do app do Claude (quadrado coral com a estrela branca, rótulo embaixo) entre dois ícones apagados, como numa área de trabalho do Mac; o cursor de seta entra com calma, clica (o ícone afunda e volta, o rótulo ganha o realce azul do Finder) e a cena segue se aproximando devagar do ícone até o corte.", "fundo": "papel", "duracao": 1.0, "miniatura": 0.7, "a_revisar": true, "sons": {"clique": {"rotulo": "O clique", "som": "click-small-01", "intensidade": "baixo"}}}</script>
+<script type="application/json" id="campos">{"nome": {"tipo": "texto", "rotulo": "Rótulo do ícone", "padrao": "Claude Code"}}</script>
+<style>
+  /* uma área de trabalho do Mac, sem a tela: os ícones (estilo Big Sur, com sombra macia) e o rótulo embaixo; o
+     selecionado ganha o fundo cinza translúcido no ícone e a pílula azul no rótulo, como no Finder */
+  #cena { position: absolute; inset: 0; will-change: transform; font-family: "SF Pro", Inter, system-ui, sans-serif; }
+  .item { position: absolute; will-change: transform, opacity; }
+  .caixa { position: relative; }
+  .sel { position: absolute; border-radius: 12%; background: rgba(0, 0, 0, .09); opacity: 0; }
+  .brilho { position: absolute; border-radius: 50%; background: radial-gradient(closest-side, rgba(217, 119, 87, .55), rgba(217, 119, 87, 0)); opacity: 0; }
+  .icone { position: absolute; inset: 0; overflow: visible; will-change: transform, filter; }
+  .rotulo { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; font-weight: 500; letter-spacing: -.005em; line-height: 1.25; color: #2b2925; }
+  .apagado .rotulo { color: #6f6a5f; }
+  #cursor { position: absolute; left: 0; top: 0; overflow: visible; transform-origin: 0 0; will-change: transform, opacity; }
+</style>
+<div id="cena"></div>
+<script>
+  (function () {
+    const W = MOTION.largura, H = MOTION.altura, D = MOTION.duracao
+    const nome = String(MOTION.campos.nome || '').trim()
+    const cena = document.getElementById('cena')
+    const alto = H > W
+
+    // a estrela do Claude: 11 raios quase da mesma espessura até a ponta arredondada (como no logo, traços que se
+    // encontram num miolo pequeno), com comprimentos e ângulos um pouco irregulares, em 100×100 com centro em 50,50
+    const RAIOS = [1, 0.8, 0.94, 0.76, 0.99, 0.84, 0.92, 0.74, 0.97, 0.82, 0.9]
+    const DESVIO = [0, 4, -3, 5, -2, 3, -4, 2, -3, 4, -1]
+    let estrela = ''
+    RAIOS.forEach((l, k) => {
+      const a = ((k * 360) / RAIOS.length + DESVIO[k] - 90) * (Math.PI / 180)
+      const L = 46 * l, base = 5.6, ponta = 4.6
+      const px = Math.cos(a + Math.PI / 2), py = Math.sin(a + Math.PI / 2)
+      const ux = Math.cos(a), uy = Math.sin(a)
+      const p = (r, w) => `${(50 + ux * r + px * w).toFixed(2)} ${(50 + uy * r + py * w).toFixed(2)}`
+      estrela += `M${p(0, base)} L${p(L, ponta)} A${ponta} ${ponta} 0 0 0 ${p(L, -ponta)} L${p(0, -base)} Z `
+    })
+    // o "squircle" dos ícones do Mac: uma superelipse (n = 5) em 100×100
+    let squircle = ''
+    for (let i = 0; i <= 96; i++) {
+      const t = (i / 96) * 2 * Math.PI, c = Math.cos(t), s = Math.sin(t)
+      const x = 50 + 50 * Math.sign(c) * Math.pow(Math.abs(c), 2 / 5), y = 50 + 50 * Math.sign(s) * Math.pow(Math.abs(s), 2 / 5)
+      squircle += `${i ? 'L' : 'M'}${x.toFixed(2)} ${y.toFixed(2)} `
+    }
+    squircle += 'Z'
+
+    const SVG = {
+      claude: `<svg class="icone" viewBox="0 0 100 100"><defs>
+          <linearGradient id="gC" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e1896a" /><stop offset="1" stop-color="#cf6c4b" /></linearGradient>
+          <linearGradient id="gL" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16" /><stop offset=".5" stop-color="#fff" stop-opacity="0" /></linearGradient></defs>
+        <path d="${squircle}" fill="url(#gC)" /><path d="${squircle}" fill="url(#gL)" />
+        <path d="${squircle}" fill="none" stroke="rgba(0,0,0,.08)" stroke-width=".6" />
+        <g transform="translate(50 50) scale(.62) translate(-50 -50)"><path d="${estrela}" fill="#fffaf5" /></g></svg>`,
+      pasta: `<svg class="icone" viewBox="0 0 100 100"><defs>
+          <linearGradient id="gP" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#93cdfb" /><stop offset="1" stop-color="#68b0f2" /></linearGradient></defs>
+        <path d="M8 26 a6 6 0 0 1 6 -6 h21 a6 6 0 0 1 4.4 1.9 l3.6 3.9 a6 6 0 0 0 4.4 1.9 H86 a6 6 0 0 1 6 6 V78 H8 Z" fill="#5aa2e6" />
+        <rect x="8" y="34" width="84" height="50" rx="6" fill="url(#gP)" />
+        <rect x="8" y="34" width="84" height="1.6" rx=".8" fill="#fff" fill-opacity=".45" /></svg>`,
+      doc: `<svg class="icone" viewBox="0 0 100 100">
+        <path d="M27 8 H61 L77 24 V88 a4 4 0 0 1 -4 4 H27 a4 4 0 0 1 -4 -4 V12 a4 4 0 0 1 4 -4 Z" fill="#fdfcfa" stroke="#d8d4cc" stroke-width=".8" />
+        <path d="M61 8 V20 a4 4 0 0 0 4 4 H77 Z" fill="#e7e3dc" stroke="#d8d4cc" stroke-width=".8" stroke-linejoin="round" />
+        <g fill="#d6d2ca"><rect x="32" y="40" width="34" height="2.6" rx="1.3" /><rect x="32" y="48" width="36" height="2.6" rx="1.3" />
+        <rect x="32" y="56" width="28" height="2.6" rx="1.3" /><rect x="32" y="64" width="34" height="2.6" rx="1.3" /><rect x="32" y="72" width="20" height="2.6" rx="1.3" /></g></svg>`,
+    }
+
+    // as medidas: o ícone do Claude no centro (um pouco acima do meio na tela cheia), os apagados menores dos lados
+    const S = alto ? 290 : 210 // o ícone do Claude, em px
+    const sN = S * (alto ? 0.74 : 0.8), passo = S * (alto ? 1.26 : 1.55)
+    const cx = W / 2, cy = alto ? H * 0.43 : H * 0.46
+    const fonte = Math.round(S * 0.118)
+    const sombra = (o) => `drop-shadow(0 ${(S * 0.035).toFixed(1)}px ${(S * 0.05).toFixed(1)}px rgba(60, 45, 20, ${o}))`
+
+    function item(svg, tam, x, texto, apagado) {
+      const el = document.createElement('div')
+      el.className = 'item' + (apagado ? ' apagado' : '')
+      const pad = tam * 0.07, br = tam * 0.62
+      el.innerHTML = `<div class="caixa" style="width:${tam}px;height:${tam}px">` +
+        `<div class="sel" style="left:${-pad}px;top:${-pad}px;width:${tam + 2 * pad}px;height:${tam + 2 * pad}px"></div>` +
+        `<div class="brilho" style="left:${tam / 2 - br}px;top:${tam / 2 - br}px;width:${2 * br}px;height:${2 * br}px"></div>${svg}</div>` +
+        `<span class="rotulo"></span>`
+      const r = el.querySelector('.rotulo')
+      r.textContent = texto
+      // o rótulo fica centrado embaixo do ícone (um rótulo largo transborda dos dois lados, sem empurrar o ícone)
+      Object.assign(r.style, { fontSize: `${apagado ? Math.round(fonte * 0.92) : fonte}px`, top: `${Math.round(tam + S * 0.08)}px`,
+        padding: `${(S * 0.012).toFixed(1)}px ${(S * 0.045).toFixed(1)}px`, borderRadius: `${(S * 0.032).toFixed(1)}px` })
+      el.querySelector('.icone').style.filter = sombra(apagado ? 0.12 : 0.22)
+      // o item centrado em x; os centros dos ícones na mesma altura
+      gsap.set(el, { left: x - tam / 2, top: cy - tam / 2, width: tam, height: tam, transformOrigin: '50% 50%' })
+      cena.appendChild(el)
+      return el
+    }
+    const esq = item(SVG.pasta, sN, cx - passo, 'Documentos', true)
+    const dir = item(SVG.doc, sN, cx + passo, 'notas.md', true)
+    const app = item(SVG.claude, S, cx, nome || 'Claude Code', false)
+    const icone = app.querySelector('.icone'), sel = app.querySelector('.sel'), brilho = app.querySelector('.brilho'), rotulo = app.querySelector('.rotulo')
+
+    // o cursor de seta do Mac: preto com contorno branco, a ponta (o ponto do clique) em 0,0
+    const C = S * 0.23
+    const cursor = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    cursor.id = 'cursor'
+    cursor.setAttribute('viewBox', '0 0 21 29')
+    cursor.setAttribute('width', (C * 21) / 29)
+    cursor.setAttribute('height', C)
+    cursor.innerHTML = '<path d="M2 1.6 L2 23.6 L7.2 18.6 L10.5 26.4 L14.3 24.8 L11 17.2 L18.3 17.2 Z" fill="#111" stroke="#fff" stroke-width="1.7" stroke-linejoin="round" />'
+    cursor.style.filter = `drop-shadow(0 ${(S * 0.012).toFixed(1)}px ${(S * 0.02).toFixed(1)}px rgba(0, 0, 0, .3))`
+    cena.appendChild(cursor)
+    // a ponta do svg (2, 1.6 no viewBox) vai no alvo: no quarto de baixo, à direita do centro do ícone (como na referência)
+    const ponta = { x: (2 / 29) * C, y: (1.6 / 29) * C }
+    const alvo = { x: cx + S * 0.16 - ponta.x, y: cy + S * 0.14 - ponta.y }
+    const de = { x: alvo.x + S * (alto ? 1.05 : 1.35), y: alvo.y + S * (alto ? 1.25 : 0.95) }
+
+    // os tempos: o clique em 55% da duração; o resto escala junto (até ~1,4× nos planos longos)
+    const k = Math.max(0.8, Math.min(D / 1.0, 1.4))
+    const tc = D * 0.55
+    const CASA = motion.curva(0.25, 0.1, 0.1, 1) // entrada curta e suave, chegada bem longa
+    const tl = gsap.timeline({ paused: true })
+    const ate = (t, dur) => Math.max(0.01, Math.min(dur, D - t)) // nada passa de D (a timeline seria encolhida)
+
+    // os ícones chegam juntos, de leve (o do Claude primeiro): sobem um pouco, crescem e entram em foco
+    ;[app, esq, dir].forEach((el, i) => {
+      const op = el === app ? 1 : 0.5
+      tl.fromTo(el, { opacity: 0, y: S * 0.06, scale: 0.94, filter: 'blur(6px)' },
+        { opacity: op, y: 0, scale: 1, filter: 'blur(0px)', duration: 0.42 * k, ease: CASA }, i * 0.04 * k)
+    })
+
+    // o cursor entra pela direita embaixo, num arco (o x anda um pouco antes do y) e chega devagar, parado antes do clique
+    // (a saída é macia e a chegada longa: ainda anda devagar perto do ícone e assenta logo antes do clique)
+    const t0 = 0.05 * k, tA = tc - 0.03 * k
+    gsap.set(cursor, { x: de.x, y: de.y, opacity: 0 })
+    tl.to(cursor, { opacity: 1, duration: 0.16 * k, ease: motion.curva(0.4, 0, 0.6, 1) }, t0)
+    tl.to(cursor, { x: alvo.x, duration: tA - t0, ease: motion.curva(0.42, 0.04, 0.12, 1) }, t0)
+    tl.to(cursor, { y: alvo.y, duration: tA - t0, ease: motion.curva(0.5, 0, 0.14, 1) }, t0)
+
+    // o clique: o ícone afunda (menor e um pouco mais escuro) e volta macio; o cursor aperta junto
+    const desce = 0.07 * k, sobe = 0.34 * k
+    gsap.set(icone, { transformOrigin: '50% 50%' })
+    tl.to(icone, { scale: 0.91, filter: `${sombra(0.14)} brightness(0.9)`, duration: desce, ease: motion.curva(0.4, 0, 0.2, 1) }, tc - desce * 0.6)
+    tl.to(icone, { scale: 1, filter: `${sombra(0.22)} brightness(1)`, duration: ate(tc + desce * 0.4, sobe), ease: CASA }, tc + desce * 0.4)
+    tl.to(cursor, { scale: 0.88, duration: desce, ease: motion.curva(0.4, 0, 0.2, 1) }, tc - desce * 0.6)
+    tl.to(cursor, { scale: 1, duration: ate(tc + desce * 0.4, sobe * 0.8), ease: CASA }, tc + desce * 0.4)
+    motion.som('clique', tc)
+
+    // o realce: o fundo cinza do selecionado, a pílula azul do Finder no rótulo, um brilho coral macio atrás do ícone;
+    // os apagados se apagam mais um pouco
+    const dR = 0.26 * k
+    gsap.set(rotulo, { backgroundColor: 'rgba(34, 102, 221, 0)' })
+    tl.to(sel, { opacity: 1, duration: dR, ease: CASA }, tc)
+    tl.to(rotulo, { backgroundColor: '#2266dd', color: '#ffffff', duration: dR * 0.8, ease: CASA }, tc)
+    tl.fromTo(brilho, { opacity: 0, scale: 0.75 }, { opacity: 0.55, scale: 1.08, duration: ate(tc, 0.5 * k), ease: CASA }, tc)
+    tl.to([esq, dir], { opacity: 0.36, duration: ate(tc, 0.4 * k), ease: CASA }, tc)
+
+    // depois do clique, o cursor ainda escorrega um pouquinho (nunca congela) até o corte
+    const tS = tc + desce + sobe * 0.5
+    // (tudo termina em D: a timeline mais longa que o plano seria encolhida e o clique sairia do lugar)
+    if (D - tS > 0.05) tl.to(cursor, { x: alvo.x + S * 0.04, y: alvo.y + S * 0.025, duration: D - tS, ease: motion.curva(0.4, 0, 0.6, 0.85) }, tS)
+
+    // a cena nunca para: se aproxima devagar do ícone do Claude o tempo todo e termina ainda andando
+    gsap.set(cena, { transformOrigin: `${cx}px ${cy}px` })
+    tl.fromTo(cena, { scale: 0.985 }, { scale: 1.075, duration: D, ease: motion.curva(0.3, 0.1, 0.5, 0.85) }, 0)
+
+    tl.to({}, { duration: 0 }, D)
+    motion.pronto(tl)
+  })()
+</script>

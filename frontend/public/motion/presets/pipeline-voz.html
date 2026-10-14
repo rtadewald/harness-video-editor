@@ -1,0 +1,537 @@
+<script type="application/json" id="preset">{"nome": "Pipeline de voz", "descricao": "Um diagrama de vidro montado aos poucos ao longo do Reels (campo passo, 1 a 10, ou previa): três caixas ligadas por setas viram speech to text → LLM → text to speech, ganham latências e um pulso sequencial, e se fundem num único modelo Realtime (speech to speech) que pensa e chama uma função. Na tela dividida é uma linha; na tela cheia, uma coluna de cima para baixo, centrada e com a faixa da legenda (84 a 92% da altura) livre. Em cada passo o que já foi construído aparece exatamente como terminou no passo anterior (mesma posição, escala e opacidade: o corte entre dois passos seguidos é invisível) e só a novidade anima; a cena se aproxima bem devagar ao longo do vídeo, sem recomeçar a cada passo (+0,6% por passo). O conteúdo de cada caixa fica centrado nela. O passo previa mostra o pipeline já completo, de uma vez, com um pulso atravessando (para o começo do vídeo: vem coisa por aí).", "fundo": "chuva", "duracao": 4, "a_revisar": true, "numeros_ilustrativos": true, "nota": "As latências do passo 6 (~300 ms, ~800 ms, ~400 ms, ≈ 1,5 s) são ilustrativas, não medidas: avise o criador.", "sons": {"novidade": {"rotulo": "A novidade do passo chega", "som": "ui-pop-02", "intensidade": "baixo"}}}</script>
+<script type="application/json" id="campos">{"passo": {"tipo": "texto", "rotulo": "Passo da construção (1 a 10, ou previa: o pipeline completo)", "padrao": "1"}}</script>
+<style>
+  /* a linguagem dos irmãos (rapido-barato, tokens-tempo, modelos-claude): o vidro do design system da Asimov
+   * (.glass-card: fundo branco 5%, borda de 1 px branca 10%, desfoque de 12 px da chuva atrás, cantos de 1rem), Inter
+   * 400/500 com tracking-tight, rótulos #ffffffb8, traço fino claro nos ícones e o coral #d97757 como único acento.
+   * Nada de filter/opacity em quem contém vidro (cortaria o desfoque da chuva): só transform no grupo. Medidas em px. */
+  #cena { position: absolute; inset: 0; will-change: transform; font-family: Inter, "SF Pro", system-ui, sans-serif; }
+  #grupo { position: absolute; inset: 0; will-change: transform; }
+  .vidro { position: absolute; box-sizing: border-box; border-radius: 16px; background-color: #ffffff0d; border: 1px solid #ffffff1a;
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); overflow: hidden; opacity: 0; will-change: transform, opacity; }
+  .vidro .tinta { position: absolute; inset: 0; background: rgba(217, 119, 87, .13); opacity: 0; }
+  .redondo { border-radius: 50%; }
+  .pilula { display: flex; align-items: center; justify-content: center; gap: 10px; white-space: nowrap; padding: 0 20px; border-radius: 99px; }
+  .balao { left: 0; top: 0; display: flex; align-items: center; white-space: nowrap; color: #ffffffe6; font-weight: 400; letter-spacing: -.015em; }
+  .txt { position: absolute; text-align: center; white-space: nowrap; letter-spacing: -.025em; opacity: 0; will-change: transform, opacity; }
+  .t1 { font-weight: 500; color: #ffffffe0; }
+  .t2 { font-weight: 400; color: #ffffffb8; letter-spacing: -.01em; }
+  .ico { position: absolute; opacity: 0; overflow: visible; will-change: transform, opacity; }
+  .ico * { vector-effect: non-scaling-stroke; }
+  .mono { font-family: "SF Mono", ui-monospace, Menlo, monospace; letter-spacing: 0; }
+  #linhas { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+</style>
+<div id="cena"><div id="grupo"></div></div>
+<script>
+  (function () {
+    const W = MOTION.largura, H = MOTION.altura, D = MOTION.duracao
+    // na tela cheia (9:16) o pipeline é uma coluna, de cima para baixo; na dividida, uma linha
+    const COL = H > W
+    const valor = String((MOTION.campos || {}).passo == null ? 1 : MOTION.campos.passo).trim()
+    const PREVIA = /^pr[eé]via$/i.test(valor)
+    const P = PREVIA ? 0 : Math.max(1, Math.min(10, Math.round(parseFloat(valor.replace(',', '.'))) || 1))
+    const CORAL = '#d97757', CLARO = '#ffffffd9', NS = 'http://www.w3.org/2000/svg'
+    const cena = document.getElementById('cena'), grupo = document.getElementById('grupo')
+    // o que gira ou ondula com o tempo dá um número inteiro de voltas no plano: o primeiro quadro de um passo fica igual
+    // ao último do anterior, qualquer que seja a duração de cada um (a velocidade se ajusta um pouco ao plano)
+    const volta = (v, T = 2 * Math.PI) => (T * Math.max(1, Math.round((v * D) / T))) / D
+    const V = { anel: volta(520, 360), rac: volta(150, 360), fala: volta(5.2), pensa: volta(3.4), onda: volta(6), env: volta(1.6) }
+
+    // ---- as medidas: as mesmas em todos os passos do mesmo formato (a continuidade entre os cortes).
+    // Linha (dividida): três caixas lado a lado; o conjunto (latências em cima, total embaixo) centrado na altura.
+    // Coluna (tela cheia): três caixas largas e baixas (ícone à esquerda, rótulo à direita, a latência no canto direito),
+    // setas descendo, centrada na tela; nada entre 84% e 92% da altura (a legenda fica a 88%).
+    const L = COL
+      ? { bw: 864, bh: 228, gap: 104, ico: 150, rede: 112, f1: 46, f2: 32, rw: 864, rh: 640, core: 100, chip: 70, fl: 31, ft: 74, tok: [72, 54], onda: 38, bal: 36 }
+      : { bw: 296, bh: 310, gap: 52, ico: 145.6, rede: 103, f1: 35, f2: 25, rw: 680, rh: 390, core: 62, chip: 56, fl: 26, ft: 58, tok: [66, 50], onda: 26, bal: 27 }
+    const YP = PREVIA ? H / 2 : Math.round(H * (COL ? 0.485 : 0.4875)) // o centro do pipeline
+    const YR = COL ? YP : Math.round(H * 0.43) // o centro do Realtime (na dividida, com o chip da ferramenta embaixo)
+    const X0 = COL ? (W - L.bw) / 2 : (W - (3 * L.bw + 2 * L.gap)) / 2
+    const Y0 = COL ? YP - (3 * L.bh + 2 * L.gap) / 2 : YP - L.bh / 2
+    const bx = (i) => (COL ? X0 : X0 + i * (L.bw + L.gap)), by = (i) => (COL ? Y0 + i * (L.bh + L.gap) : Y0)
+    const cx = (i) => bx(i) + L.bw / 2, cy = (i) => by(i) + L.bh / 2
+    const BY = by(0), FIM = by(2) + L.bh // o topo da primeira caixa e o pé da última
+    // pontos no eixo do fluxo: a entrada e a saída da caixa i (d px para dentro; negativo, para fora)
+    const ent = (i, d = 0) => (COL ? [W / 2, by(i) + d] : [bx(i) + d, YP])
+    const sai = (i, d = 0) => (COL ? [W / 2, by(i) + L.bh - d] : [bx(i) + L.bw - d, YP])
+    const DIN = COL ? 30 : 46
+    // o conteúdo de cada caixa
+    const PAD = 44
+    const icx = (i) => (COL ? bx(i) + PAD + L.ico / 2 : cx(i)), icy = (i) => (COL ? cy(i) : by(i) + L.bh * 0.4)
+    const lbx = (i) => (COL ? bx(i) + PAD + L.ico + 40 : cx(i))
+    const lby = (i) => by(i) + L.bh * (COL ? 0.405 : 0.71), sby = (i) => by(i) + L.bh * (COL ? 0.635 : 0.845)
+    const RX = (W - L.rw) / 2, RY = YR - L.rh / 2, RB = RY + L.rh, CCY = RY + L.rh * 0.4
+    const ESC_CORE = (L.core * 1.25) / L.rede // o ícone da LLM encolhido para caber no núcleo do Realtime
+
+    // ---- peças
+    const div = (cls, css, html) => {
+      const d = document.createElement('div')
+      d.className = cls
+      Object.assign(d.style, css)
+      if (html) d.innerHTML = html
+      grupo.appendChild(d)
+      return d
+    }
+    const px = (v) => `${v}px`
+    const caixa = (x, y, w, h, cls = '') => div(`vidro ${cls}`, { left: px(x), top: px(y), width: px(w), height: px(h) }, '<div class="tinta"></div>')
+    // um texto centrado em (x, y); com esq, x é a margem esquerda
+    const texto = (s, cls, x, y, f, w = L.bw - 24, esq = false) => {
+      const t = div(`txt ${cls}`, { left: px(esq ? x : x - w / 2), top: px(y - f * 0.7), width: px(w), fontSize: px(f), lineHeight: px(f * 1.4), textAlign: esq ? 'left' : 'center' })
+      t.textContent = s
+      return t
+    }
+    const icone = (svg, x, y, w, h) => div('ico', { left: px(x - w / 2), top: px(y - h / 2), width: px(w), height: px(h) }, svg)
+    const tr = 'fill="none" stroke="' + CLARO + '" stroke-linecap="round" stroke-linejoin="round"'
+
+    // ícones em traço fino (viewBox pequeno; o traço não escala)
+    const BARRAS = [[10, 10], [18, 22], [26, 32], [34, 16]]
+    const svgStt = `<svg viewBox="0 0 96 64" width="100%" height="100%" ${tr} stroke-width="2.4">` +
+      BARRAS.map(([x, h], i) => `<line class="barra" data-h="${h}" x1="${x}" x2="${x}" y1="${32 - h / 2}" y2="${32 + h / 2}" />`).join('') +
+      `<rect x="59" y="10" width="14" height="26" rx="7" /><path d="M52 29a14 14 0 0 0 28 0" /><path d="M66 43v9" /><path d="M59 52h14" /></svg>`
+    const svgTts = `<svg viewBox="0 0 96 64" width="100%" height="100%" ${tr} stroke-width="2.4"><g transform="translate(9 0)">` +
+      `<path d="M10 25h9l13-11v36l-13-11h-9z" />` +
+      ['M44 24a11 11 0 0 1 0 16', 'M51 17a20 20 0 0 1 0 30', 'M58 10a29 29 0 0 1 0 44'].map((d) => `<path class="arco" d="${d}" />`).join('') + `</g></svg>`
+    const NOS = [[12, 18], [12, 32], [12, 46], [32, 12], [32, 25], [32, 39], [32, 52], [52, 24], [52, 40]]
+    const LIG = []
+    for (let a = 0; a < 3; a++) for (let b = 3; b < 7; b++) LIG.push([a, b])
+    for (let a = 3; a < 7; a++) for (let b = 7; b < 9; b++) LIG.push([a, b])
+    const svgRede = `<svg viewBox="0 0 64 64" width="100%" height="100%" ${tr} stroke-width="1.6">` +
+      LIG.map(([a, b]) => `<line class="lig" x1="${NOS[a][0]}" y1="${NOS[a][1]}" x2="${NOS[b][0]}" y2="${NOS[b][1]}" stroke-opacity=".38" />`).join('') +
+      NOS.map(([x, y]) => `<circle class="no" cx="${x}" cy="${y}" r="4" fill="#141414" stroke-width="2" />`).join('') + `</svg>`
+    const svgLinhas = `<svg viewBox="0 0 40 30" width="100%" height="100%" ${tr} stroke-width="2.6"><path d="M7 8h26M7 15h20M7 22h13" /></svg>`
+    const svgRelogio = (s) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" ${tr} stroke-width="1.8"><circle cx="12" cy="12" r="9" /><path class="mao" d="M12 12V6.5" /><path d="M12 12l3.4 2" /></svg>`
+    const svgCamera = (s) => `<svg viewBox="0 0 64 64" width="${s}" height="${s}" ${tr} stroke-width="2.6"><circle cx="32" cy="27" r="17" /><circle class="lente" cx="32" cy="27" r="7" fill="none" /><circle cx="32" cy="27" r="2.2" fill="${CLARO}" stroke="none" /><path d="M32 44v8M21 54h22" /></svg>`
+
+    // as caixas (o vidro); a do meio vira o Realtime no passo 8
+    const caixas = [0, 1, 2].map((i) => caixa(bx(i), by(i), L.bw, L.bh))
+    const nucleo = caixa(W / 2 - L.core, CCY - L.core, L.core * 2, L.core * 2, 'redondo')
+
+    // a camada de linhas: setas, colchete do total, anéis, pulso, onda, seta da ferramenta
+    const svg = document.createElementNS(NS, 'svg')
+    svg.setAttribute('id', 'linhas'); svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', `0 0 ${W} ${H}`)
+    grupo.appendChild(svg)
+    const sv = (tag, at, pai = svg) => {
+      const e = document.createElementNS(NS, tag)
+      Object.entries(at).forEach(([k, v]) => e.setAttribute(k, v))
+      pai.appendChild(e)
+      return e
+    }
+    const traco = { fill: 'none', stroke: '#ffffff66', 'stroke-width': COL ? 2.6 : 2.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }
+    const setas = [0, 1].map((i) => {
+      const [x1, y1] = sai(i, -8), [x2, y2] = ent(i + 1, -8)
+      const ponta = COL ? `M${x2 - 8} ${y2 - 10}L${x2} ${y2}L${x2 + 8} ${y2 - 10}` : `M${x2 - 9} ${y2 - 7}L${x2} ${y2}L${x2 - 9} ${y2 + 7}`
+      return { x1, y1, x2, y2, linha: sv('path', { ...traco, d: `M${x1} ${y1}L${x2} ${y2}`, pathLength: 1 }), ponta: sv('path', { ...traco, d: ponta, opacity: 0 }) }
+    })
+    // o colchete do total, embaixo do pipeline
+    const YB = FIM + (COL ? 30 : 20), XB0 = COL ? bx(0) + 80 : cx(0), XB1 = COL ? bx(0) + L.bw - 80 : cx(2)
+    const colchete = sv('path', { ...traco, stroke: '#ffffff40', d: `M${XB0} ${YB}v12H${W / 2}M${W / 2} ${YB + 12}H${XB1}v-12M${W / 2} ${YB + 12}v12`, pathLength: 1, 'stroke-dasharray': '0 1' })
+    // os anéis de processamento (passo 7), no canto de cima à direita de cada caixa
+    const RA = COL ? 15 : 13
+    const aneis = [0, 1, 2].map((i) => {
+      const a = { g: sv('g', { opacity: 0 }), x: bx(i) + L.bw - (COL ? 34 : 30), y: by(i) + (COL ? 34 : 30) }
+      sv('circle', { cx: a.x, cy: a.y, r: RA, fill: 'none', stroke: '#ffffff26', 'stroke-width': 3 }, a.g)
+      a.arc = sv('circle', { cx: a.x, cy: a.y, r: RA, fill: 'none', stroke: CORAL, 'stroke-width': 3.2, 'stroke-linecap': 'round', pathLength: 1, 'stroke-dasharray': '0.3 1' }, a.g)
+      return a
+    })
+    // a onda de voz do Realtime: atravessa na horizontal, passando pelo núcleo
+    const ondaE = sv('path', { fill: 'none', stroke: '#ffffffcc', 'stroke-width': COL ? 3 : 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', opacity: 0 })
+    const ondaD = sv('path', { fill: 'none', stroke: '#ffffffcc', 'stroke-width': COL ? 3 : 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', opacity: 0 })
+    // o raciocínio (passo 9): um anel suave em volta do núcleo, com um arco coral girando
+    const RR = L.core + (COL ? 20 : 15)
+    const anelR = sv('g', { opacity: 0 })
+    sv('circle', { cx: W / 2, cy: CCY, r: RR, fill: 'none', stroke: 'rgba(217, 119, 87, .22)', 'stroke-width': 2.4 }, anelR)
+    const anelArco = sv('circle', { cx: W / 2, cy: CCY, r: RR, fill: 'none', stroke: CORAL, 'stroke-width': 3.2, 'stroke-linecap': 'round', pathLength: 1, 'stroke-dasharray': '0 1' }, anelR)
+    // a ferramenta (passo 10): uma seta do Realtime para baixo, até o chip
+    const TY0 = RB + 12, TY1 = RB + (COL ? 96 : 66), CHIPY = TY1 + 10
+    const setaF = sv('path', { ...traco, d: `M${W / 2} ${TY0}V${TY1}`, pathLength: 1, 'stroke-dasharray': '0 1' })
+    const pontaF = sv('path', { ...traco, d: `M${W / 2 - 7} ${TY1 - 9}L${W / 2} ${TY1}L${W / 2 + 7} ${TY1 - 9}`, opacity: 0 })
+    // o pulso coral (passos 7, 10 e a prévia)
+    const brilho = sv('circle', { r: COL ? 22 : 18, fill: 'rgba(217, 119, 87, .25)', opacity: 0 })
+    const pulso = sv('circle', { r: COL ? 10 : 8.5, fill: CORAL, opacity: 0 })
+
+    // o núcleo fica por cima da onda (que passa por trás dele)
+    grupo.appendChild(nucleo)
+
+    // os conteúdos: speech to text, LLM, text to speech
+    const hSt = (L.ico * 64) / 96
+    const rot = (s, i, f) => texto(s, 't1', lbx(i), lby(i), f, COL ? L.bw - (lbx(i) - bx(i)) - 30 : L.bw - 24, COL)
+    const sub = (s, i) => texto(s, 't2', lbx(i), sby(i), L.f2, COL ? L.bw - (lbx(i) - bx(i)) - 30 : L.bw - 24, COL)
+    const conteudo = [
+      { ico: icone(svgStt, icx(0), icy(0), L.ico, hSt), l: rot('Speech to text', 0, L.f1), s: sub('Whisper', 0) },
+      { ico: icone(svgRede, icx(1), icy(1), L.rede, L.rede), l: rot('LLM', 1, L.f1 * 1.15), s: sub('Claude · GPT', 1) },
+      { ico: icone(svgTts, icx(2), icy(2), L.ico, hSt), l: rot('Text to speech', 2, L.f1), s: sub('ElevenLabs · Kokoro', 2) },
+    ]
+    const barras = [...conteudo[0].ico.querySelectorAll('.barra')]
+    const arcos = [...conteudo[2].ico.querySelectorAll('.arco')]
+    const nos = [...conteudo[1].ico.querySelectorAll('.no')]
+    // as marcas de "texto" junto das setas (desde o passo 3): o que corre por elas
+    const marcas = setas.map((s) => (COL
+      ? icone(svgLinhas, W / 2 + 58, (s.y1 + s.y2) / 2, 44, 33)
+      : icone(svgLinhas, (s.x1 + s.x2) / 2, YP - 44, 36, 27)))
+    // as latências (passo 6), um chip por etapa (em cima da caixa na linha; no canto direito dela na coluna), e o total
+    const LAT = ['~300 ms', '~800 ms', '~400 ms']
+    const lats = LAT.map((s, i) => {
+      const c = div('vidro pilula', { left: px(COL ? bx(i) + L.bw - 30 : cx(i)), top: px(COL ? cy(i) + 8 - L.chip / 2 : BY - 20 - L.chip), height: px(L.chip), fontSize: px(L.fl), color: '#ffffffe0', letterSpacing: '-.01em', fontVariantNumeric: 'tabular-nums' },
+        `<div class="tinta"></div>${svgRelogio(Math.round(L.fl * 1.15))}<span style="position:relative">${s}</span>`)
+      gsap.set(c, { xPercent: COL ? -100 : -50 })
+      c.querySelector('svg').style.position = 'relative'
+      return c
+    })
+    const total = texto('', '', W / 2, YB + 24 + L.ft * 0.62, L.ft, 400)
+    Object.assign(total.style, { color: CORAL, fontWeight: 400, fontVariantNumeric: 'tabular-nums' })
+    const escreveTotal = (v) => `≈ ${v.toFixed(1).replace('.', ',')} s`
+    // o Realtime: o nome e o "speech to speech" (o vidro é a caixa do meio, o ícone é o da LLM no núcleo)
+    const rNome = texto('Realtime', 't1', W / 2, RY + L.rh * 0.7, L.f1 * 1.4, L.rw - 40)
+    const rSub = texto('speech to speech', 't2', W / 2, RY + L.rh * 0.84, L.f2 * 1.1, L.rw - 40)
+    const rRac = texto('raciocínio', 't2', W / 2, RY + L.rh * 0.105, L.f2, L.rw - 40)
+    rRac.style.color = '#e8a58c'
+    // a ferramenta
+    const ferr = div('vidro pilula', { left: px(W / 2), top: px(CHIPY), height: px(COL ? 88 : 74), fontSize: px(COL ? 34 : 30), color: '#ffffffe0', padding: `0 ${COL ? 28 : 22}px 0 ${COL ? 18 : 14}px` },
+      `<div class="tinta"></div>${svgCamera(COL ? 58 : 48)}<span class="mono" style="position:relative">webcam()</span>`)
+    ferr.querySelector('svg').style.position = 'relative'
+    gsap.set(ferr, { xPercent: -50 })
+    const lente = ferr.querySelector('.lente')
+    // os tokens de texto que correm pelas setas (passos 4 e 5)
+    const token = () => {
+      const t = div('vidro', { left: 0, top: 0, width: px(L.tok[0]), height: px(L.tok[1]), borderRadius: '12px' }, `<div style="position:absolute;inset:18% 20%">${svgLinhas}</div>`)
+      gsap.set(t, { x: -999, y: -999 })
+      return t
+    }
+    const tokA = token(), tokB = token()
+    // os balões de chat do passo 3: a pergunta entra e a resposta sai da LLM (a resposta com o tom coral da LLM)
+    const balao = (s, resposta) => {
+      const b = div('vidro balao', { fontSize: px(L.bal), lineHeight: 1.25, padding: `${px(L.bal * 0.5)} ${px(L.bal * 0.85)}`, borderRadius: px(L.bal * 1.05) },
+        `<div class="tinta"></div><span style="position:relative">${s}</span>`)
+      b.style[resposta ? 'borderBottomRightRadius' : 'borderBottomLeftRadius'] = px(L.bal * 0.32)
+      if (resposta) { b.querySelector('.tinta').style.opacity = 1; b.style.borderColor = 'rgba(217, 119, 87, .32)' }
+      gsap.set(b, { xPercent: -50, yPercent: -50, x: -999, y: -999 })
+      return b
+    }
+    // (na linha, a resposta em duas linhas: cabe na caixa e fica legível no celular)
+    const balPerg = balao('oi, tudo bem?', false), balResp = balao(COL ? 'tudo bem, e com você?' : 'tudo bem,<br>e com você?', true)
+
+    // ---- o estado que não é tween (desenhado a cada instante)
+    const st = { a0: 0, a1: 0, br: 0, tot: 0, amp: 0, fala: 0, r0: 0, r1: 0, r2: 0, rr: 0, pensa: 0, wv: 0, ta: 0, px: 0, py: 0, po: 0 }
+    const cl = (v) => Math.max(0, Math.min(1, v))
+    const onda = (xa, xb, t, prog) => {
+      const n = Math.max(2, Math.round((xb - xa) / 3)), m = Math.round(n * prog)
+      if (m < 2) return ''
+      let d = ''
+      for (let k = 0; k <= m; k++) {
+        const x = xa + ((xb - xa) * k) / n
+        const u = k / n, env = Math.pow(Math.sin(Math.PI * u), 0.6)
+        const y = CCY + L.onda * env * (0.55 + 0.45 * Math.sin(x * 0.027 - t * V.env)) * Math.sin(x * (COL ? 0.085 : 0.1) - t * V.onda)
+        d += `${k ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(2)}`
+      }
+      return d
+    }
+    const XO0 = COL ? 40 : Math.max(20, X0 - 10), XO1 = W - XO0
+    const desenhar = (t) => {
+      setas.forEach((s, i) => {
+        const p = st[`a${i}`]
+        s.linha.setAttribute('stroke-dasharray', `${p} 1`)
+        s.linha.setAttribute('opacity', p > 0.002 ? 1 : 0)
+        s.ponta.setAttribute('opacity', cl((p - 0.7) / 0.3))
+      })
+      colchete.setAttribute('stroke-dasharray', `${st.br} 1`)
+      colchete.setAttribute('opacity', st.br > 0.002 ? 1 : 0)
+      if (st.tot > 0) total.textContent = escreveTotal(st.tot)
+      // as barras do microfone: um pulso de som passa da esquerda para a direita
+      const s = st.amp * (BARRAS.length + 2) - 1
+      barras.forEach((b, i) => {
+        const h = +b.dataset.h * (1 + 0.85 * cl(1 - Math.abs(s - i) * 0.9) * (st.amp > 0 && st.amp < 1 ? 1 : 0))
+        b.setAttribute('y1', (32 - h / 2).toFixed(2)); b.setAttribute('y2', (32 + h / 2).toFixed(2))
+      })
+      // o alto-falante: as ondas saem em sequência
+      arcos.forEach((a, i) => a.setAttribute('stroke-opacity', (1 - st.fala + st.fala * (0.25 + 0.75 * Math.pow(Math.max(0, Math.sin(t * V.fala - i * 1.15)), 2))).toFixed(3)))
+      aneis.forEach((a, i) => {
+        a.g.setAttribute('opacity', st[`r${i}`])
+        a.arc.setAttribute('transform', `rotate(${(t * V.anel) % 360} ${a.x} ${a.y})`)
+      })
+      // a onda do Realtime (a primeira metade da revelação desenha a entrada; a segunda, a saída)
+      ondaE.setAttribute('d', onda(XO0, W / 2 - L.core - 4, t, cl(st.wv * 2)))
+      ondaD.setAttribute('d', onda(W / 2 + L.core + 4, XO1, t, cl(st.wv * 2 - 1)))
+      const ov = st.wv > 0 ? 1 : 0
+      ondaE.setAttribute('opacity', ov); ondaD.setAttribute('opacity', ov)
+      // o raciocínio: o arco coral gira e os nós da rede acendem em sequência
+      anelR.setAttribute('opacity', cl(st.rr * 1.6))
+      anelArco.setAttribute('stroke-dasharray', `${(0.3 * st.rr).toFixed(3)} 1`)
+      anelArco.setAttribute('transform', `rotate(${(t * V.rac - 90) % 360} ${W / 2} ${CCY})`)
+      nos.forEach((n, k) => {
+        const a = st.pensa * Math.pow(Math.max(0, Math.sin(t * V.pensa - NOS[k][0] * 0.09 - NOS[k][1] * 0.03)), 3)
+        n.setAttribute('fill', a > 0.01 ? `rgba(217, 119, 87, ${(0.15 + 0.85 * a).toFixed(3)})` : '#141414')
+        n.setAttribute('stroke', a > 0.01 ? `rgba(232, 165, 140, ${(0.85 + 0.15 * a).toFixed(3)})` : CLARO)
+      })
+      setaF.setAttribute('stroke-dasharray', `${st.ta} 1`)
+      setaF.setAttribute('opacity', st.ta > 0.002 ? 1 : 0)
+      pontaF.setAttribute('opacity', cl((st.ta - 0.7) / 0.3))
+      pulso.setAttribute('cx', st.px); pulso.setAttribute('cy', st.py); pulso.setAttribute('opacity', st.po)
+      brilho.setAttribute('cx', st.px); brilho.setAttribute('cy', st.py); brilho.setAttribute('opacity', st.po)
+    }
+
+    // ---- o que os passos anteriores construíram, pronto desde o primeiro quadro
+    gsap.set([...caixas, nucleo, ...lats, ferr, tokA, tokB, balPerg, balResp], { opacity: 0 })
+    const ALVO = { left: RX, top: RY, width: L.rw, height: L.rh } // a caixa do meio vira o Realtime
+    const NO_NUCLEO = { x: W / 2 - icx(1), y: CCY - icy(1), scale: ESC_CORE } // e o cérebro da LLM, o núcleo
+    function pronto(b) {
+      if (b >= 1 && b < 8) { gsap.set(caixas, { opacity: 1 }); st.a0 = st.a1 = 1 }
+      if (b >= 2 && b < 8) gsap.set([conteudo[1].ico, conteudo[1].l, conteudo[1].s], { opacity: 1 })
+      if (b >= 3 && b < 8) gsap.set(marcas, { opacity: 1 })
+      if (b >= 4 && b < 8) gsap.set([conteudo[0].ico, conteudo[0].l, conteudo[0].s], { opacity: 1 })
+      if (b >= 5 && b < 8) { gsap.set([conteudo[2].ico, conteudo[2].l, conteudo[2].s], { opacity: 1 }); st.fala = 1 }
+      if (b >= 6 && b < 8) { gsap.set([...lats, total], { opacity: 1 }); st.br = 1; st.tot = 1.5 }
+      if (b >= 8) {
+        gsap.set(caixas[1], { opacity: 1, ...ALVO })
+        gsap.set(nucleo, { opacity: 1 })
+        gsap.set(conteudo[1].ico, { opacity: 1, ...NO_NUCLEO })
+        gsap.set([rNome, rSub], { opacity: 1 })
+        st.wv = 1
+      }
+      if (b >= 9) { gsap.set(rRac, { opacity: 1 }); st.rr = 1; st.pensa = 1 }
+      if (b >= 10) {
+        gsap.set(ferr, { opacity: 1 }); gsap.set(ferr.querySelector('.tinta'), { opacity: 1 })
+        gsap.set(ferr, { borderColor: 'rgba(217, 119, 87, .5)', boxShadow: '0 0 48px rgba(217, 119, 87, .22)' })
+        lente.setAttribute('fill', CORAL); lente.setAttribute('stroke', CORAL)
+        st.ta = 1
+      }
+    }
+
+    document.fonts.ready.then(() => {
+      // um rótulo que não cabe encolhe
+      grupo.querySelectorAll('.txt').forEach((t) => {
+        let f = parseFloat(t.style.fontSize)
+        while (t.scrollWidth > t.clientWidth + 1 && f > 12) { f -= 1; t.style.fontSize = px(f) }
+      })
+      centrar()
+      montar()
+    })
+
+    // ---- o conteúdo de cada caixa centrado nela, medido (o desenho real dos ícones e as letras, sem as transformações
+    // da cena). Na coluna, o ícone e os rótulos são um bloco centrado na caixa; a partir do passo 6 o bloco volta para a
+    // esquerda e os chips das latências ocupam a direita, espelhando a margem do ícone (a linha toda continua centrada).
+    // Na linha, o ícone se ajusta ao centro do desenho (o do microfone não é simétrico no quadro).
+    const OFS = [0, 0, 0]
+    function centrar() {
+      const g = grupo.getBoundingClientRect(), k = g.width / W
+      const xs = (e) => { const r = e.getBoundingClientRect(); return [(r.left - g.left) / k, (r.right - g.left) / k] }
+      const desenho = (ico) => {
+        const s = ico.querySelector('svg'), bb = s.getBBox(), vb = s.viewBox.baseVal, [x0, x1] = xs(ico), e = (x1 - x0) / vb.width
+        return [x0 + (bb.x - vb.x) * e - 1.3, x0 + (bb.x + bb.width - vb.x) * e + 1.3]
+      }
+      const letras = (t) => { const rg = document.createRange(); rg.selectNodeContents(t); return xs(rg) }
+      const des = conteudo.map((c) => desenho(c.ico))
+      conteudo.forEach((c, i) => {
+        const a = des[i][0], b = COL ? Math.max(letras(c.l)[1], letras(c.s)[1]) : des[i][1]
+        OFS[i] = cx(i) - (a + b) / 2
+      })
+      if (COL) {
+        const esq = Math.min(...des.map((d) => d[0]))
+        lats.forEach((c) => { c.style.left = px(W - esq) })
+      }
+    }
+    const bloco = (i) => (COL ? [conteudo[i].ico, conteudo[i].l, conteudo[i].s] : [conteudo[i].ico])
+
+    function montar() {
+      const CASA = motion.curva(0.25, 0.1, 0.1, 1) // entrada curta e suave, chegada bem longa
+      const VIAGEM = motion.curva(0.45, 0.05, 0.2, 1) // o que corre por uma seta: sai devagar, chega macio
+      const tl = gsap.timeline({ paused: true })
+      const nov = gsap.timeline() // só a novidade deste passo
+      let tPop = 0.3
+      // o bloco centrado (na coluna, até o passo 5 e na prévia; depois do 6, com os chips, volta ao lugar de origem)
+      const comChips = COL && !PREVIA && P >= 7
+      conteudo.forEach((c, i) => gsap.set(bloco(i), { x: comChips ? 0 : OFS[i] }))
+      pronto(P - 1)
+
+      // a novidade aparece: sobe um pouco e sai do desfoque (o filtro só em quem não tem vidro dentro)
+      const surge = (els, t, dur = 0.7, dy = 14, stg = 0.1) => nov.fromTo(els, { opacity: 0, y: dy, filter: 'blur(6px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: dur, ease: CASA, stagger: stg }, t)
+      const acende = (caixa, t, dur = 0.9) => {
+        nov.fromTo(caixa.querySelector('.tinta'), { opacity: 0 }, { opacity: 1, duration: dur * 0.35, ease: CASA }, t)
+        nov.to(caixa.querySelector('.tinta'), { opacity: 0, duration: dur * 0.65, ease: motion.curva(0.4, 0, 0.6, 1) }, t + dur * 0.35)
+      }
+      const pulsa = (el, t, s = 1.08) => {
+        nov.to(el, { scale: s, duration: 0.22, ease: CASA }, t)
+        nov.to(el, { scale: 1, duration: 0.55, ease: CASA }, t + 0.22)
+      }
+      // um token de texto corre por uma seta: aparece na borda de uma caixa e some ao entrar na outra
+      const corre = (tok, a, b, t, dur = 0.75) => {
+        nov.set(tok, { x: a[0] - L.tok[0] / 2, y: a[1] - L.tok[1] / 2, scale: 0.8, opacity: 0 }, t)
+        nov.to(tok, { x: b[0] - L.tok[0] / 2, y: b[1] - L.tok[1] / 2, duration: dur, ease: VIAGEM }, t)
+        nov.to(tok, { opacity: 1, scale: 1, duration: dur * 0.3, ease: CASA }, t)
+        nov.to(tok, { opacity: 0, scale: 0.7, duration: dur * 0.3, ease: CASA }, t + dur * 0.7)
+      }
+      // a caixa i acende em coral (o pulso chegou), processa e devolve
+      const luz = (i, t, dur, comLat) => {
+        const tin = caixas[i].querySelector('.tinta')
+        nov.to(tin, { opacity: 1, duration: 0.18, ease: CASA }, t)
+        nov.to(caixas[i], { borderColor: 'rgba(217, 119, 87, .5)', duration: 0.18, ease: CASA }, t)
+        nov.to(tin, { opacity: 0, duration: 0.5, ease: CASA }, t + dur)
+        nov.to(caixas[i], { borderColor: '#ffffff1a', duration: 0.5, ease: CASA }, t + dur)
+        if (!comLat) return
+        nov.to(lats[i], { color: '#e8a58c', borderColor: 'rgba(217, 119, 87, .4)', duration: 0.18, ease: CASA }, t)
+        nov.to(lats[i], { color: '#ffffffe0', borderColor: '#ffffff1a', duration: 0.5, ease: CASA }, t + dur)
+        nov.fromTo(st, { [`r${i}`]: 0 }, { [`r${i}`]: 1, duration: 0.15, ease: CASA }, t)
+        nov.to(st, { [`r${i}`]: 0, duration: 0.15, ease: CASA }, t + dur - 0.05)
+      }
+      // o pulso coral vai de a até b (pontos), aparecendo e sumindo nas pontas
+      const viaja = (a, b, t, dur, apaga = 0.08) => {
+        nov.set(st, { px: a[0], py: a[1] }, t)
+        nov.to(st, { po: 1, duration: 0.08, ease: CASA }, t)
+        nov.to(st, { px: b[0], py: b[1], duration: dur, ease: VIAGEM }, t)
+        nov.to(st, { po: 0, duration: apaga, ease: CASA }, t + dur - apaga)
+      }
+      // um pulso atravessa o pipeline: cada caixa acende, processa e só então passa adiante; devolve o fim
+      const atravessa = (t, proc, viagem, comLat, setaAcende) => {
+        for (let i = 0; i < 3; i++) {
+          luz(i, t, proc[i], comLat)
+          t += proc[i]
+          if (i < 2) {
+            viaja(sai(i), ent(i + 1), t - 0.06, viagem)
+            if (setaAcende) {
+              const s = [setas[i].linha, setas[i].ponta]
+              nov.to(s, { attr: { stroke: CORAL }, duration: 0.12, ease: CASA }, t - 0.06)
+              nov.to(s, { attr: { stroke: '#ffffff66' }, duration: 0.45, ease: CASA }, t + viagem - 0.06)
+            }
+            t += viagem - 0.04
+          }
+        }
+        return t
+      }
+
+      if (PREVIA) {
+        // o pipeline completo de uma vez: as caixas entram em cascata, com o conteúdo, e as setas se desenham
+        caixas.forEach((c, i) => nov.fromTo(c, { opacity: 0, y: 22, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: CASA }, i * 0.09))
+        conteudo.forEach((c, i) => surge([c.ico, c.l, c.s], 0.08 + i * 0.09, 0.62, 10, 0.05))
+        nov.fromTo(st, { a0: 0 }, { a0: 1, duration: 0.4, ease: CASA }, 0.32)
+        nov.fromTo(st, { a1: 0 }, { a1: 1, duration: 0.4, ease: CASA }, 0.42)
+        // um pulso coral atravessa uma vez: a voz entra, vira texto, a LLM responde e sai voz
+        const t0 = 0.85
+        viaja(COL ? [W / 2, BY - 80] : [Math.max(14, X0 - 60), YP], ent(0), t0 - 0.24, 0.28)
+        nov.fromTo(st, { amp: 0 }, { amp: 1, duration: 0.5, ease: motion.curva(0.3, 0.1, 0.4, 1) }, t0)
+        const fim = atravessa(t0, [0.34, 0.34, 0.3], 0.26, false, true)
+        nov.fromTo(st, { fala: 0 }, { fala: 1, duration: 0.4, ease: CASA }, fim - 0.3)
+        viaja(sai(2), COL ? [W / 2, FIM + 80] : [W - 14, YP], fim - 0.04, 0.32, 0.2)
+        tPop = 0.1
+      } else if (P === 1) {
+        caixas.forEach((c, i) => nov.fromTo(c, { opacity: 0, y: 30, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.85, ease: CASA }, i * 0.14))
+        nov.fromTo(st, { a0: 0 }, { a0: 1, duration: 0.6, ease: CASA }, 0.55)
+        nov.fromTo(st, { a1: 0 }, { a1: 1, duration: 0.6, ease: CASA }, 0.72)
+        tPop = 0.32
+      } else if (P === 2) {
+        const c = conteudo[1]
+        acende(caixas[1], 0.05, 1.2)
+        nov.fromTo(c.ico, { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.8, ease: CASA }, 0.05)
+        nov.fromTo(c.ico.querySelectorAll('.no'), { scale: 0, transformOrigin: '50% 50%' }, { scale: 1, duration: 0.55, ease: CASA, stagger: 0.04 }, 0.1)
+        nov.fromTo(c.ico.querySelectorAll('.lig'), { opacity: 0 }, { opacity: 1, duration: 0.6, ease: CASA }, 0.3)
+        surge([c.l, c.s], 0.35)
+        tPop = 0.4
+      } else if (P === 3) {
+        // texto entra, texto sai: a pergunta chega pela esquerda (por cima, na coluna) e some dentro da LLM; a LLM
+        // acende e a resposta sai do outro lado e para sobre a caixa seguinte
+        const [ia, ib] = COL ? [[W / 2, BY - 60], [W / 2, by(1) + 10]] : [[bx(0) - 30, YP], [bx(1) + 6, YP]]
+        nov.set(balPerg, { x: ia[0], y: ia[1], scale: 0.92, opacity: 0 }, 0)
+        nov.to(balPerg, { x: ib[0], y: ib[1], duration: 1.0, ease: VIAGEM }, 0.05)
+        nov.to(balPerg, { opacity: 1, scale: 1, duration: 0.35, ease: CASA }, 0.05)
+        nov.to(balPerg, { opacity: 0, scale: 0.45, duration: 0.32, ease: CASA }, 0.66)
+        surge(marcas[0], 0.62, 0.6, 8)
+        pulsa(conteudo[1].ico, 0.92)
+        acende(caixas[1], 0.88, 0.9)
+        const [oa, ob] = COL ? [[W / 2, by(1) + L.bh + 20], [W / 2, cy(2)]] : [[bx(1) + L.bw + 34, YP], [cx(2), YP]]
+        nov.set(balResp, { x: oa[0], y: oa[1], scale: 0.6, opacity: 0 }, 1.1)
+        nov.to(balResp, { x: ob[0], y: ob[1], duration: 0.95, ease: VIAGEM }, 1.1)
+        nov.to(balResp, { opacity: 1, scale: 1, duration: 0.4, ease: CASA }, 1.1)
+        surge(marcas[1], 1.3, 0.6, 8)
+        tPop = 0.95
+      } else if (P === 4) {
+        const c = conteudo[0]
+        acende(caixas[0], 0.05, 1.1)
+        nov.fromTo(c.ico, { opacity: 0, scale: 0.75 }, { opacity: 1, scale: 1, duration: 0.8, ease: CASA }, 0.05)
+        surge([c.l, c.s], 0.3)
+        // a voz entra no microfone e vira texto, que segue para a LLM
+        nov.fromTo(st, { amp: 0 }, { amp: 1, duration: 0.85, ease: motion.curva(0.3, 0.1, 0.4, 1) }, 0.75)
+        corre(tokA, sai(0, 8), ent(1, DIN), 1.45)
+        pulsa(conteudo[1].ico, 2.05)
+        acende(caixas[1], 2.0, 0.9)
+        tPop = 0.32
+      } else if (P === 5) {
+        const c = conteudo[2]
+        acende(caixas[2], 0.05, 1.1)
+        nov.fromTo(c.ico, { opacity: 0, scale: 0.75 }, { opacity: 1, scale: 1, duration: 0.8, ease: CASA }, 0.05)
+        surge([c.l, c.s], 0.3)
+        // o texto da LLM entra e sai voz
+        corre(tokB, sai(1, DIN), ent(2, DIN), 0.85)
+        nov.fromTo(st, { fala: 0 }, { fala: 1, duration: 0.6, ease: CASA }, 1.45)
+        tPop = 0.32
+      } else if (P === 6) {
+        // na coluna, o conteúdo de cada caixa desliza para a esquerda e abre espaço para o chip
+        const ab = COL ? 0.2 : 0
+        if (COL) conteudo.forEach((c, i) => nov.fromTo(bloco(i), { x: OFS[i] }, { x: 0, duration: 0.85, ease: CASA }, 0.02 + i * 0.06))
+        lats.forEach((c, i) => {
+          nov.fromTo(c, { opacity: 0, y: 16, scale: 0.92 }, { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: CASA }, ab + 0.1 + i * 0.28)
+          nov.fromTo(c.querySelector('.mao'), { rotation: -300, svgOrigin: '12 12' }, { rotation: 0, svgOrigin: '12 12', duration: 0.9, ease: CASA }, ab + 0.1 + i * 0.28)
+        })
+        nov.fromTo(st, { br: 0 }, { br: 1, duration: 0.8, ease: CASA }, 0.3)
+        nov.fromTo(total, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.6, ease: CASA }, 0.3)
+        // o total soma etapa por etapa
+        nov.fromTo(st, { tot: 0.0001 }, { tot: 0.3, duration: 0.35, ease: CASA }, 0.3)
+        nov.to(st, { tot: 1.1, duration: 0.4, ease: CASA }, 0.58)
+        nov.to(st, { tot: 1.5, duration: 0.4, ease: CASA }, 0.86)
+        tPop = 1.1
+      } else if (P === 7) {
+        // um pulso atravessa o pipeline (o anel de cada caixa gira enquanto ela processa) e sai: pela direita na linha;
+        // na coluna, desce até o total, que pulsa
+        const t = atravessa(0.05, [0.5, 0.5, 0.45], 0.3, true)
+        if (COL) {
+          viaja(sai(2), [W / 2, YB + 12], t - 0.04, 0.26, 0.12)
+          pulsa(total, t + 0.16, 1.1)
+        } else viaja(sai(2), [W - 14, YP], t - 0.04, 0.35, 0.2)
+        tPop = 0.08
+      } else if (P === 8) {
+        // a virada: as latências e as marcas somem, as setas se recolhem e as três caixas se fundem no Realtime
+        const fora = [...lats, total, ...marcas, conteudo[0].ico, conteudo[0].l, conteudo[0].s, conteudo[2].ico, conteudo[2].l, conteudo[2].s, conteudo[1].l, conteudo[1].s]
+        nov.to(fora, { opacity: 0, scale: 0.94, duration: 0.5, ease: CASA, stagger: 0.015 }, 0.05)
+        nov.to(st, { br: 0, a0: 0, a1: 0, duration: 0.5, ease: CASA }, 0.05)
+        caixas.forEach((c) => nov.to(c, { ...ALVO, duration: 1.15, ease: motion.curva(0.5, 0, 0.15, 1) }, 0.3))
+        nov.to([caixas[0], caixas[2]], { opacity: 0, duration: 0.6, ease: motion.curva(0.4, 0, 0.6, 1) }, 0.45)
+        // o cérebro da LLM vira o núcleo do Realtime
+        nov.to(conteudo[1].ico, { ...NO_NUCLEO, duration: 1.15, ease: motion.curva(0.5, 0, 0.15, 1) }, 0.3)
+        nov.fromTo(nucleo, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.8, ease: CASA }, 1.0)
+        surge([rNome, rSub], 1.25, 0.8, 16)
+        // a voz entra de um lado e sai do outro, direto
+        nov.fromTo(st, { wv: 0 }, { wv: 1, duration: 1.3, ease: motion.curva(0.3, 0.05, 0.3, 1) }, 1.5)
+        tPop = 1.3
+      } else if (P === 9) {
+        nov.fromTo(st, { rr: 0 }, { rr: 1, duration: 0.9, ease: CASA }, 0.05)
+        nov.fromTo(st, { pensa: 0 }, { pensa: 1, duration: 0.7, ease: CASA }, 0.35)
+        surge(rRac, 0.3, 0.7, 10)
+        tPop = 0.32
+      } else if (P === 10) {
+        nov.fromTo(st, { ta: 0 }, { ta: 1, duration: 0.45, ease: CASA }, 0.05)
+        nov.fromTo(ferr, { opacity: 0, y: 14, scale: 0.92 }, { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: CASA }, 0.25)
+        // a chamada desce pela seta e o chip acende
+        viaja([W / 2, TY0], [W / 2, CHIPY + 6], 0.42, 0.42, 0.15)
+        nov.to(ferr.querySelector('.tinta'), { opacity: 1, duration: 0.45, ease: CASA }, 0.8)
+        nov.to(ferr, { borderColor: 'rgba(217, 119, 87, .5)', boxShadow: '0 0 48px rgba(217, 119, 87, .22)', duration: 0.45, ease: CASA }, 0.8)
+        nov.to(lente, { attr: { fill: CORAL, stroke: CORAL }, duration: 0.3, ease: CASA }, 0.8)
+        pulsa(ferr, 0.8, 1.05)
+        tPop = 0.84
+      }
+
+      // a novidade cabe no plano: se passar de 82% dele, acelera
+      const fimNov = nov.duration()
+      const vel = fimNov > D * 0.82 ? fimNov / (D * 0.82) : 1
+      nov.timeScale(vel)
+      tl.add(nov, 0)
+      motion.som('novidade', tPop / vel)
+
+      // a cena nunca para e não salta no corte: o conjunto já construído não tem entrada (está como terminou no passo
+      // anterior) e a aproximação é uma só ao longo do vídeo: o passo n vai da escala 1 + 0,6%·(n − 1) à do passo seguinte,
+      // sempre com o mesmo centro, entrando e saindo ainda em movimento (só transform: o vidro continua desfocando a chuva)
+      const ESC = (n) => 1 + 0.006 * (n - 1), n = PREVIA ? 1 : P
+      gsap.set(cena, { transformOrigin: `${W / 2}px ${YP}px` })
+      tl.fromTo(cena, { scale: ESC(n) }, { scale: ESC(n + 1), duration: D, ease: motion.curva(0.33, 0.12, 0.67, 0.88) }, 0)
+      tl.to({}, { duration: 0 }, D)
+      motion.aCada(desenhar)
+      motion.pronto(tl)
+    }
+  })()
+</script>

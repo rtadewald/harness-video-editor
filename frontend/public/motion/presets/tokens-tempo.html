@@ -1,0 +1,185 @@
+<script type="application/json" id="preset">{"nome": "Tokens e tempo", "descricao": "Gasto crescendo em dois cards de vidro lado a lado, quase sem texto: os tokens sobem rápido com ease enquanto uma barra coral enche, e um cronômetro avança (o ponteiro gira, o arco coral cresce e o tempo sobe), com leve atraso; a cena se aproxima devagar até o corte.", "fundo": "chuva", "duracao": 2.4, "a_revisar": true, "sons": {"relogio": {"rotulo": "O cronômetro avança", "som": "clock-ticking-01", "intensidade": "baixo"}}}</script>
+<script type="application/json" id="campos">{"antes_tokens": {"tipo": "texto", "rotulo": "Tokens antes", "padrao": "12k"}, "depois_tokens": {"tipo": "texto", "rotulo": "Tokens depois", "padrao": "480k"}, "antes_tempo": {"tipo": "texto", "rotulo": "Tempo antes", "padrao": "0:40"}, "depois_tempo": {"tipo": "texto", "rotulo": "Tempo depois", "padrao": "6:20"}, "rotulo_tokens": {"tipo": "texto", "rotulo": "Rótulo dos tokens", "padrao": "tokens"}, "rotulo_tempo": {"tipo": "texto", "rotulo": "Rótulo do tempo", "padrao": "tempo"}}</script>
+<style>
+  /* a mesma linguagem do rapido-barato: o vidro do design system da Asimov (.glass-card: fundo branco 5%, borda de 1 px
+   * branca 10%, desfoque de 12 px da chuva atrás, cantos de 1rem), Inter 400 (números com tracking-tight, rótulos em
+   * #ffffffb8), trilhos e marcas em branco translúcido, coral do Claude como acento (aqui puxando para o âmbar: é gasto,
+   * não sucesso). Medidas em px do palco. */
+  #cena { position: absolute; inset: 0; will-change: transform; font-family: Inter, "SF Pro", system-ui, sans-serif; }
+  #grupo { position: absolute; left: 50%; top: 50%; width: 976px; height: 560px; margin: -280px 0 0 -488px; }
+  .card { position: absolute; top: 0; width: 470px; height: 560px; box-sizing: border-box; border-radius: 16px; background-color: #ffffff0d; border: 1px solid #ffffff1a;
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); opacity: 0; will-change: transform, opacity; overflow: hidden; }
+  #c1 { left: 0; } #c2 { left: 506px; }
+  .topo { position: absolute; left: 0; right: 0; top: 0; height: 94px; border-bottom: 1px solid #ffffff1a; }
+  .rotulo { position: absolute; left: 36px; top: 0; right: 80px; line-height: 94px; font-size: 30px; font-weight: 400; letter-spacing: -.01em;
+    color: #ffffffb8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ponto { position: absolute; right: 36px; top: 40px; width: 14px; height: 14px; border-radius: 50%; background: #d97757; will-change: box-shadow; }
+  .valor { position: absolute; left: 20px; right: 20px; top: 432px; height: 90px; line-height: 90px; text-align: center; white-space: nowrap;
+    font-size: 74px; font-weight: 400; letter-spacing: -.025em; color: #ffffffe0; font-variant-numeric: tabular-nums; }
+  /* os tokens: o trilho (o vidro do botão secundário: branco 4%, borda branca 14%) guarda a altura toda; o
+   * preenchimento coral (âmbar no topo) enche de baixo para cima */
+  #trilho1 { position: absolute; left: 169px; width: 132px; top: 132px; height: 266px; border-radius: 14px; background: #ffffff0a; border: 1px solid #ffffff24; box-sizing: border-box; }
+  #barra { position: absolute; left: 169px; width: 132px; bottom: 162px; height: 0; border-radius: 14px; background: linear-gradient(0deg, #d97757 0%, #e3935e 100%);
+    will-change: height, box-shadow; }
+  #marcas1 { position: absolute; left: 0; top: 0; width: 470px; height: 430px; overflow: visible; }
+  #base1 { position: absolute; left: 110px; width: 250px; top: 398px; height: 2px; border-radius: 2px; background: #ffffff24; }
+  #relogio { position: absolute; left: 0; top: 0; width: 470px; height: 430px; overflow: visible; }
+</style>
+<div id="cena"><div id="grupo">
+  <div class="card" id="c1">
+    <div class="topo"><div class="rotulo" id="r1"></div><div class="ponto" id="p1"></div></div>
+    <svg id="marcas1" viewBox="0 0 470 430"></svg>
+    <div id="trilho1"></div><div id="barra"></div><div id="base1"></div>
+    <div class="valor" id="v1"></div>
+  </div>
+  <div class="card" id="c2">
+    <div class="topo"><div class="rotulo" id="r2"></div><div class="ponto" id="p2"></div></div>
+    <svg id="relogio" viewBox="0 0 470 430">
+      <rect x="221" y="106" width="28" height="12" rx="4" fill="#ffffff33" />
+      <rect x="229" y="116" width="12" height="14" fill="#ffffff1f" />
+      <circle id="aro" fill="#ffffff0a" stroke="#ffffff1a" stroke-width="14" />
+      <g id="marcas2"></g>
+      <path id="arco" fill="none" stroke="#d97757" stroke-width="14" stroke-linecap="round" />
+      <line id="ponteiro" stroke="#ffffffe0" stroke-width="6" stroke-linecap="round" />
+      <circle id="eixo" r="12" fill="#ffffffe0" />
+      <circle id="miolo" r="5" fill="#d97757" />
+    </svg>
+    <div class="valor" id="v2"></div>
+  </div>
+</div></div>
+<script>
+  (function () {
+    const W = MOTION.largura, H = MOTION.altura, D = MOTION.duracao
+    const c = MOTION.campos
+    const txt = (k, p) => String(c[k] == null || c[k] === '' ? p : c[k])
+    const k0 = txt('antes_tokens', '12k'), k1 = txt('depois_tokens', '480k')
+    const t0 = txt('antes_tempo', '0:40'), t1 = txt('depois_tempo', '6:20')
+    document.getElementById('r1').textContent = txt('rotulo_tokens', 'tokens')
+    document.getElementById('r2').textContent = txt('rotulo_tempo', 'tempo')
+    const cena = document.getElementById('cena'), grupo = document.getElementById('grupo')
+    const cards = [document.getElementById('c1'), document.getElementById('c2')]
+    const v1 = document.getElementById('v1'), v2 = document.getElementById('v2')
+    const barra = document.getElementById('barra'), p1 = document.getElementById('p1'), p2 = document.getElementById('p2')
+
+    // um texto com número ("12k", "$ 1,20", "1.200 tokens") ou com tempo ("0:40", "1:02:30"): o que vem antes, o valor
+    // (o tempo em segundos), o que vem depois e como escrever. A contagem vai de um ao outro no formato do "depois";
+    // sem número, ou com unidades diferentes ("12k" → "1,2M"), troca no meio
+    const ler = (s) => {
+      const r = s.match(/\d+(?::\d{2}){1,2}/)
+      if (r) {
+        const partes = r[0].split(':').map(Number)
+        return { pre: s.slice(0, r.index), pos: s.slice(r.index + r[0].length), v: partes.reduce((a, b) => a * 60 + b, 0), relogio: partes.length }
+      }
+      const m = s.match(/\d[\d.,]*\d|\d/)
+      if (!m) return null
+      const n = m[0], u = Math.max(n.lastIndexOf('.'), n.lastIndexOf(','))
+      const decimal = u >= 0 && (n.length - u - 1 !== 3 || (n.includes('.') && n.includes(',')))
+      const sep = decimal ? n[u] : ',', mil = decimal ? (n[u] === ',' ? '.' : ',') : u >= 0 ? n[u] : ''
+      const inteiro = (decimal ? n.slice(0, u) : n).replace(/[.,]/g, ''), frac = decimal ? n.slice(u + 1) : ''
+      return { pre: s.slice(0, m.index), pos: s.slice(m.index + n.length), v: parseFloat(inteiro + '.' + (frac || '0')), dec: frac.length, sep, mil: /[.,]/.test(decimal ? n.slice(0, u) : n) ? mil : '' }
+    }
+    const escrever = (v, dec, sep, mil) => {
+      const [i, f] = v.toFixed(dec).split('.')
+      return (mil ? i.replace(/\B(?=(\d{3})+(?!\d))/g, mil) : i) + (f ? sep + f : '')
+    }
+    const relogio = (seg, partes) => {
+      const s = Math.round(seg), dois = (x) => String(x).padStart(2, '0')
+      return partes === 3 ? `${Math.floor(s / 3600)}:${dois(Math.floor(s / 60) % 60)}:${dois(s % 60)}` : `${Math.floor(s / 60)}:${dois(s % 60)}`
+    }
+    const contador = (a, b) => {
+      const A = ler(a), B = ler(b)
+      if (!A || !B || !A.relogio !== !B.relogio || (!B.relogio && A.pos.trim() !== B.pos.trim())) return (q) => (q < 0.5 ? a : b)
+      const dec = Math.max(A.dec || 0, B.dec || 0), mil = B.mil || A.mil, sep = B.dec ? B.sep : A.dec ? A.sep : mil === '.' ? ',' : '.'
+      return (q) => {
+        if (q <= 0) return a
+        if (q >= 1) return b
+        const v = A.v + (B.v - A.v) * q
+        return B.pre + (B.relogio ? relogio(v, B.relogio) : escrever(v, dec, sep, mil)) + B.pos
+      }
+    }
+    const conta1 = contador(k0, k1), conta2 = contador(t0, t1)
+    // de onde a barra e o ponteiro partem: a proporção antes/depois (o depois enche a barra e leva o ponteiro a 85% da volta)
+    const prop = (a, b) => { const A = ler(a), B = ler(b); return A && B && B.v > 0 ? Math.max(0.06, Math.min(0.9, A.v / B.v)) : 0.1 }
+    const ini1 = prop(k0, k1), ini2 = prop(t0, t1)
+    const ALTO = 266, VOLTA = 0.85
+
+    // a escala ao lado da barra
+    const m1 = document.getElementById('marcas1')
+    for (let i = 0; i <= 6; i++) {
+      const y = 398 - (ALTO - 14) * (i / 6) - 7
+      m1.insertAdjacentHTML('beforeend', `<line x1="${i % 3 ? 136 : 128}" y1="${y}" x2="150" y2="${y}" stroke="#ffffff38" stroke-width="2.5" stroke-linecap="round"/>`)
+    }
+
+    // o cronômetro: mostrador de raio 124 com o eixo em (235, 262); 12 marcas, a de cima e as dos quartos maiores
+    const CX = 235, CY = 262, R = 124
+    const pt = (f, r) => { const a = -Math.PI / 2 + Math.PI * 2 * f; return [CX + Math.cos(a) * r, CY + Math.sin(a) * r] }
+    const arcoD = (f0, f1) => {
+      const [x0, y0] = pt(f0, R), [x1, y1] = pt(f1, R)
+      return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${R} ${R} 0 ${f1 - f0 > 0.5 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`
+    }
+    const aro = document.getElementById('aro')
+    aro.setAttribute('cx', CX); aro.setAttribute('cy', CY); aro.setAttribute('r', R)
+    const m2 = document.getElementById('marcas2')
+    for (let i = 0; i < 12; i++) {
+      const [x0, y0] = pt(i / 12, R - 22), [x1, y1] = pt(i / 12, R - (i % 3 ? 32 : 40))
+      m2.insertAdjacentHTML('beforeend', `<line x1="${x0.toFixed(2)}" y1="${y0.toFixed(2)}" x2="${x1.toFixed(2)}" y2="${y1.toFixed(2)}" stroke="#ffffff38" stroke-width="2.5" stroke-linecap="round"/>`)
+    }
+    const arco = document.getElementById('arco'), ponteiro = document.getElementById('ponteiro')
+    ;['eixo', 'miolo'].forEach((id) => { const el = document.getElementById(id); el.setAttribute('cx', CX); el.setAttribute('cy', CY) })
+    ponteiro.setAttribute('x1', CX); ponteiro.setAttribute('y1', CY)
+
+    // o estado que a timeline anima; o desenho sai dele a cada instante (motion.aCada)
+    const st = { n1: 0, n2: 0 }
+    const desenhar = () => {
+      const b = ini1 + (1 - ini1) * st.n1
+      barra.style.height = `${(ALTO * b).toFixed(2)}px`
+      // o brilho coral cresce com o gasto
+      barra.style.boxShadow = `0 10px ${(18 + 30 * st.n1).toFixed(1)}px rgba(217, 119, 87, ${(0.1 + 0.22 * st.n1).toFixed(3)})`
+      p1.style.boxShadow = `0 0 ${(14 * st.n1).toFixed(1)}px rgba(227, 147, 94, ${(0.8 * st.n1).toFixed(3)})`
+      p2.style.boxShadow = `0 0 ${(14 * st.n2).toFixed(1)}px rgba(227, 147, 94, ${(0.8 * st.n2).toFixed(3)})`
+      const f = VOLTA * (ini2 + (1 - ini2) * st.n2)
+      arco.setAttribute('d', arcoD(0, Math.max(f, 0.002)))
+      const [px, py] = pt(f, R - 46)
+      ponteiro.setAttribute('x2', px.toFixed(2)); ponteiro.setAttribute('y2', py.toFixed(2))
+      v1.textContent = conta1(st.n1)
+      v2.textContent = conta2(st.n2)
+    }
+
+    // o par um pouco menor que o palco, para sobrar margem mesmo no fim da aproximação; na tela cheia, acima do meio
+    gsap.set(grupo, { scale: 0.94, y: H > W ? -H * 0.06 : 0 })
+
+    document.fonts.ready.then(() => {
+      // os valores longos: a fonte diminui (igual nos dois cards) até o maior caber no card
+      const textos = [k0, k1, t0, t1]
+      let tam = 74
+      const sobra = () => [v1, v2].some((el, i) => textos.slice(i * 2, i * 2 + 2).some((s) => { el.textContent = s; return el.scrollWidth > el.clientWidth + 1 }))
+      while (sobra() && tam > 40) { tam -= 4; [v1, v2].forEach((el) => { el.style.fontSize = `${tam}px` }) }
+      montar()
+    })
+
+    function montar() {
+      const k = Math.min(1, D / 2.4) // planos curtos: a sequência encolhe junto (de 1,5 a 4 s)
+      const CASA = motion.curva(0.25, 0.1, 0.1, 1) // entrada curta e suave, chegada bem longa
+      const tl = gsap.timeline({ paused: true })
+
+      // os cards entram juntos (o 2º um pouco depois), subindo e saindo do desfoque
+      cards.forEach((card, i) => tl.fromTo(card, { opacity: 0, y: 34, scale: 0.97, filter: 'blur(6px)' },
+        { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', duration: 0.55 * k, ease: CASA }, i * 0.12 * k))
+
+      // tokens: o número sobe rápido e a barra enche junto
+      const i1 = 0.1 * k, d1 = 1.25 * k
+      tl.fromTo(st, { n1: 0 }, { n1: 1, duration: d1, ease: CASA }, i1)
+      // tempo, com leve atraso: o ponteiro gira, o arco cresce e o tempo sobe
+      const i2 = i1 + 0.16 * k, d2 = 1.3 * k
+      tl.fromTo(st, { n2: 0 }, { n2: 1, duration: d2, ease: CASA }, i2)
+      motion.som('relogio', i2, d2 * 0.8)
+
+      // a cena nunca para: se aproxima devagar o plano inteiro e termina ainda andando
+      gsap.set(cena, { transformOrigin: `${W / 2}px ${H / 2}px` })
+      tl.fromTo(cena, { scale: 1 }, { scale: 1.05, duration: D, ease: motion.curva(0.2, 0.05, 0.1, 0.45) }, 0)
+      tl.to({}, { duration: 0 }, D)
+      motion.aCada(desenhar)
+      motion.pronto(tl)
+    }
+  })()
+</script>

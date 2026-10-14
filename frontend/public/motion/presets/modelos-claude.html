@@ -1,0 +1,126 @@
+<script type="application/json" id="preset">{"nome": "Modelos do Claude", "descricao": "Quatro cards de vidro pequenos lado a lado (2×2 na tela cheia), cada um com a estrela coral do Claude e só o nome do modelo; entram um após o outro e a cena segue se aproximando devagar até o corte. Com foco, um card acende em coral e os outros se apagam.", "fundo": "chuva", "duracao": 1.2, "a_revisar": true, "sons": {"card": {"rotulo": "Cada card chega", "som": "ui-pop-02", "intensidade": "baixo"}}}</script>
+<script type="application/json" id="campos">{"modelos": {"tipo": "texto", "rotulo": "Os modelos (nomes separados por vírgula)", "padrao": "Haiku, Sonnet, Opus, Fable"}, "foco": {"tipo": "texto", "rotulo": "Modelo aceso em coral (um dos nomes; vazio = todos iguais)", "padrao": ""}}</script>
+<style>
+  /* o vidro do design system da Asimov (.glass-card): fundo branco 5%, borda de 1 px branca 10%, desfoque de 12 px do
+     que está atrás (a chuva), cantos de 1rem (--radius-2xl); Inter 400 com o tracking-tight (-.025em), texto #ffffffe0;
+     o coral do Claude como único acento e barrinhas de vidro no lugar de texto */
+  #cena { position: absolute; inset: 0; will-change: transform; font-family: Inter, "SF Pro", system-ui, sans-serif; }
+  .card { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box;
+    border-radius: 16px; background-color: #ffffff0d; border: 1px solid #ffffff1a; overflow: hidden;
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); opacity: 0; will-change: transform, opacity, filter; }
+  /* o foco: o vidro tingido de coral, como o hover do botão de vidro (acento 12% no fundo, 45% na borda) */
+  .card .tinta { position: absolute; inset: 0; background: rgba(217, 119, 87, .12); opacity: 0; }
+  .card svg { position: relative; overflow: visible; will-change: transform; }
+  .card .nome { position: relative; flex: none; white-space: nowrap; font-weight: 400; letter-spacing: -.025em; line-height: 1; color: #ffffffe0; }
+  .card .barra { position: relative; flex: none; border-radius: 99px; background: #ffffff1a; }
+</style>
+<div id="cena"></div>
+<script>
+  (function () {
+    const W = MOTION.largura, H = MOTION.altura, D = MOTION.duracao
+    const c = MOTION.campos
+    const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
+    const nomes = String(c.modelos || '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 6)
+    const foco = norm(c.foco || '')
+    const iFoco = foco ? nomes.findIndex((n) => norm(n) === foco) : -1
+    const cena = document.getElementById('cena')
+    const CORAL = '#d97757', APAGADO = '#5e6675'
+
+    // a estrela do Claude: 11 raios afinando até a ponta arredondada, com comprimentos e ângulos um pouco irregulares
+    // (desenhada uma vez, em 100×100, centro em 50,50)
+    const RAIOS = [1, 0.8, 0.94, 0.76, 0.99, 0.84, 0.92, 0.74, 0.97, 0.82, 0.9]
+    const DESVIO = [0, 4, -3, 5, -2, 3, -4, 2, -3, 4, -1]
+    let estrela = ''
+    RAIOS.forEach((l, k) => {
+      const a = ((k * 360) / RAIOS.length + DESVIO[k] - 90) * (Math.PI / 180)
+      const L = 48 * l, base = 9.6, ponta = 4.4
+      const px = Math.cos(a + Math.PI / 2), py = Math.sin(a + Math.PI / 2)
+      const ux = Math.cos(a), uy = Math.sin(a)
+      const p = (r, w) => `${(50 + ux * r + px * w).toFixed(2)} ${(50 + uy * r + py * w).toFixed(2)}`
+      estrela += `M${p(0, base)} L${p(L, ponta)} A${ponta} ${ponta} 0 0 0 ${p(L, -ponta)} L${p(0, -base)} Z `
+    })
+
+    // as medidas: na dividida, numa linha só (até 4; mais que isso, 2 linhas); na tela cheia, 2×2 um pouco acima do meio
+    const alto = H > W
+    const n = nomes.length
+    const cols = alto ? Math.min(2, n) : n <= 4 ? n : Math.ceil(n / 2)
+    const linhas = Math.ceil(n / cols)
+    const C = alto ? { w: 380, h: 400, gap: 34, sim: 150, fonte: 54, barra: 96 } : { w: 214, h: 252, gap: 26, sim: 92, fonte: 36, barra: 58 }
+    const GW = cols * C.w + (cols - 1) * C.gap, GH = linhas * C.h + (linhas - 1) * C.gap
+    const x0 = (W - GW) / 2, y0 = alto ? H * 0.44 - GH / 2 : (H - GH) / 2
+    const cards = nomes.map((nome, i) => {
+      const el = document.createElement('div')
+      el.className = 'card'
+      el.innerHTML = `<div class="tinta"></div><svg viewBox="0 0 100 100" width="${C.sim}" height="${C.sim}"><path d="${estrela}" fill="${CORAL}" /></svg>` +
+        `<div class="nome"></div><div class="barra"></div>`
+      el.querySelector('.nome').textContent = nome
+      const r = Math.floor(i / cols), k = i % cols
+      const naLinha = r === linhas - 1 ? n - r * cols : cols // a última linha incompleta fica centrada
+      const xl = (W - (naLinha * C.w + (naLinha - 1) * C.gap)) / 2
+      gsap.set(el, { left: xl + k * (C.w + C.gap), top: y0 + r * (C.h + C.gap), width: C.w, height: C.h })
+      el.querySelector('svg').style.marginBottom = `${Math.round(C.h * 0.1)}px`
+      Object.assign(el.querySelector('.barra').style, { width: `${C.barra}px`, height: `${alto ? 12 : 9}px`, marginTop: `${alto ? 30 : 20}px` })
+      cena.appendChild(el)
+      return el
+    })
+
+    // um nome longo: a fonte diminui até caber no card
+    document.fonts.ready.then(() => {
+      cards.forEach((el) => {
+        const s = el.querySelector('.nome')
+        let f = C.fonte
+        s.style.fontSize = `${f}px`
+        while (s.offsetWidth > C.w - 28 && f > 16) s.style.fontSize = `${(f -= 1)}px`
+      })
+      montar()
+    })
+
+    function montar() {
+      // tempos medidos para 1,2 s; de 1 a 3 s a entrada estica junto (até ~1 s por card), o resto é a deriva
+      const k = Math.max(0.8, Math.min(D / 1.2, 1.6))
+      const CASA = motion.curva(0.25, 0.1, 0.1, 1) // entrada curta e suave, chegada bem longa
+      const chega = (dur) => { let x = 0; while (x < 1 && CASA(x) < 0.95) x += 0.005; return x * dur }
+      const tl = gsap.timeline({ paused: true })
+      const dur = 0.62 * k, passo = 0.075 * k
+
+      // cada card sobe um pouco, cresce de leve e entra em foco; a estrela gira um pouco até assentar
+      cards.forEach((el, i) => {
+        const t = i * passo
+        tl.fromTo(el, { opacity: 0, y: C.h * 0.16, scale: 0.9, filter: 'blur(8px)' },
+          { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', duration: dur, ease: CASA }, t)
+        tl.fromTo(el.querySelector('svg'), { rotation: -40, scale: 0.7 }, { rotation: 0, scale: 1, duration: dur * 1.1, ease: CASA }, t)
+        motion.som('card', t + chega(dur) * 0.55)
+      })
+      const fimEntrada = (n - 1) * passo + dur
+
+      // o foco: o card acende (vidro tingido de coral, borda coral) e os outros se apagam, estrela cinza
+      if (iFoco >= 0) {
+        const tF = Math.min(fimEntrada * 0.62, D * 0.55), dF = 0.55 * k
+        cards.forEach((el, i) => {
+          if (i === iFoco) {
+            tl.to(el.querySelector('.tinta'), { opacity: 1, duration: dF, ease: CASA }, tF)
+            tl.to(el, { borderColor: 'rgba(217, 119, 87, .45)', boxShadow: '0 0 60px rgba(217, 119, 87, .22)', duration: dF, ease: CASA }, tF)
+            tl.to(el.querySelector('.barra'), { backgroundColor: 'rgba(217, 119, 87, .45)', duration: dF, ease: CASA }, tF)
+          } else {
+            // o vidro continua; o conteúdo e a borda se apagam
+            tl.to(el.querySelectorAll('svg, .nome, .barra'), { opacity: 0.5, duration: dF, ease: CASA }, tF)
+            tl.to(el, { borderColor: 'rgba(255, 255, 255, .06)', backgroundColor: 'rgba(255, 255, 255, .03)', duration: dF, ease: CASA }, tF)
+            tl.to(el.querySelector('path'), { fill: APAGADO, duration: dF, ease: CASA }, tF)
+            tl.to(el.querySelector('.nome'), { color: '#ffffffb8', duration: dF, ease: CASA }, tF)
+          }
+        })
+      }
+
+      // a cena nunca para: se aproxima e sobe de leve o plano inteiro e termina ainda andando; as estrelas giram devagar
+      const oy = y0 + GH / 2
+      gsap.set(cena, { transformOrigin: `${W / 2}px ${oy}px` })
+      tl.fromTo(cena, { scale: 0.97, y: H * 0.012 }, { scale: 1.035, y: -H * 0.008, duration: D, ease: motion.curva(0.3, 0.1, 0.5, 0.85) }, 0)
+      cards.forEach((el, i) => {
+        const t = i * passo + dur * 1.1
+        if (t < D) tl.to(el.querySelector('svg'), { rotation: 10 * (D - t), duration: D - t, ease: motion.curva(0.4, 0, 0.6, 0.9) }, t)
+      })
+      tl.to({}, { duration: 0 }, D)
+      motion.pronto(tl)
+    }
+  })()
+</script>
