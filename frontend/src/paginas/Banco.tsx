@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Plus, Scissors, Sparkles, Trash2, X } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Check, CircleCheck, CircleDashed, CircleX, Clapperboard, Images, LayoutGrid, Plus, Scissors, Sparkles, Star, Trash2, X, type LucideIcon } from 'lucide-react'
 import {
   NOME_TIPO_MIDIA,
   apagarItemBanco,
@@ -17,9 +17,10 @@ import {
   versaoBanco,
   type ItemBanco,
   type SeloBanco as Selo,
-  type TipoMidia,
 } from '@/api'
 import SeloBanco from '@/components/SeloBanco'
+import { MiniaturaPreset } from '@/motions/PresetMotion'
+import { aprovarPreset, esquecerPresets, listarRecusados as listarMotionsRecusados, presetsEmCache, recusarPreset, type Preset, type PresetRecusado } from '@/motions/api'
 import EditorVideo from '@/inserts/EditorVideo'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
@@ -35,26 +36,34 @@ const STATUS_IA: Record<ItemBanco['ia']['status'], string> = {
   erro: 'a descrição falhou',
   pendente: 'sem descrição',
 }
-const FILTROS: [TipoMidia | null, string][] = [
-  [null, 'Todos'],
-  ['video', 'Vídeos'],
-  ['imagem', 'Imagens'],
+/** O que a grade mostra: as mídias dos inserts e os motions, juntos ou um de cada vez (como no Banco do 19). */
+type Tipo = 'tudo' | 'inserts' | 'motions'
+const FILTROS: [Tipo, string, LucideIcon][] = [
+  ['tudo', 'Tudo', LayoutGrid],
+  ['inserts', 'Inserts', Images],
+  ['motions', 'Motions', Clapperboard],
 ]
+/** O selo de um motion: aprovado, ou nenhum enquanto o Claude o deixa "a revisar". */
+const seloDoMotion = (m: Preset): Selo | null => (m.a_revisar ? null : 'aprovado')
 /** O filtro pelo selo da faxina ('nenhum': sem selo, de um projeto ainda em edição). */
-const FILTROS_SELO: [Selo | 'nenhum', string][] = [
-  ['usado', 'Usados'],
-  ['aprovado', 'Aprovados'],
-  ['recusado', 'Recusados'],
-  ['nenhum', 'Sem selo'],
+const FILTROS_SELO: [Selo | 'nenhum', string, LucideIcon][] = [
+  ['usado', 'Usados', Star],
+  ['aprovado', 'Aprovados', CircleCheck],
+  ['recusado', 'Recusados', CircleX],
+  ['nenhum', 'Sem selo', CircleDashed],
 ]
 const seg = (t: number) => `${t.toFixed(1).replace('.', ',')} s`
 const CAMPO = 'w-full rounded-[3px] border border-line-dark bg-deeper px-2.5 py-2 text-[12.5px] text-cream outline-none focus:border-cream/60'
 
-/** O banco de mídias (SPEC §8.3): os vídeos e imagens que os inserts dos projetos usam. Subir (arrastando vários),
- *  filtrar, editar nome/descrição/palavras-chave (a IA sugere descrição e palavras em segundo plano), ver onde é usado. */
+/** O banco (SPEC §8.3, §8.15): as mídias dos inserts e os motions numa grade só (Tudo · Inserts · Motions; antes eram
+ *  duas páginas). Subir (arrastando vários), filtrar pelo tipo e pelo selo, editar nome/descrição/palavras-chave (a IA
+ *  sugere em segundo plano), ver onde é usado; nos motions que o Claude escreveu, aprovar ou recusar com o motivo. */
 export default function Banco() {
   const [itens, setItens] = useState<ItemBanco[] | null>(null)
-  const [tipo, setTipo] = useState<TipoMidia | null>(null)
+  const [busca] = useSearchParams()
+  const [tipo, setTipo] = useState<Tipo>(() => (busca.get('tipo') === 'motions' ? 'motions' : busca.get('tipo') === 'inserts' ? 'inserts' : 'tudo'))
+  const [motions, setMotions] = useState<Preset[]>([])
+  const [motionsRecusados, setMotionsRecusados] = useState<PresetRecusado[]>([])
   const [selo, setSelo] = useState<Selo | 'nenhum' | null>(null)
   const [recusados, setRecusados] = useState<string[]>([])
   const [aberto, setAberto] = useState<string | null>(null)
@@ -63,13 +72,17 @@ export default function Banco() {
   const [erro, setErro] = useState('')
   const entrada = useRef<HTMLInputElement>(null)
 
-  const carregar = () =>
-    Promise.all([listarBanco(''), lerRecusados()])
-      .then(([l, r]) => {
+  const carregar = () => {
+    esquecerPresets()
+    return Promise.all([listarBanco(''), lerRecusados(), presetsEmCache(), listarMotionsRecusados()])
+      .then(([l, r, ms, mr]) => {
         setItens(l)
         setRecusados(r.ids)
+        setMotions(ms)
+        setMotionsRecusados(mr)
       })
       .catch((e) => setErro((e as Error).message))
+  }
   useEffect(() => {
     void carregar()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -104,9 +117,22 @@ export default function Banco() {
   }
 
   const comSelo = (i: ItemBanco, s: Selo | 'nenhum' | null) => !s || (s === 'nenhum' ? !i.estado : i.estado === s)
-  const visiveis = useMemo(() => (itens ?? []).filter((i) => (!tipo || i.tipo === tipo) && comSelo(i, selo)), [itens, tipo, selo])
-  const contagem = (t: TipoMidia | null) => (itens ?? []).filter((i) => (!t || i.tipo === t) && comSelo(i, selo)).length
-  const contagemSelo = (s: Selo | 'nenhum') => (itens ?? []).filter((i) => (!tipo || i.tipo === tipo) && comSelo(i, s)).length
+  const motionComSelo = (m: Preset, s: Selo | 'nenhum' | null) => !s || (s === 'nenhum' ? !seloDoMotion(m) : seloDoMotion(m) === s)
+  const midiasDo = (t: Tipo) => (t === 'motions' ? [] : (itens ?? []))
+  const motionsDo = (t: Tipo) => (t === 'inserts' ? [] : motions)
+  const visiveis = useMemo(() => midiasDo(tipo).filter((i) => comSelo(i, selo)), [itens, tipo, selo]) // eslint-disable-line react-hooks/exhaustive-deps
+  const motionsVisiveis = motionsDo(tipo).filter((m) => motionComSelo(m, selo))
+  const contagem = (t: Tipo) => midiasDo(t).filter((i) => comSelo(i, selo)).length + motionsDo(t).filter((m) => motionComSelo(m, selo)).length
+  const contagemSelo = (s: Selo | 'nenhum') => midiasDo(tipo).filter((i) => comSelo(i, s)).length + motionsDo(tipo).filter((m) => motionComSelo(m, s)).length
+  const aRevisar = motions.filter((m) => m.a_revisar).length
+  const agirMotion = (f: () => Promise<unknown>) =>
+    void f()
+      .then(carregar)
+      .catch((e) => setErro((e as Error).message))
+  const recusarMotion = (m: Preset) => {
+    const motivo = window.prompt(`Por que recusar “${m.nome}”? O Claude lê o motivo antes de escrever o próximo motion.`)?.trim()
+    if (motivo) agirMotion(() => recusarPreset(m.id, motivo))
+  }
 
   // a faxina: os recusados (o que o Claude trouxe e ficou de fora de um vídeo aprovado) vão para a lixeira do banco
   async function limpar() {
@@ -150,20 +176,21 @@ export default function Banco() {
       </header>
 
       <nav className="flex flex-wrap items-center gap-1.5 border-b border-line-dark px-4 py-3">
-        {FILTROS.map(([t, nome]) => (
-          <Chip key={nome} ativo={tipo === t} onClick={() => setTipo(t)} n={contagem(t)}>
+        {FILTROS.map(([t, nome, icone]) => (
+          <Chip key={nome} ativo={tipo === t} onClick={() => setTipo(t)} n={contagem(t)} icone={icone}>
             {nome}
           </Chip>
         ))}
         <span className="mx-2 h-5 w-px bg-line-dark" />
-        {FILTROS_SELO.map(([s, nome]) => (
-          <Chip key={s} ativo={selo === s} onClick={() => setSelo(selo === s ? null : s)} n={contagemSelo(s)}>
+        {FILTROS_SELO.map(([s, nome, icone]) => (
+          <Chip key={s} ativo={selo === s} onClick={() => setSelo(selo === s ? null : s)} n={contagemSelo(s)} icone={icone}>
             {nome}
           </Chip>
         ))}
         <span className="ml-auto text-[12px] text-fog">
           {descrevendo > 0 && `IA descrevendo ${descrevendo} · `}
-          {visiveis.length} mídia{visiveis.length === 1 ? '' : 's'}
+          {aRevisar > 0 && tipo !== 'inserts' && <span className="text-coral">{aRevisar} motion{aRevisar > 1 ? 's' : ''} a revisar · </span>}
+          {visiveis.length + motionsVisiveis.length} {tipo === 'motions' ? 'motions' : 'itens'}
         </span>
         {recusados.length > 0 && (
           <Button variant="pill" size="sm" className="ml-2 text-fog hover:text-coral" onClick={() => void limpar()} title="Leva os recusados para a lixeira do banco (dados/banco/_lixeira; dá para recuperar)">
@@ -173,21 +200,13 @@ export default function Banco() {
       </nav>
 
       <main className={cn('overflow-y-auto px-8 py-8 transition-colors', arrastando && 'bg-coral/10')}>
-        <div className="mb-6 grid gap-3 border-b border-line-dark pb-4">
-          <p className="eyebrow text-sage">Banco{itens && ` · ${String(itens.length).padStart(2, '0')} mídia${itens.length === 1 ? '' : 's'}`}</p>
-          <p className="max-w-[720px] text-[12px] leading-[1.7] text-fog">
-            Os vídeos e imagens dos inserts, de todos os projetos. Arraste vários arquivos para esta tela ou use “Adicionar mídias”. A IA descreve cada um e
-            sugere palavras-chave, para achar depois; na etapa Inserts, cada insert liga as mídias daqui.
-          </p>
-        </div>
-
         {erro && <p className="mb-4 text-coral">{erro}</p>}
-        {itens && visiveis.length === 0 && itens.length > 0 && (
-          <p className="mb-6 text-[13px] text-fog">Nenhuma mídia com esses filtros.</p>
+        {itens && visiveis.length + motionsVisiveis.length === 0 && (
+          <p className="mb-6 text-[13px] text-fog">Nada com esses filtros.</p>
         )}
 
         <ul className="grid gap-x-5 gap-y-8" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))' }}>
-          {(
+          {tipo !== 'motions' && (
             <li>
               <button
                 onClick={() => entrada.current?.click()}
@@ -203,10 +222,30 @@ export default function Banco() {
               </button>
             </li>
           )}
-          {visiveis.map((i) => (
-            <Cartao key={i.id} item={i} abrir={() => setAberto(i.id)} apagar={() => void apagar(i)} />
-          ))}
+          {[
+            ...visiveis.map((i) => ({ criado: i.criado_em ?? '', el: <Cartao key={i.id} item={i} abrir={() => setAberto(i.id)} apagar={() => void apagar(i)} /> })),
+            ...motionsVisiveis.map((m) => ({
+              // os motions "a revisar" primeiro (o que pede ação), os outros depois das mídias novas
+              criado: m.a_revisar ? '9' : '',
+              el: <CartaoMotion key={`m-${m.id}`} m={m} aprovar={() => agirMotion(() => aprovarPreset(m.id))} recusar={() => recusarMotion(m)} />,
+            })),
+          ]
+            .sort((a, b) => b.criado.localeCompare(a.criado))
+            .map((x) => x.el)}
         </ul>
+        {tipo === 'motions' && motionsRecusados.length > 0 && (
+          <section className="mt-12 border-t border-line-dark pt-6">
+            <p className="eyebrow mb-3 text-sage">Motions recusados · {motionsRecusados.length}</p>
+            <ul className="grid gap-2 text-[12px]">
+              {motionsRecusados.map((r) => (
+                <li key={r.arquivo} className="grid gap-0.5">
+                  <span className="font-semibold text-cream/80">{r.nome}</span>
+                  <span className="text-fog">{r.motivo || 'sem motivo'}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </main>
 
       {aberto && <Detalhe bid={aberto} fechar={() => setAberto(null)} mudou={() => void carregar()} />}
@@ -214,7 +253,7 @@ export default function Banco() {
   )
 }
 
-function Chip({ ativo, onClick, n, children }: { ativo: boolean; onClick: () => void; n: number; children: React.ReactNode }) {
+function Chip({ ativo, onClick, n, icone: Icone, children }: { ativo: boolean; onClick: () => void; n: number; icone: LucideIcon; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
@@ -223,9 +262,43 @@ function Chip({ ativo, onClick, n, children }: { ativo: boolean; onClick: () => 
         ativo ? 'border-cream bg-cream text-ink' : 'border-line-dark text-fog hover:border-cream/50 hover:text-cream',
       )}
     >
+      <Icone className="size-3.5" />
       {children}
       <span className={cn('tabular-nums', ativo ? 'text-ink/60' : 'text-fog/60')}>{n}</span>
     </button>
+  )
+}
+
+/** Um motion na grade do banco: a prévia (toca com o mouse em cima), o nome, o código e, se o Claude o escreveu e ainda
+ *  está "a revisar", Aprovar e Recusar (com o motivo, que o Claude lê antes de escrever o próximo). */
+function CartaoMotion({ m, aprovar, recusar }: { m: Preset; aprovar: () => void; recusar: () => void }) {
+  return (
+    <li className="group relative">
+      <div className="relative grid aspect-video place-items-center overflow-hidden rounded-[6px] bg-deeper ring-1 ring-line-dark transition-[box-shadow] duration-300 group-hover:ring-2 group-hover:ring-coral">
+        <div className="aspect-[9/8] h-full">
+          <MiniaturaPreset preset={m} formato="dividida" />
+        </div>
+        <span className="absolute bottom-2.5 left-2.5 rounded-full bg-coral px-2 py-0.5 text-[9px] font-semibold text-cream">Motion · {m.duracao.toFixed(1).replace('.', ',')} s</span>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.02em]" title={m.descricao}>
+          {m.nome}
+        </h3>
+        {m.a_revisar ? <span className="shrink-0 rounded-full bg-coral px-2 py-0.5 text-[9px] font-semibold text-cream uppercase">a revisar</span> : <SeloBanco estado="aprovado" />}
+        <ChipCodigo tipo="motion" id={m.id} nome={m.nome} />
+      </div>
+      <p className="mt-0.5 line-clamp-2 text-[12px] leading-[1.5] text-cream/85">{m.descricao}</p>
+      {m.a_revisar && (
+        <div className="mt-2 flex gap-1.5">
+          <button onClick={aprovar} className="flex items-center gap-1.5 rounded-full bg-mint px-3 py-1 text-[11px] font-semibold text-ink hover:brightness-110">
+            <Check className="size-3.5" /> Aprovar
+          </button>
+          <button onClick={recusar} className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold text-fog ring-1 ring-line-dark hover:text-coral hover:ring-coral">
+            <X className="size-3.5" /> Recusar…
+          </button>
+        </div>
+      )}
+    </li>
   )
 }
 

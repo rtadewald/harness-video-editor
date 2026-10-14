@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import './index.css'
 import Projetos from './paginas/Projetos'
 import Editor from './paginas/Editor'
@@ -13,7 +13,6 @@ import Banco from './paginas/Banco'
 import RevisaoReferencia from './paginas/RevisaoReferencia'
 import { RenderChuva, RenderProjeto } from './paginas/Render'
 import Presets from './paginas/Presets'
-import PaginaMotions from './motions/PaginaMotions'
 import RenderPreset from './paginas/RenderPreset'
 import Transicoes from './paginas/Transicoes'
 import NaoEncontrada from './paginas/NaoEncontrada'
@@ -35,7 +34,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/ctas" element={<Ctas />} />
           <Route path="/banco" element={<Banco />} />
           <Route path="/presets" element={<Presets />} />
-          <Route path="/motions" element={<PaginaMotions />} />
+          {/* os motions moram no Banco (o endereço antigo continua, já no filtro Motions) */}
+          <Route path="/motions" element={<Navigate to="/banco?tipo=motions" replace />} />
           <Route path="/transicoes" element={<Transicoes />} />
           <Route path="/render/chuva" element={<RenderChuva />} />
           <Route path="/render/p/:id" element={<RenderProjeto />} />
