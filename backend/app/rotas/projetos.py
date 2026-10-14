@@ -37,6 +37,7 @@ class Config(BaseModel):
     modelo_direcao_projeto: str | None = Field(default=None, min_length=3, max_length=120)
     modelo_diretora: str | None = Field(default=None, min_length=3, max_length=120)  # quem escreve o roteiro dirigido
     raciocinio_diretora: Literal['low', 'medium', 'high'] | None = None
+    identidade_motion: str | None = Field(default=None, max_length=6000)  # a identidade dos motions que o Claude escreve
 
 
 def _config_completa() -> dict:

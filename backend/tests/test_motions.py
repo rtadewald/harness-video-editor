@@ -66,3 +66,37 @@ def test_preset_e_video_no_plano(cliente, video, tmp_path, monkeypatch):
     cliente.delete(f'/api/projetos/{id}/motions/p4')
     assert cliente.get(f'/api/projetos/{id}/motions').json() == {}
     assert cliente.get(f'/api/projetos/{id}/motions/p4/pagina').status_code == 404
+
+
+def test_preset_a_revisar_aprovar_e_recusar(cliente, video, tmp_path, monkeypatch):
+    """Os motions que o Claude escreve entram "a revisar"; Rodrigo aprova ou recusa com o motivo (docs/editor-claude.md, E7)."""
+    from app import motions
+    monkeypatch.setattr(motions, 'PRESETS', tmp_path / 'presets_motion')
+    monkeypatch.setattr(motions, 'RECUSADOS', motions.PRESETS / '_recusados')
+    motions.PRESETS.mkdir()
+    novo = TESTE.replace('"fundo": "nevoa"', '"fundo": "nevoa", "a_revisar": true')
+    for pid in ('novo', 'outro'):
+        (motions.PRESETS / f'{pid}.html').write_text(novo, encoding='utf-8')
+    assert {p['id']: p['a_revisar'] for p in cliente.get('/api/motions/presets').json()} == {'novo': True, 'outro': True}
+    a = cliente.post('/api/motions/presets/novo/aprovar').json()
+    assert a['a_revisar'] is False and a['nome'] == 'Busca → página do site'
+    assert '"a_revisar"' not in (motions.PRESETS / 'novo.html').read_text(encoding='utf-8')
+    # recusar: precisa de motivo; em uso, não sai (troque o motion do plano antes)
+    assert cliente.post('/api/motions/presets/outro/recusar', json={'motivo': ''}).status_code == 422
+    id = _criar(cliente, video)['id']
+    cliente.put(f'/api/projetos/{id}/motions/p4', json={'tipo': 'preset', 'formato': 'vertical', 'preset': 'outro'})
+    r = cliente.post('/api/motions/presets/outro/recusar', json={'motivo': 'texto demais'})
+    assert r.status_code == 409 and 'p4' in r.json()['detail']
+    cliente.delete(f'/api/projetos/{id}/motions/p4')
+    assert cliente.post('/api/motions/presets/outro/recusar', json={'motivo': 'Texto demais; card sólido chapado'}).json()['arquivo'] == '_recusados/outro.html'
+    assert [p['id'] for p in cliente.get('/api/motions/presets').json()] == ['novo']
+    rec = cliente.get('/api/motions/recusados').json()
+    assert [(x['arquivo'], x['motivo']) for x in rec] == [('outro.html', 'Texto demais; card sólido chapado')]
+    assert cliente.post('/api/motions/presets/sumiu/aprovar').status_code == 404
+
+
+def test_identidade_dos_motions_nas_configuracoes(cliente):
+    from app import projeto
+    assert projeto.ler_config()['identidade_motion'] == projeto.IDENTIDADE_MOTION
+    c = cliente.put('/api/config', json={'identidade_motion': 'Cards de vidro; acento coral.'}).json()
+    assert c['identidade_motion'] == 'Cards de vidro; acento coral.' and 'modelo_motion' not in c

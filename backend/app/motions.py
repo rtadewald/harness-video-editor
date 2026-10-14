@@ -71,6 +71,67 @@ def listar_presets() -> list[dict]:
     return [ler_preset(a.stem) for a in sorted(PRESETS.glob('*.html'))]
 
 
+# ---------------------------------------------------------------- a revisar: aprovar ou recusar (docs/editor-claude.md, E7)
+
+RECUSADOS = PRESETS / '_recusados'
+_PRESET_JSON = re.compile(r'(<script[^>]*id=["\']preset["\'][^>]*>)(.*?)(</script>)', re.S)
+
+
+def _mudar_info(html: str, mudar) -> str:
+    m = _PRESET_JSON.search(html)
+    if not m:
+        raise ValueError('O preset não declara o <script id="preset">')
+    info = json.loads(m.group(2))
+    mudar(info)
+    return html[:m.start(2)] + json.dumps(info, ensure_ascii=False) + html[m.end(2):]
+
+
+def usos_do_preset(pid: str) -> list[dict]:
+    """Os planos que usam o preset agora (projeto e plano)."""
+    out = []
+    for r in projeto.listar():
+        try:
+            p = projeto.ler(r['id'])
+        except FileNotFoundError:
+            continue
+        out += [{'projeto': p['id'], 'nome': p['nome'], 'plano': pl} for pl, m in (p.get('motions') or {}).items() if m.get('preset') == pid]
+    return out
+
+
+def aprovar_preset(pid: str) -> dict:
+    """Tira o "a revisar" de um preset que o Claude escreveu: entra na biblioteca de verdade."""
+    html = html_do_preset(pid)
+    (PRESETS / f'{pid}.html').write_text(_mudar_info(html, lambda i: i.pop('a_revisar', None)), encoding='utf-8')
+    return ler_preset(pid)
+
+
+def recusar_preset(pid: str, motivo: str) -> dict:
+    """Leva o preset para `presets/_recusados/` com o motivo (o Claude lê antes de escrever o próximo). Recusa se algum
+    plano o usa (troque o motion do plano antes)."""
+    html = html_do_preset(pid)
+    if (us := usos_do_preset(pid)):
+        raise ValueError('Em uso em ' + ', '.join(f"{u['nome']} ({u['plano']})" for u in us) + ': troque o motion desses planos antes')
+    agora = datetime.now().isoformat(timespec='seconds')
+    RECUSADOS.mkdir(exist_ok=True)
+    destino = RECUSADOS / f'{pid}.html'
+    if destino.exists():
+        destino = RECUSADOS / f"{pid}-{agora.replace(':', '')}.html"
+    destino.write_text(_mudar_info(html, lambda i: i.update(a_revisar=False, recusado={'motivo': motivo.strip(), 'em': agora})), encoding='utf-8')
+    (PRESETS / f'{pid}.html').unlink()
+    return {'id': pid, 'arquivo': f'_recusados/{destino.name}', 'motivo': motivo.strip()}
+
+
+def listar_recusados() -> list[dict]:
+    """Os presets recusados, com o motivo: o que não repetir."""
+    out = []
+    for a in sorted(RECUSADOS.glob('*.html')) if RECUSADOS.exists() else []:
+        info = _json_do_script(a.read_text(encoding='utf-8'), 'preset')
+        rec = info.get('recusado') or {}
+        out.append({'arquivo': a.name, 'nome': info.get('nome') or a.stem, 'descricao': info.get('descricao') or '',
+                    'motivo': rec.get('motivo') or info.get('motivo') or '', 'em': rec.get('em')})
+    return out
+
+
 # ---------------------------------------------------------------- a página (prévia e exportação)
 
 def _url_banco(bid: str, exportacao: bool) -> str:

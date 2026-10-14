@@ -212,6 +212,8 @@ export type Config = {
   /** Quem escreve o roteiro dirigido dos projetos, e com quanto raciocínio. */
   modelo_diretora: string
   raciocinio_diretora: 'low' | 'medium' | 'high'
+  /** A identidade visual dos motions novos que o Claude escreve. */
+  identidade_motion: string
   motores: Record<string, { nome: string; familia: string; chave: boolean | null }> }
 export const lerConfig = () => fetch('/api/config').then(json<Config>)
 export const salvarConfig = (mudancas: Partial<Omit<Config, 'motores'>>) =>

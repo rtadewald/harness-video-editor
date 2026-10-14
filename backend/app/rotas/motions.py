@@ -3,7 +3,7 @@ import json
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .. import motions
 from .comum import ler_projeto
@@ -26,6 +26,38 @@ def fonte_do_mac(nome: str):
 @rotas.get('/api/motions/presets')
 def listar_presets():
     return motions.listar_presets()
+
+
+@rotas.get('/api/motions/recusados')
+def presets_recusados():
+    """Os presets recusados, com o motivo (o Claude lê antes de escrever um motion novo)."""
+    return motions.listar_recusados()
+
+
+@rotas.post('/api/motions/presets/{pid}/aprovar')
+def aprovar_preset(pid: str):
+    """Tira o "a revisar": o preset que o Claude escreveu entra na biblioteca."""
+    try:
+        return motions.aprovar_preset(pid)
+    except FileNotFoundError:
+        raise HTTPException(404, 'Preset não encontrado')
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+class Recusa(BaseModel):
+    motivo: str = Field(min_length=3, max_length=1000)
+
+
+@rotas.post('/api/motions/presets/{pid}/recusar')
+def recusar_preset(pid: str, r: Recusa):
+    """Leva o preset para `_recusados/` com o motivo (409 se algum plano o usa)."""
+    try:
+        return motions.recusar_preset(pid, r.motivo)
+    except FileNotFoundError:
+        raise HTTPException(404, 'Preset não encontrado')
+    except ValueError as e:
+        raise HTTPException(409, str(e))
 
 
 @rotas.get('/api/motions/presets/{pid}/pagina')

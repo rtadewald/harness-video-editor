@@ -32,6 +32,18 @@ export type Fala = { texto: string; ini: number; fim: number }[];
 
 export const listarPresets = () =>
   fetch("/api/motions/presets").then(json<Preset[]>);
+let cachePresets: Promise<Preset[]> | null = null;
+/** Os presets, carregados uma vez por página (`esquecerPresets` depois de aprovar ou recusar um). */
+export const presetsEmCache = () => (cachePresets ??= listarPresets());
+export const esquecerPresets = () => {
+  cachePresets = null;
+};
+/** Um preset recusado (em `presets/_recusados/`), com o motivo: o que não repetir. */
+export type PresetRecusado = { arquivo: string; nome: string; descricao: string; motivo: string; em: string | null };
+export const listarRecusados = () => fetch("/api/motions/recusados").then(json<PresetRecusado[]>);
+export const aprovarPreset = (pid: string) => enviar<Preset>("POST", `/api/motions/presets/${pid}/aprovar`);
+export const recusarPreset = (pid: string, motivo: string) =>
+  enviar<{ id: string; arquivo: string; motivo: string }>("POST", `/api/motions/presets/${pid}/recusar`, { motivo });
 export const motionsDoProjeto = (id: string) =>
   fetch(`/api/projetos/${id}/motions`).then(json<Record<string, MotionPlano>>);
 export const usarPreset = (

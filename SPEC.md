@@ -1143,7 +1143,9 @@ Código: `backend/app/motions.py`, rotas `backend/app/rotas/motions.py`; presets
 | Caixa de prompt (`prompt`) | 2,5 s | Verde claro | O que é digitado | Digitação |
 | Barra de busca (`site`) | 2,6 s | Névoa azul | Link | A lupa surge (UI Pop 02) · Digitação |
 
-(Todos os sons padrão em intensidade Baixo.)
+(Todos os sons padrão em intensidade Baixo.) Além desses, os 7 vindos do 19 (E1 do editor por Claude): Abrir o app, Barras de custo, Hierarquia de modelos, Modelos do Claude, Pipeline de voz, Rápido e barato, Tokens e tempo — 6 deles **a revisar**.
+
+**Motions novos do Claude, a revisar** (docs/editor-claude.md, E7): quando nenhum preset serve, o Claude escreve um preset novo (HTML + GSAP, na identidade de **Configurações › Motions**, `identidade_motion`) com `"a_revisar": true`. Na página **Motions** (`/motions`): o selo coral **A REVISAR**, o filtro **"A revisar · N"** e, em cada um, **Aprovar** (tira o `a_revisar`: entra na biblioteca) e **Recusar…** (pede o motivo; o arquivo vai para `frontend/public/motion/presets/_recusados/` com `recusado {motivo, em}`; recusa se algum plano o usa: troque o motion antes). Embaixo, a lista **Recusados · N** com o motivo de cada um — o Claude lê antes de escrever o próximo (`A motions-recusados`). Rotas: `POST /api/motions/presets/{id}/aprovar`, `POST /api/motions/presets/{id}/recusar {motivo}`, `GET /api/motions/recusados`.
 
 #### Passo a passo
 

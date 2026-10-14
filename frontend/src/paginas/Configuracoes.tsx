@@ -14,12 +14,13 @@ type Contexto = {
   salvar: (mudancas: Parameters<typeof salvarConfig>[0]) => void
 }
 
-/** Categorias de configuração, uma aba cada. Quando Inserts, Motion e Legenda tiverem configurações próprias,
- *  entram aqui como mais uma linha. */
+/** Categorias de configuração, uma aba cada (o id é o da etapa do editor que abre nela: Motions abre pela etapa Inserts).
+ *  Quando Legenda e as outras tiverem configurações próprias, entram aqui como mais uma linha. */
 const CATEGORIAS: { id: string; nome: string; render: (c: Contexto) => ReactNode }[] = [
   { id: 'geral', nome: 'Geral', render: (c) => <AbaGeral {...c} /> },
   { id: 'cortes', nome: 'Cortes', render: (c) => <AbaCortes {...c} /> },
   { id: 'direcao', nome: 'Direção visual', render: (c) => <AbaDirecao {...c} /> },
+  { id: 'inserts', nome: 'Motions', render: (c) => <AbaMotions {...c} /> },
 ]
 
 /** Preferências do app. Cada mudança é gravada no ato (dados/projetos/_config.json) e vale para os próximos cálculos e
@@ -116,6 +117,26 @@ function AbaGeral({ config, salvar }: Contexto) {
         placeholder="Ex.: Maria Souza, nutricionista; vídeos curtos sobre alimentação e receitas rápidas."
         onBlur={(e) => e.target.value.trim() !== (config?.perfil_criador ?? '') && salvar({ perfil_criador: e.target.value.trim() })}
         className="rounded-[3px] border border-line bg-white px-3.5 py-2.5 text-[13px] leading-[1.6] text-ink outline-none focus-visible:border-ink"
+      />
+    </Grupo>
+  )
+}
+
+/** A identidade visual dos motions novos que o Claude escreve (docs/editor-claude.md, Q29). */
+function AbaMotions({ config, salvar }: Contexto) {
+  return (
+    <Grupo
+      titulo="Identidade visual dos motions"
+      texto="Como os motions novos devem parecer: o Claude lê este texto antes de escrever cada um (junto com os aprendizados e os motivos dos recusados, na página Motions). Salva ao sair do campo."
+    >
+      <textarea
+        key={config?.identidade_motion}
+        defaultValue={config?.identidade_motion}
+        disabled={!config}
+        rows={12}
+        maxLength={6000}
+        onBlur={(e) => e.target.value.trim() !== (config?.identidade_motion ?? '') && salvar({ identidade_motion: e.target.value.trim() })}
+        className="rounded-[3px] border border-line bg-white px-3.5 py-2.5 text-[12.5px] leading-[1.6] text-ink outline-none focus-visible:border-ink"
       />
     </Grupo>
   )

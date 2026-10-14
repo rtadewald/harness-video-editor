@@ -7,14 +7,13 @@ import { cn } from "@/lib/utils";
 import MotionNoLugar from "./MotionNoLugar";
 import EscolhaSons from "@/editor/EscolhaSons";
 import { escolhasDeSom } from "./sons";
-import { ajustarMotion, listarPresets, urlPaginaPreset, type Formato, type MotionPlano, type Preset } from "./api";
+import { ajustarMotion, esquecerPresets, presetsEmCache, urlPaginaPreset, type Formato, type MotionPlano, type Preset } from "./api";
 
-let cache: Promise<Preset[]> | null = null;
 /** Os presets (escritos à mão, no código): carregados uma vez por página. */
 export function usePresets() {
   const [lista, setLista] = useState<Preset[] | null>(null);
   useEffect(() => {
-    void (cache ??= listarPresets()).then(setLista).catch(() => (cache = null));
+    void presetsEmCache().then(setLista).catch(esquecerPresets);
   }, []);
   return lista;
 }
