@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { History, PanelLeftClose, PanelLeftOpen, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
 import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, json, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, gerarDirecao, motoresRodando, passoRodando, recalcularCortes, reenquadrando, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
 import { abrirAba } from '@/components/abasProjetos'
 import { Logo } from '@/components/Marca'
@@ -10,6 +10,7 @@ import { emCampoDeTexto, modalAberto, soltarFoco } from '@/lib/atalhos'
 import EtapaDirecao from '@/direcao/EtapaDirecao'
 import EtapaInserts from '@/inserts/EtapaInserts'
 import Exportar from '@/editor/Exportar'
+import Versoes from '@/editor/Versoes'
 import { ETAPAS } from '@/editor/etapas'
 import { calcularCortes, trechoDaEmenda, type Corte, type Selecao } from '@/preprocessamento/cortes'
 import LinhaVertical from '@/preprocessamento/LinhaVertical'
@@ -389,7 +390,7 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
         <div className="ml-auto flex shrink-0 items-center gap-1 text-fog">
           <BotaoFuturo rotulo="Desfazer (fase 3b)"><Undo2 /></BotaoFuturo>
           <BotaoFuturo rotulo="Refazer (fase 3b)"><Redo2 /></BotaoFuturo>
-          <BotaoFuturo rotulo="Versões (fase 3b)"><History /></BotaoFuturo>
+          <Versoes projetoId={projeto.id} mudou={() => void recarregar()} />
           <button onClick={() => setConfigAberta(true)} aria-label="Configurações" title="Configurações" className="grid size-8 place-items-center rounded-full hover:bg-cream/10 hover:text-cream [&_svg]:size-4">
             <Settings />
           </button>

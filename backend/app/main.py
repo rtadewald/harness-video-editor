@@ -1,10 +1,13 @@
 """API do Harness Video Editor: o app, o que recomeça quando o servidor sobe e as rotas de cada assunto (`rotas/`)."""
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
 
-from . import audio, banco, captura_site, comum, direcao, direcao_projeto, enquadramento, entradas, exportacao, pipeline, recorte_ator, rosto
-from .rotas import (audio as r_audio, codigos as r_codigos, cortes as r_cortes, direcao as r_direcao, exportacao as r_exportacao, inserts as r_inserts,
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
+
+from . import audio, banco, versoes, captura_site, comum, direcao, direcao_projeto, enquadramento, entradas, exportacao, pipeline, recorte_ator, rosto
+from .rotas import (audio as r_audio, codigos as r_codigos, versoes as r_versoes, cortes as r_cortes, direcao as r_direcao, exportacao as r_exportacao, inserts as r_inserts,
                     legenda as r_legenda, motions as r_motions, preprocessamento as r_preprocessamento, presets as r_presets,
                     projetos as r_projetos, referencias as r_referencias, rosto as r_rosto, transicoes as r_transicoes)
 
@@ -30,5 +33,30 @@ async def ciclo(_app):
 
 app = FastAPI(title='Harness Video Editor', lifespan=ciclo)
 
-for r in (r_codigos, r_projetos, r_referencias, r_cortes, r_direcao, r_inserts, r_exportacao, r_presets, r_motions, r_rosto, r_preprocessamento, r_transicoes, r_audio, r_legenda):
+for r in (r_codigos, r_versoes, r_projetos, r_referencias, r_cortes, r_direcao, r_inserts, r_exportacao, r_presets, r_motions, r_rosto, r_preprocessamento, r_transicoes, r_audio, r_legenda):
     app.include_router(r.rotas)
+
+
+@app.middleware('http')
+async def autoria(request: Request, call_next):
+    """Toda edição de uma etapa feita pela tela (sem `X-Autor: claude`) fica marcada como de Rodrigo, na versão em que
+    foi feita; com o projeto travado ("Claude editando"), a tela não edita (docs/editor-claude.md, E2)."""
+    if request.method not in ('PUT', 'POST', 'PATCH', 'DELETE') or not request.url.path.startswith('/api/projetos/'):
+        return await call_next(request)
+    do_claude = request.headers.get('x-autor') == 'claude'
+    alvo = versoes.alvos_da_rota(request.url.path, await request.body())
+    if alvo and not do_claude:
+        try:
+            t = await run_in_threadpool(versoes.trava, alvo[0])
+        except FileNotFoundError:
+            t = None
+        if t:
+            etapa = f' ({t["etapa"]})' if t.get('etapa') else ''
+            return JSONResponse({'detail': f'O Claude está editando este projeto{etapa}: espere a versão chegar.'}, status_code=423)
+    resposta = await call_next(request)
+    if alvo and not do_claude and resposta.status_code < 400:
+        try:
+            await run_in_threadpool(versoes.marcar_manual, alvo[0], alvo[1], alvo[2], request.url.path)
+        except FileNotFoundError:
+            pass
+    return resposta
