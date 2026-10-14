@@ -7,14 +7,19 @@ import {
   descreverItemBanco,
   editarItemBanco,
   lerItemBanco,
+  lerRecusados,
+  limparRecusados,
   listarBanco,
+  marcarSeloBanco,
   subirNoBanco,
   urlBancoArquivo,
   urlBancoMiniatura,
   versaoBanco,
   type ItemBanco,
+  type SeloBanco as Selo,
   type TipoMidia,
 } from '@/api'
+import SeloBanco from '@/components/SeloBanco'
 import EditorVideo from '@/inserts/EditorVideo'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
@@ -35,6 +40,13 @@ const FILTROS: [TipoMidia | null, string][] = [
   ['video', 'Vídeos'],
   ['imagem', 'Imagens'],
 ]
+/** O filtro pelo selo da faxina ('nenhum': sem selo, de um projeto ainda em edição). */
+const FILTROS_SELO: [Selo | 'nenhum', string][] = [
+  ['usado', 'Usados'],
+  ['aprovado', 'Aprovados'],
+  ['recusado', 'Recusados'],
+  ['nenhum', 'Sem selo'],
+]
 const seg = (t: number) => `${t.toFixed(1).replace('.', ',')} s`
 const CAMPO = 'w-full rounded-[3px] border border-line-dark bg-deeper px-2.5 py-2 text-[12.5px] text-cream outline-none focus:border-cream/60'
 
@@ -43,6 +55,8 @@ const CAMPO = 'w-full rounded-[3px] border border-line-dark bg-deeper px-2.5 py-
 export default function Banco() {
   const [itens, setItens] = useState<ItemBanco[] | null>(null)
   const [tipo, setTipo] = useState<TipoMidia | null>(null)
+  const [selo, setSelo] = useState<Selo | 'nenhum' | null>(null)
+  const [recusados, setRecusados] = useState<string[]>([])
   const [aberto, setAberto] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(0)
   const [arrastando, setArrastando] = useState(false)
@@ -50,8 +64,11 @@ export default function Banco() {
   const entrada = useRef<HTMLInputElement>(null)
 
   const carregar = () =>
-    listarBanco('')
-      .then(setItens)
+    Promise.all([listarBanco(''), lerRecusados()])
+      .then(([l, r]) => {
+        setItens(l)
+        setRecusados(r.ids)
+      })
       .catch((e) => setErro((e as Error).message))
   useEffect(() => {
     void carregar()
@@ -86,8 +103,17 @@ export default function Banco() {
     await carregar()
   }
 
-  const visiveis = useMemo(() => (itens ?? []).filter((i) => !tipo || i.tipo === tipo), [itens, tipo])
-  const contagem = (t: TipoMidia | null) => (itens ?? []).filter((i) => !t || i.tipo === t).length
+  const comSelo = (i: ItemBanco, s: Selo | 'nenhum' | null) => !s || (s === 'nenhum' ? !i.estado : i.estado === s)
+  const visiveis = useMemo(() => (itens ?? []).filter((i) => (!tipo || i.tipo === tipo) && comSelo(i, selo)), [itens, tipo, selo])
+  const contagem = (t: TipoMidia | null) => (itens ?? []).filter((i) => (!t || i.tipo === t) && comSelo(i, selo)).length
+  const contagemSelo = (s: Selo | 'nenhum') => (itens ?? []).filter((i) => (!tipo || i.tipo === tipo) && comSelo(i, s)).length
+
+  // a faxina: os recusados (o que o Claude trouxe e ficou de fora de um vídeo aprovado) vão para a lixeira do banco
+  async function limpar() {
+    if (!window.confirm(`Levar ${recusados.length} mídia${recusados.length > 1 ? 's' : ''} recusada${recusados.length > 1 ? 's' : ''} (com os trechos) para a lixeira do banco? Nada que algum projeto use, nem o que você subiu.`)) return
+    await limparRecusados().catch((e) => setErro(e.message))
+    await carregar()
+  }
 
   return (
     <div
@@ -129,10 +155,21 @@ export default function Banco() {
             {nome}
           </Chip>
         ))}
+        <span className="mx-2 h-5 w-px bg-line-dark" />
+        {FILTROS_SELO.map(([s, nome]) => (
+          <Chip key={s} ativo={selo === s} onClick={() => setSelo(selo === s ? null : s)} n={contagemSelo(s)}>
+            {nome}
+          </Chip>
+        ))}
         <span className="ml-auto text-[12px] text-fog">
           {descrevendo > 0 && `IA descrevendo ${descrevendo} · `}
           {visiveis.length} mídia{visiveis.length === 1 ? '' : 's'}
         </span>
+        {recusados.length > 0 && (
+          <Button variant="pill" size="sm" className="ml-2 text-fog hover:text-coral" onClick={() => void limpar()} title="Leva os recusados para a lixeira do banco (dados/banco/_lixeira; dá para recuperar)">
+            <Trash2 className="size-3.5" /> Limpar recusados ({recusados.length})
+          </Button>
+        )}
       </nav>
 
       <main className={cn('overflow-y-auto px-8 py-8 transition-colors', arrastando && 'bg-coral/10')}>
@@ -195,7 +232,8 @@ function Chip({ ativo, onClick, n, children }: { ativo: boolean; onClick: () => 
 /** Miniatura da mídia; um vídeo toca (mudo) com o mouse em cima. */
 function Cartao({ item: i, abrir, apagar }: { item: ItemBanco; abrir: () => void; apagar: () => void }) {
   const [tocando, setTocando] = useState(false)
-  const status = STATUS_IA[i.ia.status]
+  // "sem descrição" só quando não há nenhuma (as do 19 e as do Claude vêm descritas, sem a IA do app)
+  const status = i.ia.status === 'pendente' && i.descricao ? '' : STATUS_IA[i.ia.status]
   return (
     <li className="group relative" onMouseEnter={() => setTocando(i.tipo === 'video')} onMouseLeave={() => setTocando(false)}>
       <button onClick={abrir} className="block w-full text-left">
@@ -221,6 +259,7 @@ function Cartao({ item: i, abrir, apagar }: { item: ItemBanco; abrir: () => void
           <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.02em]" title={i.nome}>
             {i.nome}
           </h3>
+          <SeloBanco estado={i.estado} />
           <ChipCodigo tipo="midia" id={i.id} nome={i.nome} />
         </div>
         {status ? (
@@ -328,8 +367,11 @@ function Detalhe({ bid, fechar, mudou }: { bid: string; fechar: () => void; mudo
                 <Dado rotulo="Duração" valor={item.tipo === 'video' ? seg(item.duracao) : '— (imagem)'} />
                 <Dado
                   rotulo="Origem"
-                  valor={item.origem.tipo === 'captura de site' ? 'Captura de site' : item.origem.tipo === 'captura automática' ? 'Captura automática' : 'Upload'}
-                  detalhe={(item.origem.tipo === 'captura de site' ? item.origem.url : item.origem.nome_original) ?? undefined}
+                  valor={
+                    (item.origem.tipo === 'captura de site' ? 'Captura de site' : item.origem.tipo === 'captura automática' ? 'Captura automática' : item.origem.tipo === 'web' ? 'Web' : 'Upload') +
+                    (item.trazido_por === 'claude' ? ' · pelo Claude' : '')
+                  }
+                  detalhe={(item.origem.url ?? item.origem.nome_original) ?? undefined}
                 />
                 <Dado
                   rotulo="Entrou em"
@@ -337,6 +379,49 @@ function Detalhe({ bid, fechar, mudou }: { bid: string; fechar: () => void; mudo
                 />
               </div>
 
+              <Bloco titulo="Selo">
+                <div className="flex flex-wrap items-center gap-2">
+                  <SeloBanco estado={item.estado} className="px-2.5 py-1 text-[11px]" />
+                  {!item.estado && <span className="text-fog">Sem selo (o projeto dela ainda está em edição)</span>}
+                  <span className="ml-auto flex gap-1.5">
+                    {(['aprovado', 'recusado'] as const).map((e) => (
+                      <Button
+                        key={e}
+                        variant="pill"
+                        size="sm"
+                        className="text-fog hover:text-cream"
+                        disabled={item.estado === e}
+                        onClick={() =>
+                          void marcarSeloBanco(bid, e)
+                            .then((i) => {
+                              preencher({ ...item, ...i })
+                              mudou()
+                            })
+                            .catch(falhar)
+                        }
+                      >
+                        {e === 'aprovado' ? 'Aprovar' : 'Recusar'}
+                      </Button>
+                    ))}
+                    <Button
+                      variant="pill"
+                      size="sm"
+                      className="text-fog hover:text-cream"
+                      title="Tira o selo à mão: volta ao automático (usado em vídeo aprovado, subido por você, trazido pelo Claude…)"
+                      onClick={() =>
+                        void marcarSeloBanco(bid, null)
+                          .then((i) => {
+                            preencher({ ...item, ...i })
+                            mudou()
+                          })
+                          .catch(falhar)
+                      }
+                    >
+                      Automático
+                    </Button>
+                  </span>
+                </div>
+              </Bloco>
               <Bloco titulo="Nome">
                 <input value={nome} onChange={(e) => setNome(e.target.value)} className={CAMPO} />
               </Bloco>

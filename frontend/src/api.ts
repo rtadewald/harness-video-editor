@@ -412,6 +412,7 @@ export type InsertsProjeto = {
   /** Os presets dos planos de Full ator: o movimento de câmera de cada um (sem chave = nada). */
   ator_planos?: Record<string, Movimento>
 }
+export type SeloBanco = 'usado' | 'aprovado' | 'recusado'
 /** Uma mídia do banco global. */
 export type ItemBanco = {
   id: string
@@ -424,7 +425,15 @@ export type ItemBanco = {
   altura: number | null
   duracao: number
   criado_em?: string
-  origem: { tipo: 'upload' | 'captura automática' | 'captura de site'; nome_original?: string; url?: string | null; dobra?: number }
+  origem: { tipo: 'upload' | 'captura automática' | 'captura de site' | 'web'; nome_original?: string; url?: string | null; dobra?: number }
+  /** O selo da faxina (docs/editor-claude.md §7): usado em vídeo aprovado, aprovado (à mão ou subido por Rodrigo),
+   *  recusado (à mão, ou trazido pelo Claude e de fora do vídeo aprovado) ou nenhum (projeto ainda em edição). */
+  estado?: SeloBanco | null
+  /** Quem trouxe: o Claude, para um projeto (`projeto`); sem isso, Rodrigo (`do_criador`). */
+  trazido_por?: 'claude'
+  projeto?: string
+  do_criador?: boolean
+  usos_aprovados?: { projeto: string; versao: number }[]
   ia: { status: 'fila' | 'rodando' | 'pronto' | 'erro' | 'pendente'; erro: string | null }
   descricao_ia?: string
   usos?: { projeto: string; nome: string; pedido: string; fala: string }[]
@@ -460,6 +469,9 @@ export const criarTrecho = (bid: string, f: { inicio: number; fim: number; nome?
 export const cortarOriginal = (bid: string, f: { inicio: number; fim: number }) => enviar<ItemBanco>('POST', `/api/banco/${bid}/cortar`, f)
 export const urlBancoTira = (bid: string) => `/api/banco/${bid}/tira`
 export const apagarItemBanco = (bid: string) => enviar<{ ok: boolean }>('DELETE', `/api/banco/${bid}`)
+export const marcarSeloBanco = (bid: string, estado: 'aprovado' | 'recusado' | null) => enviar<ItemBanco>('PUT', `/api/banco/${bid}/estado`, { estado })
+export const lerRecusados = () => fetch('/api/banco-recusados').then(json<{ ids: string[] }>)
+export const limparRecusados = () => post<{ levados: string[] }>('/api/banco-recusados/limpar')
 export const descreverItemBanco = (bid: string) => enviar<ItemBanco>('POST', `/api/banco/${bid}/descrever`)
 export const previaSite = (id: string, url: string, proporcao: ProporcaoCaptura) =>
   enviar<PreviaSite>('POST', `/api/projetos/${id}/inserts/captura/previa`, { url, proporcao })

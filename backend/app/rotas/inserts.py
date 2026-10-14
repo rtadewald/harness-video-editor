@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -73,12 +73,17 @@ class CapturaSite(PreviaSite):
     duracao: float = Field(default=captura_site.DURACAO_PADRAO, ge=1, le=30)  # s por dobra
 
 
+def _do_claude(request: Request) -> bool:
+    return request.headers.get('x-autor') == 'claude'
+
+
 @rotas.post('/api/projetos/{id}/inserts/{pid}/captura')
-def capturar_site(id: str, pid: str, c: CapturaSite):
-    """Grava as dobras do site em segundo plano; cada uma vira uma mídia do banco ligada ao insert."""
+def capturar_site(id: str, pid: str, c: CapturaSite, request: Request):
+    """Grava as dobras do site em segundo plano; cada uma vira uma mídia do banco ligada ao insert (pelo Claude: com o
+    selo do projeto, para a faxina do banco)."""
     _ler(id)
     try:
-        return captura_site.capturar(id, pid, c.url, c.proporcao, c.dobras, c.titulo, c.duracao)
+        return captura_site.capturar(id, pid, c.url, c.proporcao, c.dobras, c.titulo, c.duracao, claude=_do_claude(request))
     except LookupError as e:
         raise HTTPException(404, str(e))
     except ValueError as e:
@@ -189,13 +194,14 @@ def configurar_comentario(id: str, pid: str, c: ComentarioIG):
         raise HTTPException(422, str(e))
 
 
-def _subir_no_banco(arquivos: list[UploadFile]) -> list[dict]:
+def _subir_no_banco(arquivos: list[UploadFile], claude: str | None = None, descricao: str = '', palavras: list[str] | None = None,
+                    fonte: dict | None = None) -> list[dict]:
     novos = []
     for a in arquivos:
         tmp = Path(tempfile.mkdtemp()) / 'arquivo'
         _guardar(a, tmp)
         try:
-            novos.append(banco.subir(tmp, a.filename or 'arquivo'))
+            novos.append(banco.subir(tmp, a.filename or 'arquivo', fonte, claude=claude, descricao=descricao, palavras=palavras))
         except ValueError as e:
             raise HTTPException(422, f'{a.filename}: {e}')
         finally:
@@ -209,9 +215,38 @@ def listar_banco(busca: str = '', tipo: Literal['video', 'imagem'] | None = None
 
 
 @rotas.post('/api/banco')
-def subir_no_banco(arquivos: Annotated[list[UploadFile], File()]):
-    """Sobe vídeos e imagens para o banco (a descrição por IA roda em segundo plano)."""
-    return _subir_no_banco(arquivos)
+def subir_no_banco(arquivos: Annotated[list[UploadFile], File()], request: Request, projeto: Annotated[str | None, Form()] = None,
+                   descricao: Annotated[str, Form(max_length=2000)] = '', palavras: Annotated[str, Form(max_length=1200)] = '',
+                   url: Annotated[str | None, Form(max_length=2000)] = None):
+    """Sobe vídeos e imagens para o banco (a descrição por IA roda em segundo plano). Pelo Claude (`X-Autor: claude`):
+    `projeto` diz para qual projeto ele trouxe (o selo da faxina), com a descrição dele (a IA não descreve de novo) e a
+    `url` de onde veio."""
+    claude = (projeto or '-') if _do_claude(request) else None
+    fonte = {'tipo': 'web', 'url': url} if url else None
+    return _subir_no_banco(arquivos, claude, descricao, [p.strip() for p in palavras.split(',') if p.strip()] or None, fonte)
+
+
+class Selo(BaseModel):
+    estado: Literal['aprovado', 'recusado'] | None = None
+
+
+@rotas.put('/api/banco/{bid}/estado')
+def marcar_selo(bid: str, s: Selo):
+    """O selo à mão (aprovado, recusado); sem ele, volta ao automático (usado em vídeo aprovado, etc.)."""
+    _item(bid)
+    return banco.marcar_estado(bid, s.estado)
+
+
+@rotas.get('/api/banco-recusados')
+def ver_recusados():
+    """O que "Limpar recusados" levaria para a lixeira do banco (os originais; os trechos vão junto)."""
+    return {'ids': banco.recusados()}
+
+
+@rotas.post('/api/banco-recusados/limpar')
+def limpar_recusados():
+    """Leva os recusados para `banco/_lixeira/` (dá para recuperar movendo a pasta de volta)."""
+    return {'levados': banco.limpar_recusados()}
 
 
 def _item(bid: str) -> dict:
@@ -225,8 +260,10 @@ def _item(bid: str) -> dict:
 def ler_item_banco(bid: str):
     """A mídia, onde é usada e, num vídeo original, os trechos dele (cada um com os seus usos)."""
     item = _item(bid)
-    trechos = [] if item.get('pai') else [{**banco.ler_item(t['id']), 'usos': banco.usos(t['id'])} for t in banco.trechos_de(bid)]
-    return {**item, 'usos': banco.usos(bid), 'trechos': trechos}
+    est = banco.estados()
+    selo = lambda x: est.get(x, {}).get('estado')  # noqa: E731
+    trechos = [] if item.get('pai') else [{**banco.ler_item(t['id']), 'usos': banco.usos(t['id']), 'estado': selo(t['id'])} for t in banco.trechos_de(bid)]
+    return {**item, 'usos': banco.usos(bid), 'trechos': trechos, 'estado': selo(bid), 'usos_aprovados': est.get(bid, {}).get('usos', [])}
 
 
 class EdicaoItem(BaseModel):

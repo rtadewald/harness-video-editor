@@ -72,6 +72,7 @@ import {
   
   type TipoMidia,
 } from '@/api'
+import SeloBanco from '@/components/SeloBanco'
 import Modal from '@/components/Modal'
 import { cn } from '@/lib/utils'
 
@@ -156,8 +157,9 @@ export default function SeletorBanco(p: { tipo?: TipoMidia; fechar: () => void; 
                     )}
                   </div>
                   <span className="truncate text-[12px] font-semibold">{i.nome}</span>
-                  <span className="text-[10.5px] text-fog">
+                  <span className="flex items-center gap-1.5 text-[10.5px] text-fog">
                     {entrouEm(i.criado_em)} · {i.formato}
+                    <SeloBanco estado={i.estado} className="ml-auto" />
                   </span>
                 </button>
                 {lixeira(i, 'absolute top-3.5 left-3.5')}

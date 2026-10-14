@@ -7,7 +7,13 @@ onde. Onde cada mídia é usada é calculado lendo os projetos.
 
 TRECHOS (decisão de Rodrigo, out/2026): pedaços de um vídeo do banco (`pai`, `inicio`, `fim`), sem arquivo próprio — tocam
 o original. Herdam do original a descrição, as palavras-chave e o formato. O original só muda quando é editado (cortar as
-pontas): aí os trechos acompanham o novo começo, e os que caem fora somem."""
+pontas): aí os trechos acompanham o novo começo, e os que caem fora somem.
+
+SELOS (docs/editor-claude.md §7, E6; do 19): `usado` (entrou num vídeo aprovado: ela ou um trecho dela), `aprovado`
+(marcada à mão, ou subida por Rodrigo), `recusado` (marcada à mão, ou trazida pelo Claude para um projeto já aprovado e
+que ficou de fora, ou para um projeto que foi para a lixeira) ou nenhum (trazida pelo Claude para um projeto ainda em
+edição). As mídias copiadas do 19 guardam o selo que tinham lá (`estado_19`). "Limpar recusados" leva os originais
+recusados (com os trechos) para `banco/_lixeira/`; nunca o que Rodrigo subiu nem o que algum projeto ainda usa."""
 import math
 import shutil
 import threading
@@ -120,7 +126,9 @@ def listar_banco(busca: str = '', tipo: str | None = None) -> list[dict]:
             if not all(t in texto for t in termos):
                 continue
         itens.append({**i, 'trechos': filhos})
-    return sorted(itens, key=lambda i: i.get('criado_em') or '', reverse=True)
+    est = estados()
+    sel = lambda x: {**x, 'estado': est.get(x['id'], {}).get('estado')}  # noqa: E731
+    return sorted(({**sel(i), 'trechos': [sel(t) for t in i['trechos']]} for i in itens), key=lambda i: i.get('criado_em') or '', reverse=True)
 
 
 VERSAO_PROXY = 2  # 2: quadro-chave a cada 12 quadros, para a busca na timeline do editor ser imediata
@@ -152,9 +160,12 @@ def _refazer_proxy(bid: str) -> None:
         traceback.print_exc()
 
 
-def subir(origem: Path, nome_original: str, fonte: dict | None = None) -> dict:
+def subir(origem: Path, nome_original: str, fonte: dict | None = None, claude: str | None = None, descricao: str = '',
+          palavras: list[str] | None = None) -> dict:
     """Guarda um arquivo no banco (a partir de um temporário), prepara a versão leve e a miniatura e põe a descrição por
-    IA na fila. `fonte`: de onde veio, quando não é um upload (ex.: captura de site). Devolve o item."""
+    IA na fila. `fonte`: de onde veio, quando não é um upload (ex.: captura de site). `claude`: o projeto para o qual o
+    Claude trouxe a mídia (sem ele, foi Rodrigo: `do_criador`); com a `descricao` dele, a IA do app não descreve de novo.
+    Devolve o item."""
     ext = Path(nome_original).suffix.lower()
     if ext not in EXT_VIDEO + EXT_IMAGEM:
         raise ValueError(f'Formato não aceito ({ext or "sem extensão"}): use MP4, MOV, WebM, PNG, JPG ou WebP')
@@ -181,8 +192,12 @@ def subir(origem: Path, nome_original: str, fonte: dict | None = None) -> dict:
         'proxy': 'proxy.mp4' if tipo == 'video' else None, 'proxy_v': VERSAO_PROXY, 'largura': info.get('largura'), 'altura': info.get('altura'),
         'duracao': info.get('duracao') or 0.0, 'formato': formato_de(info.get('largura'), info.get('altura')),
         'origem': fonte or {'tipo': 'upload', 'nome_original': nome_original}, 'criado_em': datetime.now().isoformat(timespec='seconds'),
-        'ia': {'status': 'fila', 'erro': None}})
-    _descricoes.submit(descrever, bid)
+        'ia': {'status': 'pronto' if descricao.strip() else 'fila', 'erro': None},
+        **({'trazido_por': 'claude', 'projeto': claude} if claude else {'do_criador': True})})
+    if descricao.strip() or palavras:
+        item = atualizar_item(bid, {'descricao': descricao, 'palavras': palavras})
+    if not descricao.strip():
+        _descricoes.submit(descrever, bid)
     return item
 
 
@@ -306,6 +321,131 @@ def apagar_item(bid: str) -> None:
                     x['midias'] = [m for m in x.get('midias') or [] if m['banco'] != bid]
         projeto.atualizar(u['projeto'], tirar)
     shutil.rmtree(pasta_item(bid), ignore_errors=True)
+
+
+# ---------------------------------------------------------------- selos e faxina
+
+ESTADOS = ('aprovado', 'recusado')
+LIXEIRA = '_lixeira'
+
+
+def _todos() -> list[dict]:
+    out = []
+    for arq in RAIZ.glob('*/item.json'):
+        try:
+            out.append(comum.ler_json(arq))
+        except ValueError:
+            continue
+    return out
+
+
+def _ids_em(valor, ids: set[str]) -> set[str]:
+    """As mídias do banco citadas num estado de projeto (os inserts e os campos dos motions)."""
+    if isinstance(valor, str):
+        return {valor} if valor in ids else set()
+    if isinstance(valor, dict):
+        return set().union(*(_ids_em(v, ids) for v in valor.values())) if valor else set()
+    if isinstance(valor, list):
+        return set().union(*(_ids_em(v, ids) for v in valor)) if valor else set()
+    return set()
+
+
+def usos_aprovados(ids: set[str]) -> tuple[dict[str, list[dict]], set[str]]:
+    """O que entrou nos vídeos aprovados (a última versão aprovada de cada projeto): `{banco_id: [{projeto, versao}]}` e
+    os projetos aprovados."""
+    from . import versoes
+    midias: dict[str, list[dict]] = {}
+    aprovados: set[str] = set()
+    for r in projeto.listar():
+        n = versoes.aprovada(r['id'])
+        if n is None:
+            continue
+        aprovados.add(r['id'])
+        estado = versoes.ler(r['id'], n).get('estado') or {}
+        for bid in _ids_em({'inserts': estado.get('inserts'), 'motions': estado.get('motions')}, ids):
+            midias.setdefault(bid, []).append({'projeto': r['id'], 'versao': n})
+    return midias, aprovados
+
+
+def estados() -> dict[str, dict]:
+    """O selo de cada mídia (originais e trechos), com os usos aprovados (ver o começo do arquivo)."""
+    itens = _todos()
+    por_id = {i['id']: i for i in itens}
+    midias, aprovados = usos_aprovados(set(por_id))
+    existem = {r['id'] for r in projeto.listar()}
+    por_pai: dict[str, list[str]] = {}
+    for i in itens:
+        if i.get('pai'):
+            por_pai.setdefault(i['pai'], []).append(i['id'])
+    out = {}
+    for i in itens:
+        dono = por_id.get(i.get('pai')) or i  # um trecho segue o original em quem trouxe
+        us = [*midias.get(i['id'], []), *(u for t in por_pai.get(i['id'], []) for u in midias.get(t, []))]
+        if us or i.get('estado_19') == 'usado':
+            estado = 'usado'
+        elif i.get('estado') in ESTADOS:
+            estado = i['estado']
+        elif dono.get('do_criador') or (not dono.get('trazido_por') and not dono.get('estado_19')):
+            estado = 'aprovado'  # Rodrigo subiu (as de antes do selo também)
+        elif dono.get('trazido_por') == 'claude':
+            prj = dono.get('projeto')
+            # sem projeto ('-'): fica sem selo até ser usado ou marcado
+            estado = 'recusado' if prj in aprovados or (prj not in ('-', None) and prj not in existem) else None
+        else:
+            estado = i.get('estado_19') or dono.get('estado_19')
+        out[i['id']] = {'estado': estado, 'usos': us}
+    return out
+
+
+def marcar_estado(bid: str, estado: str | None) -> dict:
+    """O selo à mão (aprovado/recusado); None volta ao automático."""
+    if estado is not None and estado not in ESTADOS:
+        raise ValueError('Selo inválido')
+    item = comum.ler_json(pasta_item(bid) / 'item.json')
+    if estado:
+        item['estado'] = estado
+    else:
+        item.pop('estado', None)
+    salvar_item(item)
+    return {**ler_item(bid), 'estado': estados().get(bid, {}).get('estado')}
+
+
+def recusados() -> list[str]:
+    """Os originais que "Limpar recusados" levaria (com os trechos): nunca o que Rodrigo subiu nem o que algum projeto usa."""
+    est = estados()
+    itens = _todos()
+    em_uso = {m['banco'] for r in projeto.listar() for m in _midias_do_projeto(r['id'])}
+    out = []
+    for i in itens:
+        if i.get('pai') or est.get(i['id'], {}).get('estado') != 'recusado' or i.get('do_criador'):
+            continue
+        ids = [i['id'], *(t['id'] for t in itens if t.get('pai') == i['id'])]
+        if not em_uso.intersection(ids):
+            out.append(i['id'])
+    return out
+
+
+def _midias_do_projeto(id: str) -> list[dict]:
+    try:
+        p = projeto.ler(id)
+    except FileNotFoundError:
+        return []
+    ids = {i['id'] for i in _todos()}
+    return [*(m for x in (p.get('inserts') or {}).get('pedidos', []) for m in x.get('midias') or []),
+            *({'banco': b} for b in _ids_em(p.get('motions'), ids))]
+
+
+def limpar_recusados() -> list[str]:
+    """Leva para `banco/_lixeira/<id>-<data>` os originais recusados, com os trechos. Devolve os ids levados."""
+    levados = []
+    carimbo = datetime.now().strftime('%Y%m%d-%H%M%S')
+    for bid in recusados():
+        ids = [bid, *(t['id'] for t in trechos_de(bid))]
+        (RAIZ / LIXEIRA).mkdir(exist_ok=True)
+        for x in ids:
+            shutil.move(str(pasta_item(x)), str(RAIZ / LIXEIRA / f'{x}-{carimbo}'))
+        levados += ids
+    return levados
 
 
 def arquivo_para_tocar(item: dict) -> Path:
