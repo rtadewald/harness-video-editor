@@ -2087,7 +2087,7 @@ Nada direto.
 As **preferências do app** (`paginas/Configuracoes.tsx`), num diálogo com abas por etapa. Não são do projeto: valem para o app todo, para os próximos cálculos e os próximos projetos.
 
 #### Passo a passo
-1. **Abrir:** a engrenagem na tela de projetos (abre em **Geral**) ou no topo do editor. No editor, **abre na aba da etapa em que se está**: **Cortes** no Pré-processamento, **Direção visual** na Direção visual e **Geral** nas outras (pedido de Rodrigo, out/2026).
+1. **Abrir:** a engrenagem na tela de projetos (abre em **Geral**) ou no topo do editor. No editor, **abre na aba da etapa em que se está**: **Cortes** no Pré-processamento, **Direção visual** na Direção visual, **Motions** em Inserts e **Geral** nas outras (pedido de Rodrigo, out/2026). A aba **Motions** guarda a identidade visual dos motions novos que o Claude escreve (`identidade_motion`; docs/editor-claude.md, E7).
 2. **Mudar um campo:** cada mudança é **gravada na hora** (`PUT /api/config`) em `dados/projetos/_config.json`. Escolhas de lista e botões salvam no clique; campos de texto e números salvam ao sair do campo ou com Enter. Aparece "✓ Salvo como padrão do app. Vale também depois de reiniciar."; um erro aparece em vermelho.
 3. 💡 Um campo numérico **vazio não salva** (virar 0 desligaria o corte de pausas sem querer). Valores fora da faixa são presos aos limites no servidor; um arquivo ausente ou ilegível volta aos padrões.
 
@@ -2129,6 +2129,37 @@ Indireto: o motor e as margens definem os cortes; os modelos da direção define
 
 ⏳ Na P4 a legenda desvia da costura da tela dividida, da janela do "ator embaixo" e da caixinha de comentário, mas não do conteúdo dos inserts em tela cheia e dos motions (só existe desenhado na hora): a decidir com Rodrigo. Destaques: as referências não têm (nenhuma palavra muda de cor nem de tamanho). Detalhe em [legenda.md](docs/legenda.md).
 
+### 8.19 Revisão (a etapa 07)
+
+#### O que é
+✅ A tela em que Rodrigo revisa a versão que o Claude entregou (docs/editor-claude.md §6, E8; no molde da Revisão do 19), **tocando a prévia montada ao vivo** (sem MP4). Os comentários são para o que é **estrutural** — trocar um insert, um motion, um plano; o ajuste fino ele faz à mão nas etapas. Código: `frontend/src/revisao/` (`EtapaRevisao.tsx`, `comum.ts`, `api.ts`); backend `backend/app/revisoes.py`, rotas em `rotas/revisoes.py`.
+
+#### Passo a passo
+1. **(automático)** O Claude marca a versão (`A versao-marcar`), com as **dúvidas** que deixou presas às palavras (`A duvida`), e destrava. Ao abrir o projeto com uma versão nova desde a última visita, o editor abre direto na **Revisão** (etapa 07).
+2. **(manual)** Assista. A caixa de comentário embaixo, à direita, **segue o cursor** ("Comentar em 0:05,2"); ao escrever, o vídeo **pausa** e o comentário **prende** naquele instante (o chip fica coral; × solta). **I** marca a entrada e **O** a saída de um trecho (a caixa prende no trecho); **C** desliga o tempo (**comentário geral**, sobre o vídeo todo) e religa. **⌘V** cola print ou vídeo (também arrastar, ou o clipe); só imagens e vídeos, até 500 MB. **Enter** grava, Shift+Enter quebra a linha.
+3. **(manual)** Responda as **dúvidas do Claude** (cartões amarelos, trilha "Claude"): "Responder" abre a caixa embaixo da dúvida.
+4. **(manual)** **Enviar revisão ↗** grava tudo, marca a revisão como enviada e **copia** o texto para colar no chat do Claude Code (`Revisão · PRJ-07 · v2`, um comentário por linha: `[0:05,2] "fala" — texto`, `[Geral] …`, `[↳ dúvida do Claude 0:18,7] …`, os anexos em `↳ print:`/`↳ anexo:` com o caminho, e o arquivo da revisão no fim). Sem nenhum comentário, avisa.
+5. **(automático)** O Claude aplica cada comentário pela ferramenta da etapa e responde (`A revisao-responder`): embaixo de cada comentário aparece **Claude · Aplicado ✓** (sálvia), **Respondido** (azul) ou **Não aplicado** (coral), com o texto. A tela relê a cada 4 s ("O Claude respondeu a revisão"); a versão nova chega pelo seletor do topo ("A vN chegou").
+6. **(manual)** **Aprovar** (confirma) aprova a versão e copia `Aprovado · PRJ-07 · v2` para colar no chat (o Claude fecha o ciclo: 4K, referência, aprendizados, faxina do banco — E9).
+
+#### O que você vê e pode fazer
+- **À esquerda:** **Plano agora** (o id e o tipo, o texto e a marcação), **Fala** (5 palavras de cada lado, a atual em destaque) e **No plano** (as mídias com miniatura e código BAN, o preset PRE, o motion MOT, a câmera no ator, a transição de entrada TRA; "Insert sem mídia" em amarelo).
+- **No meio:** a prévia montada (ator, inserts, motions, elementos, transições, legenda), com os controles do player.
+- **À direita:** "Comentários · vN", o salvamento (Salvando… / ✓ Salvo / Erro ao salvar), a contagem com os aplicados, respondidos e não aplicados, **Aprovar** (vira "✓ Aprovado") e **Enviar revisão ↗**; a faixa "Revisão enviada em … Esperando a vN+1" ou "✓ Aprovada"; a lista (gerais primeiro, depois pelo tempo, misturada com as dúvidas), cada comentário com o número, o tempo (clicar leva o vídeo até lá), o plano, a fala, o texto, as miniaturas dos anexos (clicar abre), a resposta do Claude e, ao passar o mouse, editar (o lápis; Enter salva, Esc cancela) e apagar (confirma; apaga os anexos).
+- **Embaixo, a linha do tempo:** Planos, Fala, **Você** (os números dos comentários; um trecho vira uma barra; a cor diz o status) e **Claude** (as dúvidas: ? ou ✓ respondida). A faixa amarela mostra o trecho I–O ou o ponto preso.
+- **Teclado:** Espaço toca · ←/→ 0,5 s (Shift 5 s) · I · O · C · Esc (solta a caixa, tira a entrada, desmarca).
+
+#### O que fica gravado
+- `dados/projetos/<id>/revisoes/vN.json`: `{versao, aprovado, aprovado_em?, enviado_em, comentarios: [{id: 'c1', t, fim, palavra, palavra_fim, fala, plano, texto, anexos?, geral?, responde?, criado_em, status, resposta}]}` — os tempos são do vídeo final da versão; a âncora que vale é a palavra. A tela grava 600 ms depois da última mudança (a lista inteira); o status e a resposta só o Claude muda (o servidor guarda os dele).
+- `revisoes/anexos/<cid>-<k>.<ext>` (png, jpg, webp, gif, mp4, mov, webm).
+- As dúvidas: `projeto.duvidas` enquanto o Claude edita; ao marcar a versão, vão para `versoes/vN.json` (`duvidas: [{id: 'd1', palavra, palavra_fim, texto, fala}]`). Aprovar grava `aprovada: true` em `versoes/vN.json` (os selos do banco e a E9 leem).
+- Rotas: `GET /api/projetos/{id}/revisao[?versao=]` (a revisão, as dúvidas e o texto), `PUT …/revisao/{n} {comentarios}`, `POST …/revisao/{n}/enviar`, `POST …/revisao/{n}/aprovar`, `POST …/revisao/{n}/responder {comentario, status, resposta}`, `POST …/revisao/{n}/anexo?comentario=` (o arquivo cru no corpo), `DELETE …/revisao/{n}/anexo?caminho=`, `POST /api/projetos/{id}/duvidas {palavra, palavra_fim, texto, fala}`. A revisão não é edição de etapa: não marca nada "à mão" e passa com o projeto travado.
+- CLI: `A revisao-ler <id> [--versao N]`, `A revisao-responder <id> <N> <cid> --status … --resposta …`, `A duvida <id> <palavra> "texto" [--ate <palavra>] [--fala …]`.
+
+#### Ligações
+- A revisão é sempre da **versão atual** do projeto (a última marcada ou restaurada no seletor do topo); para revisar outra, volte a ela no seletor.
+- ⏳ Sem comparação lado a lado entre versões (o 19 também não tinha).
+
 ## 9. Timeline e ligação entre etapas
 
 ✅ A timeline nasce **multitrilha**: V1 (o ator), V2 (inserts), V3 (motion), LEG (legenda) e o áudio (a voz, os sons dos presets, as transições e o fundo). Cada etapa mostra as trilhas que lhe interessam.
@@ -2140,7 +2171,7 @@ Indireto: o motor e as margens definem os cortes; os modelos da direção define
 ## 10. Desfazer e versões
 
 ✅ Toda ação, de Rodrigo ou do agente, entra numa pilha de histórico, com Ctrl+Z / Ctrl+Shift+Z.
-✅ Versões nomeadas podem ser salvas e restauradas (ex.: "antes do agente mexer").
+✅ Versões do projeto inteiro (docs/editor-claude.md, E2): o seletor no topo do editor salva a de agora e volta a uma (`versoes/vN.json`); o que Rodrigo muda à mão fica marcado (autor e versão) e o Claude respeita; "Claude editando" trava a tela. A revisão e a aprovação de cada versão: §8.19.
 💡 Cada entrada do histórico guarda autor (`criador` ou `agente`), etapa, descrição curta e um snapshot da timeline. O snapshot é JSON pequeno, então é mais simples do que guardar diffs.
 
 ## 11. Agente

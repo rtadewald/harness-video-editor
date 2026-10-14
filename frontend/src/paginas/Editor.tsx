@@ -33,6 +33,7 @@ import { useRosto } from '@/ator/ator'
 import EtapaTransicoes from '@/transicoes/EtapaTransicoes'
 import EtapaAudio from '@/audio/EtapaAudio'
 import EtapaLegenda from '@/legenda/EtapaLegenda'
+import EtapaRevisao from '@/revisao/EtapaRevisao'
 import CamadaLegenda from '@/legenda/CamadaLegenda'
 import { ajustesNoVideo, blocosDaLegenda, useLegendaDoProjeto, useZonasDaLegenda } from '@/legenda/legenda'
 import { falas as falasDoVideo, useAudioDoProjeto, useCadeiaNaPrevia, useCatalogoAudio, useFundoNaPrevia } from '@/audio/audio'
@@ -73,11 +74,21 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
   const [etapa, setEtapaBruta] = useState<Etapa>(() => {
     try {
       const e = localStorage.getItem(`editor.etapa.${id}`) as Etapa | null
+      // uma versão que o Claude entregou depois da última visita abre na Revisão (a primeira tela de um projeto dele)
+      const vista = Number(localStorage.getItem(`editor.versaoVista.${id}`) ?? 0)
+      if ((inicial.projeto.versao ?? 0) > vista) return 'revisao'
       return e && ETAPAS.some((x) => x.id === e) ? e : 'cortes'
     } catch {
       return 'cortes'
     }
   })
+  useEffect(() => {
+    try {
+      localStorage.setItem(`editor.versaoVista.${id}`, String(dados?.projeto.versao ?? 0))
+    } catch {
+      /* sem armazenamento */
+    }
+  }, [id, dados?.projeto.versao])
   const setEtapa = (e: Etapa) => {
     setEtapaBruta(e)
     try {
@@ -602,6 +613,19 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
               mudar={mudarAudio}
               falas={falas}
               sons={sonsTransicao}
+              duracao={seq.duracao}
+              tempo={player.tempo}
+              tocando={player.tocando}
+              buscar={player.buscar}
+              pausar={() => player.tocando && player.alternar()}
+            />
+          ) : etapa === 'revisao' ? (
+            <EtapaRevisao
+              projeto={projeto}
+              previa={previaMontada}
+              planos={planosSaida ?? []}
+              saida={naSaida?.saida ?? []}
+              cortes={cortesTransicao}
               duracao={seq.duracao}
               tempo={player.tempo}
               tocando={player.tocando}

@@ -408,6 +408,50 @@ def motions_recusados(_a):
         print('nenhum motion recusado')
 
 
+def revisao_ler(a):
+    """A revisão de Rodrigo (a da versão atual, sem --versao): o texto do envio e, por comentário, o id, a âncora (as
+    palavras), o plano, o status, a dúvida que ele responde, os anexos (abra com o Read) e a resposta já dada."""
+    pid = resolver(a.id, 'projeto')
+    r = chamar('GET', f'/api/projetos/{pid}/revisao', params={'versao': a.versao} if a.versao else None)
+    n, rev = r['versao'], r['revisao']
+    print(r['texto'])
+    estado = 'APROVADA' if rev.get('aprovado') else f'enviada em {rev["enviado_em"]}' if rev.get('enviado_em') else 'ainda não enviada'
+    print(f'\nEstado: {estado}. Para cada um: A revisao-responder {pid} {n} <id> --status aplicado|respondido|nao_aplicado --resposta "…"')
+    duvidas = {d['id']: d for d in r['duvidas']}
+    raiz = RAIZ / 'dados' / 'projetos' / pid
+    for c in sorted(rev['comentarios'], key=lambda c: -1 if c.get('geral') else c.get('t') or 0):
+        if not ((c.get('texto') or '').strip() or c.get('anexos')):
+            continue
+        if c.get('geral'):
+            print(f'\n- {c["id"]} · geral (o vídeo todo) · {c["status"]}')
+        else:
+            ancora = c.get('palavra') if not c.get('palavra_fim') or c['palavra_fim'] == c.get('palavra') else f'{c.get("palavra")}–{c["palavra_fim"]}'
+            quando = f'{c["t"]:.2f} s' + (f'–{c["fim"]:.2f} s' if c.get('fim') is not None else '')
+            print(f'\n- {c["id"]} · {quando} · palavra {ancora} · plano {c.get("plano") or "—"} · {c["status"]}')
+        if c.get('responde'):
+            print(f'  responde à dúvida {c["responde"]}: {duvidas.get(c["responde"], {}).get("texto", "?")}')
+        print('  ' + (' / '.join(x.strip() for x in (c.get('texto') or '').splitlines() if x.strip()) or '(só o anexo)'))
+        for an in c.get('anexos') or []:
+            print(f'  anexo: {raiz / an}{"" if (raiz / an).is_file() else " (o arquivo sumiu)"}')
+        if c.get('resposta'):
+            print(f'  ↳ resposta: {c["resposta"]}')
+    for d in r['duvidas']:
+        print(f'\n- dúvida {d["id"]} (sua) · palavra {d["palavra"]}: {d["texto"]}')
+
+
+def revisao_responder(a):
+    pid = resolver(a.id, 'projeto')
+    c = chamar('POST', f'/api/projetos/{pid}/revisao/{a.versao.lstrip("v")}/responder', json={'comentario': a.comentario, 'status': a.status, 'resposta': a.resposta})
+    print(f'{c["id"]}: {c["status"]}')
+
+
+def duvida(a):
+    """Uma dúvida para Rodrigo, presa às palavras (aparece na Revisão da próxima versão marcada)."""
+    pid = resolver(a.id, 'projeto')
+    d = chamar('POST', f'/api/projetos/{pid}/duvidas', json={'palavra': a.palavra, 'palavra_fim': a.ate, 'texto': a.texto, 'fala': a.fala or ''})
+    print(f'dúvida {d["id"]} anotada (vai com a próxima versão)')
+
+
 def identidade(_a):
     """A identidade visual dos motions (Configurações › Motions)."""
     print(chamar('GET', '/api/config').get('identidade_motion') or '(vazia)')
@@ -530,7 +574,8 @@ def versao_marcar(a):
 def versoes_listar(a):
     r = chamar('GET', f'/api/projetos/{a.id}/versoes')
     for v in r['versoes']:
-        print(f'v{v["versao"]} · {v["criado_em"]} · {v["autor"]}' + (' · a de agora' if v['versao'] == r['atual'] else '') + (f' · {v["resumo"]}' if v.get('resumo') else ''))
+        print(f'v{v["versao"]} · {v["criado_em"]} · {v["autor"]}' + (' · APROVADA' if v.get('aprovada') else '') + (' · a de agora' if v['versao'] == r['atual'] else '')
+              + (f' · {v["resumo"]}' if v.get('resumo') else ''))
     m = chamar('GET', f'/api/projetos/{a.id}/manuais')
     if m:
         print('mudado à mão por Rodrigo: ' + ', '.join(f'{x["etapa"]}/{x["alvo"]} (v{x["versao"]})' for x in m))
@@ -591,6 +636,10 @@ def main(argv=None):
     cmd('ator', ator, ID, ('plano', {}), ('movimento', {'choices': ['zoom_lento', 'zoom_seco', 'nada']}), FORCAR, ajuda='preset do Full ator')
     cmd('motions', motions_listar)
     cmd('motions-recusados', motions_recusados, ajuda='os motions recusados, com o motivo (leia antes de escrever um novo)')
+    cmd('revisao-ler', revisao_ler, ID, ('--versao', {'type': int}), ajuda='a revisão de Rodrigo (o texto, cada comentário com palavras, plano e anexos)')
+    cmd('revisao-responder', revisao_responder, ID, ('versao', {}), ('comentario', {}), ('--status', {'required': True, 'choices': ['aplicado', 'respondido', 'nao_aplicado']}),
+        ('--resposta', {'default': ''}))
+    cmd('duvida', duvida, ID, ('palavra', {'help': 'id da palavra (A palavras)'}), ('texto', {}), ('--ate', {'help': 'a última palavra do trecho'}), ('--fala', {}))
     cmd('identidade', identidade, ajuda='a identidade visual dos motions (Configurações › Motions)')
     cmd('motions-usar', motions_usar, ID, ('plano', {}), ('--preset', {}), ('--video', {}), ('--formato', {'choices': ['vertical', 'dividida'], 'default': 'vertical'}),
         ('--valores', {'help': 'JSON dos campos'}), ('--fundo', {}), FORCAR)

@@ -109,6 +109,7 @@ export default function Versoes(p: { projetoId: string; mudou: () => void }) {
                       <span className="text-fog">
                         {quando(v.criado_em)} · {v.autor === 'claude' ? 'Claude' : 'você'}
                         {v.versao === atual ? ' · a de agora' : ''}
+                        {v.aprovada && <b className="text-mint"> · ✓ aprovada</b>}
                       </span>
                       {v.resumo && <span className="line-clamp-2 text-cream/85">{v.resumo}</span>}
                     </span>

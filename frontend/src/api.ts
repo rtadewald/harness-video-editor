@@ -27,7 +27,7 @@ type Pipeline = { passos: Partial<Record<'enquadramento' | 'proxy' | 'transcrica
 
 /** As etapas do editor (SPEC §1). `cortes` é o Pré-processamento (o id ficou); `enriquecimento` e `motion` são antigas
  *  (hoje dentro de Inserts) e só existem nos dados dos projetos. */
-export type Etapa = 'cortes' | 'direcao' | 'inserts' | 'enriquecimento' | 'motion' | 'transicoes' | 'audio' | 'legenda'
+export type Etapa = 'cortes' | 'direcao' | 'inserts' | 'enriquecimento' | 'motion' | 'transicoes' | 'audio' | 'legenda' | 'revisao'
 
 /** Uma mensagem do chat do agente (SPEC §11, futuro): os históricos ficam no projeto, por etapa. */
 type Mensagem = {
@@ -61,6 +61,10 @@ export type Projeto = {
   transcricoes: Record<string, Transcricao>
   transcricao_ativa: string
   direcao?: DirecaoProjeto
+  /** A última versão marcada ou restaurada (docs/editor-claude.md, E2); 0 ou ausente antes da primeira. */
+  versao?: number
+  /** O Claude editando (a trava). */
+  claude?: EstadoClaude
 }
 
 /** Item da direção visual de um projeto: preso a palavras (+ deslocamento em s); os tempos no vídeo final são calculados. */
@@ -530,7 +534,7 @@ export const listarFontesPresets = () => fetch('/api/presets/fontes').then(json<
 export const s1 = (t: number) => t.toFixed(1).replace('.', ',')
 
 // ---------------------------------------------------------------- versões, trava e atividade (docs/editor-claude.md, E2)
-export type VersaoProjeto = { versao: number; criado_em: string; autor: 'claude' | 'rodrigo'; resumo: string; restaurada_de?: number | null }
+export type VersaoProjeto = { versao: number; criado_em: string; autor: 'claude' | 'rodrigo'; resumo: string; restaurada_de?: number | null; aprovada?: boolean }
 export type EntradaAtividade = { em: string; autor: 'claude' | 'rodrigo'; etapa: string; texto: string; segundos?: number }
 export type EstadoClaude = { editando: boolean; etapa?: string | null; desde?: string }
 export const lerVersoes = (id: string) => fetch(`/api/projetos/${id}/versoes`).then(json<{ versoes: VersaoProjeto[]; atual: number }>)
