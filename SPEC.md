@@ -2148,7 +2148,7 @@ Indireto: o motor e as margens definem os cortes; os modelos da direção define
 - **No meio:** a prévia montada (ator, inserts, motions, elementos, transições, legenda), com os controles do player.
 - **À direita:** "Comentários · vN", o salvamento (Salvando… / ✓ Salvo / Erro ao salvar), a contagem com os aplicados, respondidos e não aplicados, **Aprovar** (vira "✓ Aprovado") e **Enviar revisão ↗**; a faixa "Revisão enviada em … Esperando a vN+1" ou "✓ Aprovada"; a lista (gerais primeiro, depois pelo tempo, misturada com as dúvidas), cada comentário com o número, o tempo (clicar leva o vídeo até lá), o plano, a fala, o texto, as miniaturas dos anexos (clicar abre), a resposta do Claude e, ao passar o mouse, editar (o lápis; Enter salva, Esc cancela) e apagar (confirma; apaga os anexos).
 - **Embaixo, a linha do tempo:** Planos, Fala, **Você** (os números dos comentários; um trecho vira uma barra; a cor diz o status). A faixa amarela mostra o trecho I–O ou o ponto preso.
-- **Teclado:** Espaço toca · ←/→ 0,5 s (Shift 5 s) · I · O · C · Esc (solta a caixa, tira a entrada, desmarca).
+- **Teclado:** Espaço toca · ←/→ um quadro (pausa) · Shift+←/→ 5% do que está à vista na linha do tempo · ⌘ + rolagem: zoom no mouse · I · O · C · Esc (solta a caixa, tira a entrada, desmarca).
 
 #### O que fica gravado
 - `dados/projetos/<id>/revisoes/vN.json`: `{versao, aprovado, aprovado_em?, enviado_em, comentarios: [{id: 'c1', t, fim, palavra, palavra_fim, fala, plano, texto, anexos?, geral?, responde?, criado_em, status, resposta}]}` — os tempos são do vídeo final da versão; a âncora que vale é a palavra. A tela grava 600 ms depois da última mudança (a lista inteira); o status e a resposta só o Claude muda (o servidor guarda os dele).
@@ -2193,6 +2193,10 @@ Indireto: o motor e as margens definem os cortes; os modelos da direção define
 #### O que fica gravado
 - `dados/ctas/<id>/`: `original.<ext>`, `proxy.mp4` (até 1280 px), `miniatura.jpg`, `tira.jpg`, `cta.json` {id, nome, categoria, produto, inicio, fim, duracao, largura, altura, favorito, fonte, arquivo, criado_em}; `dados/ctas/categorias.json` e `produtos.json`.
 - Rotas: `GET /api/ctas` ({ctas, categorias, produtos}), `POST /api/ctas` (multipart `arquivos`, `categoria` opcional), `PUT /api/ctas/{id}` {nome, categoria, produto, inicio, fim, favorito}, `DELETE /api/ctas/{id}`, `PUT /api/ctas-produtos {produtos}`, `GET /api/ctas/{id}/{proxy.mp4|miniatura.jpg|tira.jpg}`. CLI: `A ctas`.
+
+### Atalhos das etapas montadas (como no 19)
+
+Em todas as etapas depois do Pré-processamento (Direção, Inserts, Transições, Áudio, Legenda, Revisão): **Espaço** toca/pausa; **← / →** andam **um quadro** (24 por s, pausando); **Shift + ← / →** pulam **5% do trecho da linha do tempo que está à vista** (o salto acompanha o zoom; nunca menos que 0,2 s); **⌘ + rolagem** dá zoom na linha do tempo ancorado no mouse (⌘ + / ⌘ − também); a rolagem comum anda a linha do tempo de lado. Os da etapa continuam: **R** toca de novo o plano/corte (Inserts, Transições), **D** corta o plano no cursor (Inserts), **I · O · C** na Revisão. No Pré-processamento, as setas seguem em 0,5 s (Shift 5 s, Alt 10 ms).
 
 ## 9. Timeline e ligação entre etapas
 

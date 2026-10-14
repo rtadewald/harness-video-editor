@@ -548,7 +548,7 @@ export default function EtapaRevisao(p: {
           tempo={p.tempo}
           tocando={p.tocando}
           buscar={p.buscar}
-          ferramentas={<span className="text-[11px] text-fog">Espaço toca · ←/→ 0,5 s · I e O marcam um trecho · C comentário geral · ⌘V anexa</span>}
+          ferramentas={<span className="text-[11px] text-fog">Espaço toca · ←/→ 1 quadro · Shift 5% · I e O marcam um trecho · C comentário geral · ⌘V anexa · ⌘ + rolagem: zoom</span>}
         >
           {({ x, faixa }) => (
             <>

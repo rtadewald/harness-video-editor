@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { saltoDaLinha } from '@/editor/janelaDaLinha'
 import { MessageSquareText, PanelLeftClose, PanelLeftOpen, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
 import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, json, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, gerarDirecao, motoresRodando, passoRodando, recalcularCortes, reenquadrando, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
 import { abrirAba } from '@/components/abasProjetos'
@@ -40,6 +41,8 @@ import { falas as falasDoVideo, useAudioDoProjeto, useCadeiaNaPrevia, useCatalog
 import { sonsDasTransicoes } from '@/transicoes/transicoes'
 import { useCatalogoSons } from '@/editor/sons'
 import { usePlayer } from '@/player/usePlayer'
+
+const QUADROS = 24 // quadros por segundo do passo das setas (o fps padrão da exportação)
 
 // colunas timeline · prévia · detalhe da Direção e do Pré-processamento. A timeline vai de 300 px até 40vw (38vw nos
 // Cortes) e o seu máximo; a prévia nunca fica abaixo de 300 px e o detalhe abaixo de 280 px. Com minmax (e não clamp),
@@ -307,7 +310,8 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
     }
   }, [id, comparar])
 
-  // espaço toca/pausa · ←/→ 0,5 s (Shift 5 s, Alt 10 ms) · E ouve a emenda mais próxima · B alterna resultado/bruto.
+  // espaço toca/pausa · ←/→ 0,5 s (Shift 5 s, Alt 10 ms) no Pré-processamento; nas outras etapas, como no 19: ←/→ um
+  // quadro e Shift+←/→ 5% do que está à vista na linha do tempo · E ouve a emenda mais próxima · B alterna resultado/bruto.
   // Valem também com o foco num botão, caixa ou slider (o controle solta o foco e não age); não valem num campo de
   // texto, numa alça de corte (as setas dela a movem), nas setas de um slider (o ajuste fino é dele) nem com um modal
   // aberto.
@@ -321,9 +325,14 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.preventDefault()
         soltarFoco(e.target)
-        const d = (e.altKey ? 0.01 : e.shiftKey ? 5 : 0.5) * (e.key === 'ArrowLeft' ? -1 : 1)
-        if (vertical) player.buscarBruto(player.bruto + d)
-        else player.buscar(player.tempo + d)
+        const lado = e.key === 'ArrowLeft' ? -1 : 1
+        if (vertical) player.buscarBruto(player.bruto + (e.altKey ? 0.01 : e.shiftKey ? 5 : 0.5) * lado)
+        else {
+          // como no 19: ← / → um quadro (24 por s, pausando); Shift, 5% do que está à vista na linha do tempo
+          if (player.tocando) player.alternar()
+          if (e.shiftKey) player.buscar(Math.max(player.tempo + saltoDaLinha() * lado, 0))
+          else player.buscar(Math.max((Math.round(player.tempo * QUADROS) + lado) / QUADROS + 0.001, 0))
+        }
       } else if (vertical && e.key.toLowerCase() === 'e' && cortes.length) {
         const c = cortes.find((x) => x.fim > player.bruto + 0.05) ?? cortes[cortes.length - 1]
         ouvirEmenda(c)
