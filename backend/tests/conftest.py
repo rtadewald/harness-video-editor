@@ -5,7 +5,7 @@ import types
 import pytest
 from fastapi.testclient import TestClient
 
-from app import audio, banco, codigos, comum, direcao, main, pipeline, projeto, recorte_ator, referencias, rosto, sons, transicoes, trilhas
+from app import aprendizados, audio, banco, calibragem, codigos, comum, direcao, main, pipeline, projeto, recorte_ator, referencias, rosto, sons, transicoes, trilhas
 
 
 @pytest.fixture(autouse=True)
@@ -19,6 +19,8 @@ def _nada_real(tmp_path, monkeypatch):
     monkeypatch.setattr(trilhas, 'RAIZ', tmp_path / 'trilhas')  # e as faixas de fundo
     monkeypatch.setattr(comum, 'DADOS', tmp_path)  # e o resto de dados/ (os CTAs, o registro dos códigos)
     monkeypatch.setattr(codigos, 'REGISTRO', tmp_path / 'codigos.json')
+    monkeypatch.setattr(calibragem, 'REGRAS_MD', tmp_path / 'regras.md')
+    monkeypatch.setattr(aprendizados, 'PASTA', tmp_path / 'aprendizados')  # as regras da skill (no git) ficam de fora
     # a limpeza da voz não roda sozinha em segundo plano (o DeepFilterNet baixa pacotes; o isolamento é pago)
     monkeypatch.setattr(audio, '_fila', types.SimpleNamespace(submit=lambda f, *a: None))
     monkeypatch.setattr(audio, '_isolar', lambda *a: pytest.fail('teste tentou usar o isolamento pago do ElevenLabs'))

@@ -7,6 +7,7 @@ import Editor from './paginas/Editor'
 import Calibragem from './paginas/Calibragem'
 import Referencias from './paginas/Referencias'
 import Heuristica from './paginas/Heuristica'
+import Aprendizados from './paginas/Aprendizados'
 import Banco from './paginas/Banco'
 import RevisaoReferencia from './paginas/RevisaoReferencia'
 import { RenderChuva, RenderProjeto } from './paginas/Render'
@@ -29,6 +30,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/calibragem" element={<Calibragem />} />
           <Route path="/calibragem/:id" element={<RevisaoReferencia />} />
           <Route path="/heuristica" element={<Heuristica />} />
+          <Route path="/aprendizados" element={<Aprendizados />} />
           <Route path="/banco" element={<Banco />} />
           <Route path="/presets" element={<Presets />} />
           <Route path="/motions" element={<PaginaMotions />} />

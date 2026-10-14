@@ -7,6 +7,7 @@
 import json
 import re
 from datetime import datetime
+from pathlib import Path
 
 from pydantic import BaseModel, Field
 
@@ -53,6 +54,9 @@ def videos_da_calibragem(so_revisadas: bool = False, ref: str | None = None) -> 
     lista = []
     for r in referencias.listar():
         if r['status'] not in (('revisado',) if so_revisadas else ('a_revisar', 'revisado')) or (ref and r['id'] != ref):
+            continue
+        # a de um projeto aprovado (`aprovacao.de_projeto`) só ensina depois que Rodrigo a revisa
+        if (r.get('origem') or {}).get('projeto') and r['status'] != 'revisado' and not ref:
             continue
         try:
             lista.append((r, json.loads((referencias.pasta(r['id']) / 'direcao.json').read_text())['itens']))
@@ -112,6 +116,11 @@ SECAO_IA = '## Regras sugeridas pela IA'
 NUMERACAO = re.compile(r'^\d+[.)]\s*')
 
 
+# as regras moram na skill do editor, no git (docs/editor-claude.md, Q17): a página Heurística lê e edita este arquivo, e o
+# Claude lê o mesmo; em `_heuristica.json` fica só o resto (a versão anterior das regras, quando a IA sugeriu)
+REGRAS_MD = Path(__file__).resolve().parents[2] / '.claude' / 'skills' / 'editor' / 'exemplos' / 'regras.md'
+
+
 def _arquivo_heuristica():
     return referencias.RAIZ / '_heuristica.json'
 
@@ -146,17 +155,24 @@ def ler_heuristica() -> dict:
         h = json.loads(_arquivo_heuristica().read_text(encoding='utf-8'))
     except (FileNotFoundError, ValueError):
         h = {}
-    if not isinstance(h.get('regras'), str):
-        criador, ia = _regras_antigas(h)
-        h = {'regras': _documento(criador, ia)}
-        salvar_heuristica(h)
-    return h
+    if isinstance(h.get('regras'), str):  # de antes da Q17: as regras no JSON passam para o arquivo da skill
+        return salvar_heuristica(h)
+    if REGRAS_MD.exists() and not (h.get('markdown') or isinstance(h.get('regras'), list)):
+        return {**h, 'regras': REGRAS_MD.read_text(encoding='utf-8')}
+    criador, ia = _regras_antigas(h)  # os formatos antigos (o documento com padrões, o catálogo em JSON, as Configurações)
+    return salvar_heuristica({'regras': _documento(criador, ia)})
 
 
 def salvar_heuristica(h: dict) -> dict:
+    """As regras no arquivo da skill; o resto (a anterior, quantos vídeos, quando) em `_heuristica.json`."""
     referencias.RAIZ.mkdir(exist_ok=True)
-    comum.salvar_json(_arquivo_heuristica(), h)
-    return h
+    if not isinstance(h.get('regras'), str):  # um formato antigo, como veio (só os testes da migração gravam assim)
+        comum.salvar_json(_arquivo_heuristica(), h)
+        return h
+    REGRAS_MD.parent.mkdir(parents=True, exist_ok=True)
+    REGRAS_MD.write_text(h['regras'].rstrip() + '\n', encoding='utf-8')
+    comum.salvar_json(_arquivo_heuristica(), {k: v for k, v in h.items() if k != 'regras'})
+    return {**h, 'regras': h['regras'].rstrip() + '\n'}
 
 
 def documento(h: dict, lista: list[dict] | None = None) -> str:

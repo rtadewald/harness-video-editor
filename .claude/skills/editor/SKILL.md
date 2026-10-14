@@ -45,8 +45,8 @@ para a ferramenta da sua etapa; responda cada um (`A revisao-responder`) e marqu
 
 ## Fluxo 3 — Aprovado ("Aprovado · PRJ-07 · v2")
 
-`etapas/12-final.md` (o 4K pela exportação do app) e `etapas/14-concluir.md` (o projeto vira referência, os aprendizados
-com a confirmação de Rodrigo, a faxina do banco).
+`etapas/12-final.md` (o 4K pela exportação do app, `A exportar`, e o projeto vira referência, `A referencia`) e
+`etapas/14-concluir.md` (os aprendizados com a confirmação de Rodrigo e a faxina do banco).
 
 ## Sempre
 

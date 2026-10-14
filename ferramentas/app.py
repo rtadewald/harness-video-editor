@@ -452,6 +452,62 @@ def duvida(a):
     print(f'dúvida {d["id"]} anotada (vai com a próxima versão)')
 
 
+def exportar(a):
+    """O MP4 pela exportação do app (o estado de agora). Aprovado: recusa se o estado mudou desde a versão aprovada,
+    a menos que --mesmo-assim (pergunte a Rodrigo antes)."""
+    pid = resolver(a.id, 'projeto')
+    ap = chamar('GET', f'/api/projetos/{pid}/aprovacao')
+    if ap['versao'] and ap['difere'] and not a.mesmo_assim:
+        raise SystemExit(f'O projeto mudou desde a v{ap["versao"]} aprovada ({", ".join(ap["difere"])}): pergunte a Rodrigo; '
+                         'para exportar assim mesmo, --mesmo-assim (ou volte à versão aprovada no seletor).')
+    t0 = time.time()
+    e = chamar('POST', f'/api/projetos/{pid}/exportacao', json={'resolucao': a.resolucao, 'fps': a.fps, 'codec': a.codec})
+    print(f'exportando {e["nome"]}')
+    if not a.esperar:
+        return
+    while True:
+        time.sleep(5)
+        e = chamar('GET', f'/api/projetos/{pid}/exportacao')['atual']
+        if e['status'] != 'rodando':
+            break
+    if e['status'] != 'pronta':
+        raise SystemExit(f'A exportação terminou como {e["status"]}: {e.get("erro") or ""}')
+    print(f'pronto em {time.time() - t0:.0f} s: dados/projetos/{pid}/exports/{e["arquivo"]}' + (f' (aviso: {e["aviso"]})' if e.get('aviso') else ''))
+    atividade(pid, 'aprovacao', f'Exportado {a.resolucao}: {e["arquivo"]}', t0)
+
+
+def referencia(a):
+    """A versão aprovada (ou --versao) vira a referência prj-<id>-vN da Calibragem (a revisar), do MP4 exportado."""
+    pid = resolver(a.id, 'projeto')
+    r = chamar('POST', f'/api/projetos/{pid}/referencia', json={'versao': a.versao})
+    print(f'{r["id"]} criada (a revisar na Calibragem: só ensina a direção depois que Rodrigo revisa)')
+
+
+def aprovar(a):
+    """Aprova a versão como o botão da Revisão (quando Rodrigo aprova por mensagem)."""
+    pid = resolver(a.id, 'projeto')
+    print(chamar('POST', f'/api/projetos/{pid}/revisao/{a.versao.lstrip("v")}/aprovar')['texto'])
+
+
+def banco_editar(a):
+    """Melhora o nome, a descrição e as palavras de uma mídia (a faxina na aprovação)."""
+    bid = resolver(a.midia, 'midia')
+    campos = {k: v for k, v in (('nome', a.nome), ('descricao', a.descricao), ('palavras', a.palavras and [p.strip() for p in a.palavras.split(',')])) if v}
+    i = chamar('PUT', f'/api/banco/{bid}', json=campos)
+    print(f'{bid}: {i["nome"]}')
+
+
+def banco_do_projeto(a):
+    """O que o Claude trouxe ao banco para o projeto, com o selo e onde é usado."""
+    pid = resolver(a.id, 'projeto')
+    cods = _codigos()
+    for i in chamar('GET', '/api/banco'):
+        if i.get('projeto') != pid:
+            continue
+        print(f'{cods["midia"].get(i["id"], i["id"]):<9} {i["id"]} {i.get("estado") or "sem selo":<9} {i["nome"]}')
+        print(f'          {(i.get("descricao") or "(sem descrição)")[:160]}')
+
+
 def identidade(_a):
     """A identidade visual dos motions (Configurações › Motions)."""
     print(chamar('GET', '/api/config').get('identidade_motion') or '(vazia)')
@@ -640,6 +696,12 @@ def main(argv=None):
     cmd('revisao-responder', revisao_responder, ID, ('versao', {}), ('comentario', {}), ('--status', {'required': True, 'choices': ['aplicado', 'respondido', 'nao_aplicado']}),
         ('--resposta', {'default': ''}))
     cmd('duvida', duvida, ID, ('palavra', {'help': 'id da palavra (A palavras)'}), ('texto', {}), ('--ate', {'help': 'a última palavra do trecho'}), ('--fala', {}))
+    cmd('exportar', exportar, ID, ('--resolucao', {'choices': ['720p', '1080p', '4k'], 'default': '4k'}), ('--fps', {'type': int, 'choices': [24, 30, 60], 'default': 24}),
+        ('--codec', {'choices': ['hevc', 'h264'], 'default': 'hevc'}), ('--esperar', {'action': 'store_true'}), ('--mesmo-assim', {'action': 'store_true'}))
+    cmd('referencia', referencia, ID, ('--versao', {'type': int}), ajuda='o projeto aprovado vira referência da Calibragem (a revisar)')
+    cmd('aprovar', aprovar, ID, ('versao', {}), ajuda='aprova a versão como o botão da Revisão (aprovação por mensagem)')
+    cmd('banco-editar', banco_editar, ('midia', {}), ('--nome', {}), ('--descricao', {}), ('--palavras', {'help': 'separadas por vírgula'}))
+    cmd('banco-do-projeto', banco_do_projeto, ID, ajuda='o que o Claude trouxe ao banco para o projeto, com o selo')
     cmd('identidade', identidade, ajuda='a identidade visual dos motions (Configurações › Motions)')
     cmd('motions-usar', motions_usar, ID, ('plano', {}), ('--preset', {}), ('--video', {}), ('--formato', {'choices': ['vertical', 'dividida'], 'default': 'vertical'}),
         ('--valores', {'help': 'JSON dos campos'}), ('--fundo', {}), FORCAR)

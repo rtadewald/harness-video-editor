@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Blend, BookOpenText, ChevronLeft, ChevronRight, Clapperboard, Film, FolderOpen, Images, Layers, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
+import { Blend, BookOpenText, GraduationCap, ChevronLeft, ChevronRight, Clapperboard, Film, FolderOpen, Images, Layers, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fecharAba, useAbasProjetos } from './abasProjetos'
 
@@ -25,6 +25,7 @@ const TREINO: Link[] = [
   { para: '/transicoes', nome: 'Transições', icone: Blend },
   { para: '/calibragem', nome: 'Calibragem', icone: SlidersHorizontal }, // acesa também na revisão de uma referência
   { para: '/heuristica', nome: 'Heurística da direção', icone: BookOpenText },
+  { para: '/aprendizados', nome: 'Aprendizados', icone: GraduationCap }, // o que o Claude aprendeu editando (a skill do editor)
 ]
 export default function NavHome({ renomear }: { renomear?: (id: string, nome: string) => Promise<unknown> }) {
   const abas = useAbasProjetos()
