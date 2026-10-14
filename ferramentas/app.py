@@ -31,6 +31,14 @@ def _porta() -> str:
 
 
 API = os.environ.get('HARNESS_API') or f'http://localhost:{_porta()}'
+
+
+def _front() -> str:
+    if os.environ.get('HARNESS_FRONT'):
+        return os.environ['HARNESS_FRONT']
+    env = RAIZ / '.dev.env'
+    m = re.search(r'^HARNESS_FRONT_PORT=(\d+)', env.read_text(), re.M) if env.exists() else None
+    return f'http://localhost:{m.group(1) if m else "5173"}'
 CLIENTE = httpx.Client(base_url=API, headers={'X-Autor': 'claude'}, timeout=120)
 
 
@@ -171,6 +179,23 @@ def cortes_faixa(a):
     print('ok')
 
 
+def palavras(a):
+    """As palavras com o id (para a legenda e os comentários da direção): `*` = cortada; filtra por texto."""
+    e = chamar('GET', f'/api/projetos/{a.id}/editor')
+    alvo = (a.busca or '').lower()
+    for w in e['palavras']:
+        if alvo and alvo not in w['texto'].lower():
+            continue
+        if a.mantidas and not w['mantida']:
+            continue
+        print(f'{w["id"]} {"" if w["mantida"] else "*"}{w["texto"]}', end='\n' if alvo else '  ')
+    print()
+
+
+def heuristica(_a):
+    print(chamar('GET', '/api/referencias/heuristica')['regras'])
+
+
 # ---------------------------------------------------------------- direção
 
 def _esperar_direcao(pid: str, limite: float = 600) -> dict:
@@ -290,6 +315,33 @@ def banco_trecho(a):
     print(t['id'] if isinstance(t, dict) and 'id' in t else t)
 
 
+def capturar(a):
+    """Grava o site (a captura do app: cada dobra vira uma mídia do banco ligada ao insert)."""
+    if not guardar(a.id, 'inserts', a.pedido, a.forcar):
+        return
+    t0 = time.time()
+    r = chamar('POST', f'/api/projetos/{a.id}/inserts/{a.pedido}/captura',
+               json={'url': a.url, 'proporcao': a.proporcao, 'dobras': a.dobras, 'duracao': a.duracao, 'titulo': a.titulo})
+    x = next(x for x in r['pedidos'] if x['id'] == a.pedido)
+    cid = (x.get('capturas') or [{}])[-1].get('id')
+    if not a.esperar:
+        print(f'captura {cid} na fila')
+        return
+    while True:
+        x = next(x for x in chamar('GET', f'/api/projetos/{a.id}/inserts')['pedidos'] if x['id'] == a.pedido)
+        c = next((c for c in x.get('capturas') or [] if c['id'] == cid), None)
+        if not c or c['status'] in ('pronto', 'erro'):
+            break
+        if time.time() - t0 > 300:
+            raise SystemExit('A captura passou de 5 min.')
+        time.sleep(2)
+    if c and c['status'] == 'erro':
+        raise SystemExit(f'A captura falhou: {c.get("erro")}')
+    cods = _codigos()
+    print(f'capturado em {time.time() - t0:.0f} s · mídias do insert: ' + ', '.join(cods['midia'].get(m['banco'], m['banco']) for m in x.get('midias') or []))
+    atividade(a.id, 'inserts', f'Insert {a.pedido}: captura de {a.url}', t0)
+
+
 def presets_recomendados(a):
     t0 = time.time()
     r = chamar('POST', f'/api/projetos/{a.id}/inserts/presets/recomendados', json={'refazer': a.refazer})
@@ -394,6 +446,45 @@ def look(a):
     print('ok')
 
 
+# ---------------------------------------------------------------- checagem
+
+def quadros(a):
+    """Fotografa o palco da prévia montada (a etapa Legenda: ator, inserts, motions, transições e legenda) nos instantes
+    pedidos ou, sem instantes, no meio de cada plano; junta numa folha (`folha.jpg`) para o Claude olhar."""
+    import subprocess
+    import tempfile
+    from playwright.sync_api import sync_playwright
+    saida = Path(a.saida or tempfile.mkdtemp(prefix=f'quadros-{a.id}-'))
+    saida.mkdir(parents=True, exist_ok=True)
+    t0 = time.time()
+    with sync_playwright() as pw:
+        br = pw.chromium.launch(channel='chromium')
+        try:
+            pg = br.new_page(viewport={'width': 1500, 'height': 1000})
+            pg.goto(f'{_front()}/p/{a.id}')
+            pg.wait_for_function('() => window.__editor && window.__editor.duracao() > 0', timeout=60000)
+            pg.evaluate('e => window.__editor.etapa(e)', a.etapa)
+            pg.wait_for_timeout(2500)
+            planos = pg.evaluate('() => window.__editor.planos()')
+            tempos = a.tempos or [round((pl['inicio'] + pl['fim']) / 2, 2) for pl in planos]
+            rotulos = []
+            for k, t in enumerate(tempos):
+                pg.evaluate('t => window.__editor.buscar(t)', t)
+                pg.wait_for_timeout(900)
+                pg.locator('[data-previa]').screenshot(path=str(saida / f'{k:03d}.png'))
+                pl = next((p for p in planos if p['inicio'] <= t < p['fim']), None)
+                rotulos.append(f'{k:03d}.png  {tempo(t)}  {pl["id"] + " " + pl["tipo"] if pl else ""}')
+        finally:
+            br.close()
+    n = len(tempos)
+    colunas = min(n, 8)
+    linhas = -(-n // colunas)
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-framerate', '1', '-i', str(saida / '%03d.png'), '-vf',
+                    f'scale=270:-2,tile={colunas}x{linhas}:padding=6:color=0x172e2b', '-frames:v', '1', str(saida / 'folha.jpg')], check=True)
+    print(f'{n} quadros em {time.time() - t0:.0f} s · folha: {saida / "folha.jpg"}')
+    print('\n'.join(rotulos))
+
+
 # ---------------------------------------------------------------- versões e códigos
 
 def versao_marcar(a):
@@ -442,6 +533,8 @@ def main(argv=None):
     cmd('cortes-refazer', cortes_refazer, ID, FORCAR)
     cmd('cortes-faixa', cortes_faixa, ID, ('inicio', {'type': float}), ('fim', {'type': float}), ('--manter', {'action': 'store_true'}),
         ajuda='corta (ou com --manter devolve) um intervalo do bruto, em segundos')
+    cmd('palavras', palavras, ID, ('busca', {'nargs': '?'}), ('--mantidas', {'action': 'store_true'}), ajuda='os ids das palavras (* = cortada)')
+    cmd('heuristica', heuristica, ajuda='as regras do criador e as sugeridas (a Heurística do app)')
     cmd('direcao-gerar', direcao_gerar, ID, ('--esperar', {'action': 'store_true'}), FORCAR)
     cmd('direcao-ver', direcao_ver, ID, ajuda='o roteiro: cada plano com a marcação e a fala')
     cmd('direcao-comentar', direcao_comentar, ID, ('palavra', {}), ('texto', {}), ajuda='comentário pontual (preso a uma palavra) para a corretora')
@@ -451,6 +544,10 @@ def main(argv=None):
     cmd('banco-buscar', banco_buscar, ('termos', {}), ('-n', {'type': int, 'default': 15}))
     cmd('banco-subir', banco_subir, ('arquivo', {}), ('--nome', {}), ('--descricao', {}), ('--palavras', {'help': 'separadas por vírgula'}))
     cmd('banco-trecho', banco_trecho, ('midia', {}), ('inicio', {'type': float}), ('fim', {'type': float}), ('--nome', {}))
+    cmd('capturar', capturar, ID, ('pedido', {}), ('url', {}), ('--proporcao', {'choices': ['16:9', '4:3', '1:1', '9:16'], 'default': '16:9'}),
+        ('--dobras', {'nargs': '+', 'type': float, 'default': [0], 'help': 'o topo de cada dobra, em px da página'}),
+        ('--duracao', {'type': float, 'default': 4}), ('--titulo', {}), ('--esperar', {'action': 'store_true'}), FORCAR,
+        ajuda='grava o site e liga as dobras ao insert (a captura do app)')
     cmd('presets-recomendados', presets_recomendados, ID, ('--refazer', {'action': 'store_true'}))
     cmd('presets-definir', presets_definir, ID, ('pedido', {}), ('preset', {'help': 'id, PRE-… ou "nenhum"'}), ('--ajustes', {'help': 'JSON'}), FORCAR)
     cmd('ator', ator, ID, ('plano', {}), ('movimento', {'choices': ['zoom_lento', 'zoom_seco', 'nada']}), FORCAR, ajuda='preset do Full ator')
@@ -463,6 +560,8 @@ def main(argv=None):
     cmd('audio', audio, ID, ('--fundo', {'help': 'id, TRI-… ou "nenhum"'}), ('--limpeza', {}), ('--timbre', {}), FORCAR)
     cmd('legenda-corrigir', legenda_corrigir, ID, ('palavra', {}), ('texto', {}), FORCAR)
     cmd('look', look, ID, ('--lut', {}), ('--intensidade', {'type': float}), ('--vinheta', {}), FORCAR)
+    cmd('quadros', quadros, ID, ('tempos', {'nargs': '*', 'type': float, 'help': 's do vídeo final; sem nada, o meio de cada plano'}),
+        ('--etapa', {'default': 'legenda'}), ('--saida', {}), ajuda='fotografa a prévia montada e faz a folha (a checagem antes de entregar)')
     cmd('versao-marcar', versao_marcar, ID, ('--resumo', {}))
     cmd('versoes', versoes_listar, ID)
     cmd('codigo', codigo, ('codigos', {'nargs': '+'}))

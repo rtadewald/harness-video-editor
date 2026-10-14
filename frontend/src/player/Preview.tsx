@@ -47,6 +47,7 @@ export default function Preview(p: Props) {
     <div className="flex h-full min-h-0 min-w-0 flex-col items-center gap-3">
       <div ref={area} className="flex min-h-0 w-full flex-1 items-start justify-center">
         <div
+          data-previa
           className="relative overflow-hidden rounded-[3px] bg-black shadow-[0_20px_60px_#0006] ring-1 ring-line-dark"
           style={{ width: tela.w, height: tela.h }}
         >
