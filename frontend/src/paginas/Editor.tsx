@@ -132,6 +132,17 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
       .catch(() => {})
   }, [id])
   const player = usePlayer(seq)
+  // o gancho da checagem (docs/editor-claude.md, E4): a CLI do app abre o editor num navegador escondido, troca de etapa,
+  // leva o player a cada instante e fotografa o palco (`[data-previa]`)
+  useEffect(() => {
+    const w = window as Window & { __editor?: unknown }
+    w.__editor = {
+      etapa: (e: Etapa) => setEtapaBruta(e),
+      buscar: (t: number) => player.buscar(t),
+      planos: () => (planosSaida ?? []).map((pl) => ({ id: pl.id, tipo: pl.tipo, inicio: pl.inicio, fim: pl.fim })),
+      duracao: () => seq?.duracao ?? 0,
+    }
+  })
   // o áudio (SPEC §8.9): a voz limpa no player, a cadeia da voz e os faders em todas as etapas, o fundo nas etapas com o
   // vídeo montado (fora do Pré-processamento)
   const catAudio = useCatalogoAudio()
