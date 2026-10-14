@@ -11,6 +11,20 @@
   var norm = function (s) {
     return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
   }
+  // a palavra falada e a digitada: iguais, ou quase (o transcritor ouve "cloud" no lugar de "claude"): até 2 letras de
+  // diferença em palavras de 4 letras ou mais
+  var parecidas = function (a, b) {
+    if (a === b) return true
+    if (a.length < 4 || b.length < 4 || Math.abs(a.length - b.length) > 2) return false
+    var ant = []
+    for (var j = 0; j <= b.length; j++) ant.push(j)
+    for (var i = 1; i <= a.length; i++) {
+      var lin = [i]
+      for (var k = 1; k <= b.length; k++) lin.push(Math.min(ant[k] + 1, lin[k - 1] + 1, ant[k - 1] + (a[i - 1] === b[k - 1] ? 0 : 1)))
+      ant = lin
+    }
+    return ant[b.length] <= 2
+  }
   window.motion = {
     pronto: function (t) {
       tl = t
@@ -55,7 +69,7 @@
       var achou = -1
       for (var i = 0; digitadas.length && i + digitadas.length <= fala.length && achou < 0; i++) {
         var ok = true
-        for (var j = 0; j < digitadas.length && ok; j++) ok = fala[i + j].n === norm(digitadas[j])
+        for (var j = 0; j < digitadas.length && ok; j++) ok = parecidas(fala[i + j].n, norm(digitadas[j]))
         if (ok) achou = i
       }
       if (achou < 0) {

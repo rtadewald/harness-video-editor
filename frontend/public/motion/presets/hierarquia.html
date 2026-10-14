@@ -1,0 +1,121 @@
+<script type="application/json" id="preset">{"nome": "Hierarquia de modelos", "descricao": "Diagrama em três níveis: um card grande no meio (entra primeiro), três cards pequenos embaixo e um card no topo, ligados por linhas finas que se desenham; só o nome do modelo em cada card. Com foco, um nível acende em roxo com brilho e os outros se apagam um pouco; a cena se aproxima devagar até o corte.", "fundo": "verde_claro", "duracao": 3.9, "a_revisar": true, "sons": {"card": {"rotulo": "Cada card chega", "som": "ui-pop-02", "intensidade": "baixo"}, "foco": {"rotulo": "O nível em foco acende", "som": "correct-ding-02", "intensidade": "baixo"}}}</script>
+<script type="application/json" id="campos">{"topo": {"tipo": "texto", "rotulo": "Card do topo", "padrao": "Opus"}, "meio": {"tipo": "texto", "rotulo": "Card do meio (o maior)", "padrao": "Sonnet"}, "base": {"tipo": "texto", "rotulo": "Os 3 cards de baixo", "padrao": "Haiku"}, "foco": {"tipo": "texto", "rotulo": "Nível aceso em roxo: topo, meio, base ou vazio (todos normais)", "padrao": ""}}</script>
+<style>
+  /* medidas em px do palco (1080 de largura), na tela cheia: topo 470 px, meio 660 px (o maior), base 3 × 280 px a cada 318 px */
+  #cena { position: absolute; inset: 0; will-change: transform; font-family: Inter, "SF Pro", system-ui, sans-serif; }
+  #linhas { position: absolute; left: 0; top: 0; overflow: visible; }
+  #linhas path { fill: none; stroke: #4c6a5a; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+  .card { position: absolute; display: grid; place-items: center; border-radius: 34px; overflow: hidden;
+    background: linear-gradient(180deg, #ffffff 0%, #f3f6f4 100%);
+    box-shadow: 0 30px 70px rgba(20, 40, 30, .16), 0 8px 20px rgba(20, 40, 30, .08); opacity: 0; will-change: transform, opacity, filter; }
+  .card .tinta { position: absolute; inset: 0; background: linear-gradient(180deg, #7466ff 0%, #4f3ff0 100%); opacity: 0; }
+  .card span { position: relative; padding: 0 28px; white-space: nowrap; font-weight: 700; letter-spacing: -.025em; line-height: 1; color: #15201b; }
+  .card.meio { border-radius: 40px; }
+  .card.base { border-radius: 28px; }
+</style>
+<div id="cena">
+  <svg id="linhas"><path id="l-topo" pathLength="1" /><path class="l-base" pathLength="1" /><path class="l-base" pathLength="1" /><path class="l-base" pathLength="1" /></svg>
+  <div class="card topo"><div class="tinta"></div><span></span></div>
+  <div class="card meio"><div class="tinta"></div><span></span></div>
+  <div class="card base"><div class="tinta"></div><span></span></div>
+  <div class="card base"><div class="tinta"></div><span></span></div>
+  <div class="card base"><div class="tinta"></div><span></span></div>
+</div>
+<script>
+  (function () {
+    const W = MOTION.largura, H = MOTION.altura, D = MOTION.duracao
+    const c = MOTION.campos
+    const foco = ['topo', 'meio', 'base'].includes(String(c.foco || '').trim().toLowerCase()) ? String(c.foco).trim().toLowerCase() : ''
+    const cena = document.getElementById('cena'), svg = document.getElementById('linhas')
+    const topo = document.querySelector('.card.topo'), meio = document.querySelector('.card.meio')
+    const bases = Array.from(document.querySelectorAll('.card.base'))
+    const lTopo = document.getElementById('l-topo'), lBases = Array.from(document.querySelectorAll('.l-base'))
+    topo.querySelector('span').textContent = String(c.topo || '')
+    meio.querySelector('span').textContent = String(c.meio || '')
+    bases.forEach((b) => { b.querySelector('span').textContent = String(c.base || '') })
+
+    // as medidas: na tela cheia o diagrama fica no meio de cima (a legenda embaixo); na dividida, centrado e mais junto
+    const alto = H > W
+    const T = alto ? { w: 470, h: 170, fonte: 68 } : { w: 420, h: 132, fonte: 54 }
+    const M = alto ? { w: 660, h: 230, fonte: 92 } : { w: 600, h: 170, fonte: 70 }
+    const B = alto ? { w: 280, h: 140, fonte: 50, passo: 318 } : { w: 264, h: 108, fonte: 42, passo: 312 }
+    const V1 = alto ? 200 : 110, V2 = alto ? 230 : 120 // os vãos entre os níveis (onde passam as linhas)
+    const G = T.h + V1 + M.h + V2 + B.h
+    const y0 = alto ? H * 0.43 - G / 2 : (H - G) / 2
+    const yT = y0, yM = yT + T.h + V1, yB = yM + M.h + V2
+    const xs = [W / 2 - B.passo, W / 2, W / 2 + B.passo]
+    gsap.set(topo, { left: W / 2 - T.w / 2, top: yT, width: T.w, height: T.h })
+    gsap.set(meio, { left: W / 2 - M.w / 2, top: yM, width: M.w, height: M.h })
+    bases.forEach((b, k) => gsap.set(b, { left: xs[k] - B.w / 2, top: yB, width: B.w, height: B.h }))
+    gsap.set(svg, { width: W, height: H })
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`)
+
+    // as linhas: do meio para cima (até o topo) e do meio para baixo (um tronco que se abre em três, cantos arredondados)
+    lTopo.setAttribute('d', `M ${W / 2} ${yM - 14} V ${yT + T.h + 14}`)
+    const yMeio = yM + M.h + V2 * 0.5, R = alto ? 28 : 22
+    lBases.forEach((p, k) => {
+      const x = xs[k], s = Math.sign(x - W / 2)
+      p.setAttribute('d', s === 0 ? `M ${W / 2} ${yM + M.h + 14} V ${yB - 14}` :
+        `M ${W / 2} ${yM + M.h + 14} V ${yMeio - R} Q ${W / 2} ${yMeio} ${W / 2 + s * R} ${yMeio} H ${x - s * R} Q ${x} ${yMeio} ${x} ${yMeio + R} V ${yB - 14}`)
+    })
+
+    // um nome longo: a fonte diminui até caber no card
+    document.fonts.ready.then(() => {
+      ;[[topo, T], [meio, M], ...bases.map((b) => [b, B])].forEach(([el, m]) => {
+        const s = el.querySelector('span')
+        let f = m.fonte
+        s.style.fontSize = `${f}px`
+        while (s.offsetWidth > m.w - 8 && f > 22) s.style.fontSize = `${(f -= 2)}px`
+      })
+      montar()
+    })
+
+    function montar() {
+      const k = Math.min(1, D / 3.2) // planos curtos: a sequência encolhe junto
+      const CASA = motion.curva(0.25, 0.1, 0.1, 1) // entrada curta e suave, chegada bem longa
+      // quando o card "chega" (95% do caminho; o resto é a acomodação longa): é aí que toca o pop
+      const chega = (dur) => { let x = 0; while (x < 1 && CASA(x) < 0.95) x += 0.005; return x * dur }
+      const tl = gsap.timeline({ paused: true })
+      const entrar = (el, t, dur) => {
+        tl.fromTo(el, { opacity: 0, y: 26, scale: 0.94, filter: 'blur(6px)' }, { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', duration: dur, ease: CASA }, t)
+        motion.som('card', t + chega(dur))
+      }
+      const desenhar = (p, t, dur) => tl.fromTo(p, { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: dur, ease: CASA }, t)
+
+      // o meio primeiro; as linhas descem e os três de baixo chegam um logo depois do outro; por último a linha sobe e o topo chega
+      entrar(meio, 0.05 * k, 0.95 * k)
+      lBases.forEach((p) => desenhar(p, 0.4 * k, 0.7 * k))
+      bases.forEach((b, i) => entrar(b, (0.62 + 0.13 * i) * k, 0.85 * k))
+      desenhar(lTopo, 1.2 * k, 0.6 * k)
+      const tT = 1.42 * k, dT = 0.9 * k
+      entrar(topo, tT, dT)
+
+      // o foco: o nível acende em roxo (com brilho) e os outros se apagam um pouco; sem foco, o meio fica em destaque leve
+      const tF = tT + chega(dT) + 0.06 * k
+      const niveis = { topo: [topo], meio: [meio], base: bases }
+      const linhasDe = { topo: [lTopo], meio: [], base: lBases }
+      if (foco) {
+        const aceso = niveis[foco]
+        aceso.forEach((el) => {
+          tl.to(el.querySelector('.tinta'), { opacity: 1, duration: 0.7 * k, ease: CASA }, tF)
+          tl.to(el.querySelector('span'), { color: '#ffffff', duration: 0.7 * k, ease: CASA }, tF)
+          tl.fromTo(el, { boxShadow: '0 30px 70px rgba(20, 40, 30, .16), 0 8px 20px rgba(20, 40, 30, .08), 0 0 0px rgba(85, 69, 242, 0)' },
+            { boxShadow: '0 26px 60px rgba(55, 40, 200, .30), 0 6px 14px rgba(40, 30, 140, .18), 0 0 90px rgba(116, 102, 255, .75)', duration: 0.9 * k, ease: CASA }, tF)
+          tl.to(el, { scale: 1.05, duration: 0.9 * k, ease: CASA }, tF)
+        })
+        linhasDe[foco].forEach((p) => tl.to(p, { stroke: '#5545f2', duration: 0.7 * k, ease: CASA }, tF))
+        Object.keys(niveis).filter((n) => n !== foco).forEach((n) => niveis[n].forEach((el) => tl.to(el, { opacity: 0.5, duration: 0.8 * k, ease: CASA }, tF)))
+        motion.som('foco', tF)
+      } else {
+        tl.to(meio.querySelector('span'), { color: '#5545f2', duration: 0.8 * k, ease: CASA }, 0.3 * k)
+      }
+
+      // a cena nunca para: se aproxima devagar o plano inteiro (puxando um pouco para o nível em foco) e termina ainda andando
+      const cy = { topo: yT + T.h / 2, meio: yM + M.h / 2, base: yB + B.h / 2 }
+      gsap.set(cena, { transformOrigin: `${W / 2}px ${foco ? (y0 + G / 2) * 0.5 + cy[foco] * 0.5 : y0 + G / 2}px` })
+      tl.fromTo(cena, { scale: 1 }, { scale: 1.06, duration: D, ease: motion.curva(0.2, 0.05, 0.1, 0.45) }, 0)
+      tl.to({}, { duration: 0 }, D)
+      motion.pronto(tl)
+    }
+  })()
+</script>

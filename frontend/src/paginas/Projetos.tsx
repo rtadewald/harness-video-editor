@@ -10,6 +10,7 @@ import { ETAPAS } from '@/editor/etapas'
 import { cn } from '@/lib/utils'
 import Configuracoes from './Configuracoes'
 import NovoProjeto from './NovoProjeto'
+import { ChipCodigo } from '@/components/Codigo'
 
 /** Início do app: grade de projetos no mesmo chrome escuro do editor. */
 export default function Projetos() {
@@ -102,7 +103,10 @@ export default function Projetos() {
                   </span>
                   <Progresso etapas={p.etapas} />
                 </div>
-                <h3 className="mt-3 truncate text-[15px] font-semibold tracking-[-0.02em]">{p.nome}</h3>
+                <div className="mt-3 flex items-center gap-2">
+                  <h3 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-[-0.02em]">{p.nome}</h3>
+                  <ChipCodigo tipo="projeto" id={p.id} nome={p.nome} />
+                </div>
                 <p className="mt-0.5 text-[11px] text-fog">
                   {new Date(p.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                   {p.apoios > 0 && ` · ${p.apoios} apoio${p.apoios > 1 ? 's' : ''}`}

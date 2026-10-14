@@ -12,6 +12,7 @@ import CenaPreset from '@/presets/CenaPreset'
 import { apagarPreset, editarPreset, nMidias, paraMidias, type Preset } from '@/presets/presets'
 import { versao } from './comum'
 import { OndeVale, Simulador, SonsDoPreset } from './Avaliacao'
+import { ChipCodigo } from '@/components/Codigo'
 
 const minSeg = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`
 
@@ -185,9 +186,12 @@ export default function CardPreset({ p, aberto, abrir, tocando, tocar, midiasSim
         )}
         <div className="mt-3 flex items-start gap-2">
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-[15px] font-semibold tracking-[-0.02em]" title={p.nome}>
-              {p.nome}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="min-w-0 truncate text-[15px] font-semibold tracking-[-0.02em]" title={p.nome}>
+                {p.nome}
+              </h3>
+              <ChipCodigo tipo="preset" id={p.id} nome={p.nome} />
+            </div>
             <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-fog">
               {!p.formatos || p.formatos.length === 2 ? 'Tela cheia e dividida' : p.formato === 'vertical' ? 'Tela cheia' : 'Tela dividida'} · {p.receita.repete ? '2 ou mais mídias' : `${nMidias(p.receita)} mídia${nMidias(p.receita) > 1 ? 's' : ''}`}
               {fonte && (

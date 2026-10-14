@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { useLembrado } from '@/lib/useLembrado'
 import IconeGrupo from '@/referencias/IconeGrupo'
 import { COR_PLANO } from '@/referencias/LinhaDirecao'
+import { ChipCodigo } from '@/components/Codigo'
 
 type Ordem = 'aleatorio' | 'longos' | 'curtos' | 'video'
 const dur = (c: ClipeReferencia) => c.fim - c.inicio
@@ -300,8 +301,11 @@ export function Cartao({ clipe: c, nome, presets = [], abrir, favoritar }: { cli
           <span className="absolute right-2.5 bottom-2.5 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">{seg(dur(c))}</span>
           {c.revisado && <span className="absolute bottom-2.5 left-2.5 rounded-full bg-mint px-2 py-0.5 text-[9px] font-semibold text-ink">✓ revisado</span>}
         </div>
-        <p className="mt-2.5 truncate text-[11px] text-fog">
-          {c.ref_nome} · {seg(c.inicio)}
+        <p className="mt-2.5 flex items-center gap-2 text-[11px] text-fog">
+          <span className="min-w-0 flex-1 truncate">
+            {c.ref_nome} · {seg(c.inicio)}
+          </span>
+          <ChipCodigo tipo="referencia" id={c.ref} sufixo={`·${c.id}`} nome={`${nome} · ${c.ref_nome} ${seg(c.inicio)}`} />
         </p>
         {c.texto && <p className="mt-0.5 truncate text-[12px] font-semibold">“{c.texto}”</p>}
         <p className="mt-0.5 line-clamp-2 text-[12px] leading-[1.5] text-cream/85">{c.descricao}</p>

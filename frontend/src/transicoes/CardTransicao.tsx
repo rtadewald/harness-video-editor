@@ -7,6 +7,7 @@ import { NOME_INTENSIDADE, eventoNoTempo, useCatalogoSons, type Intensidade } fr
 import { cn } from '@/lib/utils'
 import EfeitoNoPalco from './EfeitoNoPalco'
 import { LUZ, editarTransicao, nomeGrupoPar, useBiblioteca, type Biblioteca, type CorteDoVideo, type Transicao } from './transicoes'
+import { ChipCodigo } from '@/components/Codigo'
 
 const DEPOIS = 1.5 // quanto o trecho mostra depois do corte
 const quadro = (ref: string, t: number) => `/api/presets/quadro/${encodeURIComponent(ref)}?t=${Math.max(t, 0).toFixed(2)}`
@@ -182,6 +183,7 @@ export default function CardTransicao(p: {
             {t.som ? ' · com som' : ''}
           </p>
         </button>
+        <ChipCodigo tipo="transicao" id={t.id} nome={t.nome} className="mt-1" />
         {p.favorita && (
           <button
             onClick={p.favorita.alternar}

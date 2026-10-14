@@ -17,6 +17,8 @@ export type Preset = {
   /** o instante da miniatura parada, em fração da duração */
   miniatura: number;
   campos: Record<string, CampoMotion>;
+  /** Escrito pelo Claude e ainda não aprovado (docs/editor-claude.md, E7). */
+  a_revisar?: boolean;
   /** Os momentos de som (SPEC §8.6): rótulo e som padrão de cada um. */
   sons?: Record<string, { rotulo: string; som: string | null; intensidade: Intensidade }>;
 };

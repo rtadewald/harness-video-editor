@@ -20,6 +20,7 @@ import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { ChipCodigo } from '@/components/Codigo'
 
 const ACEITA = 'video/mp4,video/quicktime,video/webm,image/png,image/jpeg,image/webp'
 const STATUS_IA: Record<ItemBanco['ia']['status'], string> = {
@@ -216,9 +217,12 @@ function Cartao({ item: i, abrir, apagar }: { item: ItemBanco; abrir: () => void
             <span className="absolute inset-0 grid place-items-center bg-black/60 text-[12px] font-semibold text-yellow">cortando o original…</span>
           )}
         </div>
-        <h3 className="mt-3 truncate text-[14px] font-semibold tracking-[-0.02em]" title={i.nome}>
-          {i.nome}
-        </h3>
+        <div className="mt-3 flex items-center gap-2">
+          <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.02em]" title={i.nome}>
+            {i.nome}
+          </h3>
+          <ChipCodigo tipo="midia" id={i.id} nome={i.nome} />
+        </div>
         {status ? (
           <p className={cn('mt-0.5 text-[11px]', i.ia.status === 'erro' ? 'text-coral' : i.ia.status === 'pendente' ? 'text-fog' : 'text-yellow')}>{status}</p>
         ) : (
@@ -380,6 +384,7 @@ function Detalhe({ bid, fechar, mudou }: { bid: string; fechar: () => void; mudo
                         >
                           <img src={urlBancoMiniatura(t.id)} alt="" className="h-9 w-14 shrink-0 rounded-[3px] bg-black object-cover" />
                           <span className="min-w-0 flex-1 truncate font-semibold">{t.nome}</span>
+                          <ChipCodigo tipo="midia" id={t.id} nome={t.nome} />
                           <span className="shrink-0 text-[11px] text-fog tabular-nums">
                             {seg(t.duracao)}
                             {t.usos?.length ? ` · em ${t.usos.length}` : ''}
