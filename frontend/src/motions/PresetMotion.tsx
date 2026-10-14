@@ -19,7 +19,7 @@ export function usePresets() {
 }
 
 /** A miniatura de um preset: parada perto do fim; com o mouse em cima, toca em loop. */
-export function MiniaturaPreset(p: { preset: Preset; formato: Formato; valores?: Record<string, string>; fundo?: string }) {
+export function MiniaturaPreset(p: { preset: Preset; formato: Formato; valores?: Record<string, string>; fundo?: string; auto?: boolean }) {
   const [t, setT] = useState(p.preset.duracao * p.preset.miniatura);
   const quadro = useRef(0);
   const tocar = () => {
@@ -34,9 +34,13 @@ export function MiniaturaPreset(p: { preset: Preset; formato: Formato; valores?:
     cancelAnimationFrame(quadro.current);
     setT(p.preset.duracao * p.preset.miniatura);
   };
-  useEffect(() => () => cancelAnimationFrame(quadro.current), []);
+  // `auto`: toca em loop desde que aparece (o detalhe do motion no Banco), sem esperar o mouse
+  useEffect(() => {
+    if (p.auto) tocar();
+    return () => cancelAnimationFrame(quadro.current);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div onMouseEnter={tocar} onMouseLeave={parar} className={cn("relative overflow-hidden rounded-[6px] bg-black", p.formato === "vertical" ? "aspect-[9/16]" : "aspect-[9/8]")}>
+    <div onMouseEnter={p.auto ? undefined : tocar} onMouseLeave={p.auto ? undefined : parar} className={cn("relative overflow-hidden rounded-[6px] bg-black", p.formato === "vertical" ? "aspect-[9/16]" : "aspect-[9/8]")}>
       <MotionNoLugar src={urlPaginaPreset(p.preset, p.formato, p.valores)} formato={p.formato} rel={t} fundo={p.fundo ?? p.preset.fundo} noLugar={false} className="absolute inset-0" />
     </div>
   );
