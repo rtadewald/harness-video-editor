@@ -15,7 +15,9 @@ import { useEntradas } from '@/inserts/entradas'
 import InsertNoLugar, { pedidosNoTempo, presetDe } from '@/inserts/InsertNoLugar'
 import type { Pedido } from '@/inserts/comum'
 import { usePresets } from '@/presets/presets'
-import { precarregarSons } from '@/editor/sons'
+import { precarregarSons, useCatalogoSons, useSonsNoTempo } from '@/editor/sons'
+import ElementosNoPalco from '@/elementos/ElementosNoPalco'
+import { elementosDoVideo, sonsDosElementos } from '@/elementos/elementos'
 import { centroDoMovimento, ehFullAtor, escalaDoMovimento, type Movimento } from '@/ator/movimento'
 
 /** O quadro montado por cima do ator (SPEC §13, camada 2): o insert sob o cursor no lugar (com a entrada, o fundo, o
@@ -25,6 +27,8 @@ import { centroDoMovimento, ehFullAtor, escalaDoMovimento, type Movimento } from
 export default function MontagemNoPalco(p: {
   projeto: Projeto
   planos: ItemRef[]
+  /** Os elementos da direção no tempo (camada `elemento`): desenhados por cima de tudo (`elementos/`). */
+  elementos?: ItemRef[]
   saida: PalavraSaida[]
   pedidos: Pedido[]
   banco: Map<string, ItemBanco>
@@ -63,6 +67,20 @@ export default function MontagemNoPalco(p: {
     .sort()
     .join()
   useEffect(() => precarregarSons(idsSons.split(',').filter(Boolean)), [idsSons])
+  // os elementos (lettering, ManyChat, caixinha, print), com o lugar pelo plano de baixo, e os sons deles
+  const { planos, elementos: itensElemento, pedidos, banco, rostoEm } = p
+  const elementos = useMemo(
+    () =>
+      elementosDoVideo([...planos, ...(itensElemento ?? [])], rostoEm, (plano) => {
+        const x = pedidos.find((y) => y.plano === plano)
+        return x && x.midias.length > 0 ? divisaoDe(x, banco, presets) : null
+      }),
+    [planos, itensElemento, pedidos, banco, presets, rostoEm],
+  )
+  const catSons = useCatalogoSons()
+  const sonsElementos = useMemo(() => sonsDosElementos(elementos, catSons), [elementos, catSons])
+  useSonsNoTempo(sonsElementos, tempo, p.tocando)
+  const camadaElementos = <ElementosNoPalco elementos={elementos} tempo={tempo} banco={banco} />
   const noCursor = p.pedidos.find((x) => tempo >= x.t.inicio && tempo < x.t.fim) ?? null
   const planoNoCursor = p.planos.find((pl) => tempo >= pl.inicio && tempo < pl.fim) ?? null
   const motionNoCursor = planoNoCursor && motions[planoNoCursor.id] ? planoNoCursor : null
@@ -104,6 +122,7 @@ export default function MontagemNoPalco(p: {
   if (motionNoCursor) {
     const m = motions[motionNoCursor.id]
     return (
+      <>
       <MotionNoLugar
         src={urlPaginaMotionPlano(projeto.id, motionNoCursor.id, m, motionNoCursor.fim - motionNoCursor.inicio, falaDoPlano(p.saida, motionNoCursor.inicio, motionNoCursor.fim))}
         formato={m.formato}
@@ -111,9 +130,11 @@ export default function MontagemNoPalco(p: {
         rel={tempo - motionNoCursor.inicio}
         sons={{ ativo: p.tocando, escolhas: escolhasDeSom(presetsMotion, m) }}
       />
+      {camadaElementos}
+      </>
     )
   }
-  if (!noCursor) return null
+  if (!noCursor) return camadaElementos
   const mudar = p.mudarComentario
   return (
     <>
@@ -136,6 +157,7 @@ export default function MontagemNoPalco(p: {
           mudar={mudar && ((campos) => mudar(noCursor.id, campos))}
         />
       )}
+      {camadaElementos}
     </>
   )
 }
@@ -145,6 +167,7 @@ export default function MontagemNoPalco(p: {
 export function MontagemDoProjeto(p: {
   projeto: Projeto
   planos: ItemRef[]
+  elementos?: ItemRef[]
   saida: PalavraSaida[]
   tempo: number
   tocando: boolean

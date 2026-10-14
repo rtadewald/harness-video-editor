@@ -17,6 +17,8 @@ import { usePresets } from '@/presets/presets'
 import { useEntradas } from '@/inserts/entradas'
 import { montarSequencia } from '@/player/sequencia'
 import { centroDoMovimento, ehFullAtor } from '@/ator/movimento'
+import ElementosNoPalco from '@/elementos/ElementosNoPalco'
+import { elementosDoVideo, elementosMexendo, intervalosDeLettering, semLettering, sonsDosElementos, type Elemento } from '@/elementos/elementos'
 
 /** Páginas abertas pelo navegador escondido do backend (nunca pelo criador). */
 
@@ -51,6 +53,29 @@ declare global {
       movimentos?: { ini: number; fim: number; tipo: string; cx: number; cy: number }[]
     }
   }
+}
+
+/** As partes dos elementos fora dos intervalos `cobertos` (unidas e sem sobreposição): os trechos a fotografar só por
+ *  causa deles. */
+function descobertos(elementos: Elemento[], cobertos: { ini: number; fim: number }[]) {
+  const juntos: { ini: number; fim: number }[] = []
+  for (const e of [...elementos].sort((a, b) => a.inicio - b.inicio)) {
+    const u = juntos[juntos.length - 1]
+    if (u && e.inicio <= u.fim) u.fim = Math.max(u.fim, e.fim)
+    else juntos.push({ ini: e.inicio, fim: e.fim })
+  }
+  const cs = [...cobertos].sort((a, b) => a.ini - b.ini)
+  return juntos.flatMap((j) => {
+    const out: { ini: number; fim: number }[] = []
+    let ini = j.ini
+    for (const c of cs) {
+      if (c.fim <= ini || c.ini >= j.fim) continue
+      if (c.ini > ini) out.push({ ini, fim: c.ini })
+      ini = Math.max(ini, c.fim)
+    }
+    if (ini < j.fim) out.push({ ini, fim: j.fim })
+    return out.filter((x) => x.fim - x.ini > 1e-3)
+  })
 }
 
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -103,11 +128,20 @@ export function RenderProjeto() {
     if (!dados || !ins) return null
     const seq = seqRender ?? montarSequencia(dados.timeline, dados.palavras, dados.projeto.velocidade ?? 1)
     const saida = palavrasNaSaida(dados.palavras, seq)
-    const planos = paraTempo(dados.projeto.direcao?.itens ?? [], dados.palavras, saida, seq.duracao).visiveis.filter((i) => i.camada === 'plano')
+    const visiveis = paraTempo(dados.projeto.direcao?.itens ?? [], dados.palavras, saida, seq.duracao).visiveis
+    const planos = visiveis.filter((i) => i.camada === 'plano')
     // os motions: os planos de motion que já têm um motion escolhido
     const comMotion = planos.filter((pl) => motions?.[pl.id]).map((pl) => ({ plano: pl.id, ini: pl.inicio, fim: pl.fim, dividida: pl.tipo === 'tela_dividida_motion', fala: falaDoPlano(saida, pl.inicio, pl.fim) }))
-    return { duracao: seq.duracao, lista: pedidosNoTempo(ins.pedidos, planos).filter((x) => x.midias.length), motions: comMotion, planos, saida, palavras: dados.palavras }
+    return { duracao: seq.duracao, lista: pedidosNoTempo(ins.pedidos, planos).filter((x) => x.midias.length), motions: comMotion, planos, visiveis, saida, palavras: dados.palavras }
   }, [dados, ins, motions, seqRender])
+  // os elementos (lettering, ManyChat, caixinha, print), desenhados por cima de tudo, com o lugar pelo plano de baixo
+  const elementos = useMemo<Elemento[]>(() => {
+    if (!pedidos || !banco || rostoEm === undefined) return []
+    return elementosDoVideo(pedidos.visiveis, rostoEm, (plano) => {
+      const x = pedidos.lista.find((y) => y.plano === plano)
+      return x ? divisaoDe(x, banco, presets) : null
+    })
+  }, [pedidos, banco, presets, rostoEm])
 
   // a página avisa o backend que está pronta e responde a cada instante pedido depois de tudo pintado
   useEffect(() => {
@@ -120,6 +154,10 @@ export function RenderProjeto() {
       const [b, escolhas] = await Promise.all([fetch('/api/transicoes').then(json<Biblioteca>), fetch(`/api/projetos/${id}/transicoes`).then(json<Escolhas>)])
       return cortesDoVideo(pedidos.planos, b, escolhas)
     }
+    // os trechos dos elementos que não caem sobre um insert ou motion (esses já são fotografados): sobre o ator, a camada
+    // só com o elemento, sem mexer no ator
+    const cobertos = [...pedidos.lista.map((x) => ({ ini: x.t.inicio, fim: x.t.fim })), ...pedidos.motions]
+    const soElementos = descobertos(elementos, cobertos).map((x) => ({ ...x, dividida: false, divisao: null }))
     window.__render = {
       duracao: pedidos.duracao,
       movimentos: pedidos.planos.flatMap((pl) => {
@@ -138,6 +176,7 @@ export function RenderProjeto() {
           const divisao: Divisao | null = m.dividida ? { modo: 'metade', tipo: 'area', f: 0.5 } : null
           return { ini: m.ini, fim: m.fim, dividida: m.dividida, divisao: divisao && { ...divisao, ator: geometriaDoAtor(divisao, null, rostoEm?.(m.ini, m.fim) ?? null) } }
         }),
+        ...soElementos,
       ],
       sons: async () => {
         const cat = await carregarCatalogoSons()
@@ -157,14 +196,15 @@ export function RenderProjeto() {
               .map((e) => ({ ...e, t: e.t + m.ini }))
           }),
         )
-        return [...dosInserts, ...dosMotions.flat(), ...sonsDasTransicoes(await cortesDasTransicoes(), cat)]
+        return [...dosInserts, ...dosMotions.flat(), ...sonsDosElementos(elementos, cat), ...sonsDasTransicoes(await cortesDasTransicoes(), cat)]
       },
       // a legenda (SPEC §8.10): os blocos visíveis, lidos na hora (a mesma conta da prévia, com a altura pelos inserts
       // desta página), para o ASS
       legenda: async () => {
         const lg = await fetch(`/api/projetos/${id}/legenda`).then(json<Legenda>)
         const zonas = zonasDaLegenda(pedidos.lista, banco, presets)
-        return lg.ligada ? { blocos: paraExportar(blocosDaLegenda(pedidos.saida, pedidos.planos, lg, pedidos.palavras, zonas)) } : null
+        const blocos = semLettering(blocosDaLegenda(pedidos.saida, pedidos.planos, lg, pedidos.palavras, zonas), intervalosDeLettering(elementos))
+        return lg.ligada ? { blocos: paraExportar(blocos) } : null
       },
       // as transições com efeito (o som delas vai em `sons`), para o ffmpeg desenhar depois da montagem (SPEC §8.8)
       transicoes: async () =>
@@ -177,7 +217,7 @@ export function RenderProjeto() {
           setPedido((x) => ({ t, n: x.n + 1 }))
         }),
     }
-  }, [id, pedidos, banco, entradas, motions, presets, rostoEm, ins?.ator_planos])
+  }, [id, pedidos, banco, entradas, motions, presets, rostoEm, ins?.ator_planos, elementos])
   useEffect(() => {
     if (!chegou.current) return
     const ok = chegou.current
@@ -187,8 +227,13 @@ export function RenderProjeto() {
 
   const atual = pedidos?.lista.find((x) => tempo >= x.t.inicio && tempo < x.t.fim)
   const motion = pedidos?.motions.find((m) => tempo >= m.ini && tempo < m.fim)
-  // parado: sem vídeo na tela (checado depois de pintar) e sem entrada nem saída andando (motion nunca é parado)
-  chave.current = atual && !motion ? chaveParada(atual, tempo - atual.t.inicio, entradas, presets) : null
+  // parado: sem vídeo na tela (checado depois de pintar) e sem entrada nem saída andando (motion nunca é parado); os
+  // elementos na tela entram na chave, e um elemento ainda animando (o pop, a digitação) não deixa parar
+  const elementosAgora = elementos.filter((e) => e.inicio <= tempo && tempo < e.fim)
+  const chaveElementos = elementosMexendo(elementos, tempo) ? null : elementosAgora.map((e) => e.id).join(',')
+  const chaveInsert = motion ? null : atual ? chaveParada(atual, tempo - atual.t.inicio, entradas, presets) : ''
+  chave.current = chaveInsert == null || chaveElementos == null ? null : `${chaveInsert}|${chaveElementos}`
+  const camadaElementos = banco && <ElementosNoPalco elementos={elementos} tempo={tempo} banco={banco} />
   if (motion && motions?.[motion.plano])
     return (
       <RelogioRender.Provider value={tempo}>
@@ -199,10 +244,12 @@ export function RenderProjeto() {
             fundo={fundoDoMotion(motions[motion.plano])}
             rel={tempo - motion.ini}
           />
+          {camadaElementos}
         </div>
       </RelogioRender.Provider>
     )
-  if (!atual || !banco) return null
+  if (!banco) return null
+  if (!atual) return elementosAgora.length ? <div className="fixed inset-0 overflow-hidden">{camadaElementos}</div> : null
   const divisaoAtual = divisaoDe(atual, banco, presets)
   // o card desvia do ator pela geometria dele (o rosto só muda o x: a altura é a mesma da prévia)
   const c = comentarioDe(atual, lugarDoComentario(atual, divisaoAtual, geometriaDoAtor(divisaoAtual, atual.enriquecimento?.ator, null)))
@@ -211,6 +258,7 @@ export function RenderProjeto() {
       <div className="fixed inset-0 overflow-hidden">
         <InsertNoLugar pedido={atual} banco={banco} tempo={tempo} tocando={false} fundo={ins?.fundo ?? 'gradiente'} entradas={entradas} />
         {atual.tipo === 'comentario_insert_ator' && <CardComentario c={c} texto={c.texto ?? atual.texto ?? ''} />}
+        {camadaElementos}
       </div>
     </RelogioRender.Provider>
   )

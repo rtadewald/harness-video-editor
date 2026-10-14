@@ -760,7 +760,7 @@ Os atalhos valem também depois de clicar num bloco, numa caixa de marcar ou num
 - **Transições:** os cortes entre planos são onde entram as transições, que dependem do grupo dos dois planos.
 - **Legenda:** a altura dela depende do tipo do plano (ex.: 0,554 da altura no Full ator, 0,409 no Comentário + insert + ator).
 - **Presets:** os movimentos de câmera do Enriquecimento valem nos planos de Full ator.
-- **Os elementos (Lettering, Palavra ManyChat, Caixinha, Print) ainda não são desenhados no vídeo final:** no código atual, eles só aparecem no esboço da etapa e nos roteiros. (O lettering do plano "Full ator com lettering" também não tem render próprio; só muda a altura da legenda.)
+- **Os elementos são desenhados na prévia montada e no MP4** (`frontend/src/elementos/`, portado do 19, com o estilo medido nas referências; unidades do quadro, iguais nos dois): o texto do **Full ator com lettering** e o **Lettering** sobre o ator (branco, negrito, abaixo do queixo); o **Lettering** sobre um insert ou motion (o fundo desfocado e escurecido por trás); a **Palavra ManyChat** (a barra branca com a palavra sendo digitada e o botão de enviar, com o som de digitação); a **Caixinha de perguntas** (o sticker com o cabeçalho "Faça uma pergunta" no degradê do Instagram, com um pop); o **Print sobreposto** (a mídia do banco num card ou, sem mídia, uma etiqueta mono com o texto). O lugar sai do plano por baixo (sobre o ator: pelo rosto; tela dividida: na costura; ator embaixo: na área do insert). Onde há lettering, a **legenda some** (os blocos ficam como escondidos na etapa Legenda). Na exportação, os trechos com elemento sobre o ator entram na camada fotografada (sem mexer no ator) e os sons deles vão para a mistura.
 
 #### Ligações
 
@@ -2406,7 +2406,7 @@ Os fatos medidos sobre transcrição e cortes estão em [cortes.md](docs/cortes.
 - ⏳ Na lista de projetos, quando Transições, Áudio e Legenda contam como prontas (hoje as barrinhas delas ficam apagadas, "ainda sem marcação de pronta"), ou se elas saem do card.
 - ⏳ Achados da revisão do SPEC contra o código (out/2026), a decidir:
   - **Referências revisadas:** a Calibragem diz que "só as referências revisadas ensinam a Direção visual", mas a diretora e as regras sugeridas recebem todas as analisadas, sem marcar as revisadas nem os favoritos (§8.2, §8.11).
-  - **Elementos no vídeo final:** lettering, palavra ManyChat, caixinha e print sobreposto aparecem no esboço da Direção, mas não na prévia montada nem na exportação (§8.2).
+  - ~~**Elementos no vídeo final**~~ — resolvido na E5 do editor por Claude (§8.2). ⏳ O Print sobreposto ainda não tem como apontar uma mídia do banco pela tela (sai a etiqueta com o texto).
   - **Dúvidas da IA nos cortes:** a IA devolve as dúvidas (`cortes.duvidas`), mas a tela não as mostra (§8.1a).
   - **Uma falha na análise por trecho** (2 tentativas) ainda derruba a referência inteira; só o passo dos inserts tolera falhas (§8.11).
   - **Engrenagem do preset aplicado:** na etapa Inserts, a engrenagem do preset que já está no insert selecionado não abre o editor completo (só a dos outros) (§8.4).
