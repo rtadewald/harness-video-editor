@@ -2180,6 +2180,21 @@ Indireto: o motor e as margens definem os cortes; os modelos da direção define
 - Rotas: `GET /api/aprendizados`, `PUT /api/aprendizados/{área} {texto}`; `GET /api/projetos/{id}/aprovacao` (`{versao, difere, referencia}`), `POST /api/projetos/{id}/referencia {versao?}`.
 - CLI: `exportar`, `referencia`, `aprovar`, `banco-editar`, `banco-do-projeto`.
 
+### 8.21 Página CTAs
+
+#### O que é
+✅ A página `/ctas` (`paginas/Ctas.tsx`; backend `ctas.py`, rotas em `rotas/ctas.py`; docs/editor-claude.md, E10; Q20; do 19): os **CTAs**, trechos finais de vídeos já editados (com legenda, motion e áudio prontos) que entram inteiros no fim de um orgânico e dão as **saídas** do projeto (📱 Reels ManyChat, 📱 ManyChat TikTok, 💰 Ad LP, 💰 Ad VSL, 💰 Ad VSL-isca). ⏳ A entrada do CTA no fluxo de edição fica para depois (Q20).
+
+#### O que você vê e pode fazer
+- **Subir vídeo ↗** (ou arrastar para a página): cada vídeo vira um CTA (o vídeo todo, até marcar).
+- **Filtro por produto**: Todos · cada produto · Sem produto (lembrado neste navegador); **Produtos** abre o cadastro (emoji e nome; novo; tirar — os CTAs dele ficam sem produto).
+- **Grade** (9:16), sem categoria primeiro e depois na ordem das categorias. Cada card: a miniatura (com o mouse em cima, toca o trecho mudo, em laço; clicar toca com som; a barra mostra o andamento), o selo da saída (amarelo) ou "Sem categoria" (coral), a **★** (o favorito da categoria, o que entra por padrão; só um por categoria), a duração do trecho, ✂ **marcar** e 🗑 **apagar** (vai para `dados/ctas/_lixeira/`); embaixo, o nome (editável; Enter grava), o código **CTA-xx**, o **produto** e a **categoria** (a saída).
+- **Marcar o CTA**: o vídeo inteiro com a tira de quadros; **Início aqui (I)** e **Fim aqui (O)** no instante do vídeo, clicar na tira anda, Espaço toca; o trecho marcado em coral; **Salvar** (mín. 0,5 s; a miniatura passa a ser do meio do trecho).
+
+#### O que fica gravado
+- `dados/ctas/<id>/`: `original.<ext>`, `proxy.mp4` (até 1280 px), `miniatura.jpg`, `tira.jpg`, `cta.json` {id, nome, categoria, produto, inicio, fim, duracao, largura, altura, favorito, fonte, arquivo, criado_em}; `dados/ctas/categorias.json` e `produtos.json`.
+- Rotas: `GET /api/ctas` ({ctas, categorias, produtos}), `POST /api/ctas` (multipart `arquivos`, `categoria` opcional), `PUT /api/ctas/{id}` {nome, categoria, produto, inicio, fim, favorito}, `DELETE /api/ctas/{id}`, `PUT /api/ctas-produtos {produtos}`, `GET /api/ctas/{id}/{proxy.mp4|miniatura.jpg|tira.jpg}`. CLI: `A ctas`.
+
 ## 9. Timeline e ligação entre etapas
 
 ✅ A timeline nasce **multitrilha**: V1 (o ator), V2 (inserts), V3 (motion), LEG (legenda) e o áudio (a voz, os sons dos presets, as transições e o fundo). Cada etapa mostra as trilhas que lhe interessam.

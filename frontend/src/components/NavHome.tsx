@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Blend, BookOpenText, GraduationCap, ChevronLeft, ChevronRight, Clapperboard, Film, FolderOpen, Images, Layers, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
+import { Blend, BookOpenText, GraduationCap, Megaphone, ChevronLeft, ChevronRight, Clapperboard, Film, FolderOpen, Images, Layers, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fecharAba, useAbasProjetos } from './abasProjetos'
 
@@ -18,6 +18,7 @@ const LINKS: Link[] = [
   { para: '/banco', nome: 'Banco', icone: Images },
   { para: '/motions', nome: 'Motions', icone: Clapperboard },
   { para: '/referencias', nome: 'Referências', icone: Film },
+  { para: '/ctas', nome: 'CTAs', icone: Megaphone }, // os finais prontos que dão as saídas do projeto (docs/editor-claude.md, E10)
 ]
 // o que treina e regula o app, alinhado à direita
 const TREINO: Link[] = [

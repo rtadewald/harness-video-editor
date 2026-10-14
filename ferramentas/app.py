@@ -508,6 +508,17 @@ def banco_do_projeto(a):
         print(f'          {(i.get("descricao") or "(sem descrição)")[:160]}')
 
 
+def ctas_listar(_a):
+    """Os CTAs (finais prontos que dão as saídas do projeto), com a categoria, o produto e o favorito."""
+    d = chamar('GET', '/api/ctas')
+    cods = _codigos()
+    cats = {c['id']: f'{c["emoji"]} {c["saida"]}' for c in d['categorias']}
+    prods = {p['id']: p['nome'] for p in d['produtos']}
+    for c in d['ctas']:
+        print(f'{cods.get("cta", {}).get(c["id"], c["id"]):<7} {cats.get(c.get("categoria"), "sem categoria"):<20} {prods.get(c.get("produto"), "—"):<8} '
+              f'{c["inicio"]:.1f}–{c["fim"]:.1f} s{"  ★" if c.get("favorito") else ""}  {c["nome"]}')
+
+
 def identidade(_a):
     """A identidade visual dos motions (Configurações › Motions)."""
     print(chamar('GET', '/api/config').get('identidade_motion') or '(vazia)')
@@ -702,6 +713,7 @@ def main(argv=None):
     cmd('aprovar', aprovar, ID, ('versao', {}), ajuda='aprova a versão como o botão da Revisão (aprovação por mensagem)')
     cmd('banco-editar', banco_editar, ('midia', {}), ('--nome', {}), ('--descricao', {}), ('--palavras', {'help': 'separadas por vírgula'}))
     cmd('banco-do-projeto', banco_do_projeto, ID, ajuda='o que o Claude trouxe ao banco para o projeto, com o selo')
+    cmd('ctas', ctas_listar, ajuda='os CTAs (categoria, produto, favorito)')
     cmd('identidade', identidade, ajuda='a identidade visual dos motions (Configurações › Motions)')
     cmd('motions-usar', motions_usar, ID, ('plano', {}), ('--preset', {}), ('--video', {}), ('--formato', {'choices': ['vertical', 'dividida'], 'default': 'vertical'}),
         ('--valores', {'help': 'JSON dos campos'}), ('--fundo', {}), FORCAR)
