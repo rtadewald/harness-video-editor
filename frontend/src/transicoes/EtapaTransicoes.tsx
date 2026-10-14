@@ -19,7 +19,6 @@ import {
   ordemDoPar,
   parDoGrupo,
   sonsDasTransicoes,
-  sortearTransicoes,
   useBiblioteca,
   type Biblioteca,
   type CorteDoVideo,
@@ -52,6 +51,7 @@ export default function EtapaTransicoes(p: {
   tocarTrecho: (de: number, ate: number) => void
   escolher: (corte: CorteDoVideo, tid: string | null) => void
   escolherVarios: (trocas: Troca[]) => void
+  variar: (modo: 'favoritas' | 'todas') => Promise<void>
 }) {
   const cortes = useContext(TransicoesDoVideo) ?? VAZIO
   const b = useBiblioteca()
@@ -129,7 +129,8 @@ export default function EtapaTransicoes(p: {
               manuais={cortes.filter((c) => c.manual).length}
               aplicar={(modo) => {
                 pararSons()
-                p.escolherVarios(modo === 'limpar' ? cortes.filter((c) => c.manual).map((c) => ({ plano: c.plano, tid: null, par: `${c.de}>${c.para}` })) : sortearTransicoes(b, cortes, modo))
+                if (modo === 'limpar') p.escolherVarios(cortes.filter((c) => c.manual).map((c) => ({ plano: c.plano, tid: null, par: `${c.de}>${c.para}` })))
+                else void p.variar(modo)
               }}
             />
           )}

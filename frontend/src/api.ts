@@ -469,6 +469,9 @@ export const capturarSite = (id: string, pid: string, c: { url: string; proporca
 export const enriquecerInsert = (id: string, pid: string, campos: Record<string, string | number | number[] | null>) =>
   enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/${pid}/enriquecimento`, { campos })
 export const definirFundo = (id: string, fundo: string) => enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/fundo`, { fundo })
+/** Os presets recomendados de cada insert sem preset (com rodízio entre vizinhos; os mudados à mão ficam). */
+export const aplicarRecomendados = (id: string, refazer = false) =>
+  enviar<{ inserts: { plano: string; preset?: string; nome?: string; motivo?: string; pulado?: string }[] }>('POST', `/api/projetos/${id}/inserts/presets/recomendados`, { refazer })
 export const definirMovimentoAtor = (id: string, plano: string, movimento: Movimento | null) =>
   enviar<InsertsProjeto>('PUT', `/api/projetos/${id}/inserts/ator/${plano}`, { movimento })
 export const configurarComentario = (id: string, pid: string, campos: Record<string, unknown>) =>

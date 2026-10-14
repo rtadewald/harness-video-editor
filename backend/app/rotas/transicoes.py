@@ -2,6 +2,7 @@
 os efeitos em vídeo e as escolhas de cada projeto."""
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from .. import projeto, transicoes
 from .comum import Campos, ler_projeto
@@ -66,3 +67,17 @@ def escolher(id: str, c: Campos):
         atual.update(limpas)
         p['transicoes'] = atual
     return transicoes.do_projeto(projeto.atualizar(id, mudar))
+
+
+class Variar(BaseModel):
+    modo: str = 'favoritas'
+
+
+@rotas.post('/api/projetos/{id}/transicoes/variar')
+def variar(id: str, v: Variar):
+    """"Variar favoritas" / "Sortear todas" para todos os cortes (docs/editor-claude.md, E3)."""
+    ler_projeto(id)
+    try:
+        return {'cortes': transicoes.variar(id, v.modo), 'escolhas': transicoes.do_projeto(projeto.ler(id))}
+    except ValueError as e:
+        raise HTTPException(422, str(e))

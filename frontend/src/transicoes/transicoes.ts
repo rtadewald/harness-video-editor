@@ -86,23 +86,6 @@ export function fonteDaTransicao(b: Biblioteca, t: Transicao, parInfo?: Par) {
   return seco ? { ref: seco.ref, t: seco.t } : null
 }
 
-const sortear = <T,>(l: T[]) => l[Math.floor(Math.random() * l.length)]
-
-/** As transições sorteadas para os cortes (pedido de Rodrigo, out/2026). `favoritas`: cada corte fica com uma das
- *  favoritas do par, meio a meio. `todas`: 50% de chance de uma favorita (sorteada entre elas) e 50% de uma das outras
- *  (sorteada entre elas); sem favorita no par, uma das outras. A 1ª favorita sorteada volta ao padrão do par (null). */
-export function sortearTransicoes(b: Biblioteca, cortes: CorteDoVideo[], modo: 'favoritas' | 'todas'): Troca[] {
-  return cortes.map((c) => {
-    const o = ordemDoPar(b, c.de, c.para)
-    const ids = new Set(b.transicoes.map((t) => t.id))
-    const favs = (o?.ids.slice(0, o.favoritas) ?? []).filter((x) => ids.has(x))
-    const outras = [...ids].filter((x) => !favs.includes(x))
-    const tid =
-      modo === 'favoritas' ? (favs.length ? sortear(favs) : null) : favs.length && (Math.random() < 0.5 || !outras.length) ? sortear(favs) : sortear(outras)
-    return { plano: c.plano, tid: tid === padraoDoPar(b, c.de, c.para) ? null : tid, par: chavePar(c.de, c.para) }
-  })
-}
-
 /** Uma transição trocada à mão: a transição e o par do corte quando ela foi escolhida. Os ids dos planos são de posição
  *  (`p5`): com outra direção, `p5` pode ser outro corte, e a escolha só vale se o par ainda bater (as antigas, sem par,
  *  valem sempre). */
@@ -113,7 +96,7 @@ export type Escolhas = Record<string, Escolha>
 export type Troca = { plano: string; tid: string | null; par: string }
 
 /** As escolhas do projeto (o plano que entra → a transição) e como trocar uma ou várias de uma vez (um PUT só). */
-export function useEscolhas(projetoId: string): [Escolhas, (trocas: Troca[]) => void] {
+export function useEscolhas(projetoId: string): [Escolhas, (trocas: Troca[]) => void, (modo: 'favoritas' | 'todas') => Promise<void>] {
   const [e, setE] = useState<Escolhas>({})
   useEffect(() => {
     void fetch(`/api/projetos/${projetoId}/transicoes`)
@@ -138,7 +121,15 @@ export function useEscolhas(projetoId: string): [Escolhas, (trocas: Troca[]) => 
     },
     [projetoId],
   )
-  return [e, mudar]
+  // "Variar favoritas" / "Sortear todas": no backend, a mesma lógica que o Claude usa (docs/editor-claude.md, E3)
+  const variar = useCallback(
+    (modo: 'favoritas' | 'todas') =>
+      enviar<{ escolhas: Escolhas }>('POST', `/api/projetos/${projetoId}/transicoes/variar`, { modo })
+        .then((r) => setE(r.escolhas))
+        .catch((x) => window.alert((x as Error).message)),
+    [projetoId],
+  )
+  return [e, mudar, variar]
 }
 
 /** Um corte entre planos do vídeo, com a transição que vale nele. */
