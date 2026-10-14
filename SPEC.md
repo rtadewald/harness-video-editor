@@ -1859,7 +1859,9 @@ Nada direto. 💡 Os favoritos foram pensados como as **preferências** de Rodri
   Cada seção pode ter uma subseção **`### Inserts`**: como escrever a marcação dos inserts (o que aparece, como entra, zooms, destaques, trocas; nunca o layout).
 - **Os roteiros de exemplo:** os vídeos analisados na Calibragem, escritos como roteiro dirigido. Eles são montados na hora a partir da análise; não se editam aqui.
 
-Hoje (`_heuristica.json`), as Regras do criador têm 4 regras gerais: não começar com o ator em tela cheia; vídeo de dúvida começa com Comentário + insert + ator; gancho visual nos primeiros segundos; nunca mais de 3–4 s de Full ator seguido. Têm também 3 regras em `### Inserts`. As sugeridas pela IA são 4 regras, geradas com 6 vídeos em 06/10/2026, sem subseção de Inserts.
+**Onde ficam** (docs/editor-claude.md, Q17, E9): as regras moram na **skill do editor**, em `.claude/skills/editor/exemplos/regras.md` (no git; o Claude lê o mesmo arquivo); `dados/referencias/_heuristica.json` guarda só a versão anterior das regras (o "Voltar") e quando a IA sugeriu. Na primeira leitura depois da mudança, as regras que estavam no JSON foram para o arquivo. Uma referência criada de um projeto aprovado (`prj-…`) só entra nos roteiros de exemplo depois de revisada.
+
+Antes da E9 do editor por Claude (`_heuristica.json`), as Regras do criador tinham 4 regras gerais: não começar com o ator em tela cheia; vídeo de dúvida começa com Comentário + insert + ator; gancho visual nos primeiros segundos; nunca mais de 3–4 s de Full ator seguido. Têm também 3 regras em `### Inserts`. As sugeridas pela IA são 4 regras, geradas com 6 vídeos em 06/10/2026, sem subseção de Inserts.
 
 #### Passo a passo
 
@@ -2159,6 +2161,24 @@ Indireto: o motor e as margens definem os cortes; os modelos da direção define
 #### Ligações
 - A revisão é sempre da **versão atual** do projeto (a última marcada ou restaurada no seletor do topo); para revisar outra, volte a ela no seletor.
 - ⏳ Sem comparação lado a lado entre versões (o 19 também não tinha).
+
+### 8.20 Aprovação e Aprendizados
+
+#### O que é
+✅ O fim do ciclo de um vídeo editado pelo Claude (docs/editor-claude.md §7, E9), disparado pelo **Aprovar** da Revisão (§8.19): o MP4 final, o projeto vira **referência** da Calibragem, os **aprendizados** (só os confirmados por Rodrigo) e a **faxina do banco** (§8.15). E a página **Aprendizados** (`/aprendizados`, `paginas/Aprendizados.tsx`; backend `aprendizados.py`, `aprovacao.py`, rotas em `rotas/aprovacao.py`).
+
+#### Passo a passo
+1. **(manual)** Aprovar na Revisão e colar "Aprovado · PRJ-07 · vN" no chat (ou aprovar por mensagem: o Claude roda `A aprovar <id> vN`).
+2. **(automático, Claude)** `A exportar <id> --esperar`: o 4K pela exportação do app (HEVC, 24 fps). A exportação usa o estado de agora: se ele mudou desde a versão aprovada, a CLI recusa e diz o que mudou (`GET /api/projetos/{id}/aprovacao` → `difere`), e o Claude pergunta.
+3. **(automático, Claude)** `A referencia <id>`: a versão aprovada vira a referência **`prj-<id>-vN`** (sem Gemini): o MP4 exportado reduzido a 720 px, as palavras e a direção no tempo do vídeo final, a direção da v1 para comparar e os comentários de todas as revisões. Fica **a revisar** na Calibragem e só ensina a Direção visual (os roteiros de exemplo) depois que Rodrigo a marca revisada.
+4. **(Claude com Rodrigo)** Os aprendizados (`etapas/14-concluir.md`): o Claude junta revisões, respostas, as marcas de mão e o que corrigiu, propõe uma lista curta — mudanças concretas no app (uma regra na Heurística, favoritas, padrões, a identidade dos motions, um preset ou motion recusado) e notas de uso por etapa — e grava só o que Rodrigo confirma.
+5. **(Claude)** A faxina do banco: os selos se resolvem pela versão aprovada (★ Usado / ✗ Recusado); o Claude melhora a descrição do que ficou (`A banco-editar`); Rodrigo limpa os recusados quando quiser.
+
+#### Página Aprendizados
+- À esquerda, as áreas na ordem das etapas (Cortes, Inserts, Enriquecimento, Motions, Elementos, Transições, Áudio, Legenda, Checagem e entrega); à direita, o Markdown da área num editor (fonte mono), o caminho do arquivo e quando mudou; **Salvar** (ou ⌘S) grava no arquivo da skill. Trocar de área com mudança não salva pergunta antes.
+- Os arquivos: `.claude/skills/editor/aprendizados/<área>.md` (no git), os mesmos que o Claude lê antes de cada etapa.
+- Rotas: `GET /api/aprendizados`, `PUT /api/aprendizados/{área} {texto}`; `GET /api/projetos/{id}/aprovacao` (`{versao, difere, referencia}`), `POST /api/projetos/{id}/referencia {versao?}`.
+- CLI: `exportar`, `referencia`, `aprovar`, `banco-editar`, `banco-do-projeto`.
 
 ## 9. Timeline e ligação entre etapas
 
