@@ -8,7 +8,6 @@ Revisão · PRJ-07 · v2
 [Geral] A trilha está alta demais
 [0:05,2] "pessoas ainda não" — Troque este insert por um print do site
   ↳ print: dados/projetos/<id>/revisoes/anexos/c1-1.png
-[↳ dúvida do Claude 0:18,7] "ChatGPT, Gemini…" — Ficou bom, mantém
 [0:20,0–0:23,5] "Gemini, Midjourney…" — Esses letterings passam rápido demais
 (dados/projetos/<id>/revisoes/v2.json)
 ```
@@ -18,7 +17,7 @@ Revisão · PRJ-07 · v2
 ```bash
 A codigo PRJ-07                    # o id do projeto
 A travar <id> revisao
-A revisao-ler <id>                 # cada comentário: id, palavra(s), plano, status, a dúvida que responde, anexos
+A revisao-ler <id>                 # cada comentário: id, palavra(s), plano, status, anexos
 ```
 
 ## Aplicar
@@ -38,8 +37,7 @@ A revisao-ler <id>                 # cada comentário: id, palavra(s), plano, st
    ```bash
    A revisao-responder <id> 2 c1 --status aplicado --resposta "Troquei pelo print do site (BAN-012)"
    ```
-   `aplicado` · `respondido` (era pergunta) · `nao_aplicado` (diga por quê). Responda também as respostas às suas
-   dúvidas, quando pedirem algo.
+   `aplicado` · `respondido` (era pergunta) · `nao_aplicado` (diga por quê).
 6. Marque a próxima versão e destrave: `A versao-marcar <id> --resumo "v3: …"` e `A destravar <id>`. Diga a Rodrigo,
    em 3–5 linhas, o que mudou.
 

@@ -71,9 +71,6 @@ export default function PainelMotion(p: {
 
       {aba === "preset" && (
         <>
-          <p className="text-[11.5px] leading-[1.5] text-fog">
-            {daAba ? "O texto e o fundo se editam no card ao lado do vídeo. Clicar em outro preset troca." : m?.tipo === "video" ? "Escolher um preset troca o vídeo deste plano." : "Escolha um preset; o texto e o fundo se editam no card ao lado do vídeo."}
-          </p>
           <GradePresets
             formato={formato}
             atual={daAba?.tipo === "preset" ? daAba.preset : undefined}

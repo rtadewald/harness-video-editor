@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { PanelLeftClose, PanelLeftOpen, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
+import { useParams } from 'react-router-dom'
+import { MessageSquareText, PanelLeftClose, PanelLeftOpen, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
 import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, json, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, gerarDirecao, motoresRodando, passoRodando, recalcularCortes, reenquadrando, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
 import { abrirAba } from '@/components/abasProjetos'
 import { Logo } from '@/components/Marca'
@@ -407,9 +407,7 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
     <TransicoesDoVideo.Provider value={cortesTransicao}>
     <div className="grid h-svh grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-deep text-cream">
       <header className="flex items-center gap-5 border-b border-line-dark bg-ink px-4">
-        <Link to="/" title="Projetos" className="shrink-0">
-          <Logo />
-        </Link>
+        <Logo />
         <span className="h-5 w-px shrink-0 bg-line-dark" />
         <NavHome renomear={(id, nome) => renomearProjeto(id, nome).then((p) => setDados((d) => d && { ...d, projeto: p }))} />
 
@@ -474,7 +472,7 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
               {recolhida ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
             </button>
           </div>
-          {ETAPAS.map((e, i) => (
+          {ETAPAS.filter((e) => e.id !== 'revisao').map((e, i) => (
             <button
               key={e.id}
               onClick={() => setEtapa(e.id)}
@@ -492,6 +490,21 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
               {!recolhida && e.id === etapa && <span className="seta ml-auto text-[16px]">↗</span>}
             </button>
           ))}
+          {/* a Revisão é uma etapa à parte: depois das outras, separada, com outro botão (docs/editor-claude.md, E8) */}
+          <span className={cn('my-3 h-px bg-line-dark', recolhida ? 'w-8 self-center' : 'mx-3')} />
+          <button
+            onClick={() => setEtapa('revisao')}
+            title={recolhida ? 'Revisão' : 'Assistir a versão, comentar, enviar a revisão ou aprovar'}
+            className={cn(
+              'flex items-center rounded-full border text-[14px] font-semibold tracking-[-0.01em] transition-colors duration-300',
+              recolhida ? 'size-10 justify-center' : 'gap-3 px-3 py-2.5',
+              etapa === 'revisao' ? 'border-coral bg-coral text-cream' : 'border-coral/60 text-coral hover:bg-coral/10',
+            )}
+          >
+            <MessageSquareText className="size-4 shrink-0" />
+            {!recolhida && <span className="whitespace-nowrap">Revisão</span>}
+            {!recolhida && etapa === 'revisao' && <span className="seta ml-auto text-[16px]">↗</span>}
+          </button>
 
           <div className={cn('mt-auto grid gap-3 border-t border-line-dark pt-5 text-[11px] text-fog', recolhida && 'hidden')}>
             <p className="eyebrow text-sage">Projeto</p>

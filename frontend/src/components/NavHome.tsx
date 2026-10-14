@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Blend, BookOpenText, GraduationCap, Megaphone, ChevronLeft, ChevronRight, Clapperboard, Film, FolderOpen, Images, Layers, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
+import { Blend, BookOpenText, GraduationCap, Megaphone, ChevronLeft, ChevronRight, Film, Images, Layers, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fecharAba, useAbasProjetos } from './abasProjetos'
 
@@ -13,17 +13,16 @@ const PILULA = 'shrink-0 rounded-full border text-[12px] font-semibold tracking-
 const ATIVA = 'border-cream bg-cream text-ink'
 const INATIVA = 'border-line-dark text-fog hover:border-cream/50 hover:text-cream'
 type Link = { para: string; nome: string; icone: LucideIcon; exato?: boolean }
+// o trabalho do dia a dia (os projetos: o logo do Harness, no canto)
 const LINKS: Link[] = [
-  { para: '/', nome: 'Projetos', icone: FolderOpen, exato: true },
-  { para: '/banco', nome: 'Banco', icone: Images },
-  { para: '/motions', nome: 'Motions', icone: Clapperboard },
+  { para: '/banco', nome: 'Banco', icone: Images }, // as mídias dos inserts e os motions
   { para: '/referencias', nome: 'Referências', icone: Film },
   { para: '/ctas', nome: 'CTAs', icone: Megaphone }, // os finais prontos que dão as saídas do projeto (docs/editor-claude.md, E10)
-]
-// o que treina e regula o app, alinhado à direita
-const TREINO: Link[] = [
   { para: '/presets', nome: 'Presets', icone: Layers },
   { para: '/transicoes', nome: 'Transições', icone: Blend },
+]
+// o que treina e regula o app, alinhado à direita (como no 19)
+const TREINO: Link[] = [
   { para: '/calibragem', nome: 'Calibragem', icone: SlidersHorizontal }, // acesa também na revisão de uma referência
   { para: '/heuristica', nome: 'Heurística da direção', icone: BookOpenText },
   { para: '/aprendizados', nome: 'Aprendizados', icone: GraduationCap }, // o que o Claude aprendeu editando (a skill do editor)

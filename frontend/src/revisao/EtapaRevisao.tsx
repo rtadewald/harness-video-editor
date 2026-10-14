@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { MessageSquareText, Paperclip, Pencil, Play, Trash2, X } from 'lucide-react'
 import { lerInserts, urlArquivo, urlBancoMiniatura, type InsertsProjeto, type ItemRef, type Projeto } from '@/api'
 import { motionsDoProjeto, type MotionPlano } from '@/motions/api'
@@ -11,14 +11,13 @@ import { Alca, Cabecalho, useTamanhos } from '@/inserts/layout'
 import { ChipCodigo } from '@/components/Codigo'
 import { emCampoDeTexto, modalAberto } from '@/lib/atalhos'
 import { cn } from '@/lib/utils'
-import { anexarRevisao, apagarAnexoRevisao, aprovarVersao, enviarRevisao, lerRevisao, salvarRevisao, type Comentario, type Duvida, type Revisao } from './api'
-import { agora, falaEm, palavraEm, planoEm, proximoId, quando, temConteudo, tempo, tempoDaDuvida } from './comum'
+import { anexarRevisao, apagarAnexoRevisao, aprovarVersao, enviarRevisao, lerRevisao, salvarRevisao, type Comentario, type Revisao } from './api'
+import { agora, falaEm, palavraEm, planoEm, proximoId, quando, temConteudo, tempo } from './comum'
 
 const LINHA: Trilha[] = [
   { id: 'planos', nome: 'Planos', alt: 26 },
   { id: 'fala', nome: 'Fala', alt: 22 },
   { id: 'voce', nome: 'Você', alt: 24 },
-  { id: 'claude', nome: 'Claude', alt: 24 },
 ]
 const NOME_STATUS = { aplicado: 'Aplicado', respondido: 'Respondido', nao_aplicado: 'Não aplicado' } as const
 const COR_STATUS = { pendente: 'bg-coral text-cream', aplicado: 'bg-sage text-ink', respondido: 'bg-blue text-cream', nao_aplicado: 'bg-fog text-ink' } as const
@@ -51,7 +50,7 @@ export default function EtapaRevisao(p: {
   const pid = p.projeto.id
   const versaoProjeto = p.projeto.versao ?? 0
   const [tam, arrastarBorda] = useTamanhos()
-  const [carga, setCarga] = useState<{ versao: number; revisao: Revisao; duvidas: Duvida[] } | null>(null)
+  const [carga, setCarga] = useState<{ versao: number; revisao: Revisao } | null>(null)
   const [erroCarga, setErroCarga] = useState('')
   const [coms, setComs] = useState<Comentario[]>([])
   const [salvo, setSalvo] = useState<'' | 'salvando' | 'salvo' | 'erro'>('')
@@ -139,7 +138,7 @@ export default function EtapaRevisao(p: {
             comsRef.current = novo
             return respondeu ? novo : cs
           })
-          setCarga((c) => c && { ...c, revisao: { ...c.revisao, aprovado: r.revisao.aprovado, enviado_em: r.revisao.enviado_em }, duvidas: r.duvidas })
+          setCarga((c) => c && { ...c, revisao: { ...c.revisao, aprovado: r.revisao.aprovado, enviado_em: r.revisao.enviado_em } })
           if (respondeu) avisar('O Claude respondeu a revisão')
         })
         .catch(() => undefined)
@@ -271,11 +270,6 @@ export default function EtapaRevisao(p: {
       if (!ed.texto.trim() && !ed.anexos.length) return apagar(ed.id)
       for (const a of ed.antes) if (!ed.anexos.includes(a)) apagarAnexoRevisao(pid, n, a)
       mudar((cs) => cs.map((c) => (c.id === ed.id ? { ...c, texto: ed.texto.trim(), ...(ed.anexos.length ? { anexos: ed.anexos } : { anexos: undefined }) } : c)))
-    } else if (ed.responde && (ed.texto.trim() || ed.anexos.length)) {
-      const d = carga?.duvidas.find((x) => x.id === ed.responde)
-      const c = montar({ t: ed.t, fim: ed.fim, responde: ed.responde }, ed.novoId ?? reservar(), ed.texto, ed.anexos, d?.fala)
-      // a resposta fica presa às palavras da dúvida
-      mudar((cs) => [...cs, d ? { ...c, palavra: d.palavra, palavra_fim: d.palavra_fim } : c])
     }
     setEditor(null)
   }
@@ -380,16 +374,9 @@ export default function EtapaRevisao(p: {
 
   // ---------------------------------------------------------------- o que está na tela
 
-  const duvidas = useMemo(
-    () => (carga?.duvidas ?? []).map((d) => ({ d, tt: tempoDaDuvida(d, p.saida) })),
-    [carga?.duvidas, p.saida],
-  )
   const topo = coms.filter((c) => !c.responde && temConteudo(c))
   const ordem = (t: number | null | undefined, geral?: boolean) => (geral ? -1 : (t ?? 0))
-  const lista = [
-    ...topo.map((c) => ({ tipo: 'c' as const, c, t: ordem(c.t, c.geral) })),
-    ...duvidas.map((x) => ({ tipo: 'd' as const, d: x.d, tt: x.tt, t: x.tt?.t ?? 0 })),
-  ].sort((a, b) => a.t - b.t)
+  const lista = topo.map((c) => ({ c, t: ordem(c.t, c.geral) })).sort((a, b) => a.t - b.t)
   const numero = new Map(topo.sort((a, b) => ordem(a.t, a.geral) - ordem(b.t, b.geral)).map((c, i) => [c.id, i + 1]))
   const contagem = coms.filter(temConteudo)
   const por = (s: string) => contagem.filter((c) => c.status === s).length
@@ -462,47 +449,24 @@ export default function EtapaRevisao(p: {
               </p>
             )}
             {lista.map((item) =>
-              item.tipo === 'c' ? (
-                editor?.id === item.c.id ? (
-                  <CaixaEditor key={item.c.id} ed={editor} mudar={setEditor} gravar={gravarEditor} cancelar={cancelarEditor} colar={colar('editor')} soltar={soltar('editor')} anexar={(fs) => void subir(fs, 'editor')} url={(a) => urlArquivo(pid, a)} />
-                ) : (
-                  <CartaoComentario
-                    key={item.c.id}
-                    c={item.c}
-                    num={numero.get(item.c.id) ?? 0}
-                    sel={sel === item.c.id}
-                    escolher={() => {
-                      setSel(item.c.id)
-                      if (item.c.t != null) p.buscar(item.c.t + 0.001)
-                    }}
-                    editar={() => abrirEditor({ id: item.c.id, t: item.c.t, fim: item.c.fim, texto: item.c.texto, anexos: item.c.anexos ?? [], antes: item.c.anexos ?? [] })}
-                    apagar={() => apagar(item.c.id)}
-                    url={(a) => urlArquivo(pid, a)}
-                    ver={setVerAnexo}
-                  />
-                )
+              editor?.id === item.c.id ? (
+                <CaixaEditor key={item.c.id} ed={editor} mudar={setEditor} gravar={gravarEditor} cancelar={cancelarEditor} colar={colar('editor')} soltar={soltar('editor')} anexar={(fs) => void subir(fs, 'editor')} url={(a) => urlArquivo(pid, a)} />
               ) : (
-                <CartaoDuvida
-                  key={item.d.id}
-                  d={item.d}
-                  tt={item.tt}
-                  resposta={coms.find((c) => c.responde === item.d.id && temConteudo(c)) ?? null}
-                  sel={sel === item.d.id}
+                <CartaoComentario
+                  key={item.c.id}
+                  c={item.c}
+                  num={numero.get(item.c.id) ?? 0}
+                  sel={sel === item.c.id}
                   escolher={() => {
-                    setSel(item.d.id)
-                    if (item.tt) p.buscar(item.tt.t + 0.001)
+                    setSel(item.c.id)
+                    if (item.c.t != null) p.buscar(item.c.t + 0.001)
                   }}
-                  responder={() => abrirEditor({ id: null, responde: item.d.id, t: item.tt?.t ?? null, fim: item.tt?.fim ?? null, texto: '', anexos: [], antes: [] })}
-                  editarResposta={(r) => abrirEditor({ id: r.id, t: r.t, fim: r.fim, texto: r.texto, anexos: r.anexos ?? [], antes: r.anexos ?? [] })}
-                  apagarResposta={(r) => apagar(r.id)}
-                  editor={editor && (editor.responde === item.d.id || coms.find((c) => c.id === editor.id)?.responde === item.d.id) ? editor : null}
-                  caixaEditor={(ed) => (
-                    <CaixaEditor ed={ed} mudar={setEditor} gravar={gravarEditor} cancelar={cancelarEditor} colar={colar('editor')} soltar={soltar('editor')} anexar={(fs) => void subir(fs, 'editor')} url={(a) => urlArquivo(pid, a)} />
-                  )}
+                  editar={() => abrirEditor({ id: item.c.id, t: item.c.t, fim: item.c.fim, texto: item.c.texto, anexos: item.c.anexos ?? [], antes: item.c.anexos ?? [] })}
+                  apagar={() => apagar(item.c.id)}
                   url={(a) => urlArquivo(pid, a)}
                   ver={setVerAnexo}
                 />
-              ),
+              )
             )}
           </div>
 
@@ -631,25 +595,6 @@ export default function EtapaRevisao(p: {
                       style={{ left: larg >= 10 ? x(c.t!) : x(c.t!) - 10, width: larg >= 10 ? larg : 20, top: faixa(2) + 2 }}
                     >
                       {numero.get(c.id)}
-                    </button>
-                  )
-                })}
-              {duvidas
-                .filter((x_) => x_.tt)
-                .map(({ d, tt }) => {
-                  const respondida = coms.some((c) => c.responde === d.id && temConteudo(c))
-                  return (
-                    <button
-                      key={d.id}
-                      onClick={() => {
-                        setSel(d.id)
-                        p.buscar(tt!.t + 0.001)
-                      }}
-                      title={`Dúvida do Claude · ${d.texto}`}
-                      className={cn('absolute grid size-5 place-items-center rounded-full bg-yellow text-[10px] font-bold text-ink', respondida && 'opacity-60', sel === d.id && 'ring-2 ring-cream')}
-                      style={{ left: x(tt!.t) - 10, top: faixa(3) + 2 }}
-                    >
-                      {respondida ? '✓' : '?'}
                     </button>
                   )
                 })}
@@ -798,62 +743,6 @@ function CartaoComentario(p: { c: Comentario; num: number; sel: boolean; escolhe
       {c.texto && <p className="mt-1 leading-[1.6] whitespace-pre-wrap">{c.texto}</p>}
       {c.anexos?.length ? <Miniaturas anexos={c.anexos} url={p.url} ver={p.ver} /> : null}
       <Resposta c={c} />
-    </div>
-  )
-}
-
-function CartaoDuvida(p: {
-  d: Duvida
-  tt: { t: number; fim: number | null } | null
-  resposta: Comentario | null
-  sel: boolean
-  escolher: () => void
-  responder: () => void
-  editarResposta: (r: Comentario) => void
-  apagarResposta: (r: Comentario) => void
-  editor: Editor | null
-  caixaEditor: (ed: Editor) => ReactNode
-  url: (a: string) => string
-  ver: (u: string) => void
-}) {
-  const r = p.resposta
-  return (
-    <div onClick={() => p.escolher()} className={cn('cursor-pointer rounded-[8px] bg-yellow/8 p-3 text-[12.5px] ring-1', p.sel ? 'ring-yellow' : 'ring-yellow/30')}>
-      <div className="flex items-center gap-2">
-        <span className="grid size-5 place-items-center rounded-full bg-yellow text-[10px] font-bold text-ink">?</span>
-        <span className="text-[11px] font-semibold text-yellow">Dúvida do Claude</span>
-        <span className="ml-auto rounded-full px-2 py-0.5 font-mono text-[10.5px] text-fog tabular-nums ring-1 ring-line-dark">
-          {p.tt ? (p.tt.fim != null ? `${tempo(p.tt.t)}–${tempo(p.tt.fim)}` : tempo(p.tt.t)) : 'trecho cortado'}
-        </span>
-      </div>
-      {p.d.fala && <p className="mt-1.5 text-[11px] text-fog italic">“{p.d.fala}”</p>}
-      <p className="mt-1 leading-[1.6] whitespace-pre-wrap">{p.d.texto}</p>
-      <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-        {p.editor ? (
-          p.caixaEditor(p.editor)
-        ) : r ? (
-          <div className="group border-l-2 border-coral pl-2.5">
-            <div className="flex items-center gap-2">
-              <p className="eyebrow text-coral">↳ Sua resposta</p>
-              <span className="ml-auto flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                <button onClick={() => p.editarResposta(r)} title="Editar" className="text-fog hover:text-cream">
-                  <Pencil className="size-3.5" />
-                </button>
-                <button onClick={() => p.apagarResposta(r)} title="Apagar" className="text-fog hover:text-coral">
-                  <Trash2 className="size-3.5" />
-                </button>
-              </span>
-            </div>
-            {r.texto && <p className="mt-1 leading-[1.6] whitespace-pre-wrap">{r.texto}</p>}
-            {r.anexos?.length ? <Miniaturas anexos={r.anexos} url={p.url} ver={p.ver} /> : null}
-            <Resposta c={r} />
-          </div>
-        ) : (
-          <button onClick={p.responder} className="rounded-full px-3 py-1 text-[11.5px] font-semibold text-cream ring-1 ring-line-dark hover:ring-yellow">
-            Responder
-          </button>
-        )}
-      </div>
     </div>
   )
 }
