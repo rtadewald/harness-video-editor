@@ -47,10 +47,12 @@ def marcar(id: str, autor: str = 'claude', resumo: str = '') -> dict:
     """Guarda o estado de agora como a próxima versão."""
     p = projeto.ler(id)
     n = atual(id) + 1
-    v = {'versao': n, 'criado_em': _agora(), 'autor': autor, 'resumo': resumo[:2000], 'estado': {k: p.get(k) for k in CAMPOS if k in p}}
+    # as dúvidas que o Claude deixou para Rodrigo (a tela de Revisão mostra) vão com a versão
+    v = {'versao': n, 'criado_em': _agora(), 'autor': autor, 'resumo': resumo[:2000], 'estado': {k: p.get(k) for k in CAMPOS if k in p},
+         'duvidas': p.get('duvidas') or []}
     _pasta(id).mkdir(exist_ok=True)
     comum.salvar_json(_pasta(id) / f'v{n}.json', v)
-    projeto.atualizar(id, lambda x: x.update(versao=n))
+    projeto.atualizar(id, lambda x: (x.update(versao=n), x.pop('duvidas', None)))
     registrar_atividade(id, 'versao', f'Versão v{n} marcada' + (f': {resumo}' if resumo else ''), autor=autor)
     return {k: v[k] for k in ('versao', 'criado_em', 'autor', 'resumo')}
 
@@ -136,6 +138,12 @@ _ROTAS = [
     (r'(look|velocidade|enquadramento)', 'preprocessamento', 1),
 ]
 _PROJETO = re.compile(r'^/api/projetos/([^/]+)/(.+)$')
+
+
+def precisa_corpo(caminho: str) -> bool:
+    """Se o alvo da edição sai do corpo (os campos mudados): só então o middleware lê o corpo (um anexo grande, não)."""
+    m = _PROJETO.match(caminho)
+    return bool(m) and any(isinstance(alvo, str) and re.fullmatch(padrao, m.group(2)) for padrao, _, alvo in _ROTAS)
 
 
 def alvos_da_rota(caminho: str, corpo: bytes) -> tuple[str, str, list[str]] | None:

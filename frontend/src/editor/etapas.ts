@@ -9,4 +9,6 @@ export const ETAPAS: { id: Etapa; nome: string }[] = [
   { id: 'transicoes', nome: 'Transições' },
   { id: 'audio', nome: 'Áudio' },
   { id: 'legenda', nome: 'Legenda' },
+  // a revisão da versão que o Claude entregou (docs/editor-claude.md, E8): o editor abre nela num projeto com versão
+  { id: 'revisao', nome: 'Revisão' },
 ]

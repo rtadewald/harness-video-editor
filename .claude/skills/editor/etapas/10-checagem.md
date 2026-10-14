@@ -11,8 +11,12 @@ A quadros <id> 12.3 14.0   # instantes específicos (s do vídeo final), ex.: em
 ```
 Leia a `folha.jpg` (Read). Procure: insert sem mídia (vira o ator sozinho num plano que pedia insert), mídia errada,
 tela preta, texto cortado ou ilegível no celular, rosto escondido, legenda sobre o conteúdo importante, abertura sem
-gancho visual. Conserte o que for **grave** pela ferramenta da etapa (e cheque de novo aquele ponto). Gosto ou limitação
-conhecida: anote para Rodrigo (`A anotar <id> <etapa> "…"`).
+gancho visual. Conserte o que for **grave** pela ferramenta da etapa (e cheque de novo aquele ponto). Gosto, limitação
+conhecida ou uma escolha que só Rodrigo decide: deixe uma **dúvida** presa às palavras (`A palavras <id>` dá os ids);
+ela aparece na trilha "Claude" da Revisão e ele responde lá:
+```bash
+A duvida <id> w00065 "Pus os 4 nomes em lettering, um a um; ficou rápido demais?" --ate w00068 --fala "ChatGPT, Gemini…"
+```
 
 ## Entregar
 
@@ -20,7 +24,7 @@ conhecida: anote para Rodrigo (`A anotar <id> <etapa> "…"`).
 A versao-marcar <id> --resumo "v1: <3–5 coisas que você decidiu>"
 A destravar <id>
 ```
-A tela de Rodrigo mostra "a v1 chegou". Diga a ele, em poucas linhas: http://localhost:5173/p/<id>, a duração final, o
+As dúvidas vão com a versão. A tela de Rodrigo mostra "a v1 chegou" e abre na etapa **Revisão**. Diga a ele, em poucas linhas: http://localhost:5173/p/<id>, a duração final, o
 tempo total, as dúvidas anotadas e o que não deu.
 
 Tempo esperado: 30–60 s.

@@ -40,8 +40,8 @@ Briefing: se vier, leia antes dos cortes; vale para cortes, direção e inserts 
 
 ## Fluxo 2 — Revisão ("Revisão · PRJ-07 · v2")
 
-`etapas/11-revisao.md`: os comentários estão no projeto; cada um vai para a ferramenta da sua etapa; responda cada um e
-marque a v(N+1).
+`etapas/11-revisao.md`: `A revisao-ler <id>` traz os comentários (com as palavras, o plano e os anexos); cada um vai
+para a ferramenta da sua etapa; responda cada um (`A revisao-responder`) e marque a v(N+1).
 
 ## Fluxo 3 — Aprovado ("Aprovado · PRJ-07 · v2")
 

@@ -9,7 +9,7 @@ from starlette.concurrency import run_in_threadpool
 from . import audio, banco, versoes, captura_site, comum, direcao, direcao_projeto, enquadramento, entradas, exportacao, pipeline, recorte_ator, rosto
 from .rotas import (audio as r_audio, codigos as r_codigos, versoes as r_versoes, cortes as r_cortes, direcao as r_direcao, exportacao as r_exportacao, inserts as r_inserts,
                     legenda as r_legenda, motions as r_motions, preprocessamento as r_preprocessamento, presets as r_presets,
-                    projetos as r_projetos, referencias as r_referencias, rosto as r_rosto, transicoes as r_transicoes)
+                    projetos as r_projetos, referencias as r_referencias, revisoes as r_revisoes, rosto as r_rosto, transicoes as r_transicoes)
 
 comum.carregar_env()
 
@@ -33,7 +33,7 @@ async def ciclo(_app):
 
 app = FastAPI(title='Harness Video Editor', lifespan=ciclo)
 
-for r in (r_codigos, r_versoes, r_projetos, r_referencias, r_cortes, r_direcao, r_inserts, r_exportacao, r_presets, r_motions, r_rosto, r_preprocessamento, r_transicoes, r_audio, r_legenda):
+for r in (r_codigos, r_versoes, r_projetos, r_referencias, r_cortes, r_direcao, r_inserts, r_exportacao, r_presets, r_motions, r_rosto, r_preprocessamento, r_transicoes, r_audio, r_legenda, r_revisoes):
     app.include_router(r.rotas)
 
 
@@ -44,7 +44,8 @@ async def autoria(request: Request, call_next):
     if request.method not in ('PUT', 'POST', 'PATCH', 'DELETE') or not request.url.path.startswith('/api/projetos/'):
         return await call_next(request)
     do_claude = request.headers.get('x-autor') == 'claude'
-    alvo = versoes.alvos_da_rota(request.url.path, await request.body())
+    corpo = await request.body() if versoes.precisa_corpo(request.url.path) else b''
+    alvo = versoes.alvos_da_rota(request.url.path, corpo)
     if alvo and not do_claude:
         try:
             t = await run_in_threadpool(versoes.trava, alvo[0])
