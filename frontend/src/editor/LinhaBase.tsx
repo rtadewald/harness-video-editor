@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Maximize2, Minus, Plus } from 'lucide-react'
 import { useAtalhoZoom } from './useAtalhoZoom'
+import { definirJanelaVisivel } from './janelaDaLinha'
 
 export type Trilha = { id: string; nome: string; alt: number }
 /** O que as trilhas recebem para se desenhar: o x de um instante, o topo da trilha k e o instante sob um clientX. */
@@ -38,6 +39,40 @@ export default function LinhaBase(p: {
     if (el) setPx(Math.max((el.clientWidth - ROTULO - 24) / Math.max(p.duracao, 1), 2))
   }
   useEffect(ajustar, [p.duracao]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // o que está à vista (para o salto do Shift+setas acompanhar o zoom)
+  useEffect(() => {
+    const el = rolagem.current
+    if (!el) return
+    const medir = () => definirJanelaVisivel((el.clientWidth - ROTULO) / px)
+    medir()
+    const ro = new ResizeObserver(medir)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [px, area])
+
+  // ⌘/Ctrl + rolagem: zoom ancorado no mouse; a rolagem vertical comum anda de lado (como no 19)
+  useEffect(() => {
+    const el = area
+    if (!el) return
+    const roda = (e: WheelEvent) => {
+      if (e.metaKey || e.ctrlKey) {
+        e.preventDefault()
+        const xm = e.clientX - el.getBoundingClientRect().left - ROTULO
+        setPx((v) => {
+          const novo = Math.min(Math.max(v * (e.deltaY < 0 ? 1.25 : 0.8), 2), 400)
+          const t = (el.scrollLeft + xm) / v
+          requestAnimationFrame(() => (el.scrollLeft = t * novo - xm))
+          return novo
+        })
+      } else if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && el.scrollWidth > el.clientWidth) {
+        e.preventDefault()
+        el.scrollLeft += e.deltaY
+      }
+    }
+    el.addEventListener('wheel', roda, { passive: false })
+    return () => el.removeEventListener('wheel', roda)
+  }, [area])
 
   // segue a cabeça de reprodução enquanto toca
   useEffect(() => {
@@ -81,7 +116,7 @@ export default function LinhaBase(p: {
         <button onClick={() => setPx((v) => Math.max(v / 1.4, 2))} className="grid size-7 place-items-center rounded-full hover:text-cream" aria-label="Afastar">
           <Minus className="size-3.5" />
         </button>
-        <button onClick={() => setPx((v) => Math.min(v * 1.4, 400))} className="grid size-7 place-items-center rounded-full hover:text-cream" aria-label="Aproximar">
+        <button onClick={() => setPx((v) => Math.min(v * 1.4, 400))} className="grid size-7 place-items-center rounded-full hover:text-cream" aria-label="Aproximar" title="Aproximar (⌘ + rolagem)">
           <Plus className="size-3.5" />
         </button>
         <button onClick={ajustar} className="flex items-center gap-1 rounded-full px-2 py-1 font-semibold hover:text-cream" title="Ajustar o vídeo inteiro à largura">
