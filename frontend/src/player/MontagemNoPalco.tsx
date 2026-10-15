@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type RefObject } from 'react'
 import { lerInserts, listarBanco, mapaBanco, urlArquivo, type InsertsProjeto, type ItemBanco, type ItemRef, type Projeto } from '@/api'
-import { falaDoPlano, fundoDoMotion, urlPaginaMotionPlano, type MotionPlano } from '@/motions/api'
+import { falaDoPlano, fundoDoMotion, motionDoPlano, urlPaginaMotionPlano, type MotionPlano } from '@/motions/api'
 import MotionNoLugar from '@/motions/MotionNoLugar'
 import { usePresets as usePresetsMotion } from '@/motions/PresetMotion'
 import { escolhasDeSom, usePreCarregarMarcas } from '@/motions/sons'
@@ -83,7 +83,7 @@ export default function MontagemNoPalco(p: {
   const camadaElementos = <ElementosNoPalco elementos={elementos} tempo={tempo} banco={banco} />
   const noCursor = p.pedidos.find((x) => tempo >= x.t.inicio && tempo < x.t.fim) ?? null
   const planoNoCursor = p.planos.find((pl) => tempo >= pl.inicio && tempo < pl.fim) ?? null
-  const motionNoCursor = planoNoCursor && motions[planoNoCursor.id] ? planoNoCursor : null
+  const motionNoCursor = planoNoCursor && motionDoPlano(motions, planoNoCursor) ? planoNoCursor : null
   // a divisão do insert sob o cursor: onde o ator fica (desce, ou encolhe numa janela) e se a pessoa recortada sai por cima
   const divisao: Divisao | null =
     noCursor && noCursor.midias.length > 0 ? divisaoDe(noCursor, p.banco, presets) : motionNoCursor?.tipo === 'tela_dividida_motion' ? { modo: 'metade', tipo: 'area', f: 0.5 } : null

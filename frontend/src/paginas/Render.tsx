@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { abrirEditor, json, lerInserts, listarBanco, mapaBanco, type DadosEditor, type InsertsProjeto, type ItemBanco } from '@/api'
-import { falaDoPlano, fundoDoMotion, listarPresets as listarPresetsMotion, motionsDoProjeto, urlPaginaMotionPlano, type MotionPlano } from '@/motions/api'
+import { falaDoPlano, fundoDoMotion, listarPresets as listarPresetsMotion, motionDoPlano, motionsDoProjeto, urlPaginaMotionPlano, type MotionPlano } from '@/motions/api'
 import { escolhasDeSom, eventosDoMotion, marcasDaPagina } from '@/motions/sons'
 import { geometriaDoAtor, useRosto } from '@/ator/ator'
 import { blocosDaLegenda, paraExportar, zonasDaLegenda, type Legenda } from '@/legenda/legenda'
@@ -131,7 +131,7 @@ export function RenderProjeto() {
     const visiveis = paraTempo(dados.projeto.direcao?.itens ?? [], dados.palavras, saida, seq.duracao).visiveis
     const planos = visiveis.filter((i) => i.camada === 'plano')
     // os motions: os planos de motion que já têm um motion escolhido
-    const comMotion = planos.filter((pl) => motions?.[pl.id]).map((pl) => ({ plano: pl.id, ini: pl.inicio, fim: pl.fim, dividida: pl.tipo === 'tela_dividida_motion', fala: falaDoPlano(saida, pl.inicio, pl.fim) }))
+    const comMotion = planos.filter((pl) => motionDoPlano(motions, pl)).map((pl) => ({ plano: pl.id, ini: pl.inicio, fim: pl.fim, dividida: pl.tipo === 'tela_dividida_motion', fala: falaDoPlano(saida, pl.inicio, pl.fim) }))
     return { duracao: seq.duracao, lista: pedidosNoTempo(ins.pedidos, planos).filter((x) => x.midias.length), motions: comMotion, planos, visiveis, saida, palavras: dados.palavras }
   }, [dados, ins, motions, seqRender])
   // os elementos (lettering, ManyChat, caixinha, print), desenhados por cima de tudo, com o lugar pelo plano de baixo
