@@ -194,7 +194,6 @@ export default function EtapaInserts(p: Props) {
   const ehMotion = !!planoSel && TEM_MOTION.includes(planoSel.tipo)
   // o preset do plano de motion selecionado: o card de edição dele vai na coluna ao lado do vídeo
   const motionPreset = ehMotion && motions[planoSel.id]?.tipo === 'preset' ? motions[planoSel.id] : null
-  const comMidia = pedidos.filter((x) => x.midias.length).length
   /** Seleciona o plano e leva a prévia até ele, já depois da entrada, para o insert aparecer inteiro. */
   const escolher = (plano: string) => {
     setSelPlano(plano)
@@ -344,9 +343,6 @@ export default function EtapaInserts(p: Props) {
             titulo={ehMotion ? 'Motion' : 'Inserts'}
             extra={
               <>
-                <span className="text-fog tabular-nums">
-                  {comMidia}/{pedidos.length} com mídia
-                </span>
                 <button
                   onClick={() =>
                     void aplicarRecomendados(projeto.id)
