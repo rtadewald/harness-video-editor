@@ -20,18 +20,12 @@ A motions-usar <id> <plano> --video <BAN-…> --formato …        # um vídeo d
 Nenhum preset serve e a ideia é simples (um número que cresce, dois logos lado a lado, uma lista que se monta): um
 **subagente em segundo plano** (`model: opus`) escreve o preset novo em `frontend/public/motion/presets/<id>.html`:
 
-```text
-Escreva um preset de motion novo em <raiz>/frontend/public/motion/presets/<id>.html (id: minúsculas e hífens).
-Leia antes: <raiz>/.claude/skills/editor/aprendizados/motions.md; a identidade (`app.py identidade`); os recusados e o
-motivo de cada um (`app.py motions-recusados`; os arquivos em frontend/public/motion/presets/_recusados/), para não repetir; e prompt.html, lettering.html e ../runtime.js:
-copie a estrutura (<script type="application/json" id="preset"> com nome, descricao, fundo, duracao, sons e
-"a_revisar": true; <script id="campos">; <style>; a timeline do GSAP pausada entregue com motion.pronto(tl)).
-Pedido: <o que a direção pede> · formato <vertical|dividida> · duração <s> · fala: "<fala>".
-Regras: poucos elementos; quase nenhum texto; curva longa e suave (perto de 0.25,0.1,0.1,1 em 0,8–1 s), nunca linear;
-a cena nunca para até o corte; fontes Inter, Instrument Serif ou SF Pro; sons só do catálogo do app.
-Teste: abra http://localhost:5173/motions (o app no ar) e confira o seu na grade, ou fotografe a página de motion do
-app com Playwright em 4 instantes; olhe as imagens e corrija. Responda com o id e os campos.
+```bash
+A motion-brief <id> <plano> --preset <id-novo> --duracao <s do plano> [--pedido "<o que mais mostrar>"]   # imprime o caminho
 ```
+Dispare o subagente com o prompt **só**: `Leia <caminho> e siga.` (o modelo é `06-brief-motion.md`; mude lá).
+**Dispare-o primeiro, logo depois da direção**: é a tarefa mais longa (~7 min) e, se ficar por último, é ela que segura
+a entrega.
 Depois: `A motions-usar …` com o id novo. Ele aparece na página Motions com "A REVISAR": só Rodrigo aprova (Aprovar)
 ou recusa com o motivo (vai para `_recusados/`). Nunca tire o `a_revisar` você mesmo. Recusado num vídeo em revisão:
 troque o motion do plano (outro preset ou um novo) antes.
