@@ -216,6 +216,7 @@ registradas); E4 junta tudo num primeiro vídeo; E5–E7 enriquecem a v1; E8–E
 
 ### Para Rodrigo revisar
 
+- Depois do 1º vídeo de verdade (3 níveis de sites, 18 min): os briefs dos subagentes saem da CLI (`A inserts-briefs`, `A motion-brief`, modelos em `etapas/04-brief-inserts.md` e `06-brief-motion.md`), os inserts vão em grupos de 3 (8 subagentes em vez de 24) e o motion novo é disparado primeiro; os aprendizados da edição estão em `aprendizados/inserts.md`, `motions.md` e `legenda.md`.
 - E10: a página **CTAs** (no menu): os 2 CTAs do 19, o cadastro de produtos e o marcar do trecho.
 - E9: a página **Aprendizados** (menu à direita) e a Heurística, que agora grava em `.claude/skills/editor/exemplos/regras.md` (entra no git: o repositório é público, então as regras ficam visíveis — eram assim no 19). Teste o ciclo aprovando um vídeo: eu exporto o 4K, faço a referência (a revisar na Calibragem) e proponho os aprendizados.
 - E8: a etapa **07 Revisão** (abre sozinha quando chega uma versão nova). Teste num projeto: salve uma versão no seletor do topo, comente (escreva, I/O, C, ⌘V), "Enviar revisão" e cole aqui. As setas andam 0,5 s como no resto do editor (no 19 eram quadro a quadro).

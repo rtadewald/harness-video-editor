@@ -39,3 +39,12 @@ e não repita estes erros. **[gosto]** = preferência confirmada pelo criador ·
 - Exemplos "do que não fazer" (site genérico, site poluído) são os mais difíceis de achar prontos: descreva na marcação
   um tipo concreto e achável (ex.: "a galeria de templates do Lovable"). Nunca monte um mockup sem dizer. _1º teste_
 - Apague do banco o que foi capturado e não serviu (`banco.py apagar`): os subagentes deixavam lixo. _1º teste_
+- **[técnica] Site pesado sai no loader.** A captura sem dobra grava desde o 1º quadro pintado: site 3D/WebGL (lusion,
+  igloo, resn) saiu só na tela de carregamento. Com `--dobras 0.01` a página carrega antes e grava já pronta; páginas
+  do Cloudflare ("Attention Required") não servem — troque de site. _3-niveis-de-sites-com-ia-claude · 2026-10-14_
+- **[técnica] A captura liga sozinha.** Cada captura entra no insert mesmo ruim: no fim, `inserts-ligar` só com as
+  boas (substitui a lista). E não repita a mesma mídia em planos próximos (o BAN-006 tinha ido para 3 inserts).
+  _3-niveis-de-sites-com-ia-claude · 2026-10-14_
+- **[técnica] "Site genérico de IA" não se acha ao vivo.** Quatro subagentes gastaram o tempo todo procurando um site
+  real "roxo, três cards, serifa": não existe como site público. Use o banco; sem nada, deixe sem mídia e peça prints a
+  Rodrigo na entrega. _3-niveis-de-sites-com-ia-claude · 2026-10-14_

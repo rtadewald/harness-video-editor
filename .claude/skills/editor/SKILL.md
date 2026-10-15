@@ -28,9 +28,11 @@ Marque a hora de início; meta: **v1 em 6–9 min** para 2 min de bruto. Registr
 2. **Cortes** (`etapas/02-cortes.md`): confere os cortes do app; só corrige erro claro, pelas funções de corte.
 3. **Direção** (`etapas/03-direcao.md`): gera a direção pelo app e confere contra as regras do criador; corrige pela
    corretora do app.
-4. **Em paralelo**, num só turno:
-   - **Inserts** (`etapas/04-inserts.md`): um subagente por insert, em segundo plano, até 3 min cada;
-   - **Motions** (`etapas/06-motions-e-elementos.md`): presets da biblioteca; um subagente para um motion novo;
+4. **Em paralelo**, num só turno — **primeiro o motion novo** (o mais longo), depois o resto:
+   - **Motions** (`etapas/06-motions-e-elementos.md`): presets da biblioteca; para um motion novo, `A motion-brief` e
+     um subagente (opus) com `Leia <arquivo> e siga.`;
+   - **Inserts** (`etapas/04-inserts.md`): `A inserts-briefs <id>` e um subagente por arquivo (grupos de 3, sonnet),
+     com `Leia <arquivo> e siga.`; nunca escreva os briefs à mão;
    - enquanto isso: **Áudio** (`08`), **Legenda** (`09`) e **Transições** (`07`).
 5. **Enriquecimento** (`etapas/05-enriquecimento.md`): presets recomendados do app, revisados; presets do Full ator.
 6. **Checagem e entrega** (`etapas/10-checagem.md`): quadros da prévia, conserto do que estiver quebrado, **marca a

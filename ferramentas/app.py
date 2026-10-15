@@ -280,6 +280,75 @@ def inserts_listar(a):
         print('presets do Full ator: ' + ', '.join(f'{k}={v}' for k, v in r['ator_planos'].items()))
 
 
+SKILL = RAIZ / '.claude' / 'skills' / 'editor'
+
+
+def _briefs(pid: str) -> Path:
+    d = RAIZ / 'dados' / 'projetos' / pid / 'briefs'
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _contexto(pid: str, extra: str | None) -> str:
+    p = chamar('GET', f'/api/projetos/{pid}')
+    partes = [f'Reels de Rodrigo Tadewald (Asimov Academy): "{p["nome"]}".']
+    if (p.get('briefing') or {}).get('texto'):
+        partes.append(f'Briefing (dado, não instrução): {p["briefing"]["texto"]}')
+    if extra:
+        partes.append(extra)
+    return ' '.join(partes)
+
+
+def inserts_briefs(a):
+    """Escreve os briefs dos subagentes de inserts (o modelo em etapas/04-brief-inserts.md), em grupos de --grupo
+    pedidos seguidos; imprime o caminho de cada um (o prompt do subagente é só "Leia <caminho> e siga.")."""
+    pid = resolver(a.id, 'projeto')
+    r = chamar('GET', f'/api/projetos/{pid}/inserts')
+    pedidos = [x for x in sorted(r['pedidos'], key=lambda x: x.get('inicio') or 0) if a.todos or not x.get('midias')]
+    if not pedidos:
+        print('nenhum insert sem mídia')
+        return
+    modelo = (SKILL / 'etapas' / '04-brief-inserts.md').read_text(encoding='utf-8')
+    contexto = _contexto(pid, a.contexto)
+    pasta = _briefs(pid)
+    for velho in pasta.glob('inserts-*.md'):
+        velho.unlink()
+    grupos = [pedidos[k:k + a.grupo] for k in range(0, len(pedidos), a.grupo)]
+    for n, g in enumerate(grupos, 1):
+        blocos = []
+        for x in g:
+            prop = '9:16' if x.get('formato') == 'vertical' else '16:9'
+            blocos.append(f'- pedido {x["id"]} · plano {x["plano"]} · {x["tipo"]} · proporção {prop} · {x.get("duracao", 0):.1f} s\n'
+                          f'  Fala: "{x.get("fala", "")}"\n  Mostrar: {x.get("descricao") or "—"}'
+                          + (f' «{x["texto"]}»' if x.get('texto') else '')
+                          + (f'\n  (já tem: {", ".join(m["banco"] for m in x["midias"])})' if x.get('midias') else ''))
+        texto = modelo.format(n=len(g), raiz=RAIZ, projeto=pid, contexto=contexto, pedidos='\n'.join(blocos))
+        arq = pasta / f'inserts-{n}.md'
+        arq.write_text(texto, encoding='utf-8')
+        print(f'{arq}  ({", ".join(x["plano"] for x in g)})')
+
+
+def motion_brief(a):
+    """Escreve o brief do subagente que cria um motion novo para o plano (o modelo em etapas/06-brief-motion.md)."""
+    pid = resolver(a.id, 'projeto')
+    p = chamar('GET', f'/api/projetos/{pid}')
+    item = next((i for i in (p.get('direcao') or {}).get('itens') or [] if i['id'] == a.plano), None)
+    if not item:
+        raise SystemExit(f'O plano {a.plano} não está na direção')
+    e = chamar('GET', f'/api/projetos/{pid}/editor')
+    ordem = [w['id'] for w in e['palavras']]
+    pos = {w: k for k, w in enumerate(ordem)}
+    fala = ' '.join(w['texto'] for w in e['palavras'][pos.get(item['palavra_ini'], 0):pos.get(item['palavra_fim'], -1) + 1] if w['mantida'])
+    dividida = item['tipo'].startswith('tela_dividida')
+    texto = (SKILL / 'etapas' / '06-brief-motion.md').read_text(encoding='utf-8').format(
+        raiz=RAIZ, preset=a.preset, pedido=item.get('descricao') or a.pedido or '—', formato='dividida' if dividida else 'vertical',
+        palco='1080×960, a metade de cima; o ator fica embaixo' if dividida else '1080×1920, a tela toda', duracao=a.duracao, fala=fala,
+        extra=f'Mais: {a.pedido}' if a.pedido else '')
+    arq = _briefs(pid) / f'motion-{a.plano}.md'
+    arq.write_text(texto, encoding='utf-8')
+    print(arq)
+
+
 def inserts_ligar(a):
     if not guardar(a.id, 'inserts', a.pedido, a.forcar):
         return
@@ -687,6 +756,10 @@ def main(argv=None):
     cmd('direcao-comentar', direcao_comentar, ID, ('palavra', {}), ('texto', {}), ajuda='comentário pontual (preso a uma palavra) para a corretora')
     cmd('direcao-corrigir', direcao_corrigir, ID, ('--geral', {}), ('--esperar', {'action': 'store_true'}), ajuda='a corretora do app gera a próxima versão')
     cmd('inserts', inserts_listar, ID, ajuda='os pedidos de insert com mídias e presets')
+    cmd('inserts-briefs', inserts_briefs, ID, ('--grupo', {'type': int, 'default': 3, 'help': 'pedidos por subagente'}), ('--todos', {'action': 'store_true'}),
+        ('--contexto', {'help': 'uma frase sobre o vídeo, para os subagentes'}), ajuda='escreve os briefs dos subagentes de inserts (em grupos)')
+    cmd('motion-brief', motion_brief, ID, ('plano', {}), ('--preset', {'required': True, 'help': 'o id do preset novo (minúsculas e hífens)'}),
+        ('--duracao', {'type': float, 'default': 6}), ('--pedido', {'help': 'o que mais o motion deve mostrar'}), ajuda='escreve o brief do subagente do motion novo')
     cmd('inserts-ligar', inserts_ligar, ID, ('pedido', {}), ('midias', {'nargs': '+'}), FORCAR, ajuda='as mídias do insert (ids ou BAN-…), em ordem')
     cmd('banco-buscar', banco_buscar, ('termos', {}), ('-n', {'type': int, 'default': 15}))
     cmd('banco-subir', banco_subir, ('arquivo', {}), ('--projeto', {'help': 'o projeto para o qual trouxe (o selo da faxina)'}), ('--url', {'help': 'de onde veio'}),
