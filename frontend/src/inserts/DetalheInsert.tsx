@@ -101,17 +101,18 @@ export default function DetalheInsert(p: {
             <Globe className="size-3" /> Capturar site
           </button>
         </div>
-        {capturas.map((c) => (
-          <p key={c.id} className={cn('text-[11.5px] [overflow-wrap:anywhere]', c.status === 'erro' ? 'text-coral' : c.status === 'pronto' ? 'text-mint' : 'text-yellow')}>
-            {c.status === 'fila'
-              ? `Na fila: ${semHttp(c.url)}`
-              : c.status === 'rodando'
-                ? `Capturando ${semHttp(c.url)} · dobra ${Math.min(c.feitas + 1, c.dobras.length)} de ${c.dobras.length}…`
-                : c.status === 'pronto'
-                  ? `Capturado: ${semHttp(c.url)}`
+        {/* só o que está andando ou deu erro: a captura pronta já aparece como mídia */}
+        {capturas
+          .filter((c) => c.status !== 'pronto')
+          .map((c) => (
+            <p key={c.id} className={cn('text-[11.5px] [overflow-wrap:anywhere]', c.status === 'erro' ? 'text-coral' : 'text-yellow')}>
+              {c.status === 'fila'
+                ? `Na fila: ${semHttp(c.url)}`
+                : c.status === 'rodando'
+                  ? `Capturando ${semHttp(c.url)} · dobra ${Math.min(c.feitas + 1, c.dobras.length)} de ${c.dobras.length}…`
                   : `A captura de ${semHttp(c.url)} falhou: ${c.erro}`}
-          </p>
-        ))}
+            </p>
+          ))}
       </div>
 
       {capturando && (
