@@ -328,9 +328,14 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
         const lado = e.key === 'ArrowLeft' ? -1 : 1
         if (vertical) player.buscarBruto(player.bruto + (e.altKey ? 0.01 : e.shiftKey ? 5 : 0.5) * lado)
         else {
-          // como no 19: ← / → um quadro (24 por s, pausando); Shift, 5% do que está à vista na linha do tempo
+          // como no 19: ← / → um quadro (24 por s, pausando); Shift, o corte anterior ou seguinte
           if (player.tocando) player.alternar()
-          if (e.shiftKey) player.buscar(Math.max(player.tempo + saltoDaLinha() * lado, 0))
+          if (e.shiftKey) {
+            // o corte (começo de plano) seguinte ou anterior; sem planos, 5% do que está à vista na linha do tempo
+            const cortes = (planosSaida ?? []).map((x) => x.inicio).filter((t) => t > 0.01)
+            const alvo = lado > 0 ? cortes.find((t) => t > player.tempo + 0.05) : [...cortes].reverse().find((t) => t < player.tempo - 0.05)
+            player.buscar(alvo != null ? alvo + 0.001 : lado < 0 && cortes.length ? 0 : Math.max(player.tempo + saltoDaLinha() * lado, 0))
+          }
           else player.buscar(Math.max((Math.round(player.tempo * QUADROS) + lado) / QUADROS + 0.001, 0))
         }
       } else if (vertical && e.key.toLowerCase() === 'e' && cortes.length) {
@@ -342,7 +347,7 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [player, vertical, cortes, ouvirEmenda])
+  }, [player, vertical, cortes, ouvirEmenda, planosSaida])
 
   // R na Revisão, na Legenda e no Áudio (como nas outras linhas do tempo): volta ao começo do plano sob o cursor e toca
   // até o fim; R de novo logo no fim do plano tocado repete o mesmo (Inserts e Transições têm o R deles)

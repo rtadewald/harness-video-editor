@@ -1,3 +1,4 @@
+import { RotateCcw } from 'lucide-react'
 import { urlBancoMiniatura, type ItemRef, type MidiaLigada, type PedidoInsert } from '@/api'
 import { cn } from '@/lib/utils'
 import { COR_ELEMENTO, COR_PLANO } from '@/referencias/LinhaDirecao'
@@ -39,7 +40,7 @@ export default function LinhaInserts(p: {
   ferramentas?: React.ReactNode
 }) {
   return (
-    <LinhaBase atalhos={[['R', 'plano']]} duracao={p.duracao} trilhas={TRILHAS} tempo={p.tempo} tocando={p.tocando} buscar={p.buscar} ferramentas={p.ferramentas}>
+    <LinhaBase atalhos={[['R', 'plano', RotateCcw]]} duracao={p.duracao} trilhas={TRILHAS} tempo={p.tempo} tocando={p.tocando} buscar={p.buscar} ferramentas={p.ferramentas}>
       {({ x, faixa, tDe }) => (
         <>
           {/* planos */}

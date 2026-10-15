@@ -139,7 +139,7 @@ export default function EtapaTransicoes(p: {
 
       <div className="relative min-h-0">
         <Alca lado="linha" pos={tam.linha} arrastar={arrastarBorda} />
-        <LinhaBase atalhos={[['R', 'ver o corte']]} duracao={p.duracao} trilhas={TRILHAS} tempo={p.tempo} tocando={p.tocando} buscar={p.buscar}>
+        <LinhaBase atalhos={[['R', 'ver o corte', RotateCcw]]} duracao={p.duracao} trilhas={TRILHAS} tempo={p.tempo} tocando={p.tocando} buscar={p.buscar}>
           {({ x, faixa }) => (
             <>
               {/* planos: clicar seleciona o corte que entra nele */}
