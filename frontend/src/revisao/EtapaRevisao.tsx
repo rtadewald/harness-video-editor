@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Brackets, MessageSquare, MessageSquareText, Paperclip, RotateCcw, Pencil, Play, Trash2, X } from 'lucide-react'
 import { lerInserts, urlArquivo, urlBancoMiniatura, type InsertsProjeto, type ItemRef, type Projeto } from '@/api'
-import { motionsDoProjeto, type MotionPlano } from '@/motions/api'
+import { motionDoPlano, motionsDoProjeto, type MotionPlano } from '@/motions/api'
 import type { PalavraSaida } from '@/direcao/direcaoProjeto'
 import type { CorteDoVideo } from '@/transicoes/transicoes'
 import { CATEGORIAS } from '@/direcao/EtapaDirecao'
@@ -629,7 +629,7 @@ function NoPlano(p: { projeto: Projeto; planos: ItemRef[]; saida: PalavraSaida[]
   const w = palavraEm(ws, p.tempo)
   const k = w ? ws.indexOf(w) : -1
   const pedido = pl ? ins?.pedidos.find((x) => x.plano === pl.id) : undefined
-  const motion = pl ? motions[pl.id] : undefined
+  const motion = pl ? motionDoPlano(motions, pl) : undefined
   const corte = pl ? p.cortes?.find((c) => c.plano === pl.id) : undefined
   const movimento = pl ? ins?.ator_planos?.[pl.id] : undefined
   const preset = (pedido?.enriquecimento as { preset?: string | null } | undefined)?.preset

@@ -1,6 +1,7 @@
 /** A API dos motions (SPEC §8.5; docs/motions.md): os presets e o motion de cada plano de um projeto. */
 import { enviar, json } from "@/api";
 import type { Intensidade } from "@/editor/sons";
+import { TEM_MOTION } from "@/inserts/comum";
 
 export type Formato = "vertical" | "dividida";
 type CampoMotion = {
@@ -27,6 +28,10 @@ export type MotionPlano = { nome: string; formato: Formato; usado_em: string } &
   | { tipo: "preset"; preset: string; valores: Record<string, string>; fundo: string; sons?: Record<string, { som: string | null; intensidade: Intensidade }> }
   | { tipo: "video"; banco: string }
 );
+/** O motion que vale num plano: só o de um plano de motion. Trocar a categoria do plano para insert guarda o motion
+ *  (voltar à categoria o traz de volta), mas ele não aparece na prévia nem no vídeo exportado. */
+export const motionDoPlano = (motions: Record<string, MotionPlano> | null | undefined, plano: { id: string; tipo: string }) =>
+  TEM_MOTION.includes(plano.tipo) ? motions?.[plano.id] : undefined;
 /** As palavras ditas no plano, em segundos desde o começo dele (a digitação dos presets acompanha a fala). */
 export type Fala = { texto: string; ini: number; fim: number }[];
 

@@ -297,7 +297,7 @@ def etapas_no_resumo(p: dict) -> dict:
     pedidos = (p.get('inserts') or {}).get('pedidos') or []
     motions = p.get('motions') or {}
     if pedidos:
-        feitos = sum(1 for x in pedidos if x.get('midias') or x.get('plano') in motions)
+        feitos = sum(1 for x in pedidos if x.get('midias') or (x.get('tipo') in ('motion_tela_cheia', 'tela_dividida_motion') and x.get('plano') in motions))
         etapas['inserts'] = 'pronta' if feitos == len(pedidos) else 'andamento' if feitos else 'pendente'
     return etapas
 

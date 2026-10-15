@@ -51,7 +51,9 @@ def test_lista_deriva_o_estado_dos_inserts():
     assert estado([]) == 'pendente'
     assert estado([{'plano': 'p1', 'midias': []}, {'plano': 'p3', 'midias': []}]) == 'pendente'
     assert estado([{'plano': 'p1', 'midias': [{'id': 'm'}]}, {'plano': 'p3', 'midias': []}]) == 'andamento'
-    assert estado([{'plano': 'p1', 'midias': [{'id': 'm'}]}, {'plano': 'p2', 'midias': []}]) == 'pronta'
+    assert estado([{'plano': 'p1', 'midias': [{'id': 'm'}]}, {'plano': 'p2', 'tipo': 'motion_tela_cheia', 'midias': []}]) == 'pronta'
+    # o motion guardado de um plano que virou insert não conta: o plano precisa das mídias
+    assert estado([{'plano': 'p1', 'midias': [{'id': 'm'}]}, {'plano': 'p2', 'tipo': 'tela_dividida_insert', 'midias': []}]) == 'andamento'
     assert projeto.etapas_no_resumo(base)['cortes'] == 'pronta'
 
 
