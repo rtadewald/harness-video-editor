@@ -91,8 +91,13 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
         <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-3">
           {TREINO.map((l) => (
             <NavLink key={l.para} to={l.para} end={l.exato} className={aba} title={l.nome} aria-label={l.nome}>
-              <l.icone className="size-3.5 opacity-80" aria-hidden />
-              {/* a direita é sempre só ícone (o nome no title) */}
+              {({ isActive }) => (
+                <>
+                  <l.icone className="size-3.5 opacity-80" aria-hidden />
+                  {/* a direita é só ícone (o nome no title), menos a página aberta, que mostra o nome */}
+                  {isActive && <span>{l.nome}</span>}
+                </>
+              )}
             </NavLink>
           ))}
         </div>
