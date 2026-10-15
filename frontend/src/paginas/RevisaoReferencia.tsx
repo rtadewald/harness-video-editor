@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Minus, Pause, Play, Plus, Scissors, Undo2 } from 'lucide-react'
-import { abrirRevisao, marcarRevisada, reanalisarReferencia, salvarDirecao, urlArquivoReferencia, type ItemRef, type Revisao } from '@/api'
+import { abrirRevisao, marcarRevisada, mudarTipoReferencia, reanalisarReferencia, salvarDirecao, urlArquivoReferencia, type ItemRef, type Revisao } from '@/api'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
+import { SeletorTipo, useTipos } from '@/components/tipos'
 import { cn } from '@/lib/utils'
 import { dividirPlano, editar, excluir, moverBorda, moverElemento, novoElemento, planosDe } from '@/referencias/edicao'
 import LinhaDirecao, { type Arrasto } from '@/referencias/LinhaDirecao'
@@ -18,6 +19,7 @@ export default function RevisaoReferencia() {
   const { id = '' } = useParams()
   const navegar = useNavigate()
   const [dados, setDados] = useState<Revisao | null>(null)
+  const tipos = useTipos()
   const [erroCarga, setErroCarga] = useState('')
   const [itens, setItens] = useState<ItemRef[]>([])
   const [historico, setHistorico] = useState<ItemRef[][]>([])
@@ -232,6 +234,12 @@ export default function RevisaoReferencia() {
         <span className="min-w-0 truncate text-[13px] font-semibold" title={dados.referencia.nome}>
           {dados.referencia.nome}
         </span>
+        <SeletorTipo
+          tipos={tipos}
+          valor={dados.referencia.tipo}
+          mudar={(t) => void mudarTipoReferencia(dados.referencia.id, t).then((r) => setDados((d) => d && { ...d, referencia: r }))}
+          className="shrink-0"
+        />
         <span className="ml-auto shrink-0 text-[11px] text-fog">
           {salvamento === 'salvo' ? '✓ Salvo' : salvamento === 'salvando' ? 'Salvando…' : salvamento === 'pendente' ? 'Alterações…' : <b className="text-coral">⚠ {salvamento.erro}</b>}
         </span>

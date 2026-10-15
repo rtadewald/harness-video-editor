@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { saltoDaLinha } from '@/editor/janelaDaLinha'
-import { MessageSquareText, PanelLeftClose, PanelLeftOpen, Redo2, RotateCcw, Settings, Undo2 } from 'lucide-react'
+import { MessageSquareText, PanelLeftClose, PanelLeftOpen, Redo2, RotateCcw, Undo2 } from 'lucide-react'
 import { abrirEditor, abrirPicos, abrirProjeto, abrirTranscricao, ajustarClipe, json, ativarTranscricao, cortarFaixa, emAndamento, formatarDuracao, gerarDirecao, motoresRodando, passoRodando, recalcularCortes, reenquadrando, refazerCortes, renomearProjeto, restaurarClipe, rodarMotor, urlArquivo, type DadosEditor, type Etapa, type Palavra, type Picos, type TranscricaoCompleta } from '@/api'
 import { abrirAba } from '@/components/abasProjetos'
 import { Logo } from '@/components/Marca'
@@ -22,7 +22,6 @@ import PainelVelocidade from '@/preprocessamento/PainelVelocidade'
 import PainelEnquadramento from '@/preprocessamento/PainelEnquadramento'
 import { LookAtor, SEM_LOOK, useLookDoProjeto } from '@/preprocessamento/look'
 import Processamento from '@/preprocessamento/Processamento'
-import Configuracoes from '@/paginas/Configuracoes'
 import NaoEncontrada from '@/paginas/NaoEncontrada'
 import { montarSequencia } from '@/player/sequencia'
 import { paraTempo, palavrasNaSaida } from '@/direcao/direcaoProjeto'
@@ -209,7 +208,6 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
   const sonsTransicao = useMemo(() => (cortesTransicao ? sonsDasTransicoes(cortesTransicao, catSons) : []), [cortesTransicao, catSons])
   const [picos, setPicos] = useState<Picos | null>(null)
   const [comparar, setComparar] = useState<string | null>(null)
-  const [configAberta, setConfigAberta] = useState(false)
   const [comparacao, setComparacao] = useState<TranscricaoCompleta | null>(null)
   const [selecao, setSelecao] = useState<Selecao>(null)
   const [repetir, setRepetir] = useState(false)
@@ -457,15 +455,12 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
       <header className="flex items-center gap-5 border-b border-line-dark bg-ink px-4">
         <Logo />
         <span className="h-5 w-px shrink-0 bg-line-dark" />
-        <NavHome renomear={(id, nome) => renomearProjeto(id, nome).then((p) => setDados((d) => d && { ...d, projeto: p }))} />
+        <NavHome abaConfig={etapa} renomear={(id, nome) => renomearProjeto(id, nome).then((p) => setDados((d) => d && { ...d, projeto: p }))} />
 
         <div className="ml-auto flex shrink-0 items-center gap-1 text-fog">
           <BotaoFuturo rotulo="Desfazer (fase 3b)"><Undo2 /></BotaoFuturo>
           <BotaoFuturo rotulo="Refazer (fase 3b)"><Redo2 /></BotaoFuturo>
           <Versoes projetoId={projeto.id} mudou={() => void recarregar()} />
-          <button onClick={() => setConfigAberta(true)} aria-label="Configurações" title="Configurações" className="grid size-8 place-items-center rounded-full hover:bg-cream/10 hover:text-cream [&_svg]:size-4">
-            <Settings />
-          </button>
           {vertical && (
             <button
               onClick={refazerComIA}
@@ -710,7 +705,6 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
         )}
       </div>
       )}
-      <Configuracoes aberto={configAberta} aoFechar={() => setConfigAberta(false)} aba={etapa} />
     </div>
     </TransicoesDoVideo.Provider>
     </FatorSom.Provider>

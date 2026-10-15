@@ -192,13 +192,21 @@ def palavras(a):
     print()
 
 
-def heuristica(_a):
-    print(chamar('GET', '/api/referencias/heuristica')['regras'])
+def _tipo(a) -> str:
+    """O tipo de vídeo pedido (`--tipo`) ou o do projeto (`--projeto`); sem nada, o Reels."""
+    if getattr(a, 'projeto', None):
+        return chamar('GET', f'/api/projetos/{a.projeto}')['formato']
+    return a.tipo or 'reels'
+
+
+def heuristica(a):
+    print(chamar('GET', '/api/referencias/heuristica', params={'tipo': _tipo(a)})['regras'])
 
 
 def regra(a):
     """Uma regra do criador nova (confirmada por ele), no fim de "## Regras do criador" da Heurística."""
-    doc = chamar('GET', '/api/referencias/heuristica')['regras']
+    tipo = _tipo(a)
+    doc = chamar('GET', '/api/referencias/heuristica', params={'tipo': tipo})['regras']
     titulo = '## Regras do criador'
     m = re.search(rf'^{re.escape(titulo)}[ \t]*\n(.*?)(?=^## |\Z)', doc, re.M | re.S)
     item = '- ' + ' '.join(a.texto.split()).removeprefix('- ')
@@ -207,8 +215,8 @@ def regra(a):
         doc = f'{doc[:fim].rstrip()}\n{item}\n' + (f'\n{doc[fim:].lstrip(chr(10))}' if doc[fim:].strip() else '')
     else:
         doc = f'{titulo}\n{item}\n\n{doc.lstrip()}'
-    chamar('PUT', '/api/referencias/heuristica', json={'regras': doc})
-    print('anotada em Regras do criador')
+    chamar('PUT', '/api/referencias/heuristica', params={'tipo': tipo}, json={'regras': doc})
+    print(f'anotada em Regras do criador ({tipo})')
 
 
 def aprendizados(a):
@@ -787,8 +795,10 @@ def main(argv=None):
     cmd('cortes-faixa', cortes_faixa, ID, ('inicio', {'type': float}), ('fim', {'type': float}), ('--manter', {'action': 'store_true'}),
         ajuda='corta (ou com --manter devolve) um intervalo do bruto, em segundos')
     cmd('palavras', palavras, ID, ('busca', {'nargs': '?'}), ('--mantidas', {'action': 'store_true'}), ajuda='os ids das palavras (* = cortada)')
-    cmd('heuristica', heuristica, ajuda='as regras do criador e as sugeridas (a Heurística do app)')
-    cmd('regra', regra, ('texto', {}), ajuda='anota uma regra do criador (confirmada por ele) na Heurística')
+    TIPO = ('--tipo', {'help': 'o tipo de vídeo (reels, ad, vsl, youtube, aula…); padrão: reels'})
+    DO_PROJETO = ('--projeto', {'help': 'o tipo é o deste projeto'})
+    cmd('heuristica', heuristica, TIPO, DO_PROJETO, ajuda='as regras do criador e as sugeridas (a Heurística do tipo)')
+    cmd('regra', regra, ('texto', {}), TIPO, DO_PROJETO, ajuda='anota uma regra do criador (confirmada por ele) na Heurística do tipo')
     cmd('aprendizados', aprendizados, ('area', {'nargs': '?', 'help': 'cortes, inserts, motions… (sem: a lista)'}), ajuda='os aprendizados da área (leia antes da etapa)')
     cmd('aprender', aprender, ('area', {}), ('texto', {}), ('--criador', {'action': 'store_true', 'help': 'um gosto confirmado do criador'}),
         ajuda='anota um aprendizado confirmado por Rodrigo')

@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -13,6 +13,7 @@ from .. import (
     direcao,
     midia,
     referencias,
+    tipos,
 )
 from .comum import extensao_do_upload as _extensao
 from .comum import guardar_upload as _guardar
@@ -33,9 +34,13 @@ def listar_referencias():
 
 
 @rotas.post('/api/referencias')
-def criar_referencias(videos: Annotated[list[UploadFile], File()]):
+def criar_referencias(videos: Annotated[list[UploadFile], File()], tipo: Annotated[str, Form()] = tipos.PADRAO):
     """Vários MP4 de uma vez. Cada um vira uma referência na fila; os que não servem voltam em `recusadas` com o motivo
     (só vídeos verticais por enquanto, SPEC §8.2.1)."""
+    try:
+        tipos.checar(tipo)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
     criadas, recusadas = [], []
     for v in videos:
         nome = v.filename or 'video.mp4'
@@ -50,7 +55,7 @@ def criar_referencias(videos: Annotated[list[UploadFile], File()]):
             if referencias.formato(info['largura'], info['altura']) != 'vertical':
                 raise ValueError(f"é {info['largura']}×{info['altura']}; por enquanto só vídeos verticais")
             midia.miniatura(destino, base / 'miniatura.jpg', info['duracao'])
-            criadas.append(referencias.criar(id, Path(nome).stem, {'arquivo': destino.name, 'nome_original': nome, **info}))
+            criadas.append(referencias.criar(id, Path(nome).stem, {'arquivo': destino.name, 'nome_original': nome, **info}, tipo))
         except Exception as e:
             shutil.rmtree(base, ignore_errors=True)
             motivo = str(e) if isinstance(e, ValueError) else 'não consegui ler o arquivo'
@@ -75,7 +80,7 @@ def clipes_referencias():
         except FileNotFoundError:
             continue
         lista, origens[r['id']] = direcao.clipes(r, itens, palavras)
-        todos += lista
+        todos += [{**c, 'tipo_video': r['tipo']} for c in lista]  # o tipo do vídeo de origem (Reels, Ad…), para o filtro
     favoritos = referencias.ler_favoritos()
     for c in todos:
         c['favorito'] = any(referencias.mesmo_trecho(f, c['ref'], c['inicio'], c['fim']) for f in favoritos)
@@ -112,16 +117,23 @@ def roteiro_referencia(id: str):
     return {'referencia': r, 'linhas': calibragem.roteiro(*lista[0])}
 
 
-def _heuristica() -> dict:
-    h = calibragem.ler_heuristica()
-    return {'regras': h['regras'], 'gerado_em': h.get('gerado_em'), 'videos': h.get('videos'), 'tem_anterior': bool(h.get('anterior')),
-            'roteiros': calibragem.roteiros()}
+def _tipo(tipo: str) -> str:
+    try:
+        return tipos.checar(tipo)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+def _heuristica(tipo: str) -> dict:
+    h = calibragem.ler_heuristica(tipo)
+    return {'tipo': tipo, 'regras': h['regras'], 'gerado_em': h.get('gerado_em'), 'videos': h.get('videos'), 'tem_anterior': bool(h.get('anterior')),
+            'roteiros': calibragem.roteiros(tipo=tipo)}
 
 
 @rotas.get('/api/referencias/heuristica')
-def ler_heuristica():
-    """As regras (Markdown editável) e os roteiros de exemplo (montados da análise)."""
-    return _heuristica()
+def ler_heuristica(tipo: str = tipos.PADRAO):
+    """As regras (Markdown editável) e os roteiros de exemplo (montados da análise) de um tipo de vídeo."""
+    return _heuristica(_tipo(tipo))
 
 
 class RegrasHeuristica(BaseModel):
@@ -129,29 +141,32 @@ class RegrasHeuristica(BaseModel):
 
 
 @rotas.put('/api/referencias/heuristica')
-def salvar_heuristica(h: RegrasHeuristica):
-    calibragem.salvar_heuristica({**calibragem.ler_heuristica(), 'regras': h.regras})
-    return _heuristica()
+def salvar_heuristica(h: RegrasHeuristica, tipo: str = tipos.PADRAO):
+    tipo = _tipo(tipo)
+    calibragem.salvar_heuristica({**calibragem.ler_heuristica(tipo), 'regras': h.regras}, tipo)
+    return _heuristica(tipo)
 
 
 @rotas.post('/api/referencias/heuristica/sugerir')
-def sugerir_regras():
-    """A IA lê os roteiros e refaz a seção "Regras sugeridas pela IA"; as regras do criador ficam como estão."""
+def sugerir_regras(tipo: str = tipos.PADRAO):
+    """A IA lê os roteiros do tipo e refaz a seção "Regras sugeridas pela IA"; as regras do criador ficam como estão."""
+    tipo = _tipo(tipo)
     try:
-        calibragem.sugerir_regras()
+        calibragem.sugerir_regras(tipo)
     except ValueError as e:
         raise HTTPException(409, str(e))
-    return _heuristica()
+    return _heuristica(tipo)
 
 
 @rotas.post('/api/referencias/heuristica/voltar')
-def voltar_heuristica():
+def voltar_heuristica(tipo: str = tipos.PADRAO):
     """Desfaz a última sugestão: volta para as regras de antes."""
-    h = calibragem.ler_heuristica()
+    tipo = _tipo(tipo)
+    h = calibragem.ler_heuristica(tipo)
     if not h.get('anterior'):
         raise HTTPException(409, 'Não há versão anterior')
-    calibragem.salvar_heuristica({**h, 'regras': h['anterior'], 'anterior': h['regras']})
-    return _heuristica()
+    calibragem.salvar_heuristica({**h, 'regras': h['anterior'], 'anterior': h['regras']}, tipo)
+    return _heuristica(tipo)
 
 
 @rotas.get('/api/referencias/{id}')
@@ -215,6 +230,21 @@ def marcar_revisada(id: str, s: StatusRevisao):
     if r['status'] not in ('a_revisar', 'revisado'):
         raise HTTPException(409, 'A análise ainda não terminou')
     return referencias.atualizar(id, lambda x: x.update(status='revisado' if s.revisado else 'a_revisar'))
+
+
+class TipoReferencia(BaseModel):
+    tipo: str
+
+
+@rotas.put('/api/referencias/{id}/tipo')
+def mudar_tipo_referencia(id: str, t: TipoReferencia):
+    """O tipo de vídeo da referência (Reels, Ad…): ela passa a ensinar a direção dos projetos desse tipo."""
+    _ler_referencia(id)
+    try:
+        tipos.checar(t.tipo)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return referencias.atualizar(id, lambda r: r.update(tipo=t.tipo))
 
 
 class NomeReferencia(BaseModel):

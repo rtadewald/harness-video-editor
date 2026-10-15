@@ -17,7 +17,7 @@ RAIZ = Path(__file__).resolve().parents[2]
 BIBLIOTECA = RAIZ / 'biblioteca'
 # os projetos (fora do git): o trabalho de cada um, nunca copiado com a biblioteca
 PROJETOS = RAIZ / 'projetos'
-# o que a biblioteca de uma instalação nova recebe (no git): os aprendizados técnicos, a Heurística vazia, motions de exemplo
+# o que a biblioteca de uma instalação nova recebe (no git): os aprendizados técnicos e motions de exemplo
 INICIAL = Path(__file__).resolve().parents[1] / 'inicial'
 # o front (Vite), que serve as páginas de render da exportação e dos motions
 FRONT = os.environ.get('HARNESS_FRONT', 'http://localhost:5173')

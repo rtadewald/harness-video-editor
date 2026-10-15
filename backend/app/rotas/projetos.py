@@ -16,6 +16,8 @@ from .. import (
     motores,
     pipeline,
     projeto,
+    referencias,
+    tipos,
 )
 from .comum import extensao_do_upload as _extensao
 from .comum import guardar_upload as _guardar
@@ -38,6 +40,7 @@ class Config(BaseModel):
     modelo_diretora: str | None = Field(default=None, min_length=3, max_length=120)  # quem escreve o roteiro dirigido
     raciocinio_diretora: Literal['low', 'medium', 'high'] | None = None
     identidade_motion: str | None = Field(default=None, max_length=6000)  # a identidade dos motions que o Claude escreve
+    tipos: list[dict] | None = Field(default=None, max_length=50)  # os tipos de vídeo (tipos.py)
 
 
 def _config_completa() -> dict:
@@ -55,6 +58,21 @@ def ler_config():
 
 class Renomear(BaseModel):
     nome: str
+
+
+class TipoProjeto(BaseModel):
+    tipo: str
+
+
+@rotas.put('/api/projetos/{id}/tipo')
+def mudar_tipo(id: str, t: TipoProjeto):
+    """O tipo de vídeo do projeto (Reels, Ad…): a direção passa a usar a Heurística e as referências desse tipo."""
+    _ler(id)
+    try:
+        tipos.checar(t.tipo)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return projeto.atualizar(id, lambda p: p.update(formato=t.tipo))
 
 
 @rotas.delete('/api/projetos/{id}')
@@ -80,6 +98,14 @@ def salvar_config(c: Config):
     if c.motor_padrao is not None and c.motor_padrao not in projeto.MOTORES:
         raise HTTPException(422, 'Motor de transcrição desconhecido')
     mudancas = {k: v for k, v in c.model_dump().items() if v is not None}
+    if c.tipos is not None:
+        mudancas['tipos'] = tipos.validar(c.tipos)
+        # um tipo só sai quando nenhum projeto e nenhuma referência é dele
+        fica = {t['id'] for t in mudancas['tipos']}
+        em_uso = {p['formato'] for p in projeto.listar()} | {r['tipo'] for r in referencias.listar()}
+        if saem := sorted(em_uso - fica):
+            nomes = {t['id']: t['nome'] for t in projeto.ler_config()['tipos']}
+            raise HTTPException(409, f'Ainda há projetos ou referências de {", ".join(nomes.get(x, x) for x in saem)}: mude o tipo deles antes')
     nova = {**projeto.ler_config(), **mudancas}
     projeto.salvar_config(nova)
     return _config_completa()
@@ -107,10 +133,10 @@ def criar(
         raise HTTPException(422, 'Dê um nome ao projeto')
     if motor and motor not in projeto.MOTORES:
         raise HTTPException(422, 'Motor de transcrição desconhecido')
-    if formato not in projeto.FORMATOS:
-        raise HTTPException(422, 'Formato desconhecido')
-    if not projeto.FORMATOS[formato]:
-        raise HTTPException(422, 'Esse formato ainda não está disponível (em breve)')
+    try:
+        tipos.checar(formato)  # o tipo de vídeo (Reels, Ad…), das Configurações
+    except ValueError as e:
+        raise HTTPException(422, str(e))
     id = projeto.novo_id(nome)
     base = projeto.RAIZ / id
     try:

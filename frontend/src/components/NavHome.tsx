@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Blend, BookOpenText, GraduationCap, Megaphone, ChevronLeft, ChevronRight, Film, Images, Layers, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
+import { Blend, BookOpenText, GraduationCap, Megaphone, ChevronLeft, ChevronRight, Film, Images, Layers, Settings, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import Configuracoes from '@/paginas/Configuracoes'
 import { fecharAba, useAbasProjetos } from './abasProjetos'
 
 /** A barra de cima de todas as telas, nas pílulas `.tab` do Otto: primeiro os projetos abertos como abas (× fecha; dois
@@ -27,8 +28,10 @@ const TREINO: Link[] = [
   { para: '/heuristica', nome: 'Heurística', icone: BookOpenText },
   { para: '/aprendizados', nome: 'Aprendizados', icone: GraduationCap }, // o que o Claude aprendeu editando (a skill do editor)
 ]
-export default function NavHome({ renomear }: { renomear?: (id: string, nome: string) => Promise<unknown> }) {
+/** `abaConfig`: a aba em que as Configurações (a engrenagem, no fim da barra) abrem — no editor, a da etapa aberta. */
+export default function NavHome({ renomear, abaConfig }: { renomear?: (id: string, nome: string) => Promise<unknown>; abaConfig?: string }) {
   const abas = useAbasProjetos()
+  const [config, setConfig] = useState(false)
   const local = useLocation()
   const ir = useNavigate()
   const aba = ({ isActive }: { isActive: boolean }) => cn(PILULA, 'flex items-center gap-1.5 px-3 py-[7px]', isActive ? ATIVA : INATIVA)
@@ -102,6 +105,11 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
           ))}
         </div>
       </Rolavel>
+      {/* a engrenagem fica sempre à vista, fora do que rola */}
+      <button onClick={() => setConfig(true)} aria-label="Configurações" title="Configurações" className={cn(PILULA, INATIVA, 'grid size-[34px] place-items-center')}>
+        <Settings className="size-3.5 opacity-80" />
+      </button>
+      <Configuracoes aberto={config} aoFechar={() => setConfig(false)} aba={abaConfig} />
     </nav>
   )
 }

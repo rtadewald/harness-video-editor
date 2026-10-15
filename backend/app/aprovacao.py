@@ -105,7 +105,8 @@ def de_projeto(id: str, n: int | None = None) -> str:
             'id': rid, 'nome': f"{p['nome']} (aprovado)", 'criado_em': datetime.now().isoformat(timespec='seconds'), 'formato': 'vertical',
             'video': {'arquivo': 'proxy.mp4', 'nome_original': f'exports/{e["arquivo"]}', **info}, 'status': 'a_revisar', 'erro': None,
             'analise': {'passos': {x: {'status': 'pronto'} for x in direcao.PASSOS}},
-            'origem': {'projeto': id, 'versao': n, 'aprovado_em': rev.get('aprovado_em')}, 'revisoes': _revisoes(id)})
+            'origem': {'projeto': id, 'versao': n, 'aprovado_em': rev.get('aprovado_em')}, 'revisoes': _revisoes(id),
+            'tipo': p['formato']})  # o tipo do projeto: ensina a direção dos projetos do mesmo tipo
         for i in itens:
             direcao._miniatura(base, i)
         comum.salvar_json(base / 'direcao.json', {'itens': itens, 'itens_ia': itens_ia, 'cortes': cortes})

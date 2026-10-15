@@ -3,7 +3,7 @@
 A direção sai do **algoritmo do app** (a diretora + a formatadora no Gemini, guiadas pela Calibragem e pela
 Heurística). Você gera, confere contra as regras do criador e corrige pela **corretora** do app.
 
-> **Antes, leia `A aprendizados elementos`** e as regras do criador (`A heuristica`: as "Regras do criador" são
+> **Antes, leia `A aprendizados elementos`** e as regras do criador (`A heuristica --projeto <id>`: as "Regras do criador" são
 > obrigatórias).
 
 ## Rodar
@@ -14,7 +14,7 @@ A direcao-gerar <id> --esperar        # 40–90 s
 A direcao-ver <id>                    # cada plano: tipo, marcação, texto e a fala
 ```
 
-## Conferir (contra `A heuristica`)
+## Conferir (contra `A heuristica --projeto <id>`)
 
 - Abertura: nunca Full ator (a não ser pedido); vídeo de dúvida abre com Comentário + insert + ator.
 - Nenhum Full ator com mais de 3–4 s seguidos; troca de plano no fim de frase ou numa pausa.

@@ -134,11 +134,11 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 │   └── components/    # marca, navegação, Modal, componentes shadcn (ui/)
 ├── frontend/public/motion/   # o runtime dos motions (GSAP, fontes); os presets ficam na biblioteca
 ├── ferramentas/       # scripts do Claude: montar presets (tira, curva, pose), sons (biblioteca, detecção), os LUTs (luts.py) e os das áreas novas
-├── backend/inicial/   # a biblioteca de uma instalação nova: aprendizados técnicos, Heurística vazia, 2 motions
+├── backend/inicial/   # a biblioteca de uma instalação nova: aprendizados técnicos e 2 motions
 ├── biblioteca/        # o que serve a qualquer vídeo (fora do git; `comum.BIBLIOTECA`); copia-se entre máquinas, por cima
 │   ├── config.json    # as Configurações
 │   ├── codigos.json   # o registro dos códigos (PRE, MOT, BAN, REF, PRJ…)
-│   ├── heuristica.md  # as regras do criador e as sugeridas (a página Heurística)
+│   ├── heuristica/    # <tipo>.md: as regras do criador e as sugeridas, uma por tipo de vídeo (a página Heurística)
 │   ├── aprendizados/  # o que o Claude aprendeu, um .md por etapa (a página Aprendizados; `A aprendizados`, `A aprender`)
 │   ├── referencias/   # vídeos da Calibragem, _favoritos.json, _heuristica.json
 │   ├── banco/         # mídias dos inserts (global)
@@ -1866,7 +1866,7 @@ Nada direto. 💡 Os favoritos foram pensados como as **preferências** de Rodri
   Cada seção pode ter uma subseção **`### Inserts`**: como escrever a marcação dos inserts (o que aparece, como entra, zooms, destaques, trocas; nunca o layout).
 - **Os roteiros de exemplo:** os vídeos analisados na Calibragem, escritos como roteiro dirigido. Eles são montados na hora a partir da análise; não se editam aqui.
 
-**Onde ficam** (docs/editor-claude.md, Q17, E9): as regras moram na **skill do editor**, em `biblioteca/heuristica.md` (no git; o Claude lê o mesmo arquivo); `biblioteca/referencias/_heuristica.json` guarda só a versão anterior das regras (o "Voltar") e quando a IA sugeriu. Na primeira leitura depois da mudança, as regras que estavam no JSON foram para o arquivo. Uma referência criada de um projeto aprovado (`prj-…`) só entra nos roteiros de exemplo depois de revisada.
+**Onde ficam** (docs/editor-claude.md, Q17, E9): as regras moram na biblioteca, uma por tipo de vídeo, em `biblioteca/heuristica/<tipo>.md` (fora do git; o Claude lê o mesmo arquivo); `biblioteca/referencias/_heuristica.json` (do Reels; `_heuristica-<tipo>.json` dos outros) guarda só a versão anterior das regras (o "Voltar") e quando a IA sugeriu. Na primeira leitura depois da mudança, as regras que estavam no JSON foram para o arquivo. Uma referência criada de um projeto aprovado (`prj-…`) só entra nos roteiros de exemplo depois de revisada.
 
 Antes da E9 do editor por Claude (`_heuristica.json`), as Regras do criador tinham 4 regras gerais: não começar com o ator em tela cheia; vídeo de dúvida começa com Comentário + insert + ator; gancho visual nos primeiros segundos; nunca mais de 3–4 s de Full ator seguido. Têm também 3 regras em `### Inserts`. As sugeridas pela IA são 4 regras, geradas com 6 vídeos em 06/10/2026, sem subseção de Inserts.
 

@@ -125,13 +125,13 @@ export function ModalVideo({ r, fechar }: { r: Referencia; fechar: () => void })
 }
 
 /** Aba "Heurística" da Calibragem: a heurística da direção (regras + roteiros de exemplo). */
-export function HeuristicaDirecao({ versao }: { versao: number }) {
-  return <EditorHeuristica versao={versao} />
+export function HeuristicaDirecao({ versao, tipo }: { versao: number; tipo: string }) {
+  return <EditorHeuristica key={tipo} versao={versao} tipo={tipo} />
 }
 
 /** Heurística da direção (SPEC §8.2.1): as regras (texto Markdown que você lê ou edita) e os roteiros de exemplo,
  *  montados da análise (corrige-se na revisão de cada vídeo). Tudo vai para o prompt do diretor. */
-function EditorHeuristica({ versao }: { versao: number }) {
+function EditorHeuristica({ versao, tipo }: { versao: number; tipo: string }) {
   const [h, setH] = useState<HeuristicaDirecao | null>(null)
   const [modo, setModo] = useState<'ler' | 'editar'>('ler')
   const [sugerindo, setSugerindo] = useState(false)
@@ -140,8 +140,8 @@ function EditorHeuristica({ versao }: { versao: number }) {
   const [aberto, setAberto] = useState<string | null>(null)
   const [tocando, setTocando] = useState<{ refId: string; nome: string; linha: LinhaRoteiro } | null>(null)
   useEffect(() => {
-    lerHeuristica().then(setH).catch((ev) => setErro(ev.message))
-  }, [versao])
+    lerHeuristica(tipo).then(setH).catch((ev) => setErro(ev.message))
+  }, [versao, tipo])
   const acao = async (f: () => Promise<HeuristicaDirecao>) => {
     setErro('')
     try {
@@ -153,13 +153,13 @@ function EditorHeuristica({ versao }: { versao: number }) {
   const sugerir = async () => {
     if (!window.confirm('A IA lê os roteiros e refaz as "Regras sugeridas pela IA". As suas regras ficam como estão, e a versão atual é guardada (dá para voltar). Continuar?')) return
     setSugerindo(true)
-    await acao(sugerirRegras)
+    await acao(() => sugerirRegras(tipo))
     setSugerindo(false)
     setModo('ler')
   }
   const salvar = async (regras: string) => {
     if (!h || regras === h.regras) return
-    await acao(() => salvarHeuristica(regras))
+    await acao(() => salvarHeuristica(tipo, regras))
     setSalvo(true)
     setTimeout(() => setSalvo(false), 1500)
   }
@@ -177,7 +177,7 @@ function EditorHeuristica({ versao }: { versao: number }) {
           {sugerindo ? 'Lendo os roteiros…' : 'Sugerir regras com IA'}
         </button>
         {h.tem_anterior && (
-          <button onClick={() => void acao(voltarHeuristica)} className="text-[11px] font-semibold text-fog hover:text-cream hover:underline" title="Troca pelas regras de antes da última sugestão">
+          <button onClick={() => void acao(() => voltarHeuristica(tipo))} className="text-[11px] font-semibold text-fog hover:text-cream hover:underline" title="Troca pelas regras de antes da última sugestão">
             ↺ Voltar às regras anteriores
           </button>
         )}
