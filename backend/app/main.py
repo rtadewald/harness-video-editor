@@ -16,6 +16,7 @@ comum.carregar_env()
 
 @asynccontextmanager
 async def ciclo(_app):
+    comum.preparar_pastas()  # uma instalação nova: a biblioteca inicial e a pasta dos projetos
     entradas.migrar()  # a chave antiga `transicoes` das Configurações vira `entradas` (o nome fica para a P2)
     pipeline.retomar_interrompidos()
     direcao.retomar_interrompidas()

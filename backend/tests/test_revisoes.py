@@ -47,8 +47,8 @@ def test_revisao_comentar_enviar_responder_e_aprovar(cliente, video):
         '[Geral] Legenda um pouco mais baixa',
         '[↳ dúvida do Claude 0:01,0] "oi gente" — Sim',
         '[0:03,2] "é muito" — Troque este insert / por um print',
-        f'  ↳ print: dados/projetos/{pid}/revisoes/anexos/c1-1.png',
-        f'(dados/projetos/{pid}/revisoes/v1.json)',
+        f'  ↳ print: projetos/{pid}/revisoes/anexos/c1-1.png',
+        f'(projetos/{pid}/revisoes/v1.json)',
     ]
 
     # o Claude responde; a tela salvar de novo não apaga a resposta

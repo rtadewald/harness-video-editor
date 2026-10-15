@@ -1,5 +1,5 @@
 """Motions (SPEC §8.5; docs/motions.md): dois jeitos de preencher um plano de motion (decisão de Rodrigo, out/2026).
-- **Preset:** uma animação pronta em HTML + CSS + GSAP (`frontend/public/motion/presets/<id>.html`, escrita à mão), em
+- **Preset:** uma animação pronta em HTML + CSS + GSAP (`biblioteca/motions/<id>.html`, escrita à mão), em
   que o criador troca só os campos (textos, imagem do banco) e escolhe o fundo.
 - **Vídeo:** um vídeo do banco feito fora, que entra e sai seco, como um insert.
 Os dois tocam pela mesma página (palco + GSAP + runtime): ao vivo na prévia e fotografados quadro a quadro na exportação.
@@ -7,13 +7,12 @@ Os dois tocam pela mesma página (palco + GSAP + runtime): ao vivo na prévia e 
 import json
 import re
 from datetime import datetime
-from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from . import banco, projeto, sons
+from . import banco, comum, projeto, sons
 
-PRESETS = Path(__file__).resolve().parents[2] / 'frontend' / 'public' / 'motion' / 'presets'
+PRESETS = comum.BIBLIOTECA / 'motions'
 FORMATOS = {'vertical': (1080, 1920), 'dividida': (1080, 960)}  # tela cheia 9:16; tela dividida: a metade de cima
 TIPOS_CAMPO = ('texto', 'cor', 'imagem')
 

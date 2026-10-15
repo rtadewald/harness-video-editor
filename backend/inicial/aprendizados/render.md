@@ -5,8 +5,6 @@ e não repita estes erros. **[gosto]** = preferência confirmada pelo criador ·
 
 ## Do criador
 
-_Nenhum ainda._
-
 ## Técnicos (do editor)
 
 - **[técnica] Defeito de render não chega ao criador.** Toda versão passa pelos detectores antes da entrega: quadro

@@ -11,11 +11,34 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 ENV = Path(__file__).resolve().parents[1] / '.env'
-# os dados do app (fora do git): projetos, referências, banco, presets, sons, trilhas, transições e os modelos de visão
-DADOS = Path(__file__).resolve().parents[2] / 'dados'
+RAIZ = Path(__file__).resolve().parents[2]
+# a biblioteca (fora do git; copia-se de uma máquina para outra, por cima): banco, referências, Heurística, aprendizados,
+# CTAs, presets, motions, transições, sons, trilhas, os modelos de visão, as configurações e o registro dos códigos
+BIBLIOTECA = RAIZ / 'biblioteca'
+# os projetos (fora do git): o trabalho de cada um, nunca copiado com a biblioteca
+PROJETOS = RAIZ / 'projetos'
+# o que a biblioteca de uma instalação nova recebe (no git): os aprendizados técnicos, a Heurística vazia, motions de exemplo
+INICIAL = Path(__file__).resolve().parents[1] / 'inicial'
 # o front (Vite), que serve as páginas de render da exportação e dos motions
 FRONT = os.environ.get('HARNESS_FRONT', 'http://localhost:5173')
 FIM_DE_FRASE = ('.', '?', '!', '…')
+
+
+def preparar_pastas() -> None:
+    """Cria `projetos/` e completa a biblioteca com o que falta dela em `inicial/` (cada pasta ou arquivo de primeiro
+    nível que não existe; o que já existe, mesmo vazio, nunca é tocado)."""
+    import shutil
+
+    PROJETOS.mkdir(parents=True, exist_ok=True)
+    BIBLIOTECA.mkdir(parents=True, exist_ok=True)
+    for x in (INICIAL.iterdir() if INICIAL.exists() else ()):
+        alvo = BIBLIOTECA / x.name
+        if x.name.startswith('.') or alvo.exists():
+            continue
+        if x.is_dir():
+            shutil.copytree(x, alvo)
+        else:
+            shutil.copy2(x, alvo)
 
 
 def carregar_env() -> None:

@@ -5,7 +5,7 @@ import types
 import pytest
 from fastapi.testclient import TestClient
 
-from app import aprendizados, audio, banco, calibragem, codigos, comum, direcao, main, pipeline, projeto, recorte_ator, referencias, rosto, sons, transicoes, trilhas
+from app import aprendizados, audio, banco, calibragem, codigos, comum, direcao, main, motions, pipeline, projeto, recorte_ator, referencias, rosto, sons, transicoes, trilhas
 
 
 @pytest.fixture(autouse=True)
@@ -17,10 +17,13 @@ def _nada_real(tmp_path, monkeypatch):
     monkeypatch.setattr(sons, 'RAIZ', tmp_path / 'sons')  # a biblioteca de sons de verdade fica fora dos testes
     monkeypatch.setattr(transicoes, 'RAIZ', tmp_path / 'transicoes')  # e as transições, com a ordem dos pares
     monkeypatch.setattr(trilhas, 'RAIZ', tmp_path / 'trilhas')  # e as faixas de fundo
-    monkeypatch.setattr(comum, 'DADOS', tmp_path)  # e o resto de dados/ (os CTAs, o registro dos códigos)
+    monkeypatch.setattr(comum, 'BIBLIOTECA', tmp_path)  # e o resto da biblioteca (os CTAs, as configurações)
+    monkeypatch.setattr(comum, 'PROJETOS', tmp_path / 'projetos')
     monkeypatch.setattr(codigos, 'REGISTRO', tmp_path / 'codigos.json')
-    monkeypatch.setattr(calibragem, 'REGRAS_MD', tmp_path / 'regras.md')
-    monkeypatch.setattr(aprendizados, 'PASTA', tmp_path / 'aprendizados')  # as regras da skill (no git) ficam de fora
+    monkeypatch.setattr(calibragem, 'REGRAS_MD', tmp_path / 'heuristica.md')
+    monkeypatch.setattr(aprendizados, 'PASTA', tmp_path / 'aprendizados')
+    monkeypatch.setattr(motions, 'PRESETS', tmp_path / 'motions')
+    monkeypatch.setattr(motions, 'RECUSADOS', tmp_path / 'motions' / '_recusados')
     # a limpeza da voz não roda sozinha em segundo plano (o DeepFilterNet baixa pacotes; o isolamento é pago)
     monkeypatch.setattr(audio, '_fila', types.SimpleNamespace(submit=lambda f, *a: None))
     monkeypatch.setattr(audio, '_isolar', lambda *a: pytest.fail('teste tentou usar o isolamento pago do ElevenLabs'))

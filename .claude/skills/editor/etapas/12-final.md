@@ -11,7 +11,7 @@ A exportar <id> --esperar                        # 4K, HEVC, 24 fps, pela export
 
 - A exportação usa o **estado de agora** do projeto. Se ele mudou depois da vN aprovada, a CLI recusa e diz o que mudou:
   **pergunte a Rodrigo** (exportar assim mesmo com `--mesmo-assim`, ou ele volta à vN no seletor de versões).
-- Sai em `dados/projetos/<id>/exports/<nome>.mp4`. Entregue com o caminho e `open -R "<arquivo>"` (abre o Finder nele).
+- Sai em `projetos/<id>/exports/<nome>.mp4`. Entregue com o caminho e `open -R "<arquivo>"` (abre o Finder nele).
 - Depois, a vN vira **referência da Calibragem** (sem Gemini; refazer substitui):
 
   ```bash

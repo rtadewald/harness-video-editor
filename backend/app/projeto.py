@@ -8,7 +8,7 @@ from pathlib import Path
 
 from . import comum
 
-RAIZ = comum.DADOS / 'projetos'
+RAIZ = comum.PROJETOS
 SAIDA = {'largura': 1080, 'altura': 1920}
 # as etapas do editor (SPEC §1); `cortes` é o Pré-processamento (o id ficou), `enriquecimento` e `motion` são antigas
 # (hoje dentro de Inserts) e ficam pelos dados dos projetos
@@ -37,7 +37,7 @@ LEGADO = 'whisper-stable'  # projetos antigos e plano B quando o motor escolhido
 
 
 def _arquivo_config() -> Path:
-    return RAIZ / '_config.json'
+    return comum.BIBLIOTECA / 'config.json'
 
 
 def ler_config() -> dict:

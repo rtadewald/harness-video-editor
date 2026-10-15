@@ -1,12 +1,12 @@
 # 06 · Motions e elementos
 
-> **Antes, leia `../aprendizados/motions.md` e `../aprendizados/elementos.md`.** A identidade visual dos motions está nas
-> Configurações do app (`identidade_motion`) e em `aprendizados/motions.md`.
+> **Antes, leia `A aprendizados motions` e `A aprendizados elementos`.** A identidade visual dos motions está nas
+> Configurações do app (`identidade_motion`) e em `A aprendizados motions`.
 
 ## Motions
 
 Um plano de **Motion tela cheia** ou **Tela dividida · motion** recebe um preset de motion do app (HTML + GSAP, em
-`frontend/public/motion/presets/`), com os campos preenchidos pela fala:
+`biblioteca/motions/`), com os campos preenchidos pela fala:
 
 ```bash
 A travar <id> motions
@@ -18,7 +18,7 @@ A motions-usar <id> <plano> --video <BAN-…> --formato …        # um vídeo d
 ### Motion novo (a outra etapa feita fora do app)
 
 Nenhum preset serve e a ideia é simples (um número que cresce, dois logos lado a lado, uma lista que se monta): um
-**subagente em segundo plano** (`model: opus`) escreve o preset novo em `frontend/public/motion/presets/<id>.html`:
+**subagente em segundo plano** (`model: opus`) escreve o preset novo em `biblioteca/motions/<id>.html`:
 
 ```bash
 A motion-brief <id> <plano> --preset <id-novo> --duracao <s do plano> [--pedido "<o que mais mostrar>"]   # imprime o caminho

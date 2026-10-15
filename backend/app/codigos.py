@@ -3,7 +3,7 @@
 
 Prefixos: PRE presets · MOT motions · TRA transições · TRI trilhas · BAN mídias do banco (o trecho: BAN-012.2) ·
 REF referências da Calibragem (um plano: REF-03·p7) · SOM sons · PRJ projetos (um plano: PRJ-02·p5) · CTA.
-O registro é `dados/codigos.json` ({código: {tipo, id[, pai]}}): um código é dado uma vez, na ordem de criação, e
+O registro é `biblioteca/codigos.json` ({código: {tipo, id[, pai]}}): um código é dado uma vez, na ordem de criação, e
 nunca muda nem é reaproveitado (o item apagado ou recusado leva o dele; os 34 do 19 que apontam para mídias apagadas
 ficam reservados). `atribuir()` dá o próximo número aos itens novos, sob uma trava de arquivo.
 """
@@ -16,7 +16,7 @@ from pathlib import Path
 
 from . import comum
 
-REGISTRO = comum.DADOS / 'codigos.json'
+REGISTRO = comum.BIBLIOTECA / 'codigos.json'
 PREFIXO = {'preset': 'PRE', 'motion': 'MOT', 'transicao': 'TRA', 'trilha': 'TRI', 'midia': 'BAN', 'referencia': 'REF',
            'som': 'SOM', 'projeto': 'PRJ', 'cta': 'CTA'}
 TIPO = {v: k for k, v in PREFIXO.items()}
@@ -35,7 +35,7 @@ def _pastas() -> dict[str, Path]:
     """As pastas de cada tipo, pelas RAIZ dos módulos (os testes trocam cada uma pela sua temporária)."""
     from . import banco, presets, projeto, referencias, sons, transicoes, trilhas
     return {'presets': presets.RAIZ, 'transicoes': transicoes.RAIZ, 'trilhas': trilhas.RAIZ, 'sons': sons.RAIZ, 'banco': banco.RAIZ,
-            'referencias': referencias.RAIZ, 'projetos': projeto.RAIZ, 'ctas': comum.DADOS / 'ctas'}
+            'referencias': referencias.RAIZ, 'projetos': projeto.RAIZ, 'ctas': comum.BIBLIOTECA / 'ctas'}
 
 
 def codigo(prefixo: str, n: int, sub: int | None = None) -> str:

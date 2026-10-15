@@ -497,7 +497,7 @@ def test_elevenlabs_usa_so_palavras_e_exige_resposta_valida(monkeypatch, tmp_pat
 # ---------------------------------------------------------------- motor padrão e configuração
 
 def test_config_tem_padrao_de_fabrica_e_so_aceita_motor_conhecido(cliente, tmp_path):
-    (projeto.RAIZ / '_config.json').unlink()
+    (comum.BIBLIOTECA / 'config.json').unlink()
     c = cliente.get('/api/config').json()
     assert c['motor_padrao'] == 'elevenlabs' and c['motores']['elevenlabs']['chave'] is False and c['motores']['parakeet']['chave'] is None
 

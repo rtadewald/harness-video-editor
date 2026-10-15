@@ -3,7 +3,7 @@
 A direção sai do **algoritmo do app** (a diretora + a formatadora no Gemini, guiadas pela Calibragem e pela
 Heurística). Você gera, confere contra as regras do criador e corrige pela **corretora** do app.
 
-> **Antes, leia `../aprendizados/elementos.md`** e as regras do criador (`A heuristica`: as "Regras do criador" são
+> **Antes, leia `A aprendizados elementos`** e as regras do criador (`A heuristica`: as "Regras do criador" são
 > obrigatórias).
 
 ## Rodar

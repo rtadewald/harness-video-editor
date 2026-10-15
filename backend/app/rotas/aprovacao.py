@@ -44,9 +44,33 @@ class Texto(BaseModel):
     texto: str = Field(max_length=200_000)
 
 
+@rotas.get('/api/aprendizados/{area}')
+def ler_aprendizado(area: str):
+    try:
+        return aprendizados.ler(area)
+    except FileNotFoundError:
+        raise HTTPException(404, 'Área desconhecida')
+
+
 @rotas.put('/api/aprendizados/{area}')
 def salvar_aprendizado(area: str, t: Texto):
     try:
         return aprendizados.salvar(area, t.texto)
     except FileNotFoundError:
         raise HTTPException(404, 'Área desconhecida')
+
+
+class Aprendizado(BaseModel):
+    texto: str = Field(max_length=5000)
+    criador: bool = False
+
+
+@rotas.post('/api/aprendizados/{area}')
+def anotar_aprendizado(area: str, a: Aprendizado):
+    """Um aprendizado novo no fim da seção dele (`criador`: um gosto confirmado; senão, técnico)."""
+    try:
+        return aprendizados.anotar(area, a.texto, a.criador)
+    except FileNotFoundError:
+        raise HTTPException(404, 'Área inválida')
+    except ValueError as e:
+        raise HTTPException(422, str(e))

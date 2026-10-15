@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 
 from . import comum, midia, projeto
 
-RAIZ = comum.DADOS / 'banco'
+RAIZ = comum.BIBLIOTECA / 'banco'
 EXT_VIDEO = ('.mp4', '.mov', '.m4v', '.webm')
 EXT_IMAGEM = ('.png', '.jpg', '.jpeg', '.webp')
 PROPORCOES = {'16:9': 16 / 9, '16:10': 16 / 10, '4:3': 4 / 3, '1:1': 1.0, '4:5': 4 / 5, '3:4': 3 / 4, '9:16': 9 / 16, 'alto': 9 / 22}

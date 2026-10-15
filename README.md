@@ -41,7 +41,8 @@ O passo a passo de cada etapa (o que a IA faz, o que você vê e pode corrigir, 
 | **Presets** | Os presets de enriquecimento (como as mídias entram e saem), para aprovar e ordenar. |
 | **Transições** | A biblioteca de transições, a referência ao lado da recriação, e as favoritas de cada par de grupos. |
 | **Calibragem** | Sobe os seus Reels editados. A IA analisa cada um e você revisa. |
-| **Heurística da direção** | As regras do criador, as regras sugeridas pela IA e os roteiros de exemplo que guiam a direção. |
+| **Heurística** | As regras do criador, as regras sugeridas pela IA e os roteiros de exemplo que guiam a direção. |
+| **Aprendizados** | O que o Claude aprendeu editando os seus vídeos, por etapa. |
 | **Configurações** (engrenagem) | Sobre o criador, motor de transcrição, margens dos cortes, pausas longas e modelos de IA. Abre na aba da etapa em que você está. |
 
 | Projetos | Configurações |
@@ -57,13 +58,16 @@ git clone https://github.com/rtadewald/harness-video-editor.git
 cd harness-video-editor
 ```
 
-Crie `backend/.env` com as chaves (o arquivo é ignorado pelo git):
+Crie o seu `backend/.env` com as suas chaves (cada pessoa usa as próprias; o arquivo é ignorado pelo git):
 
 ```env
 OPENROUTER_API_KEY=...        # obrigatória: cortes, direção, análise das referências, descrição do banco
 OPENROUTER_MODEL=google/gemini-3.8-flash
 ELEVENLABS_API_KEY=...        # opcional: o motor de transcrição padrão e o isolamento de voz
 ```
+
+Se alguém te passou uma biblioteca, cole a pasta `biblioteca/` na raiz do projeto (ao lado de `backend/`). Sem ela, o app
+cria uma biblioteca inicial (os aprendizados técnicos, a Heurística vazia e dois motions de exemplo).
 
 Sem a `ELEVENLABS_API_KEY`, o app usa Whisper + stable-ts localmente e avisa o motivo. O ElevenLabs envia o áudio da sua voz a um serviço externo.
 
@@ -78,7 +82,18 @@ Suba tudo com um comando:
 
 Na primeira vez os modelos locais baixam sozinhos, o que demora um pouco.
 
-Tudo o que o app guarda fica em `dados/`, fora do git: projetos, referências, banco, presets, sons, transições, trilhas e os modelos de visão. Para rodar duas cópias ao mesmo tempo (`git worktree`), ponha portas próprias num `.dev.env` (`HARNESS_API_PORT`, `HARNESS_FRONT_PORT`) e faça de `dados/` um link para a pasta da cópia principal.
+### A biblioteca e os projetos
+
+O que o app guarda fica em duas pastas na raiz, as duas fora do git (um `git pull` nunca mexe nelas):
+
+- **`biblioteca/`**: tudo o que serve a qualquer vídeo: o banco, as referências da Calibragem, a Heurística
+  (`heuristica.md`), os aprendizados do Claude (`aprendizados/`), os CTAs, os presets, os motions, as transições, os
+  sons, as trilhas, os modelos de visão, as configurações (`config.json`) e o registro dos códigos (`codigos.json`).
+  **Para levar para outra máquina, copie a pasta inteira por cima da de lá** (com o app parado). A de lá é substituída:
+  o que só existia nela se perde.
+- **`projetos/`**: o trabalho de cada um, um projeto por pasta. Não vai junto com a biblioteca.
+
+Para rodar duas cópias ao mesmo tempo (`git worktree`), ponha portas próprias num `.dev.env` (`HARNESS_API_PORT`, `HARNESS_FRONT_PORT`) e faça de `biblioteca/` e `projetos/` links para as pastas da cópia principal.
 
 ### Testes
 
@@ -96,7 +111,10 @@ frontend/src/       React + Vite + Tailwind, uma pasta por área:
                       preprocessamento/ direcao/ inserts/ presets/ ator/ motions/ transicoes/ audio/ legenda/
                       player/ (a prévia), editor/ (o comum às etapas), paginas/, referencias/, components/
 ferramentas/        scripts de apoio (montar presets, sons, LUTs, transições, trilhas, o teste de ponta a ponta dos sons)
-dados/              os dados do app (fora do git)
+backend/inicial/    a biblioteca de uma instalação nova (o que falta em biblioteca/ vem daqui)
+.claude/skills/     a skill `editor` (o Claude edita pelo app, pela CLI ferramentas/app.py)
+biblioteca/         a biblioteca (fora do git; copia-se entre máquinas)
+projetos/           os projetos (fora do git)
 docs/               o detalhe técnico de cada área
 SPEC.md             a especificação: visão, cada etapa passo a passo, arquitetura, exportação, regras dos cortes
 AGENTS.md           regras de trabalho do projeto

@@ -3,7 +3,7 @@
 O padrão vem das **favoritas de Rodrigo por par de grupos** (Full ator · Tela dividida · Tela cheia; página
 Transições do app). Use a função do app:
 
-> **Antes, leia `../aprendizados/transicoes.md`.**
+> **Antes, leia `A aprendizados transicoes`.**
 
 ```bash
 A travar <id> transicoes

@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from app import main, motions, presets, projeto, sons
+from app import comum, main, motions, presets, projeto, sons
 
 
 def _tom(arq, freq=2000, dur=0.08, vol=0.5, taxa=48000):
@@ -115,10 +115,11 @@ def test_fator_do_projeto_medido_uma_vez(cliente, video, monkeypatch):
     assert len(medidas) == 1 and projeto.ler(id)['nivel_voz']['db'] < 0
 
 
-def test_presets_de_motion_declaram_os_sons_e_o_plano_troca(cliente, video):
+def test_presets_de_motion_declaram_os_sons_e_o_plano_troca(cliente, video, monkeypatch):
     from tests.test_projetos import _criar
+    monkeypatch.setattr(motions, 'PRESETS', comum.INICIAL / 'motions')  # os exemplos que vêm com o app
     lista = {p['id']: p for p in motions.listar_presets()}
-    assert lista['claude-code']['sons']['digitacao'] == {'rotulo': 'Digitação', 'som': 'typing-keyboard-01', 'intensidade': 'baixo'}
+    assert lista['site']['sons']['digitacao'] == {'rotulo': 'Digitação', 'som': 'typing-keyboard-01', 'intensidade': 'baixo'}
     assert set(lista['lettering']['sons']) == {'palavra', 'destaque'}
     # cada momento declarado é marcado na página (motion.som)
     for pid, p in lista.items():
@@ -126,7 +127,7 @@ def test_presets_de_motion_declaram_os_sons_e_o_plano_troca(cliente, video):
         assert all(f"'{k}'" in html for k in p['sons']), pid
     id = _criar(cliente, video)['id']
     projeto.atualizar(id, lambda p: p.update(direcao={'status': 'pronto', 'itens': [{'id': 'p1', 'camada': 'plano', 'tipo': 'motion_tela_cheia', 'inicio': 0, 'fim': 2}]}))
-    assert cliente.put(f'/api/projetos/{id}/motions/p1', json={'tipo': 'preset', 'formato': 'vertical', 'preset': 'claude-code'}).status_code == 200
+    assert cliente.put(f'/api/projetos/{id}/motions/p1', json={'tipo': 'preset', 'formato': 'vertical', 'preset': 'site'}).status_code == 200
     r = cliente.patch(f'/api/projetos/{id}/motions/p1', json={'sons': {'digitacao': {'som': None}, 'entrada': {'som': 'ui-pop-03', 'intensidade': 'medio'},
                                                                           'inventado': {'som': 'x'}}}).json()
     assert r['sons'] == {'digitacao': {'som': None, 'intensidade': 'baixo'}, 'entrada': {'som': 'ui-pop-03', 'intensidade': 'medio'}}

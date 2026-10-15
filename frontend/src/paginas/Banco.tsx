@@ -175,7 +175,7 @@ export default function Banco() {
         ))}
         <span className="ml-auto" />
         {recusados.length > 0 && (
-          <Button variant="pill" size="sm" className="ml-2 text-fog hover:text-coral" onClick={() => void limpar()} title="Leva os recusados para a lixeira do banco (dados/banco/_lixeira; dá para recuperar)">
+          <Button variant="pill" size="sm" className="ml-2 text-fog hover:text-coral" onClick={() => void limpar()} title="Leva os recusados para a lixeira do banco (biblioteca/banco/_lixeira; dá para recuperar)">
             <Trash2 className="size-3.5" /> Limpar recusados ({recusados.length})
           </Button>
         )}

@@ -4,7 +4,7 @@ backend para o Claude (pela CLI) e a tela usarem a mesma lógica. Portado do 19 
 o rodízio entre vizinhos (um aprendizado do 19: "9 de 12 inserts com o mesmo preset") e respeitando as marcas de mão.
 
 Cada pedido de insert com mídia e sem preset recebe o 1º favorito da sua situação (tela × nº de mídias × proporção, a
-ordem de `dados/presets/ordem.json`) entre os aprovados que servem a ele; se o insert anterior já usa esse preset, o
+ordem de `biblioteca/presets/ordem.json`) entre os aprovados que servem a ele; se o insert anterior já usa esse preset, o
 próximo favorito que serve.
 """
 from . import banco, inserts, presets, projeto

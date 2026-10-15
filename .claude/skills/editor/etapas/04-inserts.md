@@ -6,7 +6,7 @@ todos de uma vez, em segundo plano** (`subagent_type: general-purpose`, `model: 
 Áudio, Legenda e Transições enquanto eles trabalham. Mas a mídia sempre entra **pelo app**: busca no banco do app,
 captura do app, upload para o banco do app, ligada ao insert pelo app.
 
-> **Antes, leia `../aprendizados/inserts.md` e mande cada subagente ler também.**
+> **Antes, leia `A aprendizados inserts` e mande cada subagente ler também.**
 
 ## Rodar
 

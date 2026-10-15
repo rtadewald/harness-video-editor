@@ -133,7 +133,7 @@ def _uma_linha(s: str) -> str:
 def texto(id: str, n: int) -> str:
     """O texto do "Enviar revisão", que Rodrigo cola no chat do Claude Code."""
     rev = ler(id, n)
-    base = f'dados/projetos/{id}'
+    base = f'projetos/{id}'
     linhas = [f'Revisão · {_codigo(id)} · v{n}']
     for c in sorted((c for c in rev['comentarios'] if tem_conteudo(c)), key=_ordem):
         fala = f'"{c["fala"]}" — ' if c.get('fala') else ''

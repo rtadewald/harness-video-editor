@@ -1,6 +1,7 @@
 """A aprovação (docs/editor-claude.md §7, E9): o estado de agora × a versão aprovada, o projeto que vira referência
 (a revisar: só ensina depois de revisada), a Heurística e os aprendizados na skill."""
 import shutil
+from pathlib import Path
 
 from app import aprendizados, aprovacao, calibragem, direcao_projeto, exportacao, projeto, referencias, versoes
 from tests.apoio import criar_projeto
@@ -51,7 +52,7 @@ def test_difere_da_versao(cliente, video):
     assert aprovacao.difere(pid, 1) == ['velocidade']
 
 
-def test_heuristica_e_aprendizados_na_skill(cliente):
+def test_heuristica_e_aprendizados_na_biblioteca(cliente):
     h = cliente.put('/api/referencias/heuristica', json={'regras': '## Regras do criador\n- abrir com tela dividida\n'}).json()
     assert calibragem.REGRAS_MD.read_text() == '## Regras do criador\n- abrir com tela dividida\n' and 'abrir' in h['regras']
     assert 'regras' not in (referencias.RAIZ / '_heuristica.json').read_text()
@@ -64,3 +65,27 @@ def test_heuristica_e_aprendizados_na_skill(cliente):
     assert x['texto'] == '# Inserts\n- um\n- dois\n'
     assert cliente.put('/api/aprendizados/nao-existe', json={'texto': 'x'}).status_code == 404
     assert cliente.put('/api/aprendizados/..%2Fsegredo', json={'texto': 'x'}).status_code == 404
+    # ler uma área e anotar (o Claude, pela CLI): o gosto confirmado em "Do criador", o resto em "Técnicos"
+    assert cliente.get('/api/aprendizados/inserts').json()['texto'].startswith('# Inserts')
+    (aprendizados.PASTA / 'cortes.md').write_text('# Cortes\n\n## Do criador\n\n## Técnicos (do editor)\n\n- velho\n')
+    cliente.post('/api/aprendizados/cortes', json={'texto': 'Corte colado na fala.', 'criador': True})
+    x = cliente.post('/api/aprendizados/cortes', json={'texto': 'Olhe a imagem da emenda.'}).json()
+    assert x['texto'] == '# Cortes\n\n## Do criador\n\n- Corte colado na fala.\n\n## Técnicos (do editor)\n\n- velho\n- Olhe a imagem da emenda.\n'
+    assert cliente.post('/api/aprendizados/cortes', json={'texto': '  '}).status_code == 422
+
+
+def test_instalacao_nova_recebe_a_biblioteca_inicial(tmp_path, monkeypatch):
+    from app import comum
+    (tmp_path / 'inicial' / 'aprendizados').mkdir(parents=True)
+    (tmp_path / 'inicial' / 'aprendizados' / 'cortes.md').write_text('# Cortes\n')
+    (tmp_path / 'inicial' / 'heuristica.md').write_text('## Regras do criador\n')
+    monkeypatch.setattr(comum, 'INICIAL', tmp_path / 'inicial')
+    monkeypatch.setattr(comum, 'BIBLIOTECA', tmp_path / 'bib')
+    monkeypatch.setattr(comum, 'PROJETOS', tmp_path / 'proj')
+    (tmp_path / 'bib').mkdir()
+    (tmp_path / 'bib' / 'heuristica.md').write_text('minhas regras')
+    comum.preparar_pastas()
+    assert (tmp_path / 'proj').is_dir() and (tmp_path / 'bib' / 'aprendizados' / 'cortes.md').read_text() == '# Cortes\n'
+    assert (tmp_path / 'bib' / 'heuristica.md').read_text() == 'minhas regras'  # o que já existe nunca é tocado
+    # e as que vêm com o app existem
+    assert {x.name for x in (Path(__file__).parents[1] / 'inicial').iterdir()} >= {'aprendizados', 'heuristica.md', 'motions'}

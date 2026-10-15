@@ -3,12 +3,14 @@
 .venv/
 __pycache__/
 .pytest_cache/
+.ruff_cache/
 node_modules/
 dist/
-_legado/
 frontend/otto-cinematic-9-design-system/
 scratch.log
 /.dev.env
-# os dados do app (na segunda cópia, git worktree, um link para os da pasta principal)
-/dados
+# a biblioteca (copia-se entre máquinas) e os projetos de cada um; numa segunda cópia (git worktree), links para os da
+# pasta principal
+/biblioteca
+/projetos
 /backend/.env

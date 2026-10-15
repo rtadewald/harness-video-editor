@@ -3,7 +3,7 @@
 A cadeia é do app (voz limpa → passa-altas → timbre → compressor; sons dos presets e das transições; fundo 11 dB
 abaixo da voz, com ducking; −14 LUFS). Você escolhe a **trilha de fundo** pelo clima do vídeo.
 
-> **Antes, leia `../aprendizados/audio.md`.**
+> **Antes, leia `A aprendizados audio`.**
 
 ```bash
 A travar <id> audio

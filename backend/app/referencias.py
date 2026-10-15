@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import comum, projeto
 
-RAIZ = comum.DADOS / 'referencias'
+RAIZ = comum.BIBLIOTECA / 'referencias'
 _trava = threading.Lock()
 
 

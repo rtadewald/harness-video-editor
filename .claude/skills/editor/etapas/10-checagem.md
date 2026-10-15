@@ -1,6 +1,6 @@
 # 10 · Checagem e entrega
 
-> **Antes, leia `../aprendizados/render.md` e confira o resultado contra os aprendizados de todas as áreas.**
+> **Antes, leia `A aprendizados render` e confira o resultado contra os aprendizados de todas as áreas.**
 
 ## Checar (sem renderizar)
 

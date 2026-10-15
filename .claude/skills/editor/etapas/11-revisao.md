@@ -7,9 +7,9 @@ um motion, um plano; o ajuste fino ele faz à mão nas etapas) e cola aqui o tex
 Revisão · PRJ-07 · v2
 [Geral] A trilha está alta demais
 [0:05,2] "pessoas ainda não" — Troque este insert por um print do site
-  ↳ print: dados/projetos/<id>/revisoes/anexos/c1-1.png
+  ↳ print: projetos/<id>/revisoes/anexos/c1-1.png
 [0:20,0–0:23,5] "Gemini, Midjourney…" — Esses letterings passam rápido demais
-(dados/projetos/<id>/revisoes/v2.json)
+(projetos/<id>/revisoes/v2.json)
 ```
 
 ## Rodar
