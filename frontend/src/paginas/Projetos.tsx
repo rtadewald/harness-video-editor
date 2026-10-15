@@ -34,27 +34,26 @@ export default function Projetos() {
   }
 
   return (
-    <div className="grid h-svh grid-rows-[56px_minmax(0,1fr)] bg-deep text-cream">
+    <div className="grid h-svh grid-rows-[56px_auto_minmax(0,1fr)] bg-deep text-cream">
       <header className="flex items-center gap-5 border-b border-line-dark bg-ink px-4">
         <Logo />
         <span className="h-5 w-px bg-line-dark" />
         <NavHome />
 
-        <button onClick={() => setConfig(true)} aria-label="Configurações" title="Configurações" className="ml-auto grid size-9 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream">
-          <Settings className="size-4" />
-        </button>
-        <Button variant="coral" size="sm" className="h-9 gap-6 px-4" onClick={() => setCriando(true)}>
-          Novo projeto <span className="seta">↗</span>
-        </Button>
       </header>
 
+      {/* a segunda linha: no canto direito, as ações da página */}
+      <nav className="flex items-center gap-2 border-b border-line-dark px-4 py-3 text-[12px] text-fog">
+        <span className="tabular-nums">{projetos ? `${projetos.length} projetos` : ''}</span>
+        <button onClick={() => setConfig(true)} aria-label="Configurações" title="Configurações" className="ml-auto grid size-8 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream">
+          <Settings className="size-4" />
+        </button>
+        <Button variant="coral" size="sm" className="h-8 gap-4 px-4" onClick={() => setCriando(true)}>
+          Novo projeto <span className="seta">↗</span>
+        </Button>
+      </nav>
+
       <main className="overflow-y-auto px-8 py-8">
-        <div className="mb-6 flex items-baseline justify-between border-b border-line-dark pb-4">
-          <p className="eyebrow text-sage">
-            Recentes{projetos && ` · ${String(projetos.length).padStart(2, '0')}`}
-          </p>
-          <p className="text-[11px] text-fog">Do mais novo para o mais antigo</p>
-        </div>
 
         {erro && <p className="text-coral">{erro}</p>}
 

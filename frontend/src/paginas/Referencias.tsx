@@ -16,12 +16,12 @@ const dur = (c: ClipeReferencia) => c.fim - c.inicio
 export const SO_ATOR = ['full_ator', 'full_ator_lettering']
 /** Os chips de filtro, agrupados (pedido de Rodrigo, out/2026): tela dividida e tela cheia valem para insert e motion; o
  *  comentário vai no fim. Uma categoria nova que não esteja aqui vira um chip próprio antes do comentário. */
-type Grupo = { id: string; nome: string; tipos: string[]; icone?: string }
+type Grupo = { id: string; nome: string; tipos: string[]; icone?: string; junto?: boolean }
 const GRUPOS: Grupo[] = [
   { id: 'tela_dividida', nome: 'Tela dividida', tipos: ['tela_dividida_insert', 'tela_dividida_motion'] },
   { id: 'tela_cheia', nome: 'Tela cheia', tipos: ['insert_tela_cheia', 'motion_tela_cheia'] },
-  { id: 'full_ator_lettering', nome: 'Full ator com lettering', tipos: ['full_ator_lettering'] },
-  { id: 'full_ator', nome: 'Full ator', tipos: ['full_ator'] },
+  // o Full ator com e sem lettering num chip só, sempre (pedido de Rodrigo, out/2026)
+  { id: 'full_ator', nome: 'Full ator', tipos: ['full_ator', 'full_ator_lettering'], junto: true },
   { id: 'comentario_insert_ator', nome: 'Comentário + insert + ator', tipos: ['comentario_insert_ator'] },
 ]
 const SEPARADOS: Record<string, string> = {
@@ -33,7 +33,7 @@ const SEPARADOS: Record<string, string> = {
 /** Os chips com insert e motion juntos (padrão) ou separados (caixa "Agrupar insert e motion", pedido de Rodrigo,
  *  out/2026; lembrada neste navegador e valendo também no "Buscar por referências"). Separados, o id é o próprio tipo. */
 export const gruposDe = (agrupar: boolean): Grupo[] =>
-  agrupar ? GRUPOS : GRUPOS.flatMap((g) => (g.tipos.length > 1 ? g.tipos.map((t) => ({ id: t, nome: SEPARADOS[t] ?? t, tipos: [t], icone: g.id })) : [g]))
+  agrupar ? GRUPOS : GRUPOS.flatMap((g) => (g.tipos.length > 1 && !g.junto ? g.tipos.map((t) => ({ id: t, nome: SEPARADOS[t] ?? t, tipos: [t], icone: g.id })) : [g]))
 export const useAgrupar = () => useLembrado('referencias.agruparMotion', true)
 /** Os presets feitos a partir deste trecho (o trecho do preset cai dentro do clipe, com folga de meio segundo). */
 const presetsDoClipe = (fs: FontePreset[], c: ClipeReferencia) => fs.filter((f) => f.ref === c.ref && f.inicio >= c.inicio - 0.5 && f.fim <= c.fim + 0.5)
@@ -128,9 +128,6 @@ export default function Referencias() {
         <Logo />
         <span className="h-5 w-px bg-line-dark" />
         <NavHome />
-        <span className="ml-auto rounded-full border border-line-dark px-3 py-1 text-[11px] text-fog tabular-nums">
-          {visiveis.length} clipe{visiveis.length === 1 ? '' : 's'}
-        </span>
       </header>
 
       <nav className="flex flex-wrap items-center gap-1.5 border-b border-line-dark px-4 py-3">

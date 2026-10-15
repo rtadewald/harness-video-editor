@@ -378,8 +378,6 @@ export default function EtapaRevisao(p: {
   const ordem = (t: number | null | undefined, geral?: boolean) => (geral ? -1 : (t ?? 0))
   const lista = topo.map((c) => ({ c, t: ordem(c.t, c.geral) })).sort((a, b) => a.t - b.t)
   const numero = new Map(topo.sort((a, b) => ordem(a.t, a.geral) - ordem(b.t, b.geral)).map((c, i) => [c.id, i + 1]))
-  const contagem = coms.filter(temConteudo)
-  const por = (s: string) => contagem.filter((c) => c.status === s).length
   const ao = agoraNoVideo()
   const chipNova = nova.geral ? null : nova.preso ? { t: nova.t, fim: nova.fim } : ao
   const rev = carga?.revisao
@@ -410,12 +408,6 @@ export default function EtapaRevisao(p: {
                 {salvo === 'salvando' ? 'Salvando…' : salvo === 'salvo' ? '✓ Salvo' : salvo === 'erro' ? 'Erro ao salvar' : ''}
               </span>
             </div>
-            <p className="text-[12px] text-fog">
-              {contagem.length} comentário{contagem.length === 1 ? '' : 's'}
-              {por('aplicado') > 0 && <span className="text-sage"> · {por('aplicado')} aplicado{por('aplicado') > 1 ? 's' : ''}</span>}
-              {por('respondido') > 0 && <span className="text-blue"> · {por('respondido')} respondido{por('respondido') > 1 ? 's' : ''}</span>}
-              {por('nao_aplicado') > 0 && <span className="text-coral"> · {por('nao_aplicado')} não aplicado{por('nao_aplicado') > 1 ? 's' : ''}</span>}
-            </p>
             <div className="flex gap-2">
               <button
                 onClick={() => void aprovar()}
@@ -444,8 +436,7 @@ export default function EtapaRevisao(p: {
           <div className="grid min-h-0 flex-1 content-start gap-2.5 overflow-y-auto px-4 py-3">
             {lista.length === 0 && (
               <p className="text-[12px] leading-[1.7] text-fog">
-                Nenhum comentário ainda. Escreva na caixa abaixo: o vídeo pausa e o comentário fica naquele instante (<b>I</b> e <b>O</b> marcam um trecho;{' '}
-                <b>C</b> desliga o tempo, para um comentário sobre o vídeo todo).
+                Nenhum comentário ainda.
               </p>
             )}
             {lista.map((item) =>
