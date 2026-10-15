@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { MessageSquareText, Paperclip, Pencil, Play, Trash2, X } from 'lucide-react'
+import { Brackets, MessageSquare, MessageSquareText, Paperclip, RotateCcw, Pencil, Play, Trash2, X } from 'lucide-react'
 import { lerInserts, urlArquivo, urlBancoMiniatura, type InsertsProjeto, type ItemRef, type Projeto } from '@/api'
 import { motionsDoProjeto, type MotionPlano } from '@/motions/api'
 import type { PalavraSaida } from '@/direcao/direcaoProjeto'
@@ -549,10 +549,10 @@ export default function EtapaRevisao(p: {
           tocando={p.tocando}
           buscar={p.buscar}
           atalhos={[
-            ['R', 'plano'],
-            ['I O', 'trecho'],
-            ['C', 'geral'],
-            ['⌘V', 'anexo'],
+            ['R', 'plano', RotateCcw],
+            ['I O', 'trecho', Brackets],
+            ['C', 'geral', MessageSquare],
+            ['⌘V', 'anexo', Paperclip],
           ]}
         >
           {({ x, faixa }) => (

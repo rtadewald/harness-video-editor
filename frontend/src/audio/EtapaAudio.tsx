@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { AudioLines, Loader2, Pause, Play, SlidersVertical, VolumeX } from 'lucide-react'
+import { AudioLines, Loader2, Pause, Play, RotateCcw, SlidersVertical, VolumeX } from 'lucide-react'
 import LinhaBase, { type Trilha as TrilhaLinha } from '@/editor/LinhaBase'
 import { Alca, Cabecalho, useTamanhos } from '@/inserts/layout'
 import type { EventoSom } from '@/editor/sons'
@@ -90,7 +90,7 @@ export default function EtapaAudio(p: {
       </div>
       <div className="relative min-h-0">
         <Alca lado="linha" pos={tam.linha} arrastar={arrastarBorda} />
-        <LinhaBase atalhos={[['R', 'plano']]} duracao={p.duracao} trilhas={LINHA} tempo={p.tempo} tocando={p.tocando} buscar={p.buscar}>
+        <LinhaBase atalhos={[['R', 'plano', RotateCcw]]} duracao={p.duracao} trilhas={LINHA} tempo={p.tempo} tocando={p.tocando} buscar={p.buscar}>
           {({ x, faixa, px }) => (
             <>
               {p.falas.map(([a, b]) => (

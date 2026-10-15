@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Maximize2, Minus, Plus } from 'lucide-react'
+import { FastForward, Maximize2, Minus, Play, Plus, StepForward, ZoomIn, type LucideIcon } from 'lucide-react'
 import { useAtalhoZoom } from './useAtalhoZoom'
 import { definirJanelaVisivel } from './janelaDaLinha'
 
 export type Trilha = { id: string; nome: string; alt: number }
 /** Um atalho na barra da linha do tempo: a tecla e o que ela faz, curto. */
-export type Atalho = [tecla: string, acao: string]
-/** Os atalhos de todas as etapas montadas (o Editor trata; os da etapa vêm em `atalhos`). */
+export type Atalho = [tecla: string, acao: string, icone: LucideIcon]
+/** Os atalhos de todas as etapas montadas (o Editor trata; os da etapa vêm em `atalhos`). Shift + setas pula para o
+ *  corte (começo do plano) anterior ou seguinte. */
 const ATALHOS_BASE: Atalho[] = [
-  ['Espaço', 'tocar'],
-  ['← →', 'quadro'],
-  ['⇧ ← →', 'salto'],
-  ['⌘ rolar', 'zoom'],
+  ['Espaço', 'tocar', Play],
+  ['← →', 'quadro', StepForward],
+  ['⇧ ← →', 'corte', FastForward],
+  ['⌘ rolar', 'zoom', ZoomIn],
 ]
 /** O que as trilhas recebem para se desenhar: o x de um instante, o topo da trilha k e o instante sob um clientX. */
 export type Geometria = { x: (t: number) => number; faixa: (k: number) => number; tDe: (clientX: number) => number; px: number }
@@ -124,11 +125,13 @@ export default function LinhaBase(p: {
         <span className="eyebrow text-sage">Linha do tempo</span>
         {p.ferramentas}
         {/* os atalhos numa linha só: o que não cabe some pela direita (os da etapa vêm primeiro) */}
-        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden whitespace-nowrap pl-2" aria-label="Atalhos">
-          {[...(p.atalhos ?? []), ...ATALHOS_BASE].map(([tecla, acao]) => (
-            <span key={tecla} className="flex shrink-0 items-center gap-1">
-              <kbd className="rounded-[3px] bg-cream/10 px-1 font-sans text-[10px] text-cream/80">{tecla}</kbd>
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden whitespace-nowrap" aria-label="Atalhos">
+          {[...(p.atalhos ?? []), ...ATALHOS_BASE].map(([tecla, acao, Icone]) => (
+            // no estilo do "Cortar D": o ícone, a ação e a tecla
+            <span key={tecla} className="flex shrink-0 items-center gap-1 px-2 py-1 font-semibold">
+              <Icone className="size-3.5" />
               {acao}
+              <kbd className="rounded-[3px] bg-cream/10 px-1 font-sans text-[10px]">{tecla}</kbd>
             </span>
           ))}
         </div>
