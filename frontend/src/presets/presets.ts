@@ -383,7 +383,7 @@ export const serve = (p: Preset, _formato: string, n: number, tela?: Usos['telas
 /** A receita levada para o outro formato. A metade de cima da tela dividida é a faixa central da tela cheia, na mesma
  *  largura: de tela cheia para dividida, o que está no meio da tela continua no meio e as alturas dobram (o que passa
  *  da área fica cortado); de dividida para tela cheia, os cards vão para a faixa do meio com metade da altura. */
-function paraFormato(r: Receita, formato: Receita['formato']): Receita {
+export function paraFormato(r: Receita, formato: Receita['formato']): Receita {
   if (r.formato === formato) return r
   const k = formato === 'dividida' ? 2 : 0.5 // quanto as medidas verticais (em % da área) mudam
   const y = (v: number) => (formato === 'dividida' ? (v - 25) * 2 : v / 2 + 25)

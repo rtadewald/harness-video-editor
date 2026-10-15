@@ -6,8 +6,8 @@ import { CATEGORIAS } from '@/direcao/EtapaDirecao'
 import EditorPreset from '@/presets/EditorPreset'
 import { usePresets } from '@/presets/presets'
 import { FUNDOS } from '@/inserts/Fundo'
-import { NOME_TIPO, TEM_MOTION } from '@/inserts/comum'
-import { Campo, Recolhivel } from '@/inserts/layout'
+import { TEM_MOTION } from '@/inserts/comum'
+import { Recolhivel } from '@/inserts/layout'
 
 /** O editor do preset com a engrenagem aberta, na coluna ao lado do vídeo. Assina os presets sozinho: mexer num slider
  *  redesenha só ele (e quem mostra o preset), não a etapa inteira. */
@@ -104,14 +104,20 @@ export function PresetsDoAtor(p: { atual: Movimento | null; mudar: (m: Movimento
 }
 
 /** A categoria do plano, trocável aqui mesmo (a direção muda; a sugestão da IA fica marcada). */
-export function Categoria(p: { atual: string; sugestao: string | null; mudar: (tipo: string) => void }) {
+export function Categoria(p: { atual: string; sugestao: string | null; detalhe?: string; mudar: (tipo: string) => void }) {
+  const outra = !!p.sugestao && p.sugestao !== p.atual
   return (
     <div className="grid gap-1.5">
       <div className="flex items-center gap-2 text-[11px]">
         <span className="eyebrow text-sage">Categoria</span>
-        {p.sugestao && p.sugestao !== p.atual && (
-          <button onClick={() => p.mudar(p.sugestao!)} className="ml-auto text-fog hover:text-cream" title="Voltar ao que a direção sugeriu">
-            Sugestão: <span className="text-cream">{CATEGORIAS.planos[p.sugestao] ?? p.sugestao}</span> ↺
+        {p.sugestao && (
+          <button
+            onClick={() => outra && p.mudar(p.sugestao!)}
+            className={cn('ml-auto truncate text-fog', outra ? 'hover:text-cream' : 'cursor-default')}
+            title={[outra ? 'Voltar ao que a direção sugeriu' : '', p.detalhe].filter(Boolean).join('\n\n') || undefined}
+          >
+            Sugestão da IA: <span className="text-cream">{CATEGORIAS.planos[p.sugestao] ?? p.sugestao}</span>
+            {outra && ' ↺'}
           </button>
         )}
       </div>
@@ -131,25 +137,3 @@ export function Categoria(p: { atual: string; sugestao: string | null; mudar: (t
   )
 }
 
-/** O chip da categoria do plano, na cor do tipo (insert em tela cheia, tela dividida, motion, ator). */
-function ChipCategoria({ tipo }: { tipo: string }) {
-  const cor = TEM_MOTION.includes(tipo) ? 'bg-yellow text-ink' : tipo === 'insert_tela_cheia' ? 'bg-blue text-cream' : tipo.includes('insert') ? 'bg-mint text-ink' : 'bg-cream/10 text-cream'
-  return <span className={cn('shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold', cor)}>{NOME_TIPO[tipo] ?? CATEGORIAS.planos[tipo] ?? tipo}</span>
-}
-
-/** A sugestão da IA de um plano (a fala e o que a direção pede), num toggle fechado por padrão (lembrado aberto), com o
- *  chip da categoria na barra: igual nos inserts, nos motions e nos planos sem insert. */
-export function SugestaoIA(p: { tipo: string; fala: string; descricao?: string | null; rotulo?: string }) {
-  return (
-    <Recolhivel chave="sugestao" titulo="Sugestão da IA" fechado resumo={<ChipCategoria tipo={p.tipo} />}>
-      <div className="grid gap-3">
-        <p className="border-l-2 border-line-dark pl-3 text-[12.5px] leading-[1.6] text-cream/90">“{p.fala}”</p>
-        {p.descricao ? (
-          <Campo rotulo={p.rotulo ?? 'O que acontece no insert'}>{p.descricao}</Campo>
-        ) : (
-          <p className="text-[11.5px] text-fog">A direção não descreveu este plano.</p>
-        )}
-      </div>
-    </Recolhivel>
-  )
-}

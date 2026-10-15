@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BarChart3, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { BarChart3, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
   apagarReferencia,
@@ -156,21 +156,6 @@ export default function Calibragem() {
         )}
 
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-x-5 gap-y-8">
-          <li>
-            <button
-              onClick={() => entrada.current?.click()}
-              className="group flex aspect-[9/16] w-full flex-col items-center justify-center gap-4 rounded-[6px] border border-dashed border-line-dark text-fog transition-colors hover:border-coral hover:text-cream"
-            >
-              <span className="grid size-12 place-items-center rounded-full bg-coral text-cream transition-transform duration-300 group-hover:-translate-y-1 group-hover:rotate-90">
-                <Plus className="size-5" />
-              </span>
-              <span className="text-center">
-                <span className="block text-[14px] font-semibold text-cream">Adicionar</span>
-                <span className="text-[11px]">Vários MP4 de uma vez</span>
-              </span>
-            </button>
-          </li>
-
           {refs?.map((r) => {
             const capa = (
               <div
