@@ -32,8 +32,8 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
   const local = useLocation()
   const ir = useNavigate()
   const aba = ({ isActive }: { isActive: boolean }) => cn(PILULA, 'flex items-center gap-1.5 px-3 py-[7px]', isActive ? ATIVA : INATIVA)
-  // os rótulos somem pelo espaço que sobra (medido, não por um corte fixo de largura), em dois degraus: 1, os da direita
-  // (Calibragem, Heurística, Aprendizados) viram só ícone; 2, os da esquerda também. `precisa[n]`: a largura que os
+  // os da direita (Calibragem, Heurística, Aprendizados) são sempre só ícone; os rótulos da esquerda somem pelo espaço que
+  // sobra (medido, não por um corte fixo de largura) quando nem assim cabem. `precisa[n]`: a largura que os
   // links pediam no degrau n quando não couberam (para voltar a ele quando houver espaço)
   const links = useRef<HTMLDivElement>(null)
   const [compacto, setCompacto] = useState<0 | 1 | 2>(0)
@@ -92,7 +92,7 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
           {TREINO.map((l) => (
             <NavLink key={l.para} to={l.para} end={l.exato} className={aba} title={l.nome} aria-label={l.nome}>
               <l.icone className="size-3.5 opacity-80" aria-hidden />
-              {compacto < 1 && <span>{l.nome}</span>}
+              {/* a direita é sempre só ícone (o nome no title) */}
             </NavLink>
           ))}
         </div>
