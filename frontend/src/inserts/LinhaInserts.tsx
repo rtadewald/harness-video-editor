@@ -39,7 +39,7 @@ export default function LinhaInserts(p: {
   ferramentas?: React.ReactNode
 }) {
   return (
-    <LinhaBase duracao={p.duracao} trilhas={TRILHAS} tempo={p.tempo} tocando={p.tocando} buscar={p.buscar} ferramentas={p.ferramentas}>
+    <LinhaBase atalhos={[['R', 'plano']]} duracao={p.duracao} trilhas={TRILHAS} tempo={p.tempo} tocando={p.tocando} buscar={p.buscar} ferramentas={p.ferramentas}>
       {({ x, faixa, tDe }) => (
         <>
           {/* planos */}
