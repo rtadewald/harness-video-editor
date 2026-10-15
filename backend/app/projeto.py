@@ -6,15 +6,13 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 
-from . import comum
+from . import comum, tipos
 
 RAIZ = comum.PROJETOS
 SAIDA = {'largura': 1080, 'altura': 1920}
 # as etapas do editor (SPEC §1); `cortes` é o Pré-processamento (o id ficou), `enriquecimento` e `motion` são antigas
 # (hoje dentro de Inserts) e ficam pelos dados dos projetos
 ETAPAS = ['cortes', 'direcao', 'inserts', 'enriquecimento', 'motion', 'transicoes', 'audio', 'legenda']
-# os formatos de vídeo (SPEC §1); só o Reels está ativo, os outros aparecem como "em breve"
-FORMATOS = {'reels': True, 'anuncio': False, 'aula': False}
 _trava = threading.Lock()  # o pipeline roda em outra thread e também grava o projeto.json
 
 # Motores de transcrição. `familia` agrupa os que compartilham o MESMO texto (e IDs de palavra): trocar entre eles só muda
@@ -46,7 +44,7 @@ def ler_config() -> dict:
               'modelo_direcao': MODELO_DIRECAO, 'quadros_por_segundo': 2,
               'formato_analise': 'video', 'grade_mosaico': '3x2', 'perfil_criador': '',
               'modelo_direcao_projeto': MODELO_DIRECAO, 'regras_direcao': '', 'modelo_diretora': MODELO_DIRECAO, 'raciocinio_diretora': 'medium',
-              'identidade_motion': IDENTIDADE_MOTION}
+              'identidade_motion': IDENTIDADE_MOTION, 'tipos': tipos.TIPOS_PADRAO}
     try:
         config.update(json.loads(_arquivo_config().read_text(encoding='utf-8')))
     except (FileNotFoundError, ValueError):
@@ -73,11 +71,12 @@ def ler_config() -> dict:
         config['formato_analise'] = 'video'
     if config['grade_mosaico'] not in ('3x2', '3x1'):
         config['grade_mosaico'] = '3x2'
+    config['tipos'] = tipos.validar(config.get('tipos'))
     return config
 
 
 def salvar_config(config: dict) -> None:
-    RAIZ.mkdir(exist_ok=True)
+    comum.BIBLIOTECA.mkdir(parents=True, exist_ok=True)
     comum.salvar_json(_arquivo_config(), config)
 
 
@@ -244,7 +243,7 @@ def ler(id: str) -> dict:
             d['pedido']['de'] += 1
         espelhar_direcao(d)
         salvar(p)
-    p.setdefault('formato', 'reels')  # projetos de antes dos formatos eram todos Reels
+    p['formato'] = tipos.do_item(p, 'formato')  # o tipo do projeto (os de antes dos tipos eram todos Reels)
     if any(e not in p['etapas'] for e in ETAPAS):  # etapa criada depois do projeto (ex.: Direção visual, Transições)
         p['etapas'] = {e: p['etapas'].get(e, 'pendente') for e in ETAPAS}
         p['chats'] = {e: p['chats'].get(e, []) for e in ETAPAS}
@@ -275,7 +274,7 @@ def ativar_variante(p: dict, vid: str) -> bool:
 
 # Versões da direção visual (SPEC §8.2.2): v1 = diretora + formatadora; v2, v3… = corretora sobre uma versão + comentários.
 # `direcao.versoes` guarda todas; os campos da versão aberta (`direcao.ativa`) ficam espelhados no topo de `direcao`.
-CAMPOS_VERSAO = ('n', 'origem', 'itens', 'itens_ia', 'roteiro', 'modelo', 'exemplos', 'tokens', 'gerado_em', 'segundos', 'registro',
+CAMPOS_VERSAO = ('n', 'origem', 'itens', 'itens_ia', 'roteiro', 'modelo', 'exemplos', 'exemplos_de_todos', 'tokens', 'gerado_em', 'segundos', 'registro',
                  'comentarios', 'geral')
 
 
@@ -319,7 +318,7 @@ def listar() -> list[dict]:
         return []
     projetos = [json.loads(p.read_text(encoding='utf-8')) for p in RAIZ.glob('*/projeto.json')]
     resumo = [
-        {'id': p['id'], 'nome': p['nome'], 'criado_em': p['criado_em'], 'etapas': etapas_no_resumo(p),
+        {'id': p['id'], 'nome': p['nome'], 'criado_em': p['criado_em'], 'etapas': etapas_no_resumo(p), 'formato': tipos.do_item(p, 'formato'),
          'apoios': sum(f['papel'] == 'apoio' for f in p['fontes']),
          'duracao': next((f['duracao'] for f in p['fontes'] if f['papel'] == 'bruto'), None),
          # o vídeo editado (a soma da V1), que é o tamanho do Reels; sem cortes ainda, None

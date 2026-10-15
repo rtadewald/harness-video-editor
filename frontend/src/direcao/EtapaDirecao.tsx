@@ -327,6 +327,11 @@ function Edicao(p: Props) {
             </button>
           </span>
         </div>
+        {dir.exemplos_de_todos && (
+          <p className="border-b border-line-dark bg-yellow/10 px-3 py-2 text-[11px] text-yellow">
+            Sem referência revisada deste tipo na Calibragem: a direção aprendeu com as de todos os tipos.
+          </p>
+        )}
         {orfaos.length > 0 && (
           <p className="border-b border-line-dark bg-coral/10 px-3 py-2 text-[11px] text-coral">
             {orfaos.length} item(ns) da direção ficaram órfãos: as palavras deles foram cortadas. Eles continuam guardados, fora da timeline.

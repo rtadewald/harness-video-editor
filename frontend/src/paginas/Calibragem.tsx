@@ -5,6 +5,7 @@ import {
   apagarReferencia,
   formatarDuracao,
   listarReferencias,
+  mudarTipoReferencia,
   reanalisarReferencia,
   renomearReferencia,
   subirReferencias,
@@ -14,6 +15,7 @@ import {
 } from '@/api'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
+import { ChipsTipo, SeletorTipo, useFiltroTipo, useTipos } from '@/components/tipos'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ModalVideo } from '@/referencias/PainelCalibragem'
@@ -51,6 +53,9 @@ export default function Calibragem() {
   const [arrastando, setArrastando] = useState(false)
   const entrada = useRef<HTMLInputElement>(null)
   const [aberto, setAberto] = useState<Referencia | null>(null)
+  // o tipo de vídeo (Reels, Ad…): filtra a grade, e os vídeos que sobem entram nele
+  const tipos = useTipos()
+  const [tipo, setTipo] = useFiltroTipo('calibragem')
 
   const carregar = () => listarReferencias().then(setRefs).catch((e) => setErro(e.message))
   useEffect(() => {
@@ -70,7 +75,7 @@ export default function Calibragem() {
     setErro('')
     setEnviando(videos.length)
     try {
-      const r = await subirReferencias(videos)
+      const r = await subirReferencias(videos, tipo ?? undefined)
       setRecusadas(r.recusadas)
       await carregar()
     } catch (e) {
@@ -91,7 +96,8 @@ export default function Calibragem() {
     await carregar()
   }
 
-  const contagem = (s: StatusReferencia) => refs?.filter((r) => r.status === s).length ?? 0
+  const visiveis = refs?.filter((r) => !tipo || r.tipo === tipo)
+  const contagem = (s: StatusReferencia) => visiveis?.filter((r) => r.status === s).length ?? 0
   const revisadas = contagem('revisado')
 
   return (
@@ -116,8 +122,9 @@ export default function Calibragem() {
 
       {/* a segunda linha: o andamento das referências e, no canto direito, a ação da página */}
       <nav className="flex flex-wrap items-center gap-3 border-b border-line-dark px-4 py-3 text-[12px] text-fog">
+        <ChipsTipo tipos={tipos} atual={tipo} mudar={setTipo} contar={(t) => refs?.filter((r) => !t || r.tipo === t).length ?? 0} />
         <span className="tabular-nums">
-          {refs?.length ?? 0} vídeos · {revisadas} revisada{revisadas === 1 ? '' : 's'} · {contagem('a_revisar')} a revisar
+          {revisadas} revisada{revisadas === 1 ? '' : 's'} · {contagem('a_revisar')} a revisar
           {contagem('na_fila') + contagem('analisando') > 0 && ` · ${contagem('na_fila') + contagem('analisando')} na fila`}
           {contagem('erro') > 0 && ` · ${contagem('erro')} com erro`}
         </span>
@@ -156,7 +163,7 @@ export default function Calibragem() {
         )}
 
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-x-5 gap-y-8">
-          {refs?.map((r) => {
+          {visiveis?.map((r) => {
             const capa = (
               <div
                 className={cn(
@@ -220,9 +227,21 @@ export default function Calibragem() {
                       .catch((e) => setErro((e as Error).message))
                   }
                 />
-                <p className="mt-0.5 text-[11px] text-fog">
-                  {andamento(r) ?? `${new Date(r.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} · ${r.video.largura}×${r.video.altura}`}
-                </p>
+                <div className="mt-0.5 flex items-center gap-2 text-[11px] text-fog">
+                  <span className="min-w-0 truncate">
+                    {andamento(r) ?? `${new Date(r.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} · ${r.video.largura}×${r.video.altura}`}
+                  </span>
+                  <SeletorTipo
+                    tipos={tipos}
+                    valor={r.tipo}
+                    mudar={(t) =>
+                      void mudarTipoReferencia(r.id, t)
+                        .then(() => carregar())
+                        .catch((e) => setErro((e as Error).message))
+                    }
+                    className="ml-auto shrink-0"
+                  />
+                </div>
                 {r.erro && (
                   <p className="mt-1 line-clamp-3 text-[11px] text-coral" title={r.erro}>
                     {r.erro}

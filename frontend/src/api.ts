@@ -51,8 +51,8 @@ export type Projeto = {
   rosto?: { estado: 'fila' | 'rodando' | 'pronto' | 'erro'; progresso?: number; erro?: string | null; amostras?: number; achados?: number }
   /** Só nos projetos antigos: a criação não pede mais briefing (F0). */
   briefing: { texto: string; audio: string | null }
-  /** O formato do vídeo (SPEC §1): só Reels por ora. */
-  formato?: 'reels' | 'anuncio' | 'aula'
+  /** O tipo de vídeo (Reels, Ad…; um dos tipos das Configurações): a direção usa a Heurística e as referências dele. */
+  formato?: string
   /** `estado`/`versao`: o Reenquadrar (docs/preprocessamento.md); `original`: o 16:9 guardado, num vídeo que veio horizontal. */
   enquadramento: { x: number; estado?: 'fila' | 'rodando' | 'pronto' | 'erro'; versao?: number; original?: string }
   etapas: Record<Etapa, string>
@@ -107,6 +107,8 @@ export type DirecaoProjeto = {
   itens_ia?: ItemDirecaoProjeto[]
   modelo?: string
   exemplos?: number
+  /** Sem referência revisada do tipo do projeto, a diretora aprendeu com as de todos os tipos. */
+  exemplos_de_todos?: boolean
   segundos?: number
   gerado_em?: string
 }
@@ -135,7 +137,7 @@ export type Timeline = { V1: Clipe[] }
 export type DadosEditor = { projeto: Projeto; palavras: Palavra[]; silencios: Silencio[]; timeline: Timeline; duvidas: Duvida[] }
 export type Picos = { por_segundo: number; picos: number[] }
 
-export type ResumoProjeto = Pick<Projeto, 'id' | 'nome' | 'criado_em' | 'etapas'> & { duracao: number | null; duracao_final: number | null; apoios: number }
+export type ResumoProjeto = Pick<Projeto, 'id' | 'nome' | 'criado_em' | 'etapas'> & { formato: string; duracao: number | null; duracao_final: number | null; apoios: number }
 
 export async function json<T>(r: Response): Promise<T> {
   if (!r.ok) throw new Error((await r.json().catch(() => null))?.detail ?? `Erro ${r.status}`)
@@ -148,6 +150,7 @@ export const abrirProjeto = (id: string) => fetch(`/api/projetos/${id}`).then(js
 export const abrirEditor = (id: string) => fetch(`/api/projetos/${id}/editor`).then(json<DadosEditor>)
 const post = <T,>(url: string) => fetch(url, { method: 'POST' }).then(json<T>)
 export const processar = (id: string) => post<Projeto>(`/api/projetos/${id}/processar`)
+export const mudarTipoProjeto = (id: string, tipo: string) => enviar<Projeto>('PUT', `/api/projetos/${id}/tipo`, { tipo })
 export const renomearProjeto = (id: string, nome: string) =>
   fetch(`/api/projetos/${id}/nome`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome }) }).then(json<Projeto>)
 export const gerarDirecao = (id: string) => post<Projeto>(`/api/projetos/${id}/direcao/gerar`)
@@ -196,6 +199,8 @@ export const motoresRodando = (p: Projeto) =>
   p.pipeline?.passos?.variantes?.status === 'rodando' || Object.values(p.transcricoes ?? {}).some((t) => t.status === 'rodando')
 
 /** Preferências do app. `chave`: se a API key do motor está no .env (null = o motor não precisa de chave). */
+/** Um tipo de vídeo (docs/editor-claude.md, Q33). */
+export type Tipo = { id: string; nome: string; emoji: string }
 export type Config = {
   motor_padrao: string
   /** Ar que fica depois da última palavra de um trecho (= antes do corte) e antes da primeira do seguinte (= depois do corte). */
@@ -218,6 +223,8 @@ export type Config = {
   raciocinio_diretora: 'low' | 'medium' | 'high'
   /** A identidade visual dos motions novos que o Claude escreve. */
   identidade_motion: string
+  /** Os tipos de vídeo (Reels, Ad…), editáveis aqui; cada projeto e cada referência tem um. */
+  tipos: Tipo[]
   motores: Record<string, { nome: string; familia: string; chave: boolean | null }> }
 export const lerConfig = () => fetch('/api/config').then(json<Config>)
 export const salvarConfig = (mudancas: Partial<Omit<Config, 'motores'>>) =>
@@ -241,6 +248,8 @@ export type Referencia = {
   video: { arquivo: string; nome_original: string; duracao: number; largura: number; altura: number }
   status: StatusReferencia
   erro: string | null
+  /** O tipo de vídeo (Reels, Ad…): ensina a direção dos projetos desse tipo. */
+  tipo: string
   analise?: { passos: Partial<Record<PassoReferencia, PassoAnalise>> }
 }
 type PassoReferencia = 'proxy' | 'transcricao' | 'cenas' | 'analise' | 'montagem' | 'inserts'
@@ -274,10 +283,12 @@ export const marcarRevisada = (id: string, revisado: boolean) =>
 export const reanalisarReferencia = (id: string, refazer = false) => post<Referencia>(`/api/referencias/${id}/analisar${refazer ? '?refazer=true' : ''}`)
 
 export const renomearReferencia = (id: string, nome: string) => enviar<Referencia>('PUT', `/api/referencias/${id}/nome`, { nome })
+export const mudarTipoReferencia = (id: string, tipo: string) => enviar<Referencia>('PUT', `/api/referencias/${id}/tipo`, { tipo })
 export const listarReferencias = () => fetch('/api/referencias').then(json<Referencia[]>)
-export const subirReferencias = (videos: File[]) => {
+export const subirReferencias = (videos: File[], tipo?: string) => {
   const corpo = new FormData()
   videos.forEach((v) => corpo.append('videos', v))
+  if (tipo) corpo.append('tipo', tipo)
   return fetch('/api/referencias', { method: 'POST', body: corpo }).then(json<{ criadas: Referencia[]; recusadas: { nome: string; motivo: string }[] }>)
 }
 export const apagarReferencia = (id: string) => fetch(`/api/referencias/${id}`, { method: 'DELETE' }).then(json<{ ok: boolean }>)
@@ -287,6 +298,8 @@ export const urlArquivoReferencia = (id: string, caminho: string) => `/api/refer
 export type ClipeReferencia = {
   ref: string
   ref_nome: string
+  /** O tipo do vídeo de origem (Reels, Ad…). */
+  tipo_video: string
   revisado: boolean
   id: string
   tipo: string
@@ -327,12 +340,14 @@ export type LinhaRoteiro = { plano: string; tipo: string; inicio: number; fim: n
 export type RoteiroRef = { ref: string; nome: string; revisado: boolean; linhas: LinhaRoteiro[] }
 export const lerRoteiro = (id: string) => fetch(`/api/referencias/${id}/roteiro`).then(json<{ referencia: Referencia; linhas: LinhaRoteiro[] }>)
 /** Heurística da direção: as regras (Markdown editável) e os roteiros de exemplo (montados da análise). */
-export type HeuristicaDirecao = { regras: string; gerado_em?: string; videos?: number; tem_anterior: boolean; roteiros: RoteiroRef[] }
-export const lerHeuristica = () => fetch('/api/referencias/heuristica').then(json<HeuristicaDirecao>)
-export const salvarHeuristica = (regras: string) =>
-  fetch('/api/referencias/heuristica', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ regras }) }).then(json<HeuristicaDirecao>)
-export const sugerirRegras = () => post<HeuristicaDirecao>('/api/referencias/heuristica/sugerir')
-export const voltarHeuristica = () => post<HeuristicaDirecao>('/api/referencias/heuristica/voltar')
+export type HeuristicaDirecao = { tipo: string; regras: string; gerado_em?: string; videos?: number; tem_anterior: boolean; roteiros: RoteiroRef[] }
+/** Uma Heurística por tipo de vídeo (Reels, Ad…). */
+const qTipo = (tipo: string) => `?tipo=${encodeURIComponent(tipo)}`
+export const lerHeuristica = (tipo: string) => fetch(`/api/referencias/heuristica${qTipo(tipo)}`).then(json<HeuristicaDirecao>)
+export const salvarHeuristica = (tipo: string, regras: string) =>
+  fetch(`/api/referencias/heuristica${qTipo(tipo)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ regras }) }).then(json<HeuristicaDirecao>)
+export const sugerirRegras = (tipo: string) => post<HeuristicaDirecao>(`/api/referencias/heuristica/sugerir${qTipo(tipo)}`)
+export const voltarHeuristica = (tipo: string) => post<HeuristicaDirecao>(`/api/referencias/heuristica/voltar${qTipo(tipo)}`)
 
 export const urlMiniatura = (id: string) => `/api/projetos/${id}/miniatura`
 export const urlArquivo = (id: string, caminho: string) => `/api/projetos/${id}/arquivos/${caminho}`

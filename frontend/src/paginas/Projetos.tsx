@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Settings, Trash2 } from 'lucide-react'
-import { apagarProjeto, formatarDuracao, listarProjetos, urlMiniatura, type ResumoProjeto } from '@/api'
+import { Plus, Trash2 } from 'lucide-react'
+import { apagarProjeto, formatarDuracao, listarProjetos, mudarTipoProjeto, urlMiniatura, type ResumoProjeto } from '@/api'
 import { fecharAba } from '@/components/abasProjetos'
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
 import { Button } from '@/components/ui/button'
 import { ETAPAS } from '@/editor/etapas'
 import { cn } from '@/lib/utils'
-import Configuracoes from './Configuracoes'
+import { ChipsTipo, SeletorTipo, useFiltroTipo, useTipos } from '@/components/tipos'
 import NovoProjeto from './NovoProjeto'
 import { ChipCodigo } from '@/components/Codigo'
 
@@ -17,7 +17,14 @@ export default function Projetos() {
   const [projetos, setProjetos] = useState<ResumoProjeto[] | null>(null)
   const [erro, setErro] = useState('')
   const [criando, setCriando] = useState(false)
-  const [config, setConfig] = useState(false)
+  // o tipo de vídeo (Reels, Ad…): filtra a grade; cada projeto troca o seu no card
+  const tipos = useTipos()
+  const [tipo, setTipo] = useFiltroTipo('projetos')
+  const visiveis = projetos?.filter((p) => !tipo || p.formato === tipo)
+  const mudarTipo = (p: ResumoProjeto, t: string) =>
+    void mudarTipoProjeto(p.id, t)
+      .then(() => setProjetos((l) => l && l.map((x) => (x.id === p.id ? { ...x, formato: t } : x))))
+      .catch((e) => window.alert((e as Error).message))
 
   useEffect(() => {
     listarProjetos().then(setProjetos).catch((e) => setErro(e.message))
@@ -44,11 +51,8 @@ export default function Projetos() {
 
       {/* a segunda linha: no canto direito, as ações da página */}
       <nav className="flex items-center gap-2 border-b border-line-dark px-4 py-3 text-[12px] text-fog">
-        <span className="tabular-nums">{projetos ? `${projetos.length} projetos` : ''}</span>
-        <button onClick={() => setConfig(true)} aria-label="Configurações" title="Configurações" className="ml-auto grid size-8 place-items-center rounded-full text-fog hover:bg-cream/10 hover:text-cream">
-          <Settings className="size-4" />
-        </button>
-        <Button variant="coral" size="sm" className="h-8 gap-4 px-4" onClick={() => setCriando(true)}>
+        <ChipsTipo tipos={tipos} atual={tipo} mudar={setTipo} contar={(t) => projetos?.filter((p) => !t || p.formato === t).length ?? 0} />
+        <Button variant="coral" size="sm" className="ml-auto h-8 gap-4 px-4" onClick={() => setCriando(true)}>
           Novo projeto <span className="seta">↗</span>
         </Button>
       </nav>
@@ -73,7 +77,7 @@ export default function Projetos() {
             </button>
           </li>
 
-          {projetos?.map((p) => (
+          {visiveis?.map((p) => (
             <li key={p.id} className="group/card relative">
               <button
                 onClick={() => apagar(p)}
@@ -111,6 +115,7 @@ export default function Projetos() {
                   {p.apoios > 0 && ` · ${p.apoios} apoio${p.apoios > 1 ? 's' : ''}`}
                 </p>
               </Link>
+              <SeletorTipo tipos={tipos} valor={p.formato} mudar={(t) => mudarTipo(p, t)} className="absolute right-0 bottom-0" />
             </li>
           ))}
         </ul>
@@ -121,7 +126,6 @@ export default function Projetos() {
       </main>
 
       <NovoProjeto aberto={criando} aoFechar={() => setCriando(false)} />
-      <Configuracoes aberto={config} aoFechar={() => setConfig(false)} />
     </div>
   )
 }

@@ -57,19 +57,37 @@ def test_lista_deriva_o_estado_dos_inserts():
     assert projeto.etapas_no_resumo(base)['cortes'] == 'pronta'
 
 
-def test_criar_com_formato_so_reels_por_ora(cliente, video, enfileirados):
-    """A criação (SPEC §6): nome, motor, formato e o vídeo. Reels é o padrão e o único ativo; Anúncio e Aula, em breve."""
+def test_criar_com_tipo_das_configuracoes(cliente, video, enfileirados):
+    """A criação (SPEC §6): nome, motor, o tipo de vídeo (`formato`, um dos tipos das Configurações) e o vídeo."""
     with video.open('rb') as b:
         p = cliente.post('/api/projetos', data={'nome': 'Novo', 'motor': 'parakeet', 'formato': 'reels'},
                          files={'bruto': ('b.mp4', b, 'video/mp4')}).json()
     assert (p['formato'], p['transcricao_ativa'], p['briefing']) == ('reels', 'parakeet', {'texto': '', 'audio': None})
     assert [f['papel'] for f in p['fontes']] == ['bruto'] and not (projeto.RAIZ / 'novo' / 'briefing').exists()
     assert _criar(cliente, video, 'Sem formato')['formato'] == 'reels'  # sem o campo, Reels
-    for formato, msg in (('anuncio', 'em breve'), ('aula', 'em breve'), ('podcast', 'desconhecido')):
-        with video.open('rb') as b:
-            r = cliente.post('/api/projetos', data={'nome': f'X {formato}', 'formato': formato}, files={'bruto': ('b.mp4', b, 'video/mp4')})
-        assert r.status_code == 422 and msg in r.json()['detail']
+    with video.open('rb') as b:
+        r = cliente.post('/api/projetos', data={'nome': 'X podcast', 'formato': 'podcast'}, files={'bruto': ('b.mp4', b, 'video/mp4')})
+    assert r.status_code == 422 and 'desconhecido' in r.json()['detail']
     assert {x['id'] for x in cliente.get('/api/projetos').json()} == {'novo', 'sem-formato'}  # o recusado não deixa pasta
+    # o tipo muda depois; um tipo desconhecido não
+    assert cliente.put('/api/projetos/novo/tipo', json={'tipo': 'vsl'}).json()['formato'] == 'vsl'
+    assert cliente.put('/api/projetos/novo/tipo', json={'tipo': 'podcast'}).status_code == 422
+    assert {x['id']: x['formato'] for x in cliente.get('/api/projetos').json()}['novo'] == 'vsl'
+
+
+def test_tipos_nas_configuracoes(cliente, video, enfileirados):
+    """Os tipos de vídeo vêm nas Configurações (os 5 de fábrica); criar, renomear; um tipo em uso não sai."""
+    assert [t['id'] for t in cliente.get('/api/config').json()['tipos']] == ['reels', 'ad', 'vsl', 'youtube', 'aula']
+    novos = [{'id': 'reels', 'nome': 'Reels', 'emoji': '📱'}, {'nome': 'Podcast Curto', 'emoji': '🎙️'}, {'id': 'reels', 'nome': 'dup'}]
+    c = cliente.put('/api/config', json={'tipos': novos}).json()
+    assert c['tipos'] == [{'id': 'reels', 'nome': 'Reels', 'emoji': '📱'}, {'id': 'podcast-curto', 'nome': 'Podcast Curto', 'emoji': '🎙️'}]
+    assert cliente.put('/api/config', json={'tipos': []}).json()['tipos'][0]['id'] == 'reels'  # o Reels sempre fica
+    with video.open('rb') as b:
+        cliente.post('/api/projetos', data={'nome': 'Pod', 'formato': 'reels'}, files={'bruto': ('b.mp4', b, 'video/mp4')})
+    cliente.put('/api/config', json={'tipos': novos[:2]})
+    cliente.put('/api/projetos/pod/tipo', json={'tipo': 'podcast-curto'})
+    r = cliente.put('/api/config', json={'tipos': novos[:1]})
+    assert r.status_code == 409 and 'Podcast Curto' in r.json()['detail']
 
 
 def test_projeto_antigo_sem_formato_e_reels_e_ganha_a_etapa_transicoes(cliente, video):
@@ -1039,7 +1057,7 @@ def test_rotas_da_heuristica(cliente):
 
 def test_sugerir_regras_mantem_as_do_criador(cliente, monkeypatch):
     calibragem.salvar_heuristica({'regras': '## Regras do criador\n- minha regra\n\n## Regras sugeridas pela IA\n- velha\n'})
-    monkeypatch.setattr(calibragem, 'roteiros', lambda *a: [{'ref': 'v', 'nome': 'V', 'revisado': False,
+    monkeypatch.setattr(calibragem, 'roteiros', lambda *a, **k: [{'ref': 'v', 'nome': 'V', 'revisado': False,
                                                             'linhas': [{'marcacao': '[Full ator: ele]', 'fala': 'oi'}]}])
     pedidos = []
 

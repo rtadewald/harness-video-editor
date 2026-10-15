@@ -67,7 +67,7 @@ ELEVENLABS_API_KEY=...        # opcional: o motor de transcrição padrão e o i
 ```
 
 Se alguém te passou uma biblioteca, cole a pasta `biblioteca/` na raiz do projeto (ao lado de `backend/`). Sem ela, o app
-cria uma biblioteca inicial (os aprendizados técnicos, a Heurística vazia e dois motions de exemplo).
+cria uma biblioteca inicial (os aprendizados técnicos e dois motions de exemplo).
 
 Sem a `ELEVENLABS_API_KEY`, o app usa Whisper + stable-ts localmente e avisa o motivo. O ElevenLabs envia o áudio da sua voz a um serviço externo.
 
@@ -87,7 +87,7 @@ Na primeira vez os modelos locais baixam sozinhos, o que demora um pouco.
 O que o app guarda fica em duas pastas na raiz, as duas fora do git (um `git pull` nunca mexe nelas):
 
 - **`biblioteca/`**: tudo o que serve a qualquer vídeo: o banco, as referências da Calibragem, a Heurística
-  (`heuristica.md`), os aprendizados do Claude (`aprendizados/`), os CTAs, os presets, os motions, as transições, os
+  (`heuristica/<tipo>.md`, uma por tipo de vídeo), os aprendizados do Claude (`aprendizados/`), os CTAs, os presets, os motions, as transições, os
   sons, as trilhas, os modelos de visão, as configurações (`config.json`) e o registro dos códigos (`codigos.json`).
   **Para levar para outra máquina, copie a pasta inteira por cima da de lá** (com o app parado). A de lá é substituída:
   o que só existia nela se perde.

@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { lerConfig, salvarConfig, type Config } from '@/api'
+import { Plus, Trash2 } from 'lucide-react'
+import { lerConfig, salvarConfig, type Config, type Tipo } from '@/api'
+import { tiposMudaram } from '@/components/tipos'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
@@ -21,6 +23,7 @@ const CATEGORIAS: { id: string; nome: string; render: (c: Contexto) => ReactNode
   { id: 'cortes', nome: 'Cortes', render: (c) => <AbaCortes {...c} /> },
   { id: 'direcao', nome: 'Direção visual', render: (c) => <AbaDirecao {...c} /> },
   { id: 'inserts', nome: 'Motions', render: (c) => <AbaMotions {...c} /> },
+  { id: 'tipos', nome: 'Tipos', render: (c) => <AbaTipos key={JSON.stringify(c.config?.tipos ?? null)} {...c} /> },
 ]
 
 /** Preferências do app. Cada mudança é gravada no ato (biblioteca/config.json) e vale para os próximos cálculos e
@@ -44,6 +47,7 @@ export default function Configuracoes({ aberto, aoFechar, aba: abaInicial }: { a
     try {
       setConfig(await salvarConfig(mudancas))
       setSalvo(true)
+      if (mudancas.tipos) tiposMudaram() // as telas que filtram por tipo releem a lista
     } catch (e) {
       setErro((e as Error).message)
     }
@@ -118,6 +122,45 @@ function AbaGeral({ config, salvar }: Contexto) {
         onBlur={(e) => e.target.value.trim() !== (config?.perfil_criador ?? '') && salvar({ perfil_criador: e.target.value.trim() })}
         className="rounded-[3px] border border-line bg-white px-3.5 py-2.5 text-[13px] leading-[1.6] text-ink outline-none focus-visible:border-ink"
       />
+    </Grupo>
+  )
+}
+
+/** Os tipos de vídeo (docs/editor-claude.md, Q33): cada projeto e cada referência tem um, e cada tipo tem a sua
+ *  Heurística. Um tipo com projetos ou referências não sai (o app avisa). */
+function AbaTipos({ config, salvar }: Contexto) {
+  // recomeça da lista gravada a cada mudança dela (a `key` da aba)
+  const [lista, setLista] = useState<Tipo[]>(() => config?.tipos ?? [])
+  // um tipo novo só é gravado quando ganha um nome (antes disso, gravar o tiraria da lista)
+  const gravar = (l: Tipo[]) =>
+    !l.some((t) => !t.nome.trim()) && salvar({ tipos: l.map((t) => (t.id ? t : { nome: t.nome.trim(), emoji: t.emoji }) as Tipo) })
+  const mudar = (k: number, campos: Partial<Tipo>) => setLista((l) => l.map((t, i) => (i === k ? { ...t, ...campos } : t)))
+  const campo = 'rounded-[3px] border border-line bg-white px-2.5 py-1.5 text-[13px] text-ink outline-none focus-visible:border-ink'
+  return (
+    <Grupo titulo="Tipos de vídeo" texto="Cada um tem a sua Calibragem e a sua Heurística.">
+      <div className="grid gap-2">
+        {lista.map((t, k) => (
+          <div key={t.id || `novo-${k}`} className="flex items-center gap-2">
+            <input value={t.emoji} onChange={(e) => mudar(k, { emoji: e.target.value })} onBlur={() => gravar(lista)} maxLength={8} aria-label="Emoji" className={cn(campo, 'w-12 text-center')} />
+            <input value={t.nome} onChange={(e) => mudar(k, { nome: e.target.value })} onBlur={() => gravar(lista)} maxLength={40} aria-label="Nome" className={cn(campo, 'flex-1')} />
+            <button
+              onClick={() => gravar(lista.filter((_, i) => i !== k))}
+              disabled={t.id === 'reels'}
+              aria-label={`Apagar ${t.nome}`}
+              title={t.id === 'reels' ? 'O Reels é o tipo padrão' : 'Apagar o tipo'}
+              className="grid size-8 place-items-center rounded-full text-[#667366] hover:bg-ink/5 hover:text-destructive disabled:opacity-30"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          </div>
+        ))}
+        <button
+          onClick={() => setLista((l) => [...l, { id: '', nome: '', emoji: '' }])}
+          className="flex w-fit items-center gap-1.5 rounded-full border border-line px-3.5 py-1.5 text-[12px] font-semibold hover:border-ink"
+        >
+          <Plus className="size-3.5" /> Tipo
+        </button>
+      </div>
     </Grupo>
   )
 }

@@ -293,18 +293,20 @@ def prompt_diretora(id: str, fala=None) -> dict:
     saida = _palavras_mantidas(id, p)
     if not saida:
         raise ValueError('O vídeo cortado não tem fala')
-    lista = calibragem.roteiros()
+    # os exemplos e a heurística do tipo do projeto (Reels, Ad…); sem referência revisada do tipo, as de todos os tipos
+    lista, de_todos = calibragem.exemplos_do_tipo(p['formato'])
     if not lista:
         raise ValueError('Nenhuma referência analisada na Calibragem ainda: suba vídeos editados lá primeiro.')
     n_exemplos = len(lista)
-    h = calibragem.ler_heuristica()
+    h = calibragem.ler_heuristica(p['formato'])
     regras = calibragem.secao(h['regras'], calibragem.SECAO_CRIADOR)
     sistema = PROMPT + (f"\n\nSOBRE O CRIADOR (contexto): {config['perfil_criador']}" if config['perfil_criador'] else '')
     sistema += ('\n\n=== HEURÍSTICA DO CRIADOR (as "Regras do criador" são obrigatórias e valem mais que tudo) ===\n\n'
                 + calibragem.documento(h, lista))
     usuario = (f'=== VÍDEO NOVO ({duracao_saida(projeto.v1_tocada(p)):.1f} s, já cortado) — a fala, para você dirigir ===\n\n{(fala or transcricao_corrida)(saida)}'
                + ('\n\nAntes de responder, confira se a direção cumpre as REGRAS DO CRIADOR.' if regras else ''))
-    return {'sistema': sistema, 'usuario': usuario, 'saida': saida, 'config': config, 'exemplos': n_exemplos}
+    return {'sistema': sistema, 'usuario': usuario, 'saida': saida, 'config': config, 'exemplos': n_exemplos,
+            'exemplos_de_todos': de_todos}
 
 
 def chamar_diretora(sistema: str, usuario: str, modelo: str, esforco: str = 'low'):
@@ -364,7 +366,7 @@ def propor(id: str) -> dict:
                               'modelo_formatadora': config['modelo_direcao_projeto'], 'tokens': tokens, 'sistema': sistema, 'usuario': usuario,
                               'roteiro': roteiro, 'formatacao': marcacoes, 'resposta': resp})
     return {'itens': itens, 'itens_ia': itens, 'modelo': config['modelo_diretora'], 'exemplos': n_exemplos, 'tokens': tokens,
-            'roteiro': roteiro, 'registro': registro}
+            'exemplos_de_todos': pd['exemplos_de_todos'], 'roteiro': roteiro, 'registro': registro}
 
 
 # ---------------------------------------------------------------- correção (v2, v3…): a corretora sobre uma versão + comentários
@@ -422,9 +424,9 @@ def corrigir(id: str, de: int) -> dict:
     atual = roteiro_da_versao(origem['itens'], saida, origem.get('comentarios') or [])
     if not atual:
         raise ValueError('A versão de origem não tem planos para corrigir')
-    h = calibragem.ler_heuristica()
+    h = calibragem.ler_heuristica(p['formato'])
     sistema = PROMPT_CORRETORA + (f"\n\nSOBRE O CRIADOR (contexto): {config['perfil_criador']}" if config['perfil_criador'] else '')
-    sistema += '\n\n=== HEURÍSTICA DO CRIADOR ===\n\n' + calibragem.documento(h)
+    sistema += '\n\n=== HEURÍSTICA DO CRIADOR ===\n\n' + calibragem.documento(h, calibragem.exemplos_do_tipo(p['formato'])[0])
     geral = (origem.get('geral') or '').strip()
     usuario = (f'=== ROTEIRO ATUAL (v{de}), com os comentários do criador ===\n\n{atual}'
                + (f'\n\n=== COMENTÁRIO GERAL DO CRIADOR ===\n\n{geral}' if geral else '')

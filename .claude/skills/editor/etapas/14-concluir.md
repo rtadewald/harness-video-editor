@@ -29,7 +29,7 @@ dúvida, (1).
    Grave **só o que ele confirmar**, com o texto que ele aprovar.
 4. **Grave:**
    - **Regras de direção** (que plano, quando, abertura, ritmo, lettering como decisão de roteiro): nas **Regras do
-     criador**: `A regra "…"` (a página Heurística do app mostra; a diretora lê).
+     criador**: `A regra "…" --projeto <id>` (a Heurística do tipo do projeto: Reels, Ad…; a página Heurística mostra; a diretora lê).
    - **Favoritas, padrões, identidade**: pelas páginas do app (Presets, Transições, Configurações) ou pela CLI.
    - **Preset ou motion que ele não quer mais**: recusado com o motivo (página Presets/Motions).
    - **Notas de uso**: `A aprender <área> "…"` (`--criador` para um **[gosto]**; sem, vai para os Técnicos). A página
@@ -44,7 +44,7 @@ dúvida, (1).
 | Área | Como gravar | Lido em |
 |---|---|---|
 | Cortes | `A aprender cortes` | `02-cortes.md` |
-| Direção | `A regra` (Regras do criador; página Heurística) | `03-direcao.md` e a diretora do app |
+| Direção | `A regra --projeto <id>` (Regras do criador do tipo; página Heurística) | `03-direcao.md` e a diretora do app |
 | Inserts | `A aprender inserts` | `04-inserts.md` e o prompt dos subagentes |
 | Enriquecimento | `A aprender enriquecimento` | `05-enriquecimento.md` |
 | Motions | `A aprender motions` (+ a identidade nas Configurações) | `06-…` e o subagente de motion |

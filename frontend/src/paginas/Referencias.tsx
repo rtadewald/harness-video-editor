@@ -5,6 +5,7 @@ import { listarClipes, listarFontesPresets, marcarFavorito, urlArquivoReferencia
 import { Logo } from '@/components/Marca'
 import NavHome from '@/components/NavHome'
 import { cn } from '@/lib/utils'
+import { FiltroTipo, useFiltroTipo, useTipos } from '@/components/tipos'
 import { useLembrado } from '@/lib/useLembrado'
 import IconeGrupo from '@/referencias/IconeGrupo'
 import { COR_PLANO } from '@/referencias/LinhaDirecao'
@@ -49,6 +50,8 @@ export default function Referencias() {
   const [fontes, setFontes] = useState<FontePreset[]>([])
   const [erro, setErro] = useState('')
   const [categoria, setCategoria] = useState<string | null>(null)
+  const tipos = useTipos()
+  const [tipoVideo, setTipoVideo] = useFiltroTipo('referencias') // o tipo do vídeo de origem (Reels, Ad…)
   const [ordem, setOrdem] = useState<Ordem>('aleatorio')
   const [soRevisadas, setSoRevisadas] = useState(false)
   const [soFavoritos, setSoFavoritos] = useState(false)
@@ -98,9 +101,10 @@ export default function Referencias() {
   const base = useMemo(() => {
     return (clipes ?? []).filter(
       (c) =>
-        (!semFullAtor || !SO_ATOR.includes(c.tipo)) && (!soRevisadas || c.revisado) && (!soFavoritos || c.favorito),
+        (!semFullAtor || !SO_ATOR.includes(c.tipo)) && (!soRevisadas || c.revisado) && (!soFavoritos || c.favorito) &&
+        (!tipoVideo || c.tipo_video === tipoVideo),
     )
-  }, [clipes, soRevisadas, soFavoritos, semFullAtor])
+  }, [clipes, soRevisadas, soFavoritos, semFullAtor, tipoVideo])
 
   // os grupos fixos, com as categorias que não estão neles antes do comentário
   const grupos = useMemo((): Grupo[] => {
@@ -131,6 +135,7 @@ export default function Referencias() {
       </header>
 
       <nav className="flex flex-wrap items-center gap-1.5 border-b border-line-dark px-4 py-3">
+        <FiltroTipo tipos={tipos} atual={tipoVideo} mudar={setTipoVideo} />
         <button
           onClick={() => setSoFavoritos((v) => !v)}
           className={cn(

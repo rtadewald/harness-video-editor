@@ -7,19 +7,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import { cn } from '@/lib/utils'
+import { useTipos } from '@/components/tipos'
 
 type Props = { aberto: boolean; aoFechar: () => void }
 
-/** Os formatos (SPEC §1): só o Reels está ativo; Anúncio e Aula aparecem como "em breve". */
-const FORMATOS = [
-  { id: 'reels', nome: 'Reels', detalhe: 'vertical, 9:16', ativo: true },
-  { id: 'anuncio', nome: 'Anúncio', detalhe: 'em breve', ativo: false },
-  { id: 'aula', nome: 'Aula', detalhe: 'em breve', ativo: false },
-]
-
 export default function NovoProjeto({ aberto, aoFechar }: Props) {
   const navegar = useNavigate()
+  // o tipo de vídeo (das Configurações): a direção usa a Heurística e as referências dele
+  const tipos = useTipos()
   const [progresso, setProgresso] = useState<number | null>(null)
   const [erro, setErro] = useState('')
   const [config, setConfig] = useState<Config | null>(null)
@@ -73,20 +68,16 @@ export default function NovoProjeto({ aberto, aoFechar }: Props) {
                 ))}
             </select>
           </Campo>
-          <Campo rotulo="Formato">
-            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Formato">
-              {FORMATOS.map((f) => (
+          <Campo rotulo="Tipo">
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Tipo de vídeo">
+              {tipos.map((t) => (
                 <label
-                  key={f.id}
-                  title={f.ativo ? undefined : 'Em breve'}
-                  className={cn(
-                    'grid gap-0.5 rounded-[3px] border px-3 py-2.5 text-[13px] text-ink has-[:checked]:border-ink has-[:checked]:bg-ink has-[:checked]:text-cream',
-                    f.ativo ? 'cursor-pointer border-line bg-white hover:border-ink' : 'cursor-not-allowed border-line bg-white/50 opacity-50',
-                  )}
+                  key={t.id}
+                  className="flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-white px-3.5 py-1.5 text-[13px] font-semibold text-ink hover:border-ink has-[:checked]:border-ink has-[:checked]:bg-ink has-[:checked]:text-cream"
                 >
-                  <input type="radio" name="formato" value={f.id} defaultChecked={f.id === 'reels'} disabled={!f.ativo} className="sr-only" />
-                  <span className="font-semibold">{f.nome}</span>
-                  <span className="text-[11px] opacity-70">{f.detalhe}</span>
+                  <input type="radio" name="formato" value={t.id} defaultChecked={t.id === 'reels'} className="sr-only" />
+                  {t.emoji && <span aria-hidden>{t.emoji}</span>}
+                  {t.nome}
                 </label>
               ))}
             </div>

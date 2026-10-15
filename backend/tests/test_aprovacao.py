@@ -54,7 +54,7 @@ def test_difere_da_versao(cliente, video):
 
 def test_heuristica_e_aprendizados_na_biblioteca(cliente):
     h = cliente.put('/api/referencias/heuristica', json={'regras': '## Regras do criador\n- abrir com tela dividida\n'}).json()
-    assert calibragem.REGRAS_MD.read_text() == '## Regras do criador\n- abrir com tela dividida\n' and 'abrir' in h['regras']
+    assert calibragem.regras_md().read_text() == '## Regras do criador\n- abrir com tela dividida\n' and 'abrir' in h['regras']
     assert 'regras' not in (referencias.RAIZ / '_heuristica.json').read_text()
     aprendizados.PASTA.mkdir()
     (aprendizados.PASTA / 'inserts.md').write_text('# Inserts\n- um\n')
@@ -88,4 +88,30 @@ def test_instalacao_nova_recebe_a_biblioteca_inicial(tmp_path, monkeypatch):
     assert (tmp_path / 'proj').is_dir() and (tmp_path / 'bib' / 'aprendizados' / 'cortes.md').read_text() == '# Cortes\n'
     assert (tmp_path / 'bib' / 'heuristica.md').read_text() == 'minhas regras'  # o que já existe nunca é tocado
     # e as que vêm com o app existem
-    assert {x.name for x in (Path(__file__).parents[1] / 'inicial').iterdir()} >= {'aprendizados', 'heuristica.md', 'motions'}
+    assert {x.name for x in (Path(__file__).parents[1] / 'inicial').iterdir()} >= {'aprendizados', 'motions'}
+
+
+def test_heuristica_e_exemplos_por_tipo(cliente, monkeypatch):
+    """Cada tipo de vídeo tem a sua Heurística; a de antes dos tipos vira a do Reels; a direção aprende com as referências
+    do tipo do projeto e, sem nenhuma revisada dele, com as de todos."""
+    calibragem.REGRAS_ANTIGO.write_text('## Regras do criador\n- antiga\n')
+    assert '- antiga' in cliente.get('/api/referencias/heuristica').json()['regras']
+    assert not calibragem.REGRAS_ANTIGO.exists() and calibragem.regras_md('reels').exists()
+    ad = cliente.get('/api/referencias/heuristica', params={'tipo': 'ad'}).json()
+    assert ad['tipo'] == 'ad' and '- antiga' not in ad['regras']
+    cliente.put('/api/referencias/heuristica', params={'tipo': 'ad'}, json={'regras': '## Regras do criador\n- direto ao preço\n'})
+    assert '- direto ao preço' in calibragem.ler_heuristica('ad')['regras'] and '- direto' not in calibragem.ler_heuristica()['regras']
+    assert cliente.get('/api/referencias/heuristica', params={'tipo': 'podcast'}).status_code == 422
+    rot = {'reels': [{'ref': 'r', 'revisado': True}], 'ad': [{'ref': 'a', 'revisado': False}]}
+    monkeypatch.setattr(calibragem, 'roteiros', lambda so_revisadas=False, tipo=None: rot.get(tipo, []) if tipo else rot['reels'] + rot['ad'])
+    assert calibragem.exemplos_do_tipo('reels') == (rot['reels'], False)
+    assert calibragem.exemplos_do_tipo('ad') == (rot['reels'] + rot['ad'], True)  # nenhuma revisada do Ad: as de todos
+
+
+def test_referencia_tem_tipo(cliente, tmp_path):
+    (referencias.RAIZ / 'v1').mkdir(parents=True)
+    (referencias.RAIZ / 'v1' / 'referencia.json').write_text('{"id": "v1", "nome": "V", "criado_em": "2026-10-01", "status": "revisado"}')
+    assert referencias.ler('v1')['tipo'] == 'reels'  # as de antes dos tipos são do Reels
+    assert cliente.put('/api/referencias/v1/tipo', json={'tipo': 'vsl'}).json()['tipo'] == 'vsl'
+    assert [r['tipo'] for r in cliente.get('/api/referencias').json()] == ['vsl']
+    assert cliente.put('/api/referencias/v1/tipo', json={'tipo': 'x'}).status_code == 422

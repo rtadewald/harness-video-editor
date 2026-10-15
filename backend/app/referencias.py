@@ -7,7 +7,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from . import comum, projeto
+from . import comum, projeto, tipos
 
 RAIZ = comum.BIBLIOTECA / 'referencias'
 _trava = threading.Lock()
@@ -33,7 +33,7 @@ def formato(largura: int, altura: int) -> str:
     return 'vertical' if altura > largura else 'horizontal' if largura > altura else 'quadrado'
 
 
-def criar(id: str, nome: str, video: dict) -> dict:
+def criar(id: str, nome: str, video: dict, tipo: str = tipos.PADRAO) -> dict:
     ref = {
         'id': id,
         'nome': nome,
@@ -42,13 +42,18 @@ def criar(id: str, nome: str, video: dict) -> dict:
         'video': video,
         'status': 'na_fila',
         'erro': None,
+        'tipo': tipo,  # o tipo de vídeo (tipos.py): a direção dos projetos desse tipo aprende com ela
     }
     salvar(ref)
     return ref
 
 
+def _com_tipo(r: dict) -> dict:
+    return {**r, 'tipo': tipos.do_item(r)}  # as de antes dos tipos são do Reels
+
+
 def ler(id: str) -> dict:
-    return json.loads((pasta(id) / 'referencia.json').read_text(encoding='utf-8'))
+    return _com_tipo(json.loads((pasta(id) / 'referencia.json').read_text(encoding='utf-8')))
 
 
 def salvar(ref: dict) -> None:
@@ -69,7 +74,7 @@ def atualizar(id: str, mudar) -> dict:
 def listar() -> list[dict]:
     if not RAIZ.exists():
         return []
-    refs = [json.loads(p.read_text(encoding='utf-8')) for p in RAIZ.glob('*/referencia.json')]
+    refs = [_com_tipo(json.loads(p.read_text(encoding='utf-8'))) for p in RAIZ.glob('*/referencia.json')]
     return sorted(refs, key=lambda r: r['criado_em'], reverse=True)
 
 
