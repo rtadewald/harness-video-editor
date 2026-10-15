@@ -90,7 +90,7 @@ export default function EtapaAudio(p: {
       </div>
       <div className="relative min-h-0">
         <Alca lado="linha" pos={tam.linha} arrastar={arrastarBorda} />
-        <LinhaBase duracao={p.duracao} trilhas={LINHA} tempo={p.tempo} tocando={p.tocando} buscar={p.buscar}>
+        <LinhaBase atalhos={[['R', 'plano']]} duracao={p.duracao} trilhas={LINHA} tempo={p.tempo} tocando={p.tocando} buscar={p.buscar}>
           {({ x, faixa, px }) => (
             <>
               {p.falas.map(([a, b]) => (

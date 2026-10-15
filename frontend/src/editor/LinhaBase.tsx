@@ -4,6 +4,15 @@ import { useAtalhoZoom } from './useAtalhoZoom'
 import { definirJanelaVisivel } from './janelaDaLinha'
 
 export type Trilha = { id: string; nome: string; alt: number }
+/** Um atalho na barra da linha do tempo: a tecla e o que ela faz, curto. */
+export type Atalho = [tecla: string, acao: string]
+/** Os atalhos de todas as etapas montadas (o Editor trata; os da etapa vêm em `atalhos`). */
+const ATALHOS_BASE: Atalho[] = [
+  ['Espaço', 'tocar'],
+  ['← →', 'quadro'],
+  ['⇧ ← →', 'salto'],
+  ['⌘ rolar', 'zoom'],
+]
 /** O que as trilhas recebem para se desenhar: o x de um instante, o topo da trilha k e o instante sob um clientX. */
 export type Geometria = { x: (t: number) => number; faixa: (k: number) => number; tDe: (clientX: number) => number; px: number }
 
@@ -19,6 +28,8 @@ export default function LinhaBase(p: {
   tocando: boolean
   buscar: (t: number) => void
   ferramentas?: ReactNode
+  /** Os atalhos da etapa, mostrados antes dos comuns (ex.: R, I/O). */
+  atalhos?: Atalho[]
   children: (g: Geometria) => ReactNode
 }) {
   // a área que rola: num ref (para os efeitos) e num estado (o `tDe` que as trilhas recebem no desenho lê dela)
@@ -112,7 +123,15 @@ export default function LinhaBase(p: {
       <div className="flex items-center gap-2 border-b border-line-dark px-3 py-1.5 text-[11px] text-fog">
         <span className="eyebrow text-sage">Linha do tempo</span>
         {p.ferramentas}
-        <span className="ml-auto" />
+        {/* os atalhos numa linha só: o que não cabe some pela direita (os da etapa vêm primeiro) */}
+        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden whitespace-nowrap pl-2" aria-label="Atalhos">
+          {[...(p.atalhos ?? []), ...ATALHOS_BASE].map(([tecla, acao]) => (
+            <span key={tecla} className="flex shrink-0 items-center gap-1">
+              <kbd className="rounded-[3px] bg-cream/10 px-1 font-sans text-[10px] text-cream/80">{tecla}</kbd>
+              {acao}
+            </span>
+          ))}
+        </div>
         <button onClick={() => setPx((v) => Math.max(v / 1.4, 2))} className="grid size-7 place-items-center rounded-full hover:text-cream" aria-label="Afastar">
           <Minus className="size-3.5" />
         </button>
