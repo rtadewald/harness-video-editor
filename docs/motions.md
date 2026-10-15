@@ -10,7 +10,7 @@ resumo e o link). Mesmas regras da SPEC: atualizar junto com o código, decisõe
 | Presets, página do motion, uso no plano | `backend/app/motions.py` |
 | Rotas | `backend/app/rotas/motions.py` |
 | Testes | `backend/tests/test_motions.py` |
-| Os presets (um arquivo cada) | `frontend/public/motion/presets/*.html` |
+| Os presets (um arquivo cada) | `biblioteca/motions/*.html` |
 | Runtime, GSAP e fontes | `frontend/public/motion/` |
 | API no front | `frontend/src/motions/api.ts` |
 | Card do plano na etapa Inserts (abas Preset e Vídeo) | `frontend/src/motions/PainelMotion.tsx`, `frontend/src/motions/PresetMotion.tsx`, `frontend/src/motions/useMotionsDoProjeto.ts` |
@@ -113,7 +113,7 @@ valores, fundo}`, `PATCH …/motions/{plano} {valores, fundo}`, `DELETE …/moti
 
 💡 **Histórico:** a 1ª versão (out/2026) tinha a IA escrevendo cada motion (Opus via OpenRouter, ficha de identidade,
 referências da Calibragem, conferência por quadros, biblioteca com versões em `motions/`). Saiu com a decisão acima; a
-pasta ficou guardada em `_legado/motions-antigo/`, sem uso.
+pasta saiu do projeto.
 
 ⏳ Em aberto: o card de Enriquecimento à direita ainda mostra, num motion, as grades "só para ver" (o motion entra e sai
 seco); fundos novos próprios dos motions (ex.: o céu da referência do Claude Code); mais presets conforme Rodrigo pedir;

@@ -3,7 +3,7 @@
 Como as mídias de cada insert aparecem, pelos **presets aprovados do app** e pela **escolha recomendada do app**
 (o 1º favorito da situação: tela × nº de mídias × proporção, com rodízio entre vizinhos).
 
-> **Antes, leia `../aprendizados/enriquecimento.md`.**
+> **Antes, leia `A aprendizados enriquecimento`.**
 
 ## Rodar
 

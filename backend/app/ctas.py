@@ -2,7 +2,7 @@
 (com legenda, motion e áudio prontos), que entram inteiros no fim de um orgânico e dão as saídas do projeto (📱 Reels
 ManyChat, 📱 ManyChat TikTok, 💰 Ad LP, 💰 Ad VSL…). A entrada no fluxo de edição fica para depois (Q20).
 
-Cada CTA mora em `dados/ctas/<id>/`: `original.<ext>` (o vídeo editado inteiro), `proxy.mp4`, `miniatura.jpg`, `tira.jpg`
+Cada CTA mora em `biblioteca/ctas/<id>/`: `original.<ext>` (o vídeo editado inteiro), `proxy.mp4`, `miniatura.jpg`, `tira.jpg`
 e `cta.json` {id, nome, categoria, produto, inicio, fim, duracao, largura, altura, favorito, fonte, arquivo, criado_em}.
 `inicio`/`fim`: onde o CTA começa e termina no vídeo. As categorias (e a saída de cada uma) ficam em `categorias.json` e
 os produtos em `produtos.json`; o favorito de cada categoria é o que entra por padrão."""
@@ -26,7 +26,7 @@ PRODUTOS = [{'id': 'claude', 'nome': 'Claude', 'emoji': '✴️'}, {'id': 'fia',
 
 
 def raiz() -> Path:
-    return comum.DADOS / 'ctas'
+    return comum.BIBLIOTECA / 'ctas'
 
 
 def _ler(arq: Path, padrao):
@@ -165,7 +165,7 @@ def tira(cid: str) -> Path:
 
 
 def apagar(cid: str) -> None:
-    """Para `dados/ctas/_lixeira/<id>-<data>` (dá para recuperar)."""
+    """Para `biblioteca/ctas/_lixeira/<id>-<data>` (dá para recuperar)."""
     ler(cid)
     (raiz() / '_lixeira').mkdir(exist_ok=True)
     shutil.move(str(pasta(cid)), str(raiz() / '_lixeira' / f'{cid}-{datetime.now():%Y%m%d-%H%M%S}'))

@@ -10,7 +10,7 @@ Q14): **cada etapa passa pela lógica do app**, pela CLI `ferramentas/app.py`. N
 que o app faz; se faltar uma função, ela entra no app (rota + comando da CLI), para servir à tela também. Só duas coisas
 são feitas fora do app, pelo seu harness, com subagentes: **buscar os inserts** e **escrever motions novos**.
 
-Antes de cada etapa, leia **só** o `.md` dela em `etapas/` e o `aprendizados/<área>.md` que ela indica. Tudo sai da raiz
+Antes de cada etapa, leia **só** o `.md` dela em `etapas/` e os aprendizados que ela indica (`A aprendizados <área>`). Tudo sai da raiz
 do repositório:
 
 ```bash
@@ -56,7 +56,9 @@ para a ferramenta da sua etapa; responda cada um (`A revisao-responder`) e marqu
 - **O que Rodrigo mudou à mão é dele.** A CLI recusa mexer sem `--forcar`; use `--forcar` só quando um comentário da
   revisão pedir aquilo.
 - **Trave antes, destrave no fim** (inclusive se algo falhar no meio): `A travar <id> <etapa>` / `A destravar <id>`.
-- **Aprenda com o passado:** antes de cada etapa, o `aprendizados/<área>.md` dela. Subagentes também.
+- **Aprenda com o passado:** antes de cada etapa, `A aprendizados <área>`. Subagentes também.
+- **A biblioteca é de cada pessoa** (`biblioteca/`, fora do git: banco, Calibragem, Heurística, aprendizados, motions…).
+  Os aprendizados e a Heurística só mudam pela CLI (`A aprender`, `A regra`) ou pela tela, nunca editando o arquivo.
 - **Paralelize** (subagentes em segundo plano para inserts e motions; comandos independentes no mesmo turno).
 - **Códigos**: quando Rodrigo citar um (`PRE-07`, `BAN-012.2`, `REF-03·p7`, `PRJ-02·v3`), resolva com `A codigo <código>`
   antes de agir. A CLI aceita os códigos no lugar dos ids.

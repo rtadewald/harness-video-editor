@@ -1,8 +1,8 @@
-Escreva um preset de motion novo em {raiz}/frontend/public/motion/presets/{preset}.html (id: {preset}).
-Leia antes: {raiz}/.claude/skills/editor/aprendizados/motions.md; a identidade
+Escreva um preset de motion novo em {raiz}/biblioteca/motions/{preset}.html (id: {preset}).
+Leia antes: {raiz}/biblioteca/aprendizados/motions.md; a identidade
 (`cd "{raiz}" && uv run --project backend python ferramentas/app.py identidade`); os recusados e o motivo de cada um
-(`app.py motions-recusados`), para não repetir; e frontend/public/motion/presets/prompt.html, lettering.html,
-pipeline-voz.html e frontend/public/motion/runtime.js: copie a estrutura (<script type="application/json" id="preset">
+(`app.py motions-recusados`), para não repetir; e {raiz}/biblioteca/motions/ (os presets que já existem, como
+lettering.html e site.html) e {raiz}/frontend/public/motion/runtime.js: copie a estrutura (<script type="application/json" id="preset">
 com nome, descricao, fundo, duracao, sons e "a_revisar": true; <script id="campos">; <style>; a timeline do GSAP
 pausada entregue com motion.pronto(tl)).
 Pedido: {pedido}

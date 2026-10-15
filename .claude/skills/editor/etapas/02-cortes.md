@@ -3,7 +3,7 @@
 Os cortes já saíram da **IA do app** no pipeline (a seleção de palavras pela LLM + as bordas coladas nos silêncios
 reais, com as margens das Configurações). Você **confere**; corrige só erro claro, pelas funções de corte do app.
 
-> **Antes, leia `../aprendizados/cortes.md`.** As regras editoriais estão no SPEC §14 (o app as manda para a IA).
+> **Antes, leia `A aprendizados cortes`.** As regras editoriais estão no SPEC §14 (o app as manda para a IA).
 
 ## Rodar
 

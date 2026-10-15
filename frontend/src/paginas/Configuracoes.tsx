@@ -23,7 +23,7 @@ const CATEGORIAS: { id: string; nome: string; render: (c: Contexto) => ReactNode
   { id: 'inserts', nome: 'Motions', render: (c) => <AbaMotions {...c} /> },
 ]
 
-/** Preferências do app. Cada mudança é gravada no ato (dados/projetos/_config.json) e vale para os próximos cálculos e
+/** Preferências do app. Cada mudança é gravada no ato (biblioteca/config.json) e vale para os próximos cálculos e
  *  projetos. `aba`: a etapa em que se está (o id dela); abre na aba dela, se tiver uma, senão em Geral. */
 export default function Configuracoes({ aberto, aoFechar, aba: abaInicial }: { aberto: boolean; aoFechar: () => void; aba?: string }) {
   const [config, setConfig] = useState<Config | null>(null)

@@ -3,7 +3,7 @@
 Gerada pelo app da fala cortada, no estilo da casa (palavra a palavra). Você só corrige a **grafia** do que o
 transcritor errou: nomes de ferramentas, marcas, siglas ("cloud" → "Claude", "gpt" → "GPT").
 
-> **Antes, leia `../aprendizados/legenda.md`.**
+> **Antes, leia `A aprendizados legenda`.**
 
 ```bash
 A travar <id> legenda

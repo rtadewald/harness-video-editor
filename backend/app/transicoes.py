@@ -16,7 +16,7 @@ from pathlib import Path
 
 from . import comum, sons
 
-RAIZ = comum.DADOS / 'transicoes'
+RAIZ = comum.BIBLIOTECA / 'transicoes'
 EFEITOS = Path(__file__).resolve().parents[1] / 'transicoes_efeitos'
 TIPOS = ('seco', 'luz', 'brilho', 'zoom')
 N_FAVORITAS = 2

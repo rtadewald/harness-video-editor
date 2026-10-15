@@ -8,8 +8,8 @@ Responda em PT-BR, direto. Separe o que existe do que é plano.
 
 - `backend/`: Python, FastAPI, LangChain, OpenRouter, MLX Whisper, FFmpeg (`uv`).
 - `frontend/`: React, Vite, TypeScript, Tailwind, shadcn/ui. Visual no SPEC §7.
-- `dados/`: tudo o que o app guarda (projetos, referências, banco, presets, sons, transições, trilhas, modelos), fora do git.
-- `_legado/`: projeto anterior. Serve só de referência, não é fonte de verdade.
+- `biblioteca/`: o que serve a qualquer vídeo (banco, referências, Heurística, aprendizados, CTAs, presets, motions, transições, sons, trilhas, modelos, config, códigos), fora do git; copia-se entre máquinas. A de uma instalação nova vem de `backend/inicial/`.
+- `projetos/`: o trabalho de cada um, fora do git.
 
 ## Como rodar
 
@@ -25,7 +25,7 @@ Testes: `cd backend && uv run pytest`. Checagem do front: `cd frontend && npm ru
 - **App agnóstico de criador:** nada de nome de pessoa ou marca nos prompts (SPEC §12).
 - **Correção pontual não é regra geral**, a menos que Rodrigo diga.
 - **Não declare aprovado** o que Rodrigo não aprovou.
-- Originais em `dados/projetos/*/midia/` nunca são alterados.
+- Originais em `projetos/*/midia/` nunca são alterados.
 - Mudou uma decisão? Atualize o SPEC ou o doc da área no mesmo commit. Este arquivo fica com no máximo ~40 linhas.
 - Docs de bibliotecas: Context7.
 

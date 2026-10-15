@@ -69,7 +69,7 @@ export default function Ctas() {
     recarregar()
   }
   const apagar = (c: Cta) => {
-    if (!window.confirm(`Apagar “${c.nome}”? Vai para dados/ctas/_lixeira/, de onde dá para recuperar.`)) return
+    if (!window.confirm(`Apagar “${c.nome}”? Vai para biblioteca/ctas/_lixeira/, de onde dá para recuperar.`)) return
     void enviar('DELETE', `/api/ctas/${c.id}`).then(recarregar)
   }
 
@@ -217,7 +217,7 @@ function CartaoCta(p: { c: Cta; cat?: Categoria; d: Dados; mudar: (campos: Parti
           <button onClick={(e) => (e.stopPropagation(), p.marcar())} title="Marcar onde o CTA começa e termina" className="grid size-7 place-items-center rounded-full bg-ink/85 text-fog hover:text-cream">
             <Scissors className="size-3.5" />
           </button>
-          <button onClick={(e) => (e.stopPropagation(), p.apagar())} title="Apagar (vai para dados/ctas/_lixeira/)" className="grid size-7 place-items-center rounded-full bg-ink/85 text-fog hover:text-coral">
+          <button onClick={(e) => (e.stopPropagation(), p.apagar())} title="Apagar (vai para biblioteca/ctas/_lixeira/)" className="grid size-7 place-items-center rounded-full bg-ink/85 text-fog hover:text-coral">
             <Trash2 className="size-3.5" />
           </button>
         </div>

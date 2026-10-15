@@ -12,7 +12,7 @@ from pathlib import Path
 
 from . import comum, projeto
 
-MODELO = comum.DADOS / 'modelos' / 'selfie_segmenter.tflite'
+MODELO = comum.BIBLIOTECA / 'modelos' / 'selfie_segmenter.tflite'
 _fila = ThreadPoolExecutor(max_workers=1)
 _trava = threading.Lock()
 

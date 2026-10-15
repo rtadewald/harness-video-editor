@@ -5,8 +5,6 @@ e não repita estes erros. **[gosto]** = preferência confirmada pelo criador ·
 
 ## Do criador
 
-_Nenhum ainda._
-
 ## Técnicos (do editor)
 
 - Lettering sobre um motion que já tem texto (a barra de busca com a URL) fica ilegível: os textos se atropelam. Use

@@ -10,7 +10,7 @@ const listar = () => fetch('/api/aprendizados').then(json<Area[]>)
 const salvar = (area: string, texto: string) => enviar<Area>('PUT', `/api/aprendizados/${area}`, { texto })
 
 /** `/aprendizados`: o que o Claude aprendeu editando, um Markdown por área (docs/editor-claude.md §7, E9; Q17, Q22), na
- *  skill do editor (`.claude/skills/editor/aprendizados/`, no git). Ele lê o da área antes de cada etapa; na aprovação de
+ *  biblioteca (`biblioteca/aprendizados/`, fora do git: cada pessoa evolui os seus). Ele lê o da área antes de cada etapa; na aprovação de
  *  um vídeo, propõe novos e só grava o que você confirma. Aqui você lê e corrige à mão. */
 export default function Aprendizados() {
   const [areas, setAreas] = useState<Area[] | null>(null)
@@ -71,8 +71,7 @@ export default function Aprendizados() {
             <div>
               <h1 className="text-[20px] font-semibold tracking-[-0.02em]">{atual?.nome ?? '—'}</h1>
               <p className="text-[12px] text-fog">
-                O que o Claude aprendeu nesta etapa, editando os seus vídeos. Ele lê antes de cada edição e, a cada vídeo aprovado, propõe novos — só entra o que
-                você confirma. Arquivo: <code className="text-cream/80">.claude/skills/editor/aprendizados/{atual?.area}.md</code>
+                <code className="text-cream/80">biblioteca/aprendizados/{atual?.area}.md</code>
                 {atual && ` · mudou em ${new Date(atual.atualizado).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
               </p>
             </div>

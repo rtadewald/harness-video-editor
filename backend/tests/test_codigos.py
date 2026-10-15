@@ -40,7 +40,7 @@ def test_atribuir_na_ordem_e_sem_reaproveitar(monkeypatch, tmp_path):
 def test_registro_do_19_e_projeto_que_virou_referencia(tmp_path):
     """Os números que vieram do 19 continuam; um projeto do 19 que aqui só existe como referência resolve para ela."""
     codigos.REGISTRO.write_text(json.dumps({'PRJ-07': {'tipo': 'projeto', 'id': 'mvi-0718'}, 'BAN-074': {'tipo': 'midia', 'id': 'zzzzzzzzzz'}}))
-    ref = comum.DADOS / 'referencias' / 'prj-mvi-0718-v3'
+    ref = comum.BIBLIOTECA / 'referencias' / 'prj-mvi-0718-v3'
     ref.mkdir(parents=True)
     (ref / 'referencia.json').write_text(json.dumps({'id': 'prj-mvi-0718-v3', 'nome': 'IA que conversa'}))
     r = codigos.resolver('PRJ-07·p3')

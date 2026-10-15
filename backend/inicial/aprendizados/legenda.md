@@ -5,8 +5,6 @@ e não repita estes erros. **[gosto]** = preferência confirmada pelo criador ·
 
 ## Do criador
 
-_Nenhum ainda._
-
 ## Técnicos (do editor)
 
 - **[defeito] A legenda nunca cobre o conteúdo.** Num insert de tela cheia com mídia horizontal, ela vai abaixo da

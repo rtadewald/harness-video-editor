@@ -196,6 +196,43 @@ def heuristica(_a):
     print(chamar('GET', '/api/referencias/heuristica')['regras'])
 
 
+def regra(a):
+    """Uma regra do criador nova (confirmada por ele), no fim de "## Regras do criador" da Heurística."""
+    doc = chamar('GET', '/api/referencias/heuristica')['regras']
+    titulo = '## Regras do criador'
+    m = re.search(rf'^{re.escape(titulo)}[ \t]*\n(.*?)(?=^## |\Z)', doc, re.M | re.S)
+    item = '- ' + ' '.join(a.texto.split()).removeprefix('- ')
+    if m:
+        fim = m.start(1) + len(m.group(1).rstrip())
+        doc = f'{doc[:fim].rstrip()}\n{item}\n' + (f'\n{doc[fim:].lstrip(chr(10))}' if doc[fim:].strip() else '')
+    else:
+        doc = f'{titulo}\n{item}\n\n{doc.lstrip()}'
+    chamar('PUT', '/api/referencias/heuristica', json={'regras': doc})
+    print('anotada em Regras do criador')
+
+
+def aprendizados(a):
+    """O aprendizado de uma área (o que ler antes da etapa), ou a lista das áreas."""
+    if a.area:
+        print(chamar('GET', f'/api/aprendizados/{a.area}')['texto'])
+    else:
+        for x in chamar('GET', '/api/aprendizados'):
+            print(f'{x["area"]:16} {x["nome"]} (mudou em {x["atualizado"][:10]})')
+
+
+def aprendizados_salvar(a):
+    """Regrava uma área inteira (a consolidação, com o "ok" de Rodrigo) a partir de um arquivo."""
+    texto = Path(a.arquivo).read_text(encoding='utf-8')
+    x = chamar('PUT', f'/api/aprendizados/{a.area}', json={'texto': texto})
+    print(f'regravado biblioteca/aprendizados/{x["area"]}.md')
+
+
+def aprender(a):
+    """Um aprendizado novo (só o que Rodrigo confirmou): `--criador` para um gosto dele; senão, técnico."""
+    x = chamar('POST', f'/api/aprendizados/{a.area}', json={'texto': a.texto, 'criador': a.criador})
+    print(f'anotado em biblioteca/aprendizados/{x["area"]}.md ({"Do criador" if a.criador else "Técnicos"})')
+
+
 # ---------------------------------------------------------------- direção
 
 def _esperar_direcao(pid: str, limite: float = 600) -> dict:
@@ -284,7 +321,7 @@ SKILL = RAIZ / '.claude' / 'skills' / 'editor'
 
 
 def _briefs(pid: str) -> Path:
-    d = RAIZ / 'dados' / 'projetos' / pid / 'briefs'
+    d = RAIZ / 'projetos' / pid / 'briefs'
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -487,7 +524,7 @@ def revisao_ler(a):
     estado = 'APROVADA' if rev.get('aprovado') else f'enviada em {rev["enviado_em"]}' if rev.get('enviado_em') else 'ainda não enviada'
     print(f'\nEstado: {estado}. Para cada um: A revisao-responder {pid} {n} <id> --status aplicado|respondido|nao_aplicado --resposta "…"')
     duvidas = {d['id']: d for d in r['duvidas']}
-    raiz = RAIZ / 'dados' / 'projetos' / pid
+    raiz = RAIZ / 'projetos' / pid
     for c in sorted(rev['comentarios'], key=lambda c: -1 if c.get('geral') else c.get('t') or 0):
         if not ((c.get('texto') or '').strip() or c.get('anexos')):
             continue
@@ -541,7 +578,7 @@ def exportar(a):
             break
     if e['status'] != 'pronta':
         raise SystemExit(f'A exportação terminou como {e["status"]}: {e.get("erro") or ""}')
-    print(f'pronto em {time.time() - t0:.0f} s: dados/projetos/{pid}/exports/{e["arquivo"]}' + (f' (aviso: {e["aviso"]})' if e.get('aviso') else ''))
+    print(f'pronto em {time.time() - t0:.0f} s: projetos/{pid}/exports/{e["arquivo"]}' + (f' (aviso: {e["aviso"]})' if e.get('aviso') else ''))
     atividade(pid, 'aprovacao', f'Exportado {a.resolucao}: {e["arquivo"]}', t0)
 
 
@@ -751,6 +788,11 @@ def main(argv=None):
         ajuda='corta (ou com --manter devolve) um intervalo do bruto, em segundos')
     cmd('palavras', palavras, ID, ('busca', {'nargs': '?'}), ('--mantidas', {'action': 'store_true'}), ajuda='os ids das palavras (* = cortada)')
     cmd('heuristica', heuristica, ajuda='as regras do criador e as sugeridas (a Heurística do app)')
+    cmd('regra', regra, ('texto', {}), ajuda='anota uma regra do criador (confirmada por ele) na Heurística')
+    cmd('aprendizados', aprendizados, ('area', {'nargs': '?', 'help': 'cortes, inserts, motions… (sem: a lista)'}), ajuda='os aprendizados da área (leia antes da etapa)')
+    cmd('aprender', aprender, ('area', {}), ('texto', {}), ('--criador', {'action': 'store_true', 'help': 'um gosto confirmado do criador'}),
+        ajuda='anota um aprendizado confirmado por Rodrigo')
+    cmd('aprendizados-salvar', aprendizados_salvar, ('area', {}), ('arquivo', {}), ajuda='regrava a área inteira (a consolidação)')
     cmd('direcao-gerar', direcao_gerar, ID, ('--esperar', {'action': 'store_true'}), FORCAR)
     cmd('direcao-ver', direcao_ver, ID, ajuda='o roteiro: cada plano com a marcação e a fala')
     cmd('direcao-comentar', direcao_comentar, ID, ('palavra', {}), ('texto', {}), ajuda='comentário pontual (preso a uma palavra) para a corretora')

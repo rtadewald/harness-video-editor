@@ -7,7 +7,6 @@
 import json
 import re
 from datetime import datetime
-from pathlib import Path
 
 from pydantic import BaseModel, Field
 
@@ -116,9 +115,9 @@ SECAO_IA = '## Regras sugeridas pela IA'
 NUMERACAO = re.compile(r'^\d+[.)]\s*')
 
 
-# as regras moram na skill do editor, no git (docs/editor-claude.md, Q17): a página Heurística lê e edita este arquivo, e o
-# Claude lê o mesmo; em `_heuristica.json` fica só o resto (a versão anterior das regras, quando a IA sugeriu)
-REGRAS_MD = Path(__file__).resolve().parents[2] / '.claude' / 'skills' / 'editor' / 'exemplos' / 'regras.md'
+# as regras moram na biblioteca (docs/editor-claude.md, Q17): a página Heurística lê e edita este arquivo, e o Claude lê
+# o mesmo (`A heuristica`); em `_heuristica.json` fica só o resto (a versão anterior das regras, quando a IA sugeriu)
+REGRAS_MD = comum.BIBLIOTECA / 'heuristica.md'
 
 
 def _arquivo_heuristica():

@@ -53,7 +53,7 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 
 ## 2. Escopo
 
-✅ **Entra:** as seis etapas acima, reais; a tela de projetos (criar, abrir e apagar — apagar manda a pasta para `dados/projetos/_lixeira/`, recuperável); o pipeline automático ao criar o projeto; as páginas de apoio (Banco, Referências, Calibragem, Heurística, Presets, Motions, Transições); a exportação MP4 a partir de qualquer etapa.
+✅ **Entra:** as seis etapas acima, reais; a tela de projetos (criar, abrir e apagar — apagar manda a pasta para `projetos/_lixeira/`, recuperável); o pipeline automático ao criar o projeto; as páginas de apoio (Banco, Referências, Calibragem, Heurística, Presets, Motions, Transições); a exportação MP4 a partir de qualquer etapa.
 
 ✅ **Fica fora (por ora):**
 - O agente do chat (§11) e o desfazer/refazer com versões nomeadas (§10).
@@ -132,18 +132,25 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 │   ├── audio/         # o áudio (cadeia da voz e fundo na prévia, a etapa com o mixer)
 │   ├── legenda/       # a legenda (os blocos, a camada da prévia, a etapa)
 │   └── components/    # marca, navegação, Modal, componentes shadcn (ui/)
-├── frontend/public/motion/   # o runtime e os presets de motion (HTML + GSAP)
+├── frontend/public/motion/   # o runtime dos motions (GSAP, fontes); os presets ficam na biblioteca
 ├── ferramentas/       # scripts do Claude: montar presets (tira, curva, pose), sons (biblioteca, detecção), os LUTs (luts.py) e os das áreas novas
-├── dados/             # tudo o que o app guarda (fora do git; `comum.DADOS` no backend)
-│   ├── projetos/      # um projeto por pasta (§5); _config.json; _lixeira/ (os apagados)
+├── backend/inicial/   # a biblioteca de uma instalação nova: aprendizados técnicos, Heurística vazia, 2 motions
+├── biblioteca/        # o que serve a qualquer vídeo (fora do git; `comum.BIBLIOTECA`); copia-se entre máquinas, por cima
+│   ├── config.json    # as Configurações
+│   ├── codigos.json   # o registro dos códigos (PRE, MOT, BAN, REF, PRJ…)
+│   ├── heuristica.md  # as regras do criador e as sugeridas (a página Heurística)
+│   ├── aprendizados/  # o que o Claude aprendeu, um .md por etapa (a página Aprendizados; `A aprendizados`, `A aprender`)
 │   ├── referencias/   # vídeos da Calibragem, _favoritos.json, _heuristica.json
 │   ├── banco/         # mídias dos inserts (global)
+│   ├── motions/       # os presets de motion (HTML + GSAP)
 │   ├── presets/       # presets de enriquecimento e ordem.json
+│   ├── ctas/          # os CTAs
 │   ├── sons/          # sons do time e sons/biblioteca/ processada (licença)
 │   ├── transicoes/    # transições entre planos (§8.8)
 │   ├── trilhas/       # faixas de fundo geradas (§8.9)
+│   ├── exemplos/      # o criador, os favoritos e os roteiros de exemplo (do 19)
 │   └── modelos/       # os modelos de visão do MediaPipe (rosto e silhueta)
-└── _legado/           # projeto anterior, só referência (fora do git)
+└── projetos/          # um projeto por pasta (§5); _lixeira/ (os apagados); fora do git (`comum.PROJETOS`)
 ```
 
 ## 5. Projeto em disco
@@ -153,7 +160,7 @@ Conteúdo típico: vídeos de Rodrigo (Asimov Academy) sobre IA, agentes, produt
 💡
 
 ```text
-dados/projetos/<slug>/
+projetos/<slug>/
 ├── projeto.json        # estado: fontes, formato, timeline, etapas, histórico, versões (briefing e chats: de projetos antigos / do agente futuro)
 ├── transcricoes/       # uma transcrição por motor: whisper.json, whisper-stable.json, whisper-qwen.json, …
 ├── silencios.json
@@ -218,11 +225,11 @@ dados/projetos/<slug>/
 A tela inicial do app (`/`, `paginas/Projetos.tsx`): a grade com todos os projetos, do mais novo para o mais antigo. Dali se abre, cria e apaga um projeto e se chega às Configurações.
 
 #### Passo a passo
-1. Ao abrir a tela, o front pede a lista (`GET /api/projetos`). O backend lê cada `dados/projetos/*/projeto.json` e devolve um resumo por projeto (id, nome, data de criação, estado das etapas, duração do bruto e do vídeo editado, número de vídeos de apoio dos projetos antigos).
+1. Ao abrir a tela, o front pede a lista (`GET /api/projetos`). O backend lê cada `projetos/*/projeto.json` e devolve um resumo por projeto (id, nome, data de criação, estado das etapas, duração do bruto e do vídeo editado, número de vídeos de apoio dos projetos antigos).
 2. Cada card pede a sua miniatura (`GET /api/projetos/{id}/miniatura`). Ela é gerada **no primeiro pedido** (um quadro em 1 s, ou no meio de um vídeo menor que 2 s, com 360 px de largura) e guardada como `miniatura.jpg` na pasta do projeto.
 3. **Abrir:** clicar no card leva ao editor do projeto (`/p/<id>`). O editor abre na **última etapa usada naquele projeto** (lembrada no navegador) ou, na primeira vez, no Pré-processamento. Ao abrir, o projeto vira uma **aba** na barra de cima.
 4. **Criar:** "Novo projeto ↗" (no topo) ou o card tracejado "+ Novo projeto" no começo da grade abrem o diálogo de criação (ver "Criar um projeto").
-5. **Apagar:** passar o mouse sobre um card mostra uma lixeira no canto de cima à esquerda. Clicar pede confirmação ("Ele sai da lista e vai para a lixeira (projetos/_lixeira/), de onde dá para recuperar"). Confirmado, o backend **move** a pasta para `dados/projetos/_lixeira/<id>-AAAAMMDD-HHMMSS` (nada é apagado do disco), o card some e a aba do projeto, se aberta, fecha.
+5. **Apagar:** passar o mouse sobre um card mostra uma lixeira no canto de cima à esquerda. Clicar pede confirmação ("Ele sai da lista e vai para a lixeira (projetos/_lixeira/), de onde dá para recuperar"). Confirmado, o backend **move** a pasta para `projetos/_lixeira/<id>-AAAAMMDD-HHMMSS` (nada é apagado do disco), o card some e a aba do projeto, se aberta, fecha.
 
 #### O que você vê e pode fazer
 - **Barra de cima** (igual em todas as telas):
@@ -242,7 +249,7 @@ A tela inicial do app (`/`, `paginas/Projetos.tsx`): a grade com todos os projet
 
 #### O que fica gravado
 - Nada novo na tela em si, exceto a `miniatura.jpg` (na primeira vez) e, ao renomear, o campo `nome` do `projeto.json`.
-- Apagar: a pasta inteira vai para `dados/projetos/_lixeira/<id>-<data-hora>/`. 💡 Para recuperar, é preciso mover a pasta de volta para `dados/projetos/` **com o nome igual ao id** do projeto (o sufixo de data precisa sair); não há botão de restaurar.
+- Apagar: a pasta inteira vai para `projetos/_lixeira/<id>-<data-hora>/`. 💡 Para recuperar, é preciso mover a pasta de volta para `projetos/` **com o nome igual ao id** do projeto (o sufixo de data precisa sair); não há botão de restaurar.
 - No navegador: as abas abertas (`abas.projetos`) e a última etapa de cada projeto (`editor.etapa.<id>`).
 
 #### No vídeo final
@@ -278,7 +285,7 @@ O diálogo **Novo projeto** (`paginas/NovoProjeto.tsx`, "Do bruto ao Reels."): p
 - **Cancelar** e **Criar projeto ↗**. Erros aparecem em vermelho embaixo, sem fechar o diálogo.
 
 #### O que fica gravado
-`dados/projetos/<id>/`:
+`projetos/<id>/`:
 - `midia/bruto.<ext>`: o vídeo como foi enviado (num 16:9 ele depois vai para `midia/original/`, ver o pipeline).
 - `projeto.json` inicial: `id`, `nome`, `criado_em`, `saida` (1080×1920), `fontes` (o bruto `f1`, com `nome_original`, `duracao`, `largura`, `altura`, `fps`, `tem_audio`), `briefing` (vazio), `formato: "reels"`, `enquadramento: {x: 0.5}`, `timeline: {V1: []}`, `etapas` (todas `pendente`), `chats` (vazios), `pipeline`, `transcricoes` (os 8 motores, `pendente`), `motor_inicial` e `transcricao_ativa` (o motor escolhido).
 - 💡 `motor_inicial` congela o motor do momento da criação: mudar o padrão nas Configurações depois não altera projetos existentes.
@@ -345,7 +352,7 @@ Os passos principais são, nesta ordem: **enquadramento → proxy (em paralelo) 
 - Os motores extras não aparecem aqui; aparecem depois, no seletor dos Cortes.
 
 #### O que fica gravado
-`dados/projetos/<id>/`:
+`projetos/<id>/`:
 - `midia/original/<arquivo>` e `midia/bruto_9x16.mp4` (só num 16:9); `midia/rosto/original.json` (o rosto do original, só num 16:9).
 - `midia/proxy/f1.mp4` (o proxy).
 - `audio.wav`, `silencios.json` (`{silencios: [{inicio, fim, dur}]}`), `picos.json` (`{por_segundo: 200, picos: [...]}`).
@@ -723,7 +730,7 @@ Os atalhos valem também depois de clicar num bloco, numa caixa de marcar ou num
 
 #### O que fica gravado
 
-- `dados/projetos/<id>/projeto.json › direcao`:
+- `projetos/<id>/projeto.json › direcao`:
   - `status` (`rodando` | `pronto` | `erro`), `erro` e `pedido` (`{tipo: 'gerar'}` ou `{tipo: 'corrigir', de: n}`, retomado se o servidor reiniciar);
   - `versoes[]`, cada uma com `n`, `origem` (null na v1), `itens` (com os seus ajustes), `itens_ia` (como a IA entregou), `roteiro` (o texto da diretora ou da corretora), `modelo`, `exemplos` (quantas referências foram no prompt, só na v1), `tokens`, `gerado_em`, `segundos`, `registro` (o nome do arquivo de log), `comentarios[]` e `geral`;
   - `ativa` (o número da versão aberta) e os campos da versão aberta **espelhados** no topo de `direcao` (`projeto.espelhar_direcao`).
@@ -734,8 +741,8 @@ Os atalhos valem também depois de clicar num bloco, numa caixa de marcar ou num
   - Um item sem nenhuma palavra sobrando fica **órfão**: guardado, fora da timeline, com aviso.
 - **Cada comentário:** `{id, palavra, off, texto, criado_em}` (`off` entre −10 e 10 s; texto de até 2.000 caracteres). Um comentário preso a uma palavra cortada não aparece e não vai para a corretora.
 - **Ao salvar à mão** (`PUT /api/projetos/{id}/direcao`), o servidor confere: categorias fixas, âncoras em palavras que existem, ids únicos e pelo menos um plano. Os ajustes ficam só na versão aberta.
-- **O registro:** `dados/projetos/<id>/direcao_log/<AAAA-MM-DD_HH-MM-SS>.json` (cru: etapa, versão, origem, modelo, raciocínio, modelo da formatadora, tokens, sistema, mensagem, roteiro, marcações enviadas à formatadora, resposta formatada) e `.md` (o mesmo, legível). Nada é apagado, nem ao refazer do zero.
-- **Configurações** (`dados/projetos/_config.json`):
+- **O registro:** `projetos/<id>/direcao_log/<AAAA-MM-DD_HH-MM-SS>.json` (cru: etapa, versão, origem, modelo, raciocínio, modelo da formatadora, tokens, sistema, mensagem, roteiro, marcações enviadas à formatadora, resposta formatada) e `.md` (o mesmo, legível). Nada é apagado, nem ao refazer do zero.
+- **Configurações** (`biblioteca/config.json`):
 
   | Chave | Valor hoje | O que é |
   |---|---|---|
@@ -963,7 +970,7 @@ Rotas: `GET /api/projetos/{id}/inserts` (sincroniza), `PUT …/inserts/{pid}/mid
 
 Código: `frontend/src/presets/` (`presets.ts` a receita e o motor; `ajustes.ts` e `CardAjustes.tsx` os ajustes rápidos; `divisao.ts` a divisão da tela; `curvas.ts`; `EditorPreset.tsx`; `CardPreset.tsx`, `Avaliacao.tsx`, `OrdemPresets.tsx`, `Simulacao.tsx` na página Presets), `frontend/src/ator/` (`ator.ts`, `AtorArrastavel.tsx`, `AtorRecortado.tsx`, `movimento.ts`), `frontend/src/inserts/PainelEnriquecimento.tsx`; backend `backend/app/presets.py`, `inserts.py` (`enriquecer`, `definir_movimento_ator`), rotas em `backend/app/rotas/presets.py`.
 
-**A biblioteca hoje** (`dados/presets/`, 16 presets, todos aprovados): Sobe, flutua e sai por cima · Corte seco · Surge gigante de baixo · Passeio de câmera em 4 tomadas · Sobe e o próximo sobe por cima · Sobe desfocado · Tela cheia com zoom borrado · Tablet em perspectiva · Mergulho · Cascata de janelas · Cresce e desliza · Janela abre na vertical · Sobe e mergulha · Empurra a próxima de baixo · Sobe para o topo e chega o segundo · Mosaico com destaque.
+**A biblioteca hoje** (`biblioteca/presets/`, 16 presets, todos aprovados): Sobe, flutua e sai por cima · Corte seco · Surge gigante de baixo · Passeio de câmera em 4 tomadas · Sobe e o próximo sobe por cima · Sobe desfocado · Tela cheia com zoom borrado · Tablet em perspectiva · Mergulho · Cascata de janelas · Cresce e desliza · Janela abre na vertical · Sobe e mergulha · Empurra a próxima de baixo · Sobe para o topo e chega o segundo · Mosaico com destaque.
 
 **O que é uma receita** (o motor é genérico: preset novo não exige código):
 - `formato` para o qual foi desenhada (`vertical` ou `dividida`), `duracao_ref` (a do trecho de referência), `fundo` (`proprio`: o fundo do vídeo; ou `nenhum`).
@@ -978,7 +985,7 @@ Código: `frontend/src/presets/` (`presets.ts` a receita e o motor; `ajustes.ts`
   - `deslize`: quanto anda um card que transborda e desliza (vem do ajuste "Até onde desliza").
 - **`repete`**: a receita serve a qualquer número de mídias: o último card é o molde da 2ª mídia em diante, cada uma numa parte igual do insert. Com tantas mídias quanto os cards da receita (as da referência), os tempos medidos valem como estão. **`sai_ultimo`**: numa sequência que repete, o último card também sai.
 - **`sons`**: os momentos de som (§8.6).
-- Em volta da receita, o preset guarda: `nome`, `descricao`, `fontes` (referência, início, fim; ou `externa:<nome>`, um vídeo de fora em `dados/presets/externas/`), `recortes` (onde está a mídia de cada card na referência, para a miniatura da revisão), `aprovado`, `formatos` (onde aparece), `divisao_tipo`, `usos` ("Vale em"), `rapidos` (os ajustes rápidos que aparecem), `tela_toda_em_pe`.
+- Em volta da receita, o preset guarda: `nome`, `descricao`, `fontes` (referência, início, fim; ou `externa:<nome>`, um vídeo de fora em `biblioteca/presets/externas/`), `recortes` (onde está a mídia de cada card na referência, para a miniatura da revisão), `aprovado`, `formatos` (onde aparece), `divisao_tipo`, `usos` ("Vale em"), `rapidos` (os ajustes rápidos que aparecem), `tela_toda_em_pe`.
 
 **Curvas:** nenhuma transição linear (regra de Rodrigo). Base em `presets/curvas.ts`: CHEGAR `(0.16, 1, 0.3, 1)` · MOLA `(0.34, 1.56, 0.64, 1)` · SAIR `(0.7, 0, 0.84, 0)` · SUAVE `(0.65, 0, 0.35, 1)`. O editor de curva oferece 6 prontas: Freia bem devagar `(0, 0.7, 0.3, 0.9)`, Chega rápido e assenta (expo out), Easy Ease `(0.33, 0, 0.67, 1)`, Assenta bem suave (quint out), Sai e chega suave, Sedoso `(0.83, 0, 0.17, 1)`.
 
@@ -1095,7 +1102,7 @@ Código: `frontend/src/presets/` (`presets.ts` a receita e o motor; `ajustes.ts`
 - "Aplicar a todos": `POST …/inserts/{pid}/enriquecimento/tipo`.
 - `inserts.fundo` (`PUT …/inserts/fundo {fundo}`).
 - `inserts.ator_planos[plano]`: `zoom_lento` ou `zoom_seco` (sem chave = Nada) (`PUT …/inserts/ator/{plano} {movimento}`).
-- A biblioteca: `dados/presets/<id>.json` (id de 10 hex; global, fora do git), `dados/presets/ordem.json` (`{situação: {ids, favoritos}}`), `dados/presets/amostras/` (recortes e quadros da revisão), `dados/presets/externas/`.
+- A biblioteca: `biblioteca/presets/<id>.json` (id de 10 hex; global, fora do git), `biblioteca/presets/ordem.json` (`{situação: {ids, favoritos}}`), `biblioteca/presets/amostras/` (recortes e quadros da revisão), `biblioteca/presets/externas/`.
 - Rotas: `GET /api/presets`, `PATCH /api/presets/{id}` (nome, aprovado, receita, formato, formatos, divisao_tipo, rapidos (até 8), usos), `DELETE /api/presets/{id}` (tira também da ordem), `GET /api/presets/fontes`, `GET|PUT /api/presets/ordem[/{tela:mídias}]`, `GET /api/presets/{id}/amostra/{k}`, `GET /api/presets/quadro/{ref}?t=`, `GET /api/presets/externa/{nome}`.
 
 #### No vídeo final
@@ -1124,9 +1131,9 @@ Código: `frontend/src/presets/` (`presets.ts` a receita e o motor; `ajustes.ts`
 - **Preset:** uma animação pronta em HTML + CSS + GSAP, **escrita à mão** a partir de uma referência, em que você troca só os campos (textos, imagem do banco) e escolhe o **fundo**.
 - **Vídeo:** um vídeo do banco (subido ali ou escolhido; um trecho vale) que ocupa o palco e **entra e sai seco**, como um insert.
 
-(A 1ª versão, em que a IA escrevia cada motion, saiu; ficou em `_legado/motions-antigo/`, sem uso.)
+(A 1ª versão, em que a IA escrevia cada motion, saiu.)
 
-Código: `backend/app/motions.py`, rotas `backend/app/rotas/motions.py`; presets em `frontend/public/motion/presets/*.html`; runtime, GSAP e fontes em `frontend/public/motion/`; front em `frontend/src/motions/` (`PainelMotion.tsx`, `PresetMotion.tsx`, `MotionNoLugar.tsx`, `PaginaMotions.tsx`, `sons.ts`, `api.ts`). Detalhe em `docs/motions.md`.
+Código: `backend/app/motions.py`, rotas `backend/app/rotas/motions.py`; presets em `biblioteca/motions/*.html`; runtime, GSAP e fontes em `frontend/public/motion/`; front em `frontend/src/motions/` (`PainelMotion.tsx`, `PresetMotion.tsx`, `MotionNoLugar.tsx`, `PaginaMotions.tsx`, `sons.ts`, `api.ts`). Detalhe em `docs/motions.md`.
 
 **Formato da página:** cada motion é uma página web num **palco** de **1080×1920** (tela cheia) ou **1080×960** (tela dividida: a metade de cima, com o ator descendo embaixo), com fundo transparente. O fundo escolhido é desenhado atrás pelo app (o mesmo `Fundo` dos inserts, chuva em vídeo inclusive). O preset monta uma timeline do GSAP pausada com a duração do plano e a entrega com `motion.pronto(tl)`; quem manda no tempo é o app (`window.__ir(t)`: posiciona a timeline e os vídeos, espera fontes e vídeos e responde depois de pintar; 8 s de limite se o preset quebrar). Cada preset declara num JSON: nome, descrição, fundo sugerido, duração de referência, instante da miniatura (fração; padrão 0,8), os **campos** (`texto`, `cor`, `imagem`) e os **sons**.
 
@@ -1145,7 +1152,7 @@ Código: `backend/app/motions.py`, rotas `backend/app/rotas/motions.py`; presets
 
 (Todos os sons padrão em intensidade Baixo.) Além desses, os 7 vindos do 19 (E1 do editor por Claude): Abrir o app, Barras de custo, Hierarquia de modelos, Modelos do Claude, Pipeline de voz, Rápido e barato, Tokens e tempo — 6 deles **a revisar**.
 
-**Motions novos do Claude, a revisar** (docs/editor-claude.md, E7): quando nenhum preset serve, o Claude escreve um preset novo (HTML + GSAP, na identidade de **Configurações › Motions**, `identidade_motion`) com `"a_revisar": true`. Na página **Motions** (`/motions`): o selo coral **A REVISAR**, o filtro **"A revisar · N"** e, em cada um, **Aprovar** (tira o `a_revisar`: entra na biblioteca) e **Recusar…** (pede o motivo; o arquivo vai para `frontend/public/motion/presets/_recusados/` com `recusado {motivo, em}`; recusa se algum plano o usa: troque o motion antes). Embaixo, a lista **Recusados · N** com o motivo de cada um — o Claude lê antes de escrever o próximo (`A motions-recusados`). Rotas: `POST /api/motions/presets/{id}/aprovar`, `POST /api/motions/presets/{id}/recusar {motivo}`, `GET /api/motions/recusados`.
+**Motions novos do Claude, a revisar** (docs/editor-claude.md, E7): quando nenhum preset serve, o Claude escreve um preset novo (HTML + GSAP, na identidade de **Configurações › Motions**, `identidade_motion`) com `"a_revisar": true`. Na página **Motions** (`/motions`): o selo coral **A REVISAR**, o filtro **"A revisar · N"** e, em cada um, **Aprovar** (tira o `a_revisar`: entra na biblioteca) e **Recusar…** (pede o motivo; o arquivo vai para `biblioteca/motions/_recusados/` com `recusado {motivo, em}`; recusa se algum plano o usa: troque o motion antes). Embaixo, a lista **Recusados · N** com o motivo de cada um — o Claude lê antes de escrever o próximo (`A motions-recusados`). Rotas: `POST /api/motions/presets/{id}/aprovar`, `POST /api/motions/presets/{id}/recusar {motivo}`, `GET /api/motions/recusados`.
 
 #### Passo a passo
 
@@ -1182,7 +1189,7 @@ Código: `backend/app/motions.py`, rotas `backend/app/rotas/motions.py`; presets
   - preset: `{tipo: 'preset', preset, nome, formato (vertical · dividida), valores {campo: texto}, fundo, sons? {momento: {som, intensidade}}, usado_em}`;
   - vídeo: `{tipo: 'video', banco, nome, formato, usado_em}`.
 - O preset é **referenciado**, não copiado: melhorar o arquivo do preset muda os vídeos que o usam.
-- Os presets são arquivos no código (`frontend/public/motion/presets/<id>.html`); preset novo = arquivo novo, escrito pelo Claude.
+- Os presets são arquivos no código (`biblioteca/motions/<id>.html`); preset novo = arquivo novo, escrito pelo Claude.
 - Rotas: `GET /api/motions/presets`, `GET /api/motions/presets/{id}/pagina?formato=&duracao=&valores=&fala=`, `GET /api/motions/fonte/{nome}`; `GET /api/projetos/{id}/motions`, `PUT …/motions/{plano} {tipo, formato, preset|banco, valores, fundo}`, `PATCH …/motions/{plano} {valores, fundo, sons}`, `DELETE …/motions/{plano}`, `GET …/motions/{plano}/pagina?duracao=&fala=&exportacao=`.
 
 #### No vídeo final
@@ -1211,7 +1218,7 @@ Código: `frontend/src/editor/sons.ts` (momentos, eventos, Web Audio), `frontend
 
 #### Passo a passo
 
-1. **(uma vez, pelo Claude)** Os arquivos brutos do time ficam em `dados/sons/` (fora do git: o repositório é público e os sons são licenciados). `ferramentas/sons_biblioteca.py` gera `dados/sons/biblioteca/`: cada som só com o trecho útil (sem o silêncio do começo, até onde o som morre, no máximo 8 s com fade), no mesmo volume percebido (pico de energia em janelas de 50 ms a −18 dBFS; os contínuos, como a digitação, 6 dB abaixo), AAC mono quando os canais são iguais, e o `catalogo.json` (nome, família, duração e o `ataque`: o instante do golpe dentro do arquivo).
+1. **(uma vez, pelo Claude)** Os arquivos brutos do time ficam em `biblioteca/sons/` (fora do git: o repositório é público e os sons são licenciados). `ferramentas/sons_biblioteca.py` gera `biblioteca/sons/biblioteca/`: cada som só com o trecho útil (sem o silêncio do começo, até onde o som morre, no máximo 8 s com fade), no mesmo volume percebido (pico de energia em janelas de 50 ms a −18 dBFS; os contínuos, como a digitação, 6 dB abaixo), AAC mono quando os canais são iguais, e o `catalogo.json` (nome, família, duração e o `ataque`: o instante do golpe dentro do arquivo).
 2. **(uma vez, pelo Claude)** `ferramentas/sons_detectar.py` achou onde o time usa cada som nas referências (correlação da forma de onda acima de 1,5 kHz). Daí os padrões: UI Pop 02 quando um card aparece; Click Classic 01 nos cortes; Riser 07 subindo até o corte; Instant Camera 01 no corte para tela cheia; Mechanical Click 03 e Correct Ding 02 em motions. Os sons ficam de 14 a 20 dB abaixo da voz.
 3. **(pelo Claude, ao criar o preset)** A receita já vem com os sons padrão: o pop nas entradas, o clique seco nas trocas, cliques pequenos em cascata, whooshes curtos nas saídas, o Riser 07 terminando no fim do mergulho.
 4. **(manual, página Presets)** No card **Sons** do modal do preset, troque o som, a intensidade e "quando cai" de cada momento. Vale para todos os inserts com o preset.
@@ -1264,7 +1271,7 @@ Código: `frontend/src/editor/sons.ts` (momentos, eventos, Web Audio), `frontend
 - Na receita do preset: `sons[]` = `{momento (entrada · troca · saida · mergulho · zoom), som (id da biblioteca ou null), intensidade (baixo · medio), atraso (s, −3 a 3)}`, um por momento.
 - No insert, só o ajuste rápido `ajustes.som` (Sem · Baixo · Médio).
 - No projeto: `nivel_voz: {fonte, db}`.
-- Em disco: `dados/sons/` (bruto) e `dados/sons/biblioteca/` (os `.m4a` e o `catalogo.json`), fora do git.
+- Em disco: `biblioteca/sons/` (bruto) e `biblioteca/sons/biblioteca/` (os `.m4a` e o `catalogo.json`), fora do git.
 - Rotas: `GET /api/sons` (catálogo e ganhos), `GET /api/sons/{id}.m4a`, `GET /api/projetos/{id}/sons/fator`.
 
 #### No vídeo final
@@ -1302,7 +1309,7 @@ Uma **transição** é o jeito como o vídeo passa de um plano da direção para
 
 O efeito age sobre o **quadro inteiro já montado** (ator, inserts, motions); a legenda fica por cima, fora do efeito.
 
-**A biblioteca** (7 transições, em `dados/transicoes/<id>.json`; hoje todas marcadas como aprovadas):
+**A biblioteca** (7 transições, em `biblioteca/transicoes/<id>.json`; hoje todas marcadas como aprovadas):
 
 | Transição (id) | Efeito | antes / depois / força | Som | Intensidade · atraso |
 |---|---|---|---|---|
@@ -1327,7 +1334,7 @@ Os números do efeito (iguais na prévia e no MP4):
 | **Tela dividida** (`dividida`) | Tela dividida · insert, Tela dividida · motion, Comentário + insert + ator |
 | **Tela cheia** (`cheia`) | Insert tela cheia, Motion tela cheia (o resto) |
 
-**Os 9 pares de grupos** (de onde sai → para onde vai), cada um com a sua ordem e **2 favoritas** (a 1ª é o **padrão do par**), como estão hoje em `dados/transicoes/ordem.json`, com o nº de cortes que as referências têm em cada par (294 cortes em 30 pares de categorias, somados por grupo):
+**Os 9 pares de grupos** (de onde sai → para onde vai), cada um com a sua ordem e **2 favoritas** (a 1ª é o **padrão do par**), como estão hoje em `biblioteca/transicoes/ordem.json`, com o nº de cortes que as referências têm em cada par (294 cortes em 30 pares de categorias, somados por grupo):
 
 | Par | Cortes nas referências | 1ª favorita (padrão) | 2ª favorita |
 |---|---|---|---|
@@ -1456,9 +1463,9 @@ Na barra de cima (ao lado de Presets). Ao abrir, mostra **Todas as transições*
 
 #### O que fica gravado
 
-- **Biblioteca (global, fora do git)**: `dados/transicoes/<id>.json` = `{id, nome, descricao, efeito: {tipo, antes, depois, forca}, som: {som, intensidade, atraso} | null, fontes: [{ref, t}] (até 12), aprovado}`. Validação: `antes`/`depois` de 0 a 2 s, força de 0 a 1.
-- `dados/transicoes/pares.json`: os pares de categorias vistos nas referências (da análise `ferramentas/transicoes_analisar.py`): nº de cortes, classes (seco / efeito medido), sons e a lista de cortes `{ref, t, classe, sons}`.
-- `dados/transicoes/ordem.json`: `{ "familia:<de>><para>": {ids: [ordem inteira], favoritas: 0..2} }` (aceita também a chave antiga de par exato).
+- **Biblioteca (global, fora do git)**: `biblioteca/transicoes/<id>.json` = `{id, nome, descricao, efeito: {tipo, antes, depois, forca}, som: {som, intensidade, atraso} | null, fontes: [{ref, t}] (até 12), aprovado}`. Validação: `antes`/`depois` de 0 a 2 s, força de 0 a 1.
+- `biblioteca/transicoes/pares.json`: os pares de categorias vistos nas referências (da análise `ferramentas/transicoes_analisar.py`): nº de cortes, classes (seco / efeito medido), sons e a lista de cortes `{ref, t, classe, sons}`.
+- `biblioteca/transicoes/ordem.json`: `{ "familia:<de>><para>": {ids: [ordem inteira], favoritas: 0..2} }` (aceita também a chave antiga de par exato).
 - `backend/transicoes_efeitos/luz.webm` (no git): o vídeo da luz colorida.
 - **No projeto**: `projeto.transicoes = { <id do plano que entra>: {id: <transição>, par: "<cat_de>><cat_para>"} }` — **só as trocadas à mão**; o resto segue o padrão do par na hora. Mandar `null` num plano volta ao padrão.
 - **Gerar a direção do zero** apaga as escolhas; pedir uma correção (v2, v3…) as mantém.
@@ -1553,7 +1560,7 @@ Arranjo: à esquerda "Voz e fundo" (largura arrastável, no máximo 480 px), no 
   - as escolhas: `voz {limpeza: sem|leve|media|forte|isolamento, timbre: natural|quente|clara}`, `fundo` (id da faixa ou null), `fundo_mudo`, `niveis {ator, presets, transicoes, fundo}` (dB, −12 a +6);
   - o que o app grava: `limpezas.<nível> = {estado: fila|rodando|pronta|erro, progresso, erro}` (sem entrada = falta) e `voz_lufs.<bruto>_<nível>` (a sonoridade medida da voz, a base do fundo).
 - Arquivos: `midia/voz/<bruto>_<nível>.wav` e `midia/proxy/<bruto>_voz_<nível>[_v<versão>].mp4`.
-- Biblioteca global: `dados/trilhas/<id>.m4a` + `catalogo.json` (nome, clima, BPM, duração, prompt). O **laço** de cada faixa (o trecho estável: onde a energia em janelas de 2 s fica a menos de 5 dB da mediana) é medido uma vez por arquivo.
+- Biblioteca global: `biblioteca/trilhas/<id>.m4a` + `catalogo.json` (nome, clima, BPM, duração, prompt). O **laço** de cada faixa (o trecho estável: onde a energia em janelas de 2 s fica a menos de 5 dB da mediana) é medido uma vez por arquivo.
 - Rotas: `GET /api/audio` (catálogo + todos os números da cadeia), `GET /api/audio/trilhas/{id}.m4a`, `GET/PUT /api/projetos/{id}/audio` (o PUT com a limpeza refaz uma que falhou).
 
 #### No vídeo final
@@ -1732,7 +1739,7 @@ Ela fica em `/calibragem`, na barra de cima (**Projetos · Banco · Referências
 
 #### O que fica gravado
 
-- `dados/referencias/<id>/`:
+- `biblioteca/referencias/<id>/`:
   - `video.<ext>` (o original), `miniatura.jpg`;
   - `referencia.json`: `id`, `nome`, `criado_em`, `formato` (vertical), `video{arquivo, nome_original, duracao, largura, altura…}`, `status` (`na_fila` | `analisando` | `a_revisar` | `revisado` | `erro`), `erro`, e `analise.passos.<passo>` (`status`, `segundos`, `progresso`, `feitos/total`, `modelo`, `tokens`, `motor`, `trechos`, `planos/elementos`, `blocos`, `falhas`, `reaproveitado`);
   - os arquivos dos passos: `proxy.mp4`, `audio.wav`, `silencios.json`, `palavras.json` (`motor`, `palavras`), `cenas.json` (`cortes`), `trechos/NNN.json` (`chave` + `analise`), `analise.json` (`modelo`, `trechos`);
@@ -1827,7 +1834,7 @@ Não entra direto no vídeo. Entra pela **Direção do projeto**: os roteiros de
 
 #### O que fica gravado
 
-- **Favoritos:** `dados/referencias/_favoritos.json`, uma lista de `{ref, inicio, fim, criado_em, tipo, conteudo, descricao, texto}`.
+- **Favoritos:** `biblioteca/referencias/_favoritos.json`, uma lista de `{ref, inicio, fim, criado_em, tipo, conteudo, descricao, texto}`.
   - O favorito é identificado pela referência e pelo **intervalo** (com tolerância de 0,05 s), não pelo id do plano, que muda ao reanalisar.
   - O resto é uma cópia do plano no momento em que você favoritou.
   - Rota: `PUT /api/referencias/{id}/favorito {inicio, fim, favorito}`.
@@ -1859,7 +1866,7 @@ Nada direto. 💡 Os favoritos foram pensados como as **preferências** de Rodri
   Cada seção pode ter uma subseção **`### Inserts`**: como escrever a marcação dos inserts (o que aparece, como entra, zooms, destaques, trocas; nunca o layout).
 - **Os roteiros de exemplo:** os vídeos analisados na Calibragem, escritos como roteiro dirigido. Eles são montados na hora a partir da análise; não se editam aqui.
 
-**Onde ficam** (docs/editor-claude.md, Q17, E9): as regras moram na **skill do editor**, em `.claude/skills/editor/exemplos/regras.md` (no git; o Claude lê o mesmo arquivo); `dados/referencias/_heuristica.json` guarda só a versão anterior das regras (o "Voltar") e quando a IA sugeriu. Na primeira leitura depois da mudança, as regras que estavam no JSON foram para o arquivo. Uma referência criada de um projeto aprovado (`prj-…`) só entra nos roteiros de exemplo depois de revisada.
+**Onde ficam** (docs/editor-claude.md, Q17, E9): as regras moram na **skill do editor**, em `biblioteca/heuristica.md` (no git; o Claude lê o mesmo arquivo); `biblioteca/referencias/_heuristica.json` guarda só a versão anterior das regras (o "Voltar") e quando a IA sugeriu. Na primeira leitura depois da mudança, as regras que estavam no JSON foram para o arquivo. Uma referência criada de um projeto aprovado (`prj-…`) só entra nos roteiros de exemplo depois de revisada.
 
 Antes da E9 do editor por Claude (`_heuristica.json`), as Regras do criador tinham 4 regras gerais: não começar com o ator em tela cheia; vídeo de dúvida começa com Comentário + insert + ator; gancho visual nos primeiros segundos; nunca mais de 3–4 s de Full ator seguido. Têm também 3 regras em `### Inserts`. As sugeridas pela IA são 4 regras, geradas com 6 vídeos em 06/10/2026, sem subseção de Inserts.
 
@@ -1886,8 +1893,8 @@ Antes da E9 do editor por Claude (`_heuristica.json`), as Regras do criador tinh
 
 #### O que fica gravado
 
-- `dados/referencias/_heuristica.json`: `regras` (o Markdown das duas seções), `anterior` (o documento antes da última sugestão ou do último Voltar), `videos` e `gerado_em`.
-- `dados/referencias/_heuristica_captura.antiga.json`: a antiga heurística de captura, só guardada.
+- `biblioteca/referencias/_heuristica.json`: `regras` (o Markdown das duas seções), `anterior` (o documento antes da última sugestão ou do último Voltar), `videos` e `gerado_em`.
+- `biblioteca/referencias/_heuristica_captura.antiga.json`: a antiga heurística de captura, só guardada.
 - Os roteiros **não** são gravados aqui: vêm de `direcao.json` + `palavras.json` de cada referência.
 - **Rotas:**
   - `GET|PUT /api/referencias/heuristica`
@@ -1951,7 +1958,7 @@ Só os favoritos (a mesma rota e o mesmo arquivo da galeria) e as duas caixas le
 4. **(manual)** Clique numa mídia para abrir o detalhe e corrigir nome, descrição e palavras-chave.
 5. **(manual, opcional)** Em "Editar vídeo", marque trechos ou corte o original.
 6. **(automático)** Cada mídia ganha um **selo** (a faxina do banco, docs/editor-claude.md §7): **★ Usado** (entrou num vídeo aprovado, ela ou um trecho dela; ou vinha "usado" do 19), **✓ Aprovado** (marcada à mão, ou subida por você — as de antes do selo também), **✗ Recusado** (marcada à mão; trazida pelo Claude para um projeto já aprovado e que ficou de fora, ou para um projeto que foi para a lixeira; ou vinha recusada do 19) ou **sem selo** (trazida pelo Claude para um projeto ainda em edição). "Aprovado" de um projeto vem da versão marcada aprovada (E9).
-7. **(manual)** **Limpar recusados (N)** leva os originais recusados, com os trechos, para `dados/banco/_lixeira/<id>-<data>` (dá para recuperar movendo a pasta de volta). Nunca leva o que você subiu nem o que algum projeto ainda usa.
+7. **(manual)** **Limpar recusados (N)** leva os originais recusados, com os trechos, para `biblioteca/banco/_lixeira/<id>-<data>` (dá para recuperar movendo a pasta de volta). Nunca leva o que você subiu nem o que algum projeto ainda usa.
 
 #### O que você vê e pode fazer
 
@@ -1980,7 +1987,7 @@ Só os favoritos (a mesma rota e o mesmo arquivo da galeria) e as duas caixas le
 
 #### O que fica gravado
 
-- `dados/banco/<id>/` (id de 10 hex): `original.<ext>`, `proxy.mp4` (vídeo), `miniatura.jpg`, `item.json` com `nome`, `descricao`, `palavras`, `descricao_ia`, `tipo` (video · imagem), `formato` (o mais próximo entre 16:9 · 16:10 · 4:3 · 1:1 · 4:5 · 3:4 · 9:16 · alto), `largura`, `altura`, `duracao`, `origem`, `criado_em`, `ia {status, erro}`, `edicao {status, erro}` (corte do original); quem trouxe: `do_criador: true` (subida pela tela) ou `trazido_por: 'claude'` + `projeto`; `estado` (o selo à mão: aprovado · recusado); `estado_19` (o selo que tinha no 19, nas copiadas de lá).
+- `biblioteca/banco/<id>/` (id de 10 hex): `original.<ext>`, `proxy.mp4` (vídeo), `miniatura.jpg`, `item.json` com `nome`, `descricao`, `palavras`, `descricao_ia`, `tipo` (video · imagem), `formato` (o mais próximo entre 16:9 · 16:10 · 4:3 · 1:1 · 4:5 · 3:4 · 9:16 · alto), `largura`, `altura`, `duracao`, `origem`, `criado_em`, `ia {status, erro}`, `edicao {status, erro}` (corte do original); quem trouxe: `do_criador: true` (subida pela tela) ou `trazido_por: 'claude'` + `projeto`; `estado` (o selo à mão: aprovado · recusado); `estado_19` (o selo que tinha no 19, nas copiadas de lá).
 - Um trecho: `item.json` só com `pai`, `inicio`, `fim`, `nome`.
 - Aceita MP4, MOV, M4V, WebM, PNG, JPG/JPEG, WebP (outras extensões dão erro).
 - **Usos** não são guardados: são calculados lendo os projetos.
@@ -2037,7 +2044,7 @@ Só os favoritos (a mesma rota e o mesmo arquivo da galeria) e as duas caixas le
 
 #### O que fica gravado
 
-- Tudo na biblioteca global: `dados/presets/<id>.json` (nome, aprovado, receita, formato/formatos, divisao_tipo, usos, rapidos) e `dados/presets/ordem.json`. Rotas no §8.4.
+- Tudo na biblioteca global: `biblioteca/presets/<id>.json` (nome, aprovado, receita, formato/formatos, divisao_tipo, usos, rapidos) e `biblioteca/presets/ordem.json`. Rotas no §8.4.
 - Descartar apaga o arquivo e tira o preset da ordem de todas as situações.
 
 #### No vídeo final
@@ -2081,7 +2088,7 @@ Nada direto.
 #### Ligações
 
 - **Etapa Inserts / Motions (§8.5):** onde os presets são usados.
-- Os presets são arquivos em `frontend/public/motion/presets/`, escritos pelo Claude a partir das referências.
+- Os presets são arquivos em `biblioteca/motions/`, escritos pelo Claude a partir das referências.
 
 ### 8.18 Configurações
 
@@ -2090,7 +2097,7 @@ As **preferências do app** (`paginas/Configuracoes.tsx`), num diálogo com abas
 
 #### Passo a passo
 1. **Abrir:** a engrenagem na tela de projetos (abre em **Geral**) ou no topo do editor. No editor, **abre na aba da etapa em que se está**: **Cortes** no Pré-processamento, **Direção visual** na Direção visual, **Motions** em Inserts e **Geral** nas outras (pedido de Rodrigo, out/2026). A aba **Motions** guarda a identidade visual dos motions novos que o Claude escreve (`identidade_motion`; docs/editor-claude.md, E7).
-2. **Mudar um campo:** cada mudança é **gravada na hora** (`PUT /api/config`) em `dados/projetos/_config.json`. Escolhas de lista e botões salvam no clique; campos de texto e números salvam ao sair do campo ou com Enter. Aparece "✓ Salvo como padrão do app. Vale também depois de reiniciar."; um erro aparece em vermelho.
+2. **Mudar um campo:** cada mudança é **gravada na hora** (`PUT /api/config`) em `biblioteca/config.json`. Escolhas de lista e botões salvam no clique; campos de texto e números salvam ao sair do campo ou com Enter. Aparece "✓ Salvo como padrão do app. Vale também depois de reiniciar."; um erro aparece em vermelho.
 3. 💡 Um campo numérico **vazio não salva** (virar 0 desligaria o corte de pausas sem querer). Valores fora da faixa são presos aos limites no servidor; um arquivo ausente ou ilegível volta aos padrões.
 
 #### O que você vê e pode fazer
@@ -2114,7 +2121,7 @@ As **preferências do app** (`paginas/Configuracoes.tsx`), num diálogo com abas
 - **Mosaico** (só com Mosaico): a grade **3 × 2** (padrão, 6 quadros menores) ou **3 × 1** (3 maiores) e **1/s · 2/s · 3/s · 4/s** (padrão 2/s); trechos longos ficam com no máximo 40 quadros.
 
 #### O que fica gravado
-`dados/projetos/_config.json` (um arquivo só, para o app todo):
+`biblioteca/config.json` (um arquivo só, para o app todo):
 - `perfil_criador`;
 - `motor_padrao`, `antes_do_corte_ms`, `depois_do_corte_ms`, `pausa_max_ms`;
 - `modelo_direcao`, `modelo_diretora`, `raciocinio_diretora` (`low` · `medium` · `high`), `modelo_direcao_projeto`, `formato_analise` (`video` · `mosaico`), `grade_mosaico` (`3x2` · `3x1`), `quadros_por_segundo` (1 a 4).
@@ -2151,7 +2158,7 @@ Indireto: o motor e as margens definem os cortes; os modelos da direção define
 - **Teclado:** Espaço toca · ←/→ um quadro (pausa) · Shift+←/→ o corte seguinte/anterior · ⌘ + rolagem: zoom no mouse · I · O · C · Esc (solta a caixa, tira a entrada, desmarca).
 
 #### O que fica gravado
-- `dados/projetos/<id>/revisoes/vN.json`: `{versao, aprovado, aprovado_em?, enviado_em, comentarios: [{id: 'c1', t, fim, palavra, palavra_fim, fala, plano, texto, anexos?, geral?, responde?, criado_em, status, resposta}]}` — os tempos são do vídeo final da versão; a âncora que vale é a palavra. A tela grava 600 ms depois da última mudança (a lista inteira); o status e a resposta só o Claude muda (o servidor guarda os dele).
+- `projetos/<id>/revisoes/vN.json`: `{versao, aprovado, aprovado_em?, enviado_em, comentarios: [{id: 'c1', t, fim, palavra, palavra_fim, fala, plano, texto, anexos?, geral?, responde?, criado_em, status, resposta}]}` — os tempos são do vídeo final da versão; a âncora que vale é a palavra. A tela grava 600 ms depois da última mudança (a lista inteira); o status e a resposta só o Claude muda (o servidor guarda os dele).
 - `revisoes/anexos/<cid>-<k>.<ext>` (png, jpg, webp, gif, mp4, mov, webm).
 - As dúvidas: `projeto.duvidas` enquanto o Claude edita; ao marcar a versão, vão para `versoes/vN.json` (`duvidas: [{id: 'd1', palavra, palavra_fim, texto, fala}]`). Aprovar grava `aprovada: true` em `versoes/vN.json` (os selos do banco e a E9 leem).
 - Rotas: `GET /api/projetos/{id}/revisao[?versao=]` (a revisão, as dúvidas e o texto), `PUT …/revisao/{n} {comentarios}`, `POST …/revisao/{n}/enviar`, `POST …/revisao/{n}/aprovar`, `POST …/revisao/{n}/responder {comentario, status, resposta}`, `POST …/revisao/{n}/anexo?comentario=` (o arquivo cru no corpo), `DELETE …/revisao/{n}/anexo?caminho=`, `POST /api/projetos/{id}/duvidas {palavra, palavra_fim, texto, fala}`. A revisão não é edição de etapa: não marca nada "à mão" e passa com o projeto travado.
@@ -2175,7 +2182,7 @@ Indireto: o motor e as margens definem os cortes; os modelos da direção define
 
 #### Página Aprendizados
 - À esquerda, as áreas na ordem das etapas (Cortes, Inserts, Enriquecimento, Motions, Elementos, Transições, Áudio, Legenda, Checagem e entrega); à direita, o Markdown da área num editor (fonte mono), o caminho do arquivo e quando mudou; **Salvar** (ou ⌘S) grava no arquivo da skill. Trocar de área com mudança não salva pergunta antes.
-- Os arquivos: `.claude/skills/editor/aprendizados/<área>.md` (no git), os mesmos que o Claude lê antes de cada etapa.
+- Os arquivos: `biblioteca/aprendizados/<área>.md` (no git), os mesmos que o Claude lê antes de cada etapa.
 - Rotas: `GET /api/aprendizados`, `PUT /api/aprendizados/{área} {texto}`; `GET /api/projetos/{id}/aprovacao` (`{versao, difere, referencia}`), `POST /api/projetos/{id}/referencia {versao?}`.
 - CLI: `exportar`, `referencia`, `aprovar`, `banco-editar`, `banco-do-projeto`.
 
@@ -2187,11 +2194,11 @@ Indireto: o motor e as margens definem os cortes; os modelos da direção define
 #### O que você vê e pode fazer
 - **Subir vídeo ↗** (ou arrastar para a página): cada vídeo vira um CTA (o vídeo todo, até marcar).
 - **Filtro por produto**: Todos · cada produto · Sem produto (lembrado neste navegador); **Produtos** abre o cadastro (emoji e nome; novo; tirar — os CTAs dele ficam sem produto).
-- **Grade** (9:16), sem categoria primeiro e depois na ordem das categorias. Cada card: a miniatura (com o mouse em cima, toca o trecho mudo, em laço; clicar toca com som; a barra mostra o andamento), o selo da saída (amarelo) ou "Sem categoria" (coral), a **★** (o favorito da categoria, o que entra por padrão; só um por categoria), a duração do trecho, ✂ **marcar** e 🗑 **apagar** (vai para `dados/ctas/_lixeira/`); embaixo, o nome (editável; Enter grava), o código **CTA-xx**, o **produto** e a **categoria** (a saída).
+- **Grade** (9:16), sem categoria primeiro e depois na ordem das categorias. Cada card: a miniatura (com o mouse em cima, toca o trecho mudo, em laço; clicar toca com som; a barra mostra o andamento), o selo da saída (amarelo) ou "Sem categoria" (coral), a **★** (o favorito da categoria, o que entra por padrão; só um por categoria), a duração do trecho, ✂ **marcar** e 🗑 **apagar** (vai para `biblioteca/ctas/_lixeira/`); embaixo, o nome (editável; Enter grava), o código **CTA-xx**, o **produto** e a **categoria** (a saída).
 - **Marcar o CTA**: o vídeo inteiro com a tira de quadros; **Início aqui (I)** e **Fim aqui (O)** no instante do vídeo, clicar na tira anda, Espaço toca; o trecho marcado em coral; **Salvar** (mín. 0,5 s; a miniatura passa a ser do meio do trecho).
 
 #### O que fica gravado
-- `dados/ctas/<id>/`: `original.<ext>`, `proxy.mp4` (até 1280 px), `miniatura.jpg`, `tira.jpg`, `cta.json` {id, nome, categoria, produto, inicio, fim, duracao, largura, altura, favorito, fonte, arquivo, criado_em}; `dados/ctas/categorias.json` e `produtos.json`.
+- `biblioteca/ctas/<id>/`: `original.<ext>`, `proxy.mp4` (até 1280 px), `miniatura.jpg`, `tira.jpg`, `cta.json` {id, nome, categoria, produto, inicio, fim, duracao, largura, altura, favorito, fonte, arquivo, criado_em}; `biblioteca/ctas/categorias.json` e `produtos.json`.
 - Rotas: `GET /api/ctas` ({ctas, categorias, produtos}), `POST /api/ctas` (multipart `arquivos`, `categoria` opcional), `PUT /api/ctas/{id}` {nome, categoria, produto, inicio, fim, favorito}, `DELETE /api/ctas/{id}`, `PUT /api/ctas-produtos {produtos}`, `GET /api/ctas/{id}/{proxy.mp4|miniatura.jpg|tira.jpg}`. CLI: `A ctas`.
 
 ### Atalhos das etapas montadas (como no 19)
@@ -2389,7 +2396,7 @@ Codificação: HEVC (`hevc_videotoolbox`, `-q:v 65`, tag `hvc1`) ou H.264 (`h264
 
 #### O que fica gravado
 
-- O MP4 em `dados/projetos/<id>/exports/<nome>.mp4`; um nome repetido ganha " (2)", " (3)"…
+- O MP4 em `projetos/<id>/exports/<nome>.mp4`; um nome repetido ganha " (2)", " (3)"…
 - Durante: `<nome>.parte.mp4`, a pasta `<nome>.parte.camadas/` (os clipes dos inserts, o ASS, a vinheta) e `<nome>.parte.log` (o stderr do ffmpeg) — todos apagados no fim.
 - `projeto.exportacao = { status: rodando|pronta|cancelada|erro, progresso, resolucao, fps, codec, navegadores, nome, arquivo, erro, aviso, inicio, fim }` (só a última).
 - Se o servidor reiniciar no meio, a exportação vira erro ("Interrompida (o servidor reiniciou): exporte de novo") e os pedaços são apagados.

@@ -33,4 +33,4 @@ def test_ctas(cliente, video):
     # apagar vai para a lixeira
     assert cliente.delete(f"/api/ctas/{a['id']}").json() == {'ok': True}
     assert [c['id'] for c in cliente.get('/api/ctas').json()['ctas']] == [b['id']]
-    assert any(x.name.startswith(a['id']) for x in (comum.DADOS / 'ctas' / '_lixeira').iterdir())
+    assert any(x.name.startswith(a['id']) for x in (comum.BIBLIOTECA / 'ctas' / '_lixeira').iterdir())

@@ -15,9 +15,11 @@ def _item(tmp_path, bid, tipo, **extra):
     (pasta / 'item.json').write_text(json.dumps({'id': bid, 'nome': f'item {bid}', 'tipo': tipo, **extra}), encoding='utf-8')
 
 
-def test_presets_declaram_nome_campos_e_fundo(cliente):
+def test_presets_declaram_nome_campos_e_fundo(cliente, monkeypatch):
+    from app import comum, motions
+    monkeypatch.setattr(motions, 'PRESETS', comum.INICIAL / 'motions')  # os exemplos que vêm com o app
     presets = {p['id']: p for p in cliente.get('/api/motions/presets').json()}
-    assert {'claude-code', 'lettering', 'prompt', 'site'} <= set(presets)
+    assert {'lettering', 'site'} <= set(presets)
     assert presets['site']['campos']['url']['tipo'] == 'texto' and presets['lettering']['fundo'] == 'chuva'
     pagina = cliente.get('/api/motions/presets/lettering/pagina?formato=dividida&duracao=2&valores={"destaque":"Code </script>"}').text
     d = _dados(pagina)

@@ -2,7 +2,7 @@ Você busca a mídia de {n} inserts de um Reels no app Harness, um de cada vez, 
 A CLI do app (o app já está no ar):
   cd "{raiz}" && uv run --project backend python ferramentas/app.py <comando>
 Projeto {projeto}. Contexto do vídeo: {contexto}
-Antes: leia {raiz}/.claude/skills/editor/aprendizados/inserts.md e siga.
+Antes: leia {raiz}/biblioteca/aprendizados/inserts.md e siga.
 LIMITE: 3 minutos por insert. Estourou, deixe o melhor que tiver (ou nada) e passe ao próximo.
 
 Os inserts:
