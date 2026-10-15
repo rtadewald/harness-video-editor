@@ -96,7 +96,7 @@ export default function Calibragem() {
 
   return (
     <div
-      className="grid h-svh grid-rows-[56px_minmax(0,1fr)] bg-deep text-cream"
+      className="grid h-svh grid-rows-[56px_auto_minmax(0,1fr)] bg-deep text-cream"
       onDragOver={(e) => {
         e.preventDefault()
         setArrastando(true)
@@ -112,7 +112,16 @@ export default function Calibragem() {
         <Logo />
         <span className="h-5 w-px bg-line-dark" />
         <NavHome />
-        <Button variant="coral" size="sm" className="ml-auto h-9 gap-6 px-4" onClick={() => entrada.current?.click()} disabled={enviando > 0}>
+      </header>
+
+      {/* a segunda linha: o andamento das referências e, no canto direito, a ação da página */}
+      <nav className="flex flex-wrap items-center gap-3 border-b border-line-dark px-4 py-3 text-[12px] text-fog">
+        <span className="tabular-nums">
+          {refs?.length ?? 0} vídeos · {revisadas} revisada{revisadas === 1 ? '' : 's'} · {contagem('a_revisar')} a revisar
+          {contagem('na_fila') + contagem('analisando') > 0 && ` · ${contagem('na_fila') + contagem('analisando')} na fila`}
+          {contagem('erro') > 0 && ` · ${contagem('erro')} com erro`}
+        </span>
+        <Button variant="coral" size="sm" className="ml-auto h-8 gap-4 px-4" onClick={() => entrada.current?.click()} disabled={enviando > 0}>
           {enviando ? `Enviando ${enviando}…` : 'Adicionar vídeos'} <span className="seta">↗</span>
         </Button>
         <input
@@ -126,25 +135,9 @@ export default function Calibragem() {
             e.target.value = ''
           }}
         />
-      </header>
+      </nav>
 
       <main className={cn('overflow-y-auto px-8 py-8 transition-colors', arrastando && 'bg-coral/10')}>
-        <div className="mb-6 grid gap-3 border-b border-line-dark pb-4">
-          <div className="flex items-baseline justify-between">
-            <p className="eyebrow text-sage">
-              Calibragem{refs && ` · ${String(refs.length).padStart(2, '0')} vídeos`}
-            </p>
-            <p className="text-[11px] text-fog">
-              {revisadas} revisada{revisadas === 1 ? '' : 's'} · {contagem('a_revisar')} a revisar · {contagem('na_fila') + contagem('analisando')} na fila
-              {contagem('erro') > 0 && ` · ${contagem('erro')} com erro`}
-            </p>
-          </div>
-          <p className="max-w-[720px] text-[12px] leading-[1.7] text-fog">
-            Vídeos seus já editados, verticais. A IA analisa o que aparece na tela em cada trecho (planos e elementos) e você revisa. Só as referências
-            revisadas ensinam a Direção visual. Arraste vários MP4 para esta tela ou use “Adicionar vídeos”. Os planos identificados aparecem em Referências.
-          </p>
-        </div>
-
         {erro && <p className="mb-4 text-coral">{erro}</p>}
         {recusadas.length > 0 && (
           <div className="mb-6 grid gap-1 border-l-2 border-coral pl-3 text-[12px]">

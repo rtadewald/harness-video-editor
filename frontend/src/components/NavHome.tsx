@@ -24,15 +24,37 @@ const LINKS: Link[] = [
 // o que treina e regula o app, alinhado à direita (como no 19)
 const TREINO: Link[] = [
   { para: '/calibragem', nome: 'Calibragem', icone: SlidersHorizontal }, // acesa também na revisão de uma referência
-  { para: '/heuristica', nome: 'Heurística da direção', icone: BookOpenText },
+  { para: '/heuristica', nome: 'Heurística', icone: BookOpenText },
   { para: '/aprendizados', nome: 'Aprendizados', icone: GraduationCap }, // o que o Claude aprendeu editando (a skill do editor)
 ]
 export default function NavHome({ renomear }: { renomear?: (id: string, nome: string) => Promise<unknown> }) {
   const abas = useAbasProjetos()
   const local = useLocation()
   const ir = useNavigate()
-  const aba = ({ isActive }: { isActive: boolean }) => cn(PILULA, 'flex items-center gap-1.5 px-3.5 py-[7px]', isActive ? ATIVA : INATIVA)
-  // os rótulos somem pelo espaço que sobra para os links (container query em `links`), não pela largura da janela: no
+  const aba = ({ isActive }: { isActive: boolean }) => cn(PILULA, 'flex items-center gap-1.5 px-3 py-[7px]', isActive ? ATIVA : INATIVA)
+  // os rótulos somem pelo espaço que sobra (medido, não por um corte fixo de largura), em dois degraus: 1, os da direita
+  // (Calibragem, Heurística, Aprendizados) viram só ícone; 2, os da esquerda também. `precisa[n]`: a largura que os
+  // links pediam no degrau n quando não couberam (para voltar a ele quando houver espaço)
+  const links = useRef<HTMLDivElement>(null)
+  const [compacto, setCompacto] = useState<0 | 1 | 2>(0)
+  const precisa = useRef<number[]>([0, 0, 0])
+  useEffect(() => {
+    const el = links.current
+    if (!el) return
+    const medir = () => {
+      if (compacto < 2 && el.scrollWidth > el.clientWidth + 1) {
+        precisa.current[compacto] = el.scrollWidth
+        setCompacto((compacto + 1) as 1 | 2)
+      } else if (compacto > 0 && precisa.current[compacto - 1] && el.clientWidth >= precisa.current[compacto - 1]) {
+        setCompacto((compacto - 1) as 0 | 1)
+      }
+    }
+    medir()
+    const ro = new ResizeObserver(medir)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [compacto, abas.length])
+  // os rótulos somem todos juntos (os da esquerda e os da direita, o mesmo padrão em todas as páginas) pelo espaço que sobra para os links (container query em `links`), não pela largura da janela: no
   // editor a barra divide o espaço com os botões da etapa e o Exportar, e as abas abertas também ocupam (até 40%: primeiro
   // encolhem, com o nome cortado; depois rolam, com a ativa sempre à vista); se nem só com os ícones couber (a busca do
   // Banco), os links rolam em vez de passar por cima do que vem depois. O que fica fora da vista ganha um degradê e uma
@@ -58,19 +80,19 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
           )
         })}
       </Rolavel>
-      <Rolavel className="@container/links flex-1">
+      <Rolavel className="flex-1" refInterno={links}>
         {abas.length > 0 && <span className="mx-1.5 h-5 w-px shrink-0 bg-line-dark" />}
         {LINKS.map((l) => (
           <NavLink key={l.para} to={l.para} end={l.exato} className={aba} title={l.nome} aria-label={l.nome}>
             <l.icone className="size-3.5 opacity-80" aria-hidden />
-            <span className="@max-[760px]/links:hidden">{l.nome}</span>
+            {compacto < 2 && <span>{l.nome}</span>}
           </NavLink>
         ))}
         <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-3">
           {TREINO.map((l) => (
             <NavLink key={l.para} to={l.para} end={l.exato} className={aba} title={l.nome} aria-label={l.nome}>
               <l.icone className="size-3.5 opacity-80" aria-hidden />
-              <span className="@max-[960px]/links:hidden">{l.nome}</span>
+              {compacto < 1 && <span>{l.nome}</span>}
             </NavLink>
           ))}
         </div>
@@ -80,8 +102,9 @@ export default function NavHome({ renomear }: { renomear?: (id: string, nome: st
 }
 
 /** Uma faixa que rola de lado sem barra de rolagem: quando há o que ver fora dela, um degradê e uma seta naquele lado. */
-function Rolavel({ className, children }: { className?: string; children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null)
+function Rolavel({ className, children, refInterno }: { className?: string; children: ReactNode; refInterno?: React.RefObject<HTMLDivElement | null> }) {
+  const proprio = useRef<HTMLDivElement>(null)
+  const ref = refInterno ?? proprio
   const [fora, setFora] = useState({ esq: false, dir: false })
   const medir = useCallback(() => {
     const el = ref.current
@@ -89,7 +112,7 @@ function Rolavel({ className, children }: { className?: string; children: ReactN
     const esq = el.scrollLeft > 1
     const dir = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
     setFora((f) => (f.esq === esq && f.dir === dir ? f : { esq, dir }))
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- o ref (próprio ou de fora) é fixo
   useEffect(() => {
     const el = ref.current
     if (!el) return
@@ -108,7 +131,7 @@ function Rolavel({ className, children }: { className?: string; children: ReactN
       tamanhos.disconnect()
       itens.disconnect()
     }
-  }, [medir])
+  }, [medir]) // eslint-disable-line react-hooks/exhaustive-deps
   const rolar = (sentido: 1 | -1) => {
     const el = ref.current
     if (el) el.scrollBy({ left: sentido * Math.max(el.clientWidth * 0.7, 80), behavior: 'smooth' })

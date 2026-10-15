@@ -122,7 +122,21 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
       }
       return !r
     })
-  }
+  }  // ⌘B (Ctrl+B): recolhe ou abre a barra das etapas, como a barra lateral dos editores de código
+  const alternarRef = useRef(alternarBarra)
+  useEffect(() => {
+    alternarRef.current = alternarBarra
+  })
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'b' || modalAberto()) return
+      e.preventDefault()
+      alternarRef.current()
+    }
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  }, [])
+
   const seq = useMemo(() => (dados ? montarSequencia(dados.timeline, dados.palavras, dados.projeto.velocidade ?? 1) : null), [dados])
   // as transições entre planos (SPEC §8.8): os planos da direção no tempo do vídeo final e a transição de cada corte
   const biblioteca = useBiblioteca()
@@ -501,7 +515,7 @@ function EditorDoProjeto({ id, inicial }: { id: string; inicial: DadosEditor }) 
               onClick={alternarBarra}
               className="grid size-7 place-items-center rounded-full text-fog hover:bg-cream/8 hover:text-cream"
               aria-label={recolhida ? 'Abrir a barra das etapas' : 'Recolher a barra das etapas'}
-              title={recolhida ? 'Abrir a barra' : 'Recolher a barra'}
+              title={recolhida ? 'Abrir a barra (⌘B)' : 'Recolher a barra (⌘B)'}
             >
               {recolhida ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
             </button>

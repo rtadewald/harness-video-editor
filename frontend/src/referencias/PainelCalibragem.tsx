@@ -183,12 +183,6 @@ function EditorHeuristica({ versao }: { versao: number }) {
         )}
         <span className="text-[11px] text-fog">{salvo ? '✓ Salvo' : ''}</span>
       </div>
-      <p className="max-w-[860px] text-[12px] leading-[1.7] text-fog">
-        É o que o diretor dos projetos lê, inteiro: as regras e, embaixo, os roteiros dos seus vídeos — a fala com a marcação do que aparecia na tela em cada
-        momento. Ele aprende a dirigir olhando o roteiro. As regras você edita aqui; os roteiros vêm da análise (para corrigir uma marcação, abra a calibragem
-        do vídeo). As regras ficam na skill do editor (<code className="text-cream/80">.claude/skills/editor/exemplos/regras.md</code>, no git): o Claude lê as
-        mesmas. Uma referência de projeto aprovado só entra nos roteiros depois de revisada.
-      </p>
       {erro && <p className="text-[12px] text-coral">⚠ {erro}</p>}
 
       <section className="max-w-[900px]">

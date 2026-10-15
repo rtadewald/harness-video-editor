@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Check, CircleCheck, CircleDashed, CircleX, Clapperboard, Images, LayoutGrid, Plus, Scissors, Sparkles, Star, Trash2, X, type LucideIcon } from 'lucide-react'
+import { Check, CircleCheck, Image as ImageIcon, Video, CircleDashed, CircleX, Clapperboard, Images, LayoutGrid, Scissors, Sparkles, Star, Trash2, X, type LucideIcon } from 'lucide-react'
 import {
   NOME_TIPO_MIDIA,
   apagarItemBanco,
@@ -125,7 +125,6 @@ export default function Banco() {
   const motionsVisiveis = motionsDo(tipo).filter((m) => motionComSelo(m, selo))
   const contagem = (t: Tipo) => midiasDo(t).filter((i) => comSelo(i, selo)).length + motionsDo(t).filter((m) => motionComSelo(m, selo)).length
   const contagemSelo = (s: Selo | 'nenhum') => midiasDo(tipo).filter((i) => comSelo(i, s)).length + motionsDo(tipo).filter((m) => motionComSelo(m, s)).length
-  const aRevisar = motions.filter((m) => m.a_revisar).length
   const agirMotion = (f: () => Promise<unknown>) =>
     void f()
       .then(carregar)
@@ -160,20 +159,6 @@ export default function Banco() {
         <Logo />
         <span className="h-5 w-px bg-line-dark" />
         <NavHome />
-        <Button variant="coral" size="sm" className="ml-auto h-9 gap-6 px-4" onClick={() => entrada.current?.click()} disabled={enviando > 0}>
-          {enviando ? `Enviando ${enviando}…` : 'Adicionar mídias'} <span className="seta">↗</span>
-        </Button>
-        <input
-          ref={entrada}
-          type="file"
-          accept={ACEITA}
-          multiple
-          hidden
-          onChange={(e) => {
-            void subir([...(e.target.files ?? [])])
-            e.target.value = ''
-          }}
-        />
       </header>
 
       <nav className="flex flex-wrap items-center gap-1.5 border-b border-line-dark px-4 py-3">
@@ -188,16 +173,26 @@ export default function Banco() {
             {nome}
           </Chip>
         ))}
-        <span className="ml-auto text-[12px] text-fog">
-          {descrevendo > 0 && `IA descrevendo ${descrevendo} · `}
-          {aRevisar > 0 && tipo !== 'inserts' && <span className="text-coral">{aRevisar} motion{aRevisar > 1 ? 's' : ''} a revisar · </span>}
-          {visiveis.length + motionsVisiveis.length} {tipo === 'motions' ? 'motions' : 'itens'}
-        </span>
+        <span className="ml-auto" />
         {recusados.length > 0 && (
           <Button variant="pill" size="sm" className="ml-2 text-fog hover:text-coral" onClick={() => void limpar()} title="Leva os recusados para a lixeira do banco (dados/banco/_lixeira; dá para recuperar)">
             <Trash2 className="size-3.5" /> Limpar recusados ({recusados.length})
           </Button>
         )}
+        <Button variant="coral" size="sm" className="ml-2 h-8 gap-4 px-4" onClick={() => entrada.current?.click()} disabled={enviando > 0}>
+          {enviando ? `Enviando ${enviando}…` : 'Adicionar mídias'} <span className="seta">↗</span>
+        </Button>
+        <input
+          ref={entrada}
+          type="file"
+          accept={ACEITA}
+          multiple
+          hidden
+          onChange={(e) => {
+            void subir([...(e.target.files ?? [])])
+            e.target.value = ''
+          }}
+        />
       </nav>
 
       <main className={cn('overflow-y-auto px-8 py-8 transition-colors', arrastando && 'bg-coral/10')}>
@@ -207,22 +202,6 @@ export default function Banco() {
         )}
 
         <ul className="grid gap-x-5 gap-y-8" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
-          {tipo !== 'motions' && (
-            <li>
-              <button
-                onClick={() => entrada.current?.click()}
-                className="group flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-[6px] border border-dashed border-line-dark text-fog transition-colors hover:border-coral hover:text-cream"
-              >
-                <span className="grid size-11 place-items-center rounded-full bg-coral text-cream transition-transform duration-300 group-hover:-translate-y-1 group-hover:rotate-90">
-                  <Plus className="size-5" />
-                </span>
-                <span className="text-center">
-                  <span className="block text-[14px] font-semibold text-cream">Adicionar</span>
-                  <span className="text-[11px]">Vídeos e imagens, vários de uma vez</span>
-                </span>
-              </button>
-            </li>
-          )}
           {[
             ...visiveis.map((i) => ({ criado: i.criado_em ?? '', el: <Cartao key={i.id} item={i} abrir={() => setAberto(i.id)} apagar={() => void apagar(i)} /> })),
             ...motionsVisiveis.map((m) => ({
@@ -280,38 +259,57 @@ function Chip({ ativo, onClick, n, icone: Icone, children }: { ativo: boolean; o
 
 /** Um motion na grade do banco: a prévia (toca com o mouse em cima), o nome, o código e, se o Claude o escreveu e ainda
  *  está "a revisar", Aprovar e Recusar (com o motivo, que o Claude lê antes de escrever o próximo). */
+/** Etiqueta translúcida sobre a miniatura (o tipo, a duração, os trechos). */
+function Etiqueta({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <span className={cn('flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-cream/90 backdrop-blur-sm', className)}>{children}</span>
+}
+
+const COR_SELO: Record<string, string> = { usado: 'bg-yellow', aprovado: 'bg-mint', recusado: 'bg-coral', revisar: 'bg-coral' }
+const NOME_SELO: Record<string, string> = { usado: 'Usado', aprovado: 'Aprovado', recusado: 'Recusado', revisar: 'A revisar' }
+/** O selo numa linha discreta: um ponto da cor e o nome. */
+function SeloLinha({ estado }: { estado?: string | null }) {
+  if (!estado) return <span className="text-[11px] text-fog/70">Sem selo</span>
+  return (
+    <span className="flex items-center gap-1.5 text-[11px] text-fog">
+      <i className={cn('size-1.5 rounded-full', COR_SELO[estado])} />
+      {NOME_SELO[estado]}
+    </span>
+  )
+}
+
 function CartaoMotion({ m, abrir, aprovar, recusar }: { m: Preset; abrir: () => void; aprovar: () => void; recusar: () => void }) {
   return (
-    <li className="group relative">
+    <li className="group">
       <button onClick={abrir} className="block w-full text-left">
-        <div className="relative grid aspect-video place-items-center overflow-hidden rounded-[6px] bg-deeper ring-1 ring-line-dark transition-[transform,box-shadow] duration-300 group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-coral">
+        <div className="relative grid aspect-video place-items-center overflow-hidden rounded-[8px] bg-ink ring-1 ring-line-dark transition-[box-shadow] duration-300 group-hover:ring-cream/40">
           <div className="aspect-[9/8] h-full">
             <MiniaturaPreset preset={m} formato="dividida" />
           </div>
-          <span className="absolute top-2.5 right-2.5 rounded-full bg-coral px-2 py-0.5 text-[9px] font-semibold text-cream">Motion</span>
-          <span className="absolute right-2.5 bottom-2.5 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">{seg(m.duracao)}</span>
-        </div>
-        <div className="mt-3 flex items-center gap-2">
-          <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.02em]" title={m.nome}>
-            {m.nome}
-          </h3>
-          <ChipCodigo tipo="motion" id={m.id} nome={m.nome} />
+          <Etiqueta className="absolute top-2 left-2">
+            <Clapperboard className="size-3" /> Motion
+          </Etiqueta>
+          <Etiqueta className="absolute right-2 bottom-2 tabular-nums">{seg(m.duracao)}</Etiqueta>
         </div>
       </button>
-      {m.a_revisar ? (
-        <div className="mt-2 grid grid-cols-2 gap-1.5">
-          <button onClick={aprovar} className="flex items-center justify-center gap-1.5 rounded-full bg-mint/15 py-1.5 text-[11.5px] font-semibold text-mint ring-1 ring-mint/40 transition-colors hover:bg-mint hover:text-ink">
-            <Check className="size-3.5" /> Aprovar
-          </button>
-          <button onClick={recusar} className="flex items-center justify-center gap-1.5 rounded-full py-1.5 text-[11.5px] font-semibold text-fog ring-1 ring-line-dark transition-colors hover:bg-coral/10 hover:text-coral hover:ring-coral">
-            <X className="size-3.5" /> Recusar
-          </button>
-        </div>
-      ) : (
-        <div className="mt-1.5">
-          <SeloBanco estado="aprovado" />
-        </div>
-      )}
+      <div className="mt-2.5 flex items-center gap-2">
+        <button onClick={abrir} className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold tracking-[-0.01em]" title={m.nome}>
+          {m.nome}
+        </button>
+        <ChipCodigo tipo="motion" id={m.id} nome={m.nome} />
+      </div>
+      <div className="mt-1 flex h-6 items-center gap-1">
+        <SeloLinha estado={m.a_revisar ? 'revisar' : 'aprovado'} />
+        {m.a_revisar && (
+          <span className="ml-auto flex items-center gap-0.5">
+            <button onClick={aprovar} className="flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-semibold text-mint hover:bg-mint/10">
+              <Check className="size-3.5" /> Aprovar
+            </button>
+            <button onClick={recusar} className="flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-semibold text-fog hover:bg-coral/10 hover:text-coral">
+              <X className="size-3.5" /> Recusar
+            </button>
+          </span>
+        )}
+      </div>
     </li>
   )
 }
@@ -409,48 +407,42 @@ function Cartao({ item: i, abrir, apagar }: { item: ItemBanco; abrir: () => void
   const [tocando, setTocando] = useState(false)
   // "sem descrição" só quando não há nenhuma (as do 19 e as do Claude vêm descritas, sem a IA do app)
   const status = i.ia.status === 'pendente' && i.descricao ? '' : STATUS_IA[i.ia.status]
+  const n = i.trechos?.length ?? 0
   return (
     <li className="group relative" onMouseEnter={() => setTocando(i.tipo === 'video')} onMouseLeave={() => setTocando(false)}>
       <button onClick={abrir} className="block w-full text-left">
-        <div className="relative aspect-video overflow-hidden rounded-[6px] bg-deeper ring-1 ring-line-dark transition-[transform,box-shadow] duration-300 group-hover:-translate-y-1 group-hover:ring-2 group-hover:ring-coral">
+        <div className="relative aspect-video overflow-hidden rounded-[8px] bg-ink ring-1 ring-line-dark transition-[box-shadow] duration-300 group-hover:ring-cream/40">
+          {/* a própria imagem, desfocada, preenche o fundo: sem as faixas pretas de uma mídia em pé */}
+          <img src={urlBancoMiniatura(i.id)} alt="" aria-hidden loading="lazy" className="absolute inset-0 size-full scale-110 object-cover opacity-40 blur-xl" />
           <img src={urlBancoMiniatura(i.id)} alt="" loading="lazy" className="absolute inset-0 size-full object-contain" />
-          {tocando && <video src={urlBancoArquivo(i.id)} autoPlay muted loop playsInline className="absolute inset-0 size-full bg-deeper object-contain" />}
-          <span className="absolute top-2.5 right-2.5 flex gap-1">
-            {(i.trechos?.length ?? 0) > 0 && (
-              <span className="rounded-full bg-coral px-2 py-0.5 text-[9px] font-semibold text-cream">
-                {i.trechos!.length} trecho{i.trechos!.length > 1 ? 's' : ''}
-              </span>
-            )}
-            <span className={cn('rounded-full px-2 py-0.5 text-[9px] font-semibold', i.tipo === 'video' ? 'bg-blue text-cream' : 'bg-mint text-ink')}>
-              {NOME_TIPO_MIDIA[i.tipo]} · {i.formato}
-            </span>
+          {tocando && <video src={urlBancoArquivo(i.id)} autoPlay muted loop playsInline className="absolute inset-0 size-full object-contain" />}
+          <span className="absolute top-2 left-2 flex gap-1">
+            <Etiqueta>
+              {i.tipo === 'video' ? <Video className="size-3" /> : <ImageIcon className="size-3" />} {i.formato}
+            </Etiqueta>
+            {n > 0 && <Etiqueta>{n} trecho{n > 1 ? 's' : ''}</Etiqueta>}
           </span>
-          {i.tipo === 'video' && (
-            <span className="absolute right-2.5 bottom-2.5 rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">{seg(i.duracao)}</span>
-          )}
+          {i.tipo === 'video' && <Etiqueta className="absolute right-2 bottom-2 tabular-nums">{seg(i.duracao)}</Etiqueta>}
           {i.edicao?.status === 'rodando' && (
             <span className="absolute inset-0 grid place-items-center bg-black/60 text-[12px] font-semibold text-yellow">cortando o original…</span>
           )}
         </div>
-        <div className="mt-3 flex items-center gap-2">
-          <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.02em]" title={i.nome}>
+        <div className="mt-2.5 flex items-center gap-2">
+          <h3 className="min-w-0 flex-1 truncate text-[13px] font-semibold tracking-[-0.01em]" title={i.nome}>
             {i.nome}
           </h3>
           <ChipCodigo tipo="midia" id={i.id} nome={i.nome} />
         </div>
-        {i.estado && (
-          <div className="mt-1.5">
-            <SeloBanco estado={i.estado} />
-          </div>
-        )}
-        {/* a descrição fica no detalhe; aqui só o estado da IA enquanto ela trabalha (ou falhou) */}
-        {status && <p className={cn('mt-0.5 text-[11px]', i.ia.status === 'erro' ? 'text-coral' : i.ia.status === 'pendente' ? 'text-fog' : 'text-yellow')}>{status}</p>}
+        <div className="mt-1 flex h-6 items-center gap-2">
+          <SeloLinha estado={i.estado} />
+          {status && <span className={cn('text-[11px]', i.ia.status === 'erro' ? 'text-coral' : 'text-yellow')}>· {status}</span>}
+        </div>
       </button>
       <button
         onClick={apagar}
         aria-label={`Apagar ${i.nome}`}
         title="Apagar do banco"
-        className="absolute top-2.5 left-2.5 grid size-7 place-items-center rounded-full bg-ink/85 text-fog opacity-0 transition-opacity group-hover:opacity-100 hover:text-coral focus-visible:opacity-100"
+        className="absolute top-2 right-2 grid size-7 place-items-center rounded-full bg-black/55 text-cream/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 hover:text-coral focus-visible:opacity-100"
       >
         <Trash2 className="size-3.5" />
       </button>

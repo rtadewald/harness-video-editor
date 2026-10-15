@@ -97,20 +97,6 @@ export default function Ctas() {
         <Logo />
         <span className="h-5 w-px bg-line-dark" />
         <NavHome />
-        <Button variant="coral" size="sm" className="ml-auto h-9 gap-6 px-4" onClick={() => entrada.current?.click()}>
-          Subir vídeo <span className="seta">↗</span>
-        </Button>
-        <input
-          ref={entrada}
-          type="file"
-          accept="video/mp4,video/quicktime,video/webm"
-          multiple
-          hidden
-          onChange={(e) => {
-            void subir([...(e.target.files ?? [])])
-            e.target.value = ''
-          }}
-        />
       </header>
       <nav className="flex flex-wrap items-center gap-1.5 border-b border-line-dark px-6 py-3">
         {[['', 'Todos', ''], ...(d?.produtos ?? []).map((p) => [p.id, p.nome, p.emoji]), ['_sem', 'Sem produto', '']].map(([id, nome, em]) => (
@@ -131,16 +117,22 @@ export default function Ctas() {
           <Settings2 className="size-3.5" /> Produtos
         </button>
         <span className="ml-auto text-[12px] text-fog">{aviso}</span>
+        <Button variant="coral" size="sm" className="ml-2 h-8 gap-4 px-4" onClick={() => entrada.current?.click()}>
+          Subir vídeo <span className="seta">↗</span>
+        </Button>
+        <input
+          ref={entrada}
+          type="file"
+          accept="video/mp4,video/quicktime,video/webm"
+          multiple
+          hidden
+          onChange={(e) => {
+            void subir([...(e.target.files ?? [])])
+            e.target.value = ''
+          }}
+        />
       </nav>
       <main className={cn('overflow-y-auto px-8 py-8', arrastando && 'bg-coral/10')}>
-        <div className="mb-6 grid gap-2 border-b border-line-dark pb-4">
-          <p className="eyebrow text-sage">CTAs · {String(d?.ctas.length ?? 0).padStart(2, '0')}</p>
-          <p className="max-w-[760px] text-[12px] leading-[1.7] text-fog">
-            Trechos finais de vídeos já editados, que entram inteiros no fim de um orgânico. A categoria define a saída que o CTA dá ao projeto (📱 Reels ManyChat,
-            💰 Ad LP, 💰 Ad VSL…); a ★ é o favorito da categoria, o que entra por padrão. Suba o vídeo editado (ou arraste para esta página) e marque onde o CTA começa
-            e termina.
-          </p>
-        </div>
         {d && !d.ctas.length && <p className="text-[13px] text-fog">Nenhum CTA ainda.</p>}
         <ul className="grid gap-x-5 gap-y-8" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))' }}>
           {lista.map((c) => (
