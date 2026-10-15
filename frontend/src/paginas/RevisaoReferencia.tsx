@@ -219,17 +219,20 @@ export default function RevisaoReferencia() {
   const noCursor = planosDe(itens).find((p) => tempo >= p.inicio && tempo < p.fim)
 
   return (
-    <div className="grid h-svh grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-deep text-cream">
+    <div className="grid h-svh grid-rows-[56px_auto_minmax(0,1fr)] overflow-hidden bg-deep text-cream">
       <header className="flex items-center gap-4 border-b border-line-dark bg-ink px-4">
         <Logo />
         <span className="h-5 w-px shrink-0 bg-line-dark" />
-        {/* a barra de cima de todas as telas (SPEC §7), com a Calibragem acesa; ao lado, a referência aberta */}
+        {/* a barra de cima de todas as telas (SPEC §7), com a Calibragem acesa */}
         <NavHome />
-        <span className="h-5 w-px shrink-0 bg-line-dark" />
-        <span className="max-w-[240px] min-w-[80px] truncate text-[13px] font-semibold" title={dados.referencia.nome}>
+      </header>
+
+      {/* a segunda linha: a referência aberta e, no canto direito, as ações dela */}
+      <nav className="flex items-center gap-3 border-b border-line-dark px-4 py-2">
+        <span className="min-w-0 truncate text-[13px] font-semibold" title={dados.referencia.nome}>
           {dados.referencia.nome}
         </span>
-        <span className="shrink-0 text-[11px] text-fog">
+        <span className="ml-auto shrink-0 text-[11px] text-fog">
           {salvamento === 'salvo' ? '✓ Salvo' : salvamento === 'salvando' ? 'Salvando…' : salvamento === 'pendente' ? 'Alterações…' : <b className="text-coral">⚠ {salvamento.erro}</b>}
         </span>
         <button
@@ -250,7 +253,7 @@ export default function RevisaoReferencia() {
         >
           {revisada ? '✓ Revisada · desmarcar' : '✓ Marcar como revisada'}
         </button>
-      </header>
+      </nav>
 
       {/* a linha do tempo e o detalhe crescem com a janela até o seu máximo; o vídeo fica com o resto, 240 px no mínimo */}
       <div className="grid min-h-0 grid-cols-[clamp(320px,38vw,520px)_minmax(240px,1fr)_clamp(280px,24vw,380px)]">

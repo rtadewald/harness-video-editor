@@ -1,5 +1,5 @@
 import type { ItemBanco } from '@/api'
-import { comRepouso, type CardReceita, type Preset, type Propriedade, type Receita } from '@/presets/presets'
+import { comRepouso, paraFormato, type CardReceita, type Preset, type Propriedade, type Receita } from '@/presets/presets'
 import { ajustesEfetivos } from '@/presets/ajustes'
 import { topoDoAtor, type Geometria } from '@/ator/ator'
 
@@ -7,7 +7,8 @@ import { topoDoAtor, type Geometria } from '@/ator/ator'
  *  da proporção da 1ª mídia.
  *  - `area`: a mídia de ponta a ponta em cima, com a altura dela na largura toda (1:1 → 56%, 4:3 → 42%, 16:9 → 32%);
  *  - `card`: um card com a proporção da mídia (até 90% da largura), e a parte de cima com a altura dele mais margens;
- *  - `atras`: o insert na tela toda e o ator encolhido numa janela embaixo; o card fica no espaço livre acima dela.
+ *  - `atras`: o insert na tela toda e o ator encolhido numa janela embaixo; o card fica no espaço livre acima dela (um
+ *    mosaico fica como na tela cheia, com a janela do ator por cima).
  *  `f`: a fração do quadro que o insert ocupa em cima; `card`: o card em % da área do insert (centrado). */
 export type TipoDivisao = 'area' | 'card' | 'atras'
 export type Divisao = { modo: 'metade' | 'atras'; tipo: TipoDivisao; f: number; card?: { w: number; h: number } }
@@ -26,6 +27,9 @@ const W_H = 9 / 16 // largura ÷ altura do quadro
  *  em card, as outras ocupam a área. */
 export const telaTodaPermitida = (formato: string, atras: boolean, aspectos: number[]) =>
   formato === 'dividida' && !atras ? aspectos.some((a) => a >= 0.8) : aspectos.some((a) => a < 0.8)
+
+/** Um mosaico: vários cards espalhados ao mesmo tempo (3 ou mais lugares diferentes), não uma sequência no mesmo lugar. */
+export const ehMosaico = (r: Receita) => !r.repete && new Set(r.cards.map((c) => `${Math.round(c.repouso.cx)},${Math.round(c.repouso.cy)}`)).size >= 3
 
 /** O tipo de divisão do preset: o marcado nele ou, sem marca, "área" se o card ocupa a área toda, senão "card". */
 export const tipoDoPreset = (p: Preset | null | undefined): TipoDivisao =>
@@ -53,6 +57,8 @@ export function divisaoDe(
   const a = i?.largura && i?.altura ? i.largura / i.altura : 16 / 9 // largura ÷ altura da mídia
   // vários cards (empilhados, em sequência, mosaico): a área fica fixa e cada card se ajusta à sua mídia (receitaParaInsert)
   const varios = !!preset && (preset.receita.repete || preset.receita.cards.length > 1)
+  // ator embaixo com um mosaico: o mosaico ocupa a tela toda, como na tela cheia, e a janela do ator fica por cima
+  if (tipo === 'atras' && preset && ehMosaico(preset.receita)) return { modo: 'atras', tipo, f: 1 }
   if (varios && tipo !== 'area') return { modo: tipo === 'atras' ? 'atras' : 'metade', tipo, f: tipo === 'atras' ? JANELA.y0 / 100 : 0.56 }
   if (tipo === 'area') return { modo: 'metade', tipo, f: a < 1 ? 0.5 : Math.min(Math.max(W_H / a, 0.28), 0.5625) }
   const livre = tipo === 'atras' ? JANELA.y0 / 100 : 0.62 // a altura máxima da área do insert
@@ -73,6 +79,8 @@ export function divisaoDe(
  *  - os outros: o card fica no lugar e no tamanho do preset, mas com a proporção da mídia, cabendo na caixa dele (e na
  *    área). Os guiados por cantos medidos ficam como estão. */
 export function receitaParaInsert(r: Receita, d: Divisao | null, aspectos: number[], formato: string): Receita {
+  // o mosaico no "ator embaixo" ocupa a tela toda: vale o desenho da tela cheia, com os cards nos lugares dele
+  if (d?.modo === 'atras' && d.f === 1 && ehMosaico(r)) return receitaParaInsert(paraFormato(r, 'vertical'), null, aspectos, 'vertical')
   const areaAsp = formato === 'dividida' ? W_H / (d?.f ?? 0.5) : W_H // largura ÷ altura da área do insert
   const cards = r.cards.map((c, k) => {
     if (c.quadros?.length) return c

@@ -32,7 +32,7 @@ import { TEM_MOTION, type NovaMidia, type Pedido } from '@/inserts/comum'
 import DetalheInsert from '@/inserts/DetalheInsert'
 import { Alca, Cabecalho, Recolhivel, useTamanhos } from '@/inserts/layout'
 import PainelEnriquecimento from '@/inserts/PainelEnriquecimento'
-import { Categoria, EditorPresetAberto, EscolhaFundo, PresetsDoAtor, ResumoFundo, SemInsert, SugestaoIA } from '@/inserts/pecas'
+import { Categoria, EditorPresetAberto, EscolhaFundo, PresetsDoAtor, ResumoFundo, SemInsert } from '@/inserts/pecas'
 import { ehFullAtor, type Movimento } from '@/ator/movimento'
 import { emCampoDeTexto, modalAberto } from '@/lib/atalhos'
 
@@ -371,11 +371,12 @@ export default function EtapaInserts(p: Props) {
           {erro && <p className="border-b border-line-dark px-4 py-2 text-[12px] text-coral">{erro}</p>}
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
             {planoSel && (
-              // a categoria e a sugestão da IA juntas; a linha separa o trabalho do plano (mídias, motion)
+              // a categoria, com a sugestão da IA discreta ao lado; a linha separa o trabalho do plano (mídias, motion)
               <div className="mb-4 grid gap-3 border-b border-line-dark pb-4">
                 <Categoria
                   atual={planoSel.tipo}
                   sugestao={sugestaoIA(planoSel.id)}
+                  detalhe={[`“${planoSel.fala}”`, planoSel.descricao].filter(Boolean).join('\n\n')}
                   mudar={(tipo) => {
                     // voltar à categoria que a IA sugeriu traz de volta o que ela tinha preenchido (o comentário da pessoa, o
                     // lettering, a descrição e o conteúdo), que uma categoria sem esses campos apaga
@@ -383,12 +384,6 @@ export default function EtapaInserts(p: Props) {
                     const campos = ia && ia.tipo === tipo ? { tipo, texto: ia.texto, descricao: ia.descricao, conteudo: ia.conteudo } : { tipo }
                     void editarDirecao((it) => editar(it, planoSel.id, campos))
                   }}
-                />
-                <SugestaoIA
-                  tipo={planoSel.tipo}
-                  fala={planoSel.fala}
-                  descricao={planoSel.descricao}
-                  rotulo={TEM_MOTION.includes(planoSel.tipo) ? 'O que a direção pede' : 'O que acontece no insert'}
                 />
               </div>
             )}
